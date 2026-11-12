@@ -317,6 +317,49 @@ def hourly_sunshine_to_daily(location: dict[str, Any]) -> dict[str, Any]:
     return {**location, "daily": {"time": complete, **fields}}
 
 
+def hourly_precipitation_to_hyras_day(location: dict[str, Any]) -> dict[str, Any]:
+    """Aggregate hourly preceding-hour precipitation to HYRAS 06–06 UTC days.
+
+    HYRAS-DE-PR labels a day by its starting calendar date and integrates
+    station precipitation from 06 UTC to 06 UTC of the following day.
+    Open-Meteo hourly precipitation timestamps are end-times; HYRAS day D
+    therefore uses model hours ending D 07:00 through D+1 06:00.
+    """
+    hourly = location.get("hourly") or {}
+    times = [str(t) for t in hourly.get("time", [])]
+    if not times or len(times) != len(set(times)):
+        raise ValueError("Missing/duplicate hourly precipitation timestamps")
+    units = (location.get("hourly_units") or {}).get("precipitation")
+    if units not in ("mm", "millimeter", "millimetres", "millimeters"):
+        raise ValueError(f"Unexpected hourly precipitation unit {units!r}")
+    days: dict[str, list[int]] = defaultdict(list)
+    for idx, stamp in enumerate(times):
+        if len(stamp) != 16 or stamp[10] != "T":
+            raise ValueError(f"Invalid hourly precipitation timestamp: {stamp}")
+        end_time = datetime.fromisoformat(stamp)
+        if end_time.minute != 0 or end_time.second != 0:
+            raise ValueError(f"Not an hourly precipitation timestamp: {stamp}")
+        hyras_day = (end_time - timedelta(hours=7)).date().isoformat()
+        days[hyras_day].append(idx)
+    complete = [
+        day for day, indices in sorted(days.items())
+        if len(indices) == 24
+        and {times[i][11:] for i in indices} == {f"{hour:02d}:00" for hour in range(24)}
+    ]
+    fields: dict[str, list[float | None]] = {}
+    for key in member_keys(hourly, "precipitation"):
+        samples = hourly.get(key) or []
+        daily_values = []
+        for day in complete:
+            vals = [finite(samples[i]) if i < len(samples) else None for i in days[day]]
+            if any(v is None or v < 0 or v > 1000 for v in vals):
+                daily_values.append(None)
+            else:
+                daily_values.append(round(sum(vals), 6))
+        fields[key] = daily_values
+    return {**location, "daily": {"time": complete, **fields}}
+
+
 def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str = "temperature_2m_mean", *, time_resolution: str = "daily") -> tuple[list[LocationRef], list[dict[str, Any]]]:
     cfg = MODEL_CONFIG[model_key]
     params = {
@@ -362,6 +405,8 @@ def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str =
         raise RuntimeError(f"{model_key}: {len(locations)} Antworten für {len(refs)} Punkte")
     if time_resolution == "hourly" and variable == "sunshine_duration":
         locations = [hourly_sunshine_to_daily(loc) for loc in locations]
+    elif time_resolution == "hourly" and variable == "precipitation":
+        locations = [hourly_precipitation_to_hyras_day(loc) for loc in locations]
     return refs, locations
 
 
