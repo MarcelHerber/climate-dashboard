@@ -24,21 +24,36 @@ function fixture({failOne480=false,failOne320=false,failLargeStill=false,failAll
   setAttribute(name,value){this.attrs[name]=value;}
  }
  class FakeImage extends Element{
-  constructor(){super();this._src="";this.naturalWidth=0;this.naturalHeight=0;this.onload=null;this.onerror=null;
+  constructor(){super();this._src="";this._pending=null;this.naturalWidth=0;this.naturalHeight=0;this.onload=null;this.onerror=null;
    this.decoding="auto";preloaded.push(this);}
+  abortPending(){
+   const previous=this._pending;
+   if(previous&&!previous.aborted){
+    previous.aborted=true;
+    if(previous.isSmall)state.active--;
+   }
+   this._pending=null;
+  }
+  removeAttribute(name){if(name==="src"){this.abortPending();this._src="";}}
   set src(value){
+   this.abortPending();
    this._src=value;
    if(!value)return;
+   const task={aborted:false,isSmall:false};
+   this._pending=task;
    requests.push({url:value,img:this});
    if(String(value).startsWith("./data/satellite_cache/")){
-    setTimeout(()=>{this.naturalWidth=400;this.naturalHeight=207;this.onload?.();},7);
+    setTimeout(()=>{if(task.aborted)return;this._pending=null;this.naturalWidth=400;this.naturalHeight=207;this.onload?.();},7);
     return;
    }
    const params=new URL(value).searchParams;
    if(params.get("request")!=="GetMap")return;
    const isSmall=Number(params.get("width"))<=720;
+   task.isSmall=isSmall;
    if(isSmall){state.active++;state.maxActive=Math.max(state.maxActive,state.active);}
    setTimeout(()=>{
+    if(task.aborted)return;
+    if(this._pending===task)this._pending=null;
     this.naturalWidth=Number(params.get("width"));
     this.naturalHeight=Number(params.get("height"));
     if(isSmall)state.active--;
