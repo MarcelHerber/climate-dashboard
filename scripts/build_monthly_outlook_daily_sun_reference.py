@@ -97,7 +97,10 @@ def parse_sdk_zip(blob: bytes) -> dict:
         if not name:
             raise ValueError("No produkt_klima_tag in DWD KL archive")
         text=io.TextIOWrapper(archive.open(name),encoding="latin-1")
-        for row in csv.DictReader(text,delimiter=";"):
+        for raw_row in csv.DictReader(text,delimiter=";"):
+            # DWD KL historical files often contain spaces in column headers
+            # (e.g. " SDK" instead of "SDK"); normalize before selecting fields.
+            row={str(k).strip():v for k,v in raw_row.items() if k is not None}
             stamp=str(row.get("MESS_DATUM","")).strip()
             if len(stamp)!=8 or not stamp.isdigit():continue
             year=int(stamp[:4])
