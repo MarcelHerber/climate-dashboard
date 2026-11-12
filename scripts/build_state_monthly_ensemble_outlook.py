@@ -255,8 +255,8 @@ def chunks(seq: list[Any], n: int) -> Iterable[list[Any]]:
         yield seq[i : i + n]
 
 
-def member_keys(daily: dict[str, Any]) -> list[str]:
-    base = "temperature_2m_mean"
+def member_keys(daily: dict[str, Any], variable: str = "temperature_2m_mean") -> list[str]:
+    base = variable
     keys = [
         k for k, v in daily.items()
         if k != "time" and isinstance(v, list) and (k == base or k.startswith(base + "_member"))
@@ -272,12 +272,12 @@ def member_keys(daily: dict[str, Any]) -> list[str]:
     return sorted(keys, key=rank)
 
 
-def request_model_chunk(model_key: str, refs: list[LocationRef]) -> tuple[list[LocationRef], list[dict[str, Any]]]:
+def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str = "temperature_2m_mean") -> tuple[list[LocationRef], list[dict[str, Any]]]:
     cfg = MODEL_CONFIG[model_key]
     params = {
         "latitude": ",".join(f"{r.latitude:.4f}" for r in refs),
         "longitude": ",".join(f"{r.longitude:.4f}" for r in refs),
-        "daily": "temperature_2m_mean",
+        "daily": variable,
         "models": cfg["api_model"],
         "forecast_days": str(cfg["forecast_days"]),
         "past_days": "3",
@@ -298,8 +298,8 @@ def request_model_chunk(model_key: str, refs: list[LocationRef]) -> tuple[list[L
             f"teile in {mid}+{len(refs)-mid}.",
             flush=True,
         )
-        left_refs, left_locations = request_model_chunk(model_key, refs[:mid])
-        right_refs, right_locations = request_model_chunk(model_key, refs[mid:])
+        left_refs, left_locations = request_model_chunk(model_key, refs[:mid], variable)
+        right_refs, right_locations = request_model_chunk(model_key, refs[mid:], variable)
         return left_refs + right_refs, left_locations + right_locations
 
     locations = data if isinstance(data, list) else [data]
@@ -311,8 +311,8 @@ def request_model_chunk(model_key: str, refs: list[LocationRef]) -> tuple[list[L
                 f"teile Batch in {mid}+{len(refs)-mid}.",
                 flush=True,
             )
-            left_refs, left_locations = request_model_chunk(model_key, refs[:mid])
-            right_refs, right_locations = request_model_chunk(model_key, refs[mid:])
+            left_refs, left_locations = request_model_chunk(model_key, refs[:mid], variable)
+            right_refs, right_locations = request_model_chunk(model_key, refs[mid:], variable)
             return left_refs + right_refs, left_locations + right_locations
         raise RuntimeError(f"{model_key}: {len(locations)} Antworten für {len(refs)} Punkte")
     return refs, locations
@@ -334,7 +334,7 @@ def model_run_time(model_key: str) -> str | None:
         return None
 
 
-def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], batch_size: int = 24) -> dict[str, Any]:
+def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], batch_size: int = 24, *, variable: str = "temperature_2m_mean") -> dict[str, Any]:
     refs = flatten_support_points(support)
     responses: list[tuple[LocationRef, dict[str, Any]]] = []
 
@@ -345,7 +345,7 @@ def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], ba
     batches = list(chunks(refs, model_batch_size))
     print(f"{model_key}: {len(refs)} Stützpunkte in {len(batches)} API-Batches", flush=True)
     with ThreadPoolExecutor(max_workers=min(workers, len(batches))) as pool:
-        futures = [pool.submit(request_model_chunk, model_key, batch) for batch in batches]
+        futures = [pool.submit(request_model_chunk, model_key, batch, variable) for batch in batches]
         for future in as_completed(futures):
             batch_refs, locations = future.result()
             responses.extend(zip(batch_refs, locations))
@@ -365,7 +365,7 @@ def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], ba
         for _, payload in items:
             daily = payload.get("daily") or {}
             times = [str(t) for t in daily.get("time", [])]
-            keys = member_keys(daily)
+            keys = member_keys(daily, variable)
             if not times or not keys:
                 raise RuntimeError(f"{model_key}/{region}: keine Ensemble-Tageswerte")
             if all_times is None:
@@ -406,6 +406,7 @@ def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], ba
         "model": model_key,
         "label": MODEL_CONFIG[model_key]["label"],
         "api_model": MODEL_CONFIG[model_key]["api_model"],
+        "daily_variable": variable,
         "forecast_days": MODEL_CONFIG[model_key]["forecast_days"],
         "run": model_run_time(model_key),
         "member_count": global_member_count,
