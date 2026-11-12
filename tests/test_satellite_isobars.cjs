@@ -16,7 +16,7 @@ class FakeElement{
  appendChild(item){this.children.push(item);}
  replaceChildren(...items){this.children=items;}
 }
-function fixture({failOnce=false,failFirstOnly=false}={}){
+function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false}={}){
  const names=["satIsobarSvg","satShowIsobars","satIsobarSpacing","satIsobarStatus","satRetryIsobars","satRegion","satSource"];
  const map=new Map(names.map(x=>[x,new FakeElement()]));
  map.get("satRegion").value="southwest";
@@ -37,9 +37,33 @@ function fixture({failOnce=false,failFirstOnly=false}={}){
  let calls=0;
  const sandbox={document:{getElementById:x=>{assert.ok(map.has(x),"missing node "+x);return map.get(x);},
   createElementNS:()=>new FakeElement(),createDocumentFragment:()=>new FakeElement()},
-  window:{},Date,console:{warn(){}},fetch:async()=>{
+  window:{},Date,console:{warn(){}},fetch:async(url)=>{
    calls++;
    if((failOnce&&calls<=3)||(failFirstOnly&&calls===1))throw Error("Temporary ECMWF asset error");
+   if(tenMinutes&&String(url).endsWith("/ten_minute/index.json")){
+    return {ok:true,json:async()=>({
+     schema_version:2,model:"ECMWF IFS Open Data",
+     time_resolution_minutes:10,source_interval_hours:3,
+     run_utc:iso(run),generated_at:iso(now),
+     hours:Object.fromEntries(Array.from({length:13},(_,h)=>[
+      "h"+String(h).padStart(2,"0"),
+      "r"+run.toISOString().slice(0,13).replace(/[-T:]/g,"")+"/h"+String(h).padStart(2,"0")+".json"
+     ]))
+    })};
+   }
+   if(tenMinutes&&String(url).includes("/ten_minute/r")){
+    const match=String(url).match(/h(\d{2})\.json$/);
+    const hour=Number(match[1]);
+    const frames=Array.from({length:hour===12?1:6},(_,i)=>{
+     const minute=(hour*6+i)*10;
+     return {valid_utc:iso(new Date(run.getTime()+minute*60000)),
+      forecast_minute:minute,interpolated:minute%180!==0,
+      contours:frame(3).contours};
+    });
+    return {ok:true,json:async()=>({
+     schema_version:2,run_utc:iso(run),hour,frames
+    })};
+   }
    return {ok:true,json:async()=>data};
   }};
  vm.runInNewContext(src,sandbox,{timeout:1000});
@@ -122,4 +146,25 @@ test("When fast local preview fails, the full GitHub pressure contours still app
  assert.equal(map.get("satIsobarSvg").hidden,false);
  assert.match(map.get("satIsobarStatus").textContent,/veröffentlichtes Kartenarchiv/);
  assert.ok(getCalls()>=2,"Fallback must use second source once");
+});
+
+test("Every 10-minute satellite image picks its own recomputed MSLP contours",async()=>{
+ const {map,api,run}=fixture({tenMinutes:true});
+ await ready(api);
+ const at=new Date(run.getTime()+200*60000).toISOString();
+ api.sync({time:at,region:"southwest",source:"mtgi1"});
+ for(let i=0;i<45&&!map.get("satIsobarStatus").textContent.includes("10-Minuten-Interpolation");i++){
+  await new Promise(done=>setTimeout(done,4));
+ }
+ const status=map.get("satIsobarStatus").textContent;
+ assert.match(status,/10-Minuten-Interpolation/);
+ assert.match(status,/gültig/);
+ assert.equal(map.get("satIsobarSvg").hidden,false);
+ const paths=map.get("satIsobarSvg").children[0]?.children.filter(n=>n.attrs.d)||[];
+ assert.ok(paths.some(p=>p.attrs.stroke==="#3bdeff"),"cyan 5-hPa line");
+ assert.ok(paths.some(p=>p.attrs.stroke==="#ffb447"),"amber 10-hPa line");
+ assert.ok(paths.some(p=>p.attrs.stroke==="#061522"),"dark halo");
+ const frame=api.tenFrameAt(at);
+ assert.equal(frame.forecast_minute,200);
+ assert.equal(frame.interpolated,true);
 });
