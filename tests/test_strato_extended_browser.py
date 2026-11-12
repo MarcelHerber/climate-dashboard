@@ -114,7 +114,10 @@ def exercise(browser,width,height):
         assert any("10 hPa" in text for text in table_text),table_text
         assert any("100 hPa" in text for text in table_text),table_text
         assert "10 hPa" in page.locator("#stratoVerticalStatus").inner_text()
-        assert "12" not in page.locator("#stratoHistoryForecastStatus").inner_text().split("Modell")[0]
+        # Check the unsupported vertical level, not arbitrary digits in
+        # calendar dates (e.g. November 12) or observation timestamps.
+        history_status=page.locator("#stratoHistoryForecastStatus").inner_text().split("Modell")[0]
+        assert not re.search(r"\b12\s*hPa\b",history_status,re.I),history_status
         mean=page.locator("#stratoMetricG7").inner_text()
         assert "%" in mean and "/" in mean,mean
         assert "%" in page.locator("#stratoMetricE15").inner_text()
