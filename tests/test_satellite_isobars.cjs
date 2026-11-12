@@ -16,7 +16,7 @@ class FakeElement{
  appendChild(item){this.children.push(item);}
  replaceChildren(...items){this.children=items;}
 }
-function fixture({failOnce=false}={}){
+function fixture({failOnce=false,failFirstOnly=false}={}){
  const names=["satIsobarSvg","satShowIsobars","satIsobarSpacing","satIsobarStatus","satRetryIsobars","satRegion","satSource"];
  const map=new Map(names.map(x=>[x,new FakeElement()]));
  map.get("satRegion").value="southwest";
@@ -39,7 +39,7 @@ function fixture({failOnce=false}={}){
   createElementNS:()=>new FakeElement(),createDocumentFragment:()=>new FakeElement()},
   window:{},Date,console:{warn(){}},fetch:async()=>{
    calls++;
-   if(failOnce&&calls<=2)throw Error("Temporary ECMWF asset error");
+   if((failOnce&&calls<=2)||(failFirstOnly&&calls===1))throw Error("Temporary ECMWF asset error");
    return {ok:true,json:async()=>data};
   }};
  vm.runInNewContext(src,sandbox,{timeout:1000});
@@ -116,12 +116,10 @@ test("A failed ECMWF fetch is recoverable with the independent reload control",a
  assert.equal(getCalls(),3,"Both endpoints failed, then manual reload succeeded");
 });
 
-test("Fallback raw GitHub ECMWF JSON keeps isobars visible when Pages asset is missing",async()=>{
- const {api,map,getCalls}=fixture({failOnce:true});
- // Simulate only the Pages request failing. Raw GitHub is already second.
- map.get("satRetryIsobars").emit("click");
+test("When the raw GitHub source fails, the published Pages pressure contours still appear",async()=>{
+ const {api,map,getCalls}=fixture({failFirstOnly:true});
  await ready(api);
  assert.equal(map.get("satIsobarSvg").hidden,false);
- assert.match(map.get("satIsobarStatus").textContent,/GitHub-Originaldaten|veröffentlichtes Kartenarchiv/);
- assert.ok(getCalls()>=3);
+ assert.match(map.get("satIsobarStatus").textContent,/veröffentlichtes Kartenarchiv/);
+ assert.equal(getCalls(),2,"Fallback must use second source once");
 });
