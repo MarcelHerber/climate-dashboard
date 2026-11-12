@@ -118,55 +118,50 @@ function within(p,b){
  return p[0]>=b[0]&&p[0]<=b[2]&&p[1]>=b[1]&&p[1]<=b[3];
 }
 function draw(frame,bbox,gap){
+ const geometry=window.SatelliteIsobarGeometry;
+ if(!geometry?.prepare)throw Error("Isobaren-Darstellungsfilter fehlt.");
+ const groups=geometry.prepare(frame.contours,bbox,gap);
  const [minX,minY,maxX,maxY]=bbox;
- const px=(lon)=>((lon-minX)/(maxX-minX)*1000).toFixed(2);
- const py=(lat)=>((maxY-lat)/(maxY-minY)*1000).toFixed(2);
+ const px=lon=>((lon-minX)/(maxX-minX)*1000).toFixed(2);
+ const py=lat=>((maxY-lat)/(maxY-minY)*1000).toFixed(2);
  const batch=document.createDocumentFragment();
  let count=0;
- for(const level of frame.contours){
-  if(level.hpa%gap!==0)continue;
-  const paths=[];
-  let candidate=null,longest=0;
-  for(const coords of level.lines){
-   if(!Array.isArray(coords)||coords.length<2)continue;
-   const local=coords.filter(p=>within(p,bbox));
-   if(local.length<2)continue;
-   paths.push(coords.map((p,i)=>(i?"L":"M")+px(p[0])+" "+py(p[1])).join(" "));
+ for(const group of groups){
+  const d=group.runs.map(points=>{
    count++;
-   if(local.length>longest){longest=local.length;candidate=local[Math.floor(local.length/2)];}
-  }
-  if(!paths.length)continue;
-  const d=paths.join(" ");
-  const major=level.hpa===1015;
-  const accent="#ff4fcf";
+   return points.map((p,i)=>(i?"L":"M")+px(p[0])+" "+py(p[1])).join(" ");
+  }).join(" ");
+  const inner=group.heavy?"1.55":"0.9";
+  const outer=group.heavy?"2.95":"2.3";
   const halo=document.createElementNS(ns,"path");
   halo.setAttribute("d",d);halo.setAttribute("fill","none");
   halo.setAttribute("stroke","#061522");halo.setAttribute("stroke-opacity","0.93");
-  halo.setAttribute("stroke-width",major?"5.3":"4.3");
+  halo.setAttribute("stroke-width",outer);
   halo.setAttribute("stroke-linecap","round");
   halo.setAttribute("stroke-linejoin","round");
   halo.setAttribute("vector-effect","non-scaling-stroke");
   batch.appendChild(halo);
   const line=document.createElementNS(ns,"path");
   line.setAttribute("d",d);line.setAttribute("fill","none");
-  line.setAttribute("stroke",accent);
-  line.setAttribute("stroke-width",major?"2.8":"1.8");
+  line.setAttribute("stroke","#ff4fcf");
+  line.setAttribute("stroke-width",inner);
+  line.setAttribute("stroke-linecap","round");
   line.setAttribute("stroke-linejoin","round");
   line.setAttribute("vector-effect","non-scaling-stroke");
   batch.appendChild(line);
-  if((level.hpa%10===0||level.hpa===1015)&&candidate&&longest>6){
-   const x=Number(px(candidate[0])),y=Number(py(candidate[1]));
+  if(group.label){
+   const x=Number(px(group.label[0])),y=Number(py(group.label[1]));
    const rect=document.createElementNS(ns,"rect");
    rect.setAttribute("x",String(x-21));rect.setAttribute("y",String(y-10));
    rect.setAttribute("width","42");rect.setAttribute("height","20");
    rect.setAttribute("rx","5");rect.setAttribute("fill","#07182a");
    rect.setAttribute("fill-opacity","0.92");
-   rect.setAttribute("stroke",accent);rect.setAttribute("stroke-width","1.25");
+   rect.setAttribute("stroke","#ff4fcf");rect.setAttribute("stroke-width","0.65");
    batch.appendChild(rect);
    const label=document.createElementNS(ns,"text");
    label.setAttribute("x",String(x));label.setAttribute("y",String(y));
    label.setAttribute("class","sat-isobar-label");
-   label.textContent=String(level.hpa);
+   label.textContent=String(group.hpa);
    batch.appendChild(label);
   }
  }
