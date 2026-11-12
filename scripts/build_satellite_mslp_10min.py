@@ -3,7 +3,8 @@
 
 The only meteorological inputs are verified IFS GRIB2 MSLP grids (hPa).
 At each intermediate valid time, interpolate *grid-point pressures* linearly
-between surrounding IFS steps, THEN recompute real 5-hPa contours.
+between surrounding IFS steps, THEN recompute real 5-hPa contours and
+separate Europe-only 2-hPa contour geometries.
 No imaginary 10-minute ECMWF model output or satellite observations claimed.
 """
 from __future__ import annotations
@@ -23,19 +24,21 @@ MAX_HOURS = 18
 # Crop derived contours only for viewer; don't change raw GRIB-based contours.
 # Natural Earth/FCI geographic views span this range.
 DISPLAY_BBOX = (-70.5, 14.5, 49.5, 75.5)
+EUROPE_BBOX = (-37.5, 23.5, 49.5, 73.5)
+FINE_REGIONS = ("europe", "southwest", "central", "germany")
 
 
-def intersects(a, b):
-    return (max(a[0], b[0]) >= DISPLAY_BBOX[0] and
-            min(a[0], b[0]) <= DISPLAY_BBOX[2] and
-            max(a[1], b[1]) >= DISPLAY_BBOX[1] and
-            min(a[1], b[1]) <= DISPLAY_BBOX[3])
+def intersects(a, b, bbox=DISPLAY_BBOX):
+    return (max(a[0], b[0]) >= bbox[0] and
+            min(a[0], b[0]) <= bbox[2] and
+            max(a[1], b[1]) >= bbox[1] and
+            min(a[1], b[1]) <= bbox[3])
 
 
-def cropped_runs(line):
+def cropped_runs(line, bbox=DISPLAY_BBOX):
     run = []
     for a, b in zip(line, line[1:]):
-        if intersects(a, b):
+        if intersects(a, b, bbox):
             if not run:
                 run = [a]
             run.append(b)
@@ -76,7 +79,7 @@ def simplify(points, tolerance=0.045):
     return [[round(points[i][0], 3), round(points[i][1], 3)] for i in sorted(keep)]
 
 
-def concise_contours(lons, lats, field):
+def concise_contours(lons, lats, field, spacing=5, bbox=DISPLAY_BBOX):
     """Contour interpolated MSLP on the native grid, then compact SVG geometry."""
     import contourpy
     maker = contourpy.contour_generator(
@@ -84,12 +87,14 @@ def concise_contours(lons, lats, field):
         line_type="Separate", corner_mask=False,
     )
     groups = []
-    for hpa in range(900, 1071, 5):
+    if spacing not in (2, 5):
+        raise ValueError("Only authentic 2-hPa or 5-hPa pressure contours are supported")
+    for hpa in range(900, 1071, spacing):
         paths = []
         for line in maker.lines(float(hpa)):
             if len(line) < 2:
                 continue
-            for cropped in cropped_runs(line):
+            for cropped in cropped_runs(line, bbox=bbox):
                 compact = simplify(cropped)
                 if len(compact) >= 2:
                     paths.append(compact)
@@ -124,7 +129,10 @@ def frame_from_grids(grids, run, forecast_minute):
     if not (np.isfinite(pressure).all() and 800 <= float(np.min(pressure)) <= 1050
             and 950 <= float(np.max(pressure)) <= 1120):
         raise ValueError("Invalid interpolated MSLP values")
-    contours = concise_contours(x, y, pressure)
+    contours = concise_contours(x, y, pressure, spacing=5)
+    fine_contours = concise_contours(x, y, pressure, spacing=2, bbox=EUROPE_BBOX)
+    if not fine_contours:
+        raise ValueError("No real 2-hPa contours in Europe from ECMWF MSLP")
     if not contours:
         raise ValueError("No real contours in the interpolated MSLP field")
     at = run + dt.timedelta(minutes=forecast_minute)
@@ -143,6 +151,7 @@ def frame_from_grids(grids, run, forecast_minute):
         "min_hpa": round(float(np.min(pressure)), 1),
         "max_hpa": round(float(np.max(pressure)), 1),
         "contours": contours,
+        "fine_contours": fine_contours,
     }
 
 
@@ -155,10 +164,15 @@ def build_10min(grids, run, generated_at, root):
     run_dir = root/run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     chunks = {}
+    fine_chunks = {}
     for hour in range(MAX_HOURS+1):
         frames = []
+        fine_frames = []
         for minute in range(hour*60, min((hour+1)*60, MAX_HOURS*60+1), 10):
-            frames.append(frame_from_grids(grids, run, minute))
+            full = frame_from_grids(grids, run, minute)
+            fine = full.pop("fine_contours")
+            frames.append(full)
+            fine_frames.append({**full, "contours": fine})
         if not frames:
             raise ValueError("No valid contours for an hourly chunk")
         name = f"h{hour:02d}.json"
@@ -174,6 +188,15 @@ def build_10min(grids, run, generated_at, root):
         temporary.write_text(json.dumps(payload, separators=(",", ":"), ensure_ascii=False, allow_nan=False)+"\n", encoding="utf-8")
         temporary.replace(target)
         chunks[f"h{hour:02d}"] = f"{run_id}/{name}"
+        fine_name = f"h{hour:02d}_2hpa.json"
+        fine_target = run_dir/fine_name
+        fine_payload = {**payload, "interval_hpa": 2, "regions": list(FINE_REGIONS),
+                        "frames": fine_frames}
+        fine_temp = fine_target.with_suffix(".tmp")
+        fine_temp.write_text(json.dumps(fine_payload, separators=(",", ":"), ensure_ascii=False,
+                                       allow_nan=False)+"\n", encoding="utf-8")
+        fine_temp.replace(fine_target)
+        fine_chunks[f"h{hour:02d}"] = f"{run_id}/{fine_name}"
     index = {
         "schema_version": 2,
         "model": "ECMWF IFS Open Data",
@@ -191,6 +214,10 @@ def build_10min(grids, run, generated_at, root):
         "source": "ECMWF IFS Open Data (© ECMWF, CC BY 4.0)",
         "note": "10-minute intervals are interpolated IFS MSLP forecasts, NOT separate 10-minute observations or model runs.",
         "hours": chunks,
+        "fine_hours": fine_chunks,
+        "fine_interval_hpa": 2,
+        "fine_regions": list(FINE_REGIONS),
+        "fine_bbox": list(EUROPE_BBOX),
     }
     tmp = root/"index.tmp"
     tmp.write_text(json.dumps(index, separators=(",", ":"), ensure_ascii=False)+"\n", encoding="utf-8")
