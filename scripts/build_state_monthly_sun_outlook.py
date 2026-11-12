@@ -91,6 +91,7 @@ def build_payload(doc: dict, models: dict) -> dict:
         "observation_data_through": observed_days[-1],
         "forecast_source": "Open-Meteo Ensemble API (hourly sunshine_duration)",
         "climatology_available": False,
+        "station_quality": doc.get("station_quality"),
         "regions": regions,
         "method": {
             "observation": "DUETT per-hour region means in minutes, accumulated to complete 24-hour UTC days and converted to hours",
