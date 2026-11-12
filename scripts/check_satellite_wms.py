@@ -10,6 +10,7 @@ import json
 import re
 import sys
 from datetime import datetime, timedelta, timezone
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -24,7 +25,7 @@ LAYERS = {
     "ir105": "mtg_fd:ir105_hrfi",
     "firetemperature": "mtg_fd:rgb_firetemperature",
 }
-TIMEOUT = 45
+TIMEOUT = 18
 MAX_XML = 64 * 1024 * 1024
 NOW = datetime.now(timezone.utc)
 OUT = Path("data/satellite_wms_times.json")
@@ -161,7 +162,8 @@ def main():
         result["capabilities_bytes"] = len(xml)
     except Exception as error:
         result["errors"].append("GetCapabilities: " + str(error)[:350])
-    for key, layer in LAYERS.items():
+    def check_product(item):
+        key, layer = item
         available = dimensions_for_layer(root, layer) if root is not None else []
         entry = {
             "layer": layer, "available_times": available,
@@ -220,7 +222,12 @@ def main():
                 entry["film_preview_error"] = str(error)[:350]
         else:
             entry["film_preview_error"] = "Weniger als zwei verifizierte UTC-Zeitpunkte"
-        result["products"][key] = entry
+        return key, entry
+    # Keep the publisher responsive even when EUMETSAT is returning 500/504.
+    # Never exceed two simultaneous checks against the upstream WMS.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        for key, entry in pool.map(check_product, LAYERS.items()):
+            result["products"][key] = entry
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"generated_at": result["generated_at"], "capabilities_ok": result["capabilities_ok"],
