@@ -11,7 +11,9 @@ License: EUMETNET OPERA CC BY 4.0.
 from __future__ import annotations
 from datetime import datetime,timezone,timedelta
 from pathlib import Path
-import argparse,io,json,logging,math
+import argparse,io,json,logging,math,time
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from urllib.parse import quote
 
 import numpy as np
@@ -142,6 +144,9 @@ def build(out:Path, counts:dict[str,int]|None=None)->dict:
     now=datetime.now(timezone.utc)
     session=requests.Session()
     session.headers["User-Agent"]="ClimateDashboard-EUMETNET-OPERA-Radar-Lab/1.0 (meteorological education)"
+    session.mount("https://",HTTPAdapter(max_retries=Retry(
+        total=3,backoff_factor=2,status_forcelist=(429,500,502,503,504),
+        allowed_methods=frozenset(["GET"]),respect_retry_after_header=True)))
     old={}
     try:old=json.loads((out/"current.json").read_text(encoding="utf-8"))
     except (ValueError,OSError):pass
@@ -157,15 +162,31 @@ def build(out:Path, counts:dict[str,int]|None=None)->dict:
             if prior and target.is_file() and target.stat().st_size>250 and "stats" in prior:
                 rows.append(prior);continue
             url=s3url(stamp,kind)
-            response=session.get(url,timeout=85)
-            response.raise_for_status()
-            pixels,stats=decode_geotiff(response.content,kind,stamp)
+            try:
+                response=session.get(url,timeout=85)
+                # MeteoGate ORD may advertise a timestamp before the COG is
+                # present on S3. A 404 is missing data, never a zero-rain frame.
+                if response.status_code==404:
+                    LOG.warning("OPERA %s %s announced but COG not published (404)",
+                                kind,iso(stamp))
+                    continue
+                response.raise_for_status()
+                pixels,stats=decode_geotiff(response.content,kind,stamp)
+            except requests.RequestException as exc:
+                LOG.warning("OPERA %s %s temporarily unavailable: %s",
+                            kind,iso(stamp),exc)
+                continue
             Image.fromarray(pixels,mode="L").save(target,optimize=True)
             rows.append({"utc":iso(stamp),"image":relative,"stats":stats})
             LOG.info("OPERA %s %s coverage=%.3f min/max=%s/%s",kind,iso(stamp),
                      stats["coverage"],stats["min_physical"],stats["max_physical"])
         if len(rows)<min(4,counts[kind]):
             raise ValueError(f"Insufficient verified {kind} frames")
+        last_verified=datetime.fromisoformat(rows[-1]["utc"].replace("Z","+00:00"))
+        if now-last_verified>timedelta(minutes=MAX_AGE[kind]):
+            raise RuntimeError(
+                f"OPERA {kind} newest verified image {iso(last_verified)} is stale"
+            )
         frames[kind]={**PRODUCTS[kind],"frames":rows}
     manifest={
         "schema":1,"source":"EUMETNET OPERA CIRRUS / NIMBUS (ORD via MeteoGate)",

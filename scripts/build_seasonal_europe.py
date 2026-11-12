@@ -82,11 +82,12 @@ def fetch_batch(batch, attempts=5):
             rows = parsed if isinstance(parsed, list) else [parsed]
             if len(rows) != len(batch):
                 raise RuntimeError("API lieferte %d statt %d Positionen" % (len(rows),len(batch)))
+            time.sleep(0.8)  # Avoid bursts against the shared seasonal API.
             return rows
         except (urllib.error.URLError, TimeoutError, OSError, ValueError, RuntimeError) as exc:
             if attempt + 1 == attempts:
                 raise RuntimeError("Saisonale API nach Wiederholungen nicht erreichbar") from exc
-            wait = min(45, 3 * 2 ** attempt)
+            wait = min(180, 20 * 2 ** attempt)
             LOG.warning("API-Versuch %d/%d fehlgeschlagen (%s); warte %ds", attempt+1, attempts,exc,wait)
             time.sleep(wait)
     raise AssertionError("unreachable")
@@ -99,7 +100,7 @@ def download():
             for col,lon in enumerate(LONS) if region[row,col]]
     LOG.info("Sichtbarer Kartenausschnitt mit 1°-Raster: %d statt %d Punkten",
              len(coords), len(LATS)*len(LONS))
-    LOG.info("Schonender API-Abruf mit maximal drei parallelen Anfragen")
+    LOG.info("Ratenlimit-schonender API-Abruf: eine Anfrage gleichzeitig")
     data={field: {} for field in FIELDS}
     units=None
     valid_months=None
@@ -108,7 +109,7 @@ def download():
              for offset in range(0,len(coords),batch_size)]
     # At most three concurrent public-API requests; outcomes are consumed in
     # deterministic geographic order so the actual meteorological fields are unchanged.
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    with ThreadPoolExecutor(max_workers=1) as pool:
         for index,rows in enumerate(pool.map(fetch_batch,batches)):
             batch=batches[index]
             for (lat,lon),item in zip(batch,rows):
@@ -304,6 +305,14 @@ def main():
     coverage=sampling_mask()
     fields,dates,units=download()
     source_month=dates[0]
+    # The seasonal model is issued monthly. Do not relabel October as a
+    # successful November refresh after the new monthly edition is due.
+    now_utc=datetime.now(timezone.utc)
+    if now_utc.day>=12 and source_month<now_utc.strftime("%Y-%m"):
+        raise RuntimeError(
+            f"Saisonale API liefert noch {source_month} statt der erwarteten "
+            f"{now_utc:%Y-%m}-Ausgabe. Vorherige Karten bleiben unverändert."
+        )
     # SEAS5 is issued once per month. Do not imply exact 00 UTC init time.
     retrieved=datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00","Z")
     report=[]

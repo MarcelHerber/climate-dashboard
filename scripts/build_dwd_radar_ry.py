@@ -21,6 +21,8 @@ import numpy as np
 from PIL import Image
 from pyproj import CRS, Transformer
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 LOG=logging.getLogger("dwd-radar")
 URL="https://opendata.dwd.de/weather/radar/radolan/ry/"
@@ -123,6 +125,9 @@ def build(out:Path, count:int=N_FRAMES)->dict:
     out.mkdir(parents=True,exist_ok=True)
     session=requests.Session()
     session.headers["User-Agent"]="ClimateDashboard-DWD-Radar-Lab/1.0 (research; GitHub Pages project)"
+    session.mount("https://",HTTPAdapter(max_retries=Retry(
+        total=3,backoff_factor=2,status_forcelist=(429,500,502,503,504),
+        allowed_methods=frozenset(["GET"]),respect_retry_after_header=True)))
     now=datetime.now(timezone.utc)
     index=session.get(URL,timeout=35)
     index.raise_for_status()

@@ -117,14 +117,29 @@ def parse_mjo(text):
         raise ValueError(f"MJO RMM source stale: last valid observation {result[-1][0]}")
     return result
 
-def load_all(fetch):
+def load_all(fetch, previous=None):
+    previous = previous if isinstance(previous, dict) else {}
     tele=parse_tele(fetch(TELE_URL))
     gbi=parse_gbi(fetch(GBI_URL))
     soi=parse_year_matrix(fetch(SOI_URL),1951,15,"SOI")
     mei=parse_year_matrix(fetch(MEI_URL),1979,15,"MEI.v2")
     q30=parse_year_matrix(fetch(QBO30_URL),1979,90,"QBO30")
     q50=parse_year_matrix(fetch(QBO50_URL),1979,90,"QBO50")
-    mjo=parse_mjo(fetch(MJO_URL))
+    # A stale/unreachable BOM RMM feed must not block fresh CPC NAO/AO/ENSO.
+    # Preserve only real observations from the last published archive, with
+    # explicit source_warning. Never invent or extrapolate MJO days.
+    mjo_warning=None
+    try:
+        mjo=parse_mjo(fetch(MJO_URL))
+    except (OSError, RuntimeError, ValueError) as exc:
+        last=previous.get("mjo") if isinstance(previous.get("mjo"), dict) else {}
+        mjo=last.get("daily", [])
+        if not isinstance(mjo, list) or len(mjo)<17000:
+            raise
+        if not all(isinstance(row, list) and len(row)>=5 for row in mjo[-10:]):
+            raise ValueError("MJO fallback archive is invalid") from exc
+        mjo_warning="BOM RMM nicht aktuell/abrufbar: " + str(exc)
+        print("WARNUNG:",mjo_warning,flush=True)
     def series(rows,source,label,unit="standardisiert",method="Originalwert"):
         return {"label":label,"unit":unit,"method":method,"source_url":source,
                 "monthly":rows,"latest_month":rows[-1][0],"first_month":rows[0][0]}
@@ -151,7 +166,8 @@ def load_all(fetch):
         "mjo":{
             "label":"Wheeler–Hendon RMM (BOM)","source_url":MJO_URL,
             "method":"Original RMM1/RMM2 und Phasen aus BOM, 1974–heute; Amplitude <1 schwach",
-            "daily":mjo,"latest_date":mjo[-1][0],"first_date":mjo[0][0]
+            "daily":mjo,"latest_date":mjo[-1][0],"first_date":mjo[0][0],
+            "source_warning":mjo_warning
         },
         "extra_source_urls":SOURCES
     }
