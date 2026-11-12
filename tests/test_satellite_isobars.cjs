@@ -17,7 +17,7 @@ class FakeElement{
  appendChild(item){this.children.push(item);}
  replaceChildren(...items){this.children=items;}
 }
-function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=13}={}){
+function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=13,fineMode=false}={}){
  const names=["satIsobarSvg","satShowIsobars","satIsobarSpacing","satIsobarStatus","satRetryIsobars","satRegion","satSource"];
  const map=new Map(names.map(x=>[x,new FakeElement()]));
  map.get("satRegion").value="southwest";
@@ -49,20 +49,36 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
      hours:Object.fromEntries(Array.from({length:tenHours},(_,h)=>[
       "h"+String(h).padStart(2,"0"),
       "r"+run.toISOString().slice(0,13).replace(/[-T:]/g,"")+"/h"+String(h).padStart(2,"0")+".json"
-     ]))
+     ])),
+     ...(fineMode?{
+      fine_interval_hpa:2,fine_regions:["europe","southwest","central","germany"],
+      fine_hours:Object.fromEntries(Array.from({length:tenHours},(_,h)=>[
+       "h"+String(h).padStart(2,"0"),
+       "r"+run.toISOString().slice(0,13).replace(/[-T:]/g,"")+"/h"+String(h).padStart(2,"0")+"_2hpa.json"
+      ]))
+     }:{})
     })};
    }
    if(tenMinutes&&String(url).includes("/ten_minute/r")){
-    const match=String(url).match(/h(\d{2})\.json$/);
+    const fine=String(url).endsWith("_2hpa.json");
+    const match=String(url).match(/h(\d{2})(?:_2hpa)?\.json$/);
     const hour=Number(match[1]);
     const frames=Array.from({length:hour===tenHours-1?1:6},(_,i)=>{
      const minute=(hour*6+i)*10;
      return {valid_utc:iso(new Date(run.getTime()+minute*60000)),
       forecast_minute:minute,interpolated:minute%180!==0,
-      contours:frame(3).contours};
+      contours:fine?[
+       {hpa:1000,lines:frame(3).contours[0].lines},
+       {hpa:1002,lines:frame(3).contours[1].lines},
+       {hpa:1004,lines:frame(3).contours[2].lines},
+       {hpa:1006,lines:frame(3).contours[0].lines},
+       {hpa:1008,lines:frame(3).contours[1].lines},
+       {hpa:1010,lines:frame(3).contours[2].lines}
+      ]:frame(3).contours};
     });
     return {ok:true,json:async()=>({
-     schema_version:2,run_utc:iso(run),hour,frames
+     schema_version:2,run_utc:iso(run),hour,frames,
+     ...(fine?{interval_hpa:2,regions:["europe","southwest","central","germany"]}:{})
     })};
    }
    return {ok:true,json:async()=>data};
@@ -183,4 +199,43 @@ test("18-hour model coverage permits 10-minute overlays across an entire refresh
  assert.equal(selected.interpolated,false);
  assert.equal(map.get("satIsobarSvg").hidden,false);
  assert.match(map.get("satIsobarStatus").textContent,/Original-IFS-Druckfeld/);
+});
+
+test("European fine mode displays genuine 2-hPa contours, syncs and exports without 5-hPa disguise",async()=>{
+ const {api,map,run}=fixture({tenMinutes:true,tenHours:19,fineMode:true});
+ await ready(api);
+ const t=new Date(run.getTime()+200*60000).toISOString();
+ api.sync({time:t,region:"europe",source:"mtgi1"});
+ map.get("satIsobarSpacing").value="2";
+ map.get("satIsobarSpacing").emit("change");
+ for(let i=0;i<75&&!api.tenFrameAt(t,2);i++)await new Promise(ok=>setTimeout(ok,3));
+ const fine=api.tenFrameAt(t,2);
+ assert.ok(fine,"2-hPa fine frame must be fetched independently");
+ assert.ok(fine.contours.some(x=>x.hpa===1002));
+ assert.ok(fine.contours.every(x=>x.hpa%2===0));
+ assert.equal(map.get("satIsobarSvg").hidden,false);
+ assert.match(map.get("satIsobarStatus").textContent,/2 hPa/);
+ const pieces=map.get("satIsobarSvg").children[0]?.children||[];
+ assert.ok(pieces.some(x=>x.attrs.stroke==="#ff4fcf"&&x.attrs["stroke-width"]==="0.75"));
+ const exported=await api.exportAt(t,"europe",2,{strictTenMinute:true});
+ assert.equal(exported.spacing,2);
+ assert.ok(exported.contours.every(x=>x.hpa%2===0));
+ await assert.rejects(api.exportAt(t,"atlantic",2),/nur für Europa/);
+ api.sync({time:t,region:"atlantic",source:"mtgi1"});
+ assert.equal(map.get("satIsobarSpacing").value,"5","Atlantic must reset to default 5 hPa");
+ api.sync({time:t,region:"disk",source:"mtgi1"});
+ assert.equal(map.get("satIsobarSpacing").disabled,true);
+});
+test("When 2-hPa source chunks have not been generated, no false fine line is displayed or exported",async()=>{
+ const {api,map,run}=fixture({tenMinutes:true,tenHours:19,fineMode:false});
+ await ready(api);
+ const t=new Date(run.getTime()+200*60000).toISOString();
+ api.sync({time:t,region:"southwest",source:"mtgi1"});
+ map.get("satIsobarSpacing").value="2";
+ map.get("satIsobarSpacing").emit("change");
+ for(let i=0;i<35;i++)await new Promise(ok=>setTimeout(ok,2));
+ assert.equal(api.tenFrameAt(t,2),null);
+ assert.equal(map.get("satIsobarSvg").hidden,true);
+ assert.match(map.get("satIsobarStatus").textContent,/noch nicht bereitgestellt/);
+ await assert.rejects(api.exportAt(t,"southwest",2),/fehlen die berechneten 2-hPa-Konturen/);
 });
