@@ -6,13 +6,15 @@ forecast days per ensemble. Does not publish/change any dashboard data.
 """
 from __future__ import annotations
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import numpy as np
 import requests
 
-from build_monthly_outlook_duett import BASE, get, load_sdu, source_index
+from build_monthly_outlook_duett import BASE, get, load_sdu, source_index, area_hourly_minutes
 from build_state_monthly_ensemble_outlook import MODEL_CONFIG, hourly_sunshine_to_daily, hourly_precipitation_to_hyras_day, member_keys
+from build_hyras_tmean_regions import build_masks, load_states
 
 API="https://ensemble-api.open-meteo.com/v1/ensemble"
 
@@ -37,6 +39,31 @@ def smoke_duett():
           "finite coverage",round(coverage,3),
           "SDU min range",round(float(valid.min()),2),round(float(valid.max()),2),
           flush=True)
+
+    # Validate one entire real DWD synoptic day against all 17 geographic
+    # masks. This is a small smoke check; the full monthly job uses the
+    # same routine with the cached data branch.
+    earliest=(now-timedelta(days=1)).strftime("%Y%m%d")
+    dates=sorted({stamp[:8] for stamp in index if stamp[:8]<=earliest})
+    full_days=[day for day in dates if all(day+f"{hour:02d}50" in index for hour in range(24))]
+    if not full_days:
+        raise RuntimeError("No 24-hour-complete DUETT day for full-day smoke")
+    last_day=full_days[-1]
+    masks=build_masks(load_states(Path("/tmp/monthly-outlook-duett-smoke")),x,y)
+    running={key:0.0 for key in masks}
+    for hour in range(24):
+        timestamp=last_day+f"{hour:02d}50"
+        xx,yy,field=load_sdu(get(BASE+index[timestamp]))
+        if not np.array_equal(xx,x) or not np.array_equal(yy,y):
+            raise RuntimeError("DUETT spatial grid changed within the day")
+        means=area_hourly_minutes(field,masks)
+        for region,value in means.items():
+            running[region]+=value/60
+    if len(running)!=17 or any(not 0<=v<=24 for v in running.values()):
+        raise RuntimeError("Invalid DUETT full-day sunshine region summary")
+    print("LIVE DUETT DAY",last_day,"24 complete synoptic hours",
+          "Germany",round(running["Deutschland"],2),"h",
+          "regions",len(running),flush=True)
 
 
 def smoke_model(key):
