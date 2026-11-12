@@ -107,6 +107,7 @@ required_root_files=(
   satelliten.css
   satellite_overlay.js
   satellite_isobars.js
+  satellite_map_export.js
   satellite_film_export.js
   wettergefahren.js
   wettergefahren.css
