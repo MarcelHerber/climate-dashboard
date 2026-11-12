@@ -163,3 +163,35 @@ test("Atlantic PNG, vector PDF and GIF contain only verified H/T letters",async(
  assert.ok(textCalls.filter(x=>x==="H").length>=3&&textCalls.filter(x=>x==="T").length>=3,
   "GIF must include the same H/T letters frame by frame");
 });
+
+test("2-hPa European PNG and vector PDF retain even-pressure contours and 1015 is not emphasized",async()=>{
+ const {api,calls}=loaded();
+ const source=sourceOverlay.contours;
+ const fine={...sourceOverlay,spacing:2,contours:[
+  {hpa:1000,lines:source[0].lines},
+  {hpa:1002,lines:source[1].lines},
+  {hpa:1004,lines:source[2].lines},
+  {hpa:1010,lines:source[1].lines}
+ ]};
+ const groups=api.pathsFor(fine,"southwest");
+ assert.deepEqual(Array.from(groups,x=>x.hpa),[1000,1002,1004,1010]);
+ assert.ok(groups.every(x=>!x.heavy));
+ const ctx={save(){},restore(){},beginPath(){},rect(){},clip(){},moveTo(){},lineTo(){},
+  stroke(){calls.push({width:this.lineWidth,color:this.strokeStyle});},
+  measureText(){return {width:27}},fillRect(){},strokeRect(){},fillText(){}};
+ api.paintIsobars(ctx,fine,"southwest",{width:900,height:400});
+ const pink=calls.filter(x=>x.color==="#ff4fcf");
+ const halo=calls.filter(x=>x.color==="#061522");
+ assert.ok(pink.length===4&&halo.length===4);
+ assert.ok(pink.every(x=>x.width===.75));
+ assert.ok(halo.every(x=>x.width===1.85));
+ const opts={...options,overlay:fine};
+ const png=await api.renderPNG(opts);
+ assert.equal(png.blob.type,"image/png");
+ const pdf=await api.renderPDF(opts);
+ assert.equal(pdf.blob.type,"application/pdf");
+ const txt=Buffer.from(await pdf.blob.arrayBuffer()).toString("latin1");
+ assert.ok(txt.startsWith("%PDF-1.4"));
+ assert.ok(txt.includes("/Subtype /Image"));
+ assert.ok(txt.includes("(1010) Tj ET"));
+});
