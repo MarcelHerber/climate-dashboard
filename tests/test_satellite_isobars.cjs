@@ -18,7 +18,7 @@ class FakeElement{
  appendChild(item){this.children.push(item);}
  replaceChildren(...items){this.children=items;}
 }
-function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=13,fineMode=false}={}){
+function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=13,fineMode=false,holdFine=false}={}){
  const names=["satIsobarSvg","satShowIsobars","satIsobarSpacing","satIsobarStatus","satRetryIsobars","satRegion","satSource"];
  const map=new Map(names.map(x=>[x,new FakeElement()]));
  map.get("satRegion").value="southwest";
@@ -36,7 +36,8 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
   model:"ECMWF IFS Open Data",units:"hPa",field:"mean sea-level pressure",
   resolution_degrees:.25,interval_hpa:5,bbox:[-75,12,55,80],
   frames:[0,3,6,9,12].map(frame)};
- let calls=0;
+ let calls=0,releaseFine;
+ const fineGate=holdFine?new Promise(resolve=>{releaseFine=resolve;}):null;
  const sandbox={document:{getElementById:x=>{assert.ok(map.has(x),"missing node "+x);return map.get(x);},
   createElementNS:()=>new FakeElement(),createDocumentFragment:()=>new FakeElement()},
   window:{},Date,console:{warn(){}},fetch:async(url)=>{
@@ -62,6 +63,7 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
    }
    if(tenMinutes&&String(url).includes("/ten_minute/r")){
     const fine=String(url).endsWith("_2hpa.json");
+    if(fine&&fineGate)await fineGate;
     const match=String(url).match(/h(\d{2})(?:_2hpa)?\.json$/);
     const hour=Number(match[1]);
     const frames=Array.from({length:hour===tenHours-1?1:6},(_,i)=>{
@@ -86,7 +88,7 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
   }};
  vm.runInNewContext(geom,sandbox,{timeout:1000});
  vm.runInNewContext(src,sandbox,{timeout:1000});
- return {map,data,api:sandbox.window.SatelliteIsobars,run,getCalls:()=>calls};
+ return {map,data,api:sandbox.window.SatelliteIsobars,run,getCalls:()=>calls,releaseFine:()=>releaseFine?.()};
 }
 async function ready(api){
  for(let i=0;i<20;i++){if(api.frameFor(new Date().toISOString()))return;await new Promise(resolve=>setTimeout(resolve,3));}
@@ -244,4 +246,27 @@ test("When 2-hPa source chunks have not been generated, no false fine line is di
  assert.equal(map.get("satIsobarSvg").hidden,true);
  assert.match(map.get("satIsobarStatus").textContent,/noch nicht bereitgestellt/);
  await assert.rejects(api.exportAt(t,"southwest",2),/fehlen die berechneten 2-hPa-Konturen/);
+});
+
+test("Switching to Atlantic while European 2-hPa chunk is downloading does not poison the fine-data cache",async()=>{
+ const {api,map,run,releaseFine}=fixture({
+  tenMinutes:true,tenHours:19,fineMode:true,holdFine:true
+ });
+ await ready(api);
+ const t=new Date(run.getTime()+200*60000).toISOString();
+ api.sync({time:t,region:"europe",source:"mtgi1"});
+ map.get("satIsobarSpacing").value="2";
+ map.get("satIsobarSpacing").emit("change");
+ for(let i=0;i<20;i++)await Promise.resolve();
+ api.sync({time:t,region:"atlantic",source:"mtgi1"});
+ assert.equal(map.get("satIsobarSpacing").value,"5");
+ releaseFine();
+ for(let i=0;i<30;i++)await Promise.resolve();
+ api.sync({time:t,region:"europe",source:"mtgi1"});
+ map.get("satIsobarSpacing").value="2";
+ map.get("satIsobarSpacing").emit("change");
+ for(let i=0;i<30&&!api.tenFrameAt(t,2);i++)await new Promise(done=>setTimeout(done,3));
+ assert.ok(api.tenFrameAt(t,2),"Fine contour chunk must survive switching region while pending");
+ assert.equal(map.get("satIsobarSvg").hidden,false);
+ assert.match(map.get("satIsobarStatus").textContent,/2 hPa/);
 });
