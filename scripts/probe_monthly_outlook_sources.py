@@ -49,7 +49,9 @@ def smoke_duett():
     if not full_days:
         raise RuntimeError("No 24-hour-complete DUETT day for full-day smoke")
     last_day=full_days[-1]
-    masks=build_masks(load_states(Path("/tmp/monthly-outlook-duett-smoke")),x,y)
+    work=Path("/tmp/monthly-outlook-duett-smoke")
+    work.mkdir(parents=True,exist_ok=True)
+    masks=build_masks(load_states(work),x,y)
     running={key:0.0 for key in masks}
     for hour in range(24):
         timestamp=last_day+f"{hour:02d}50"
