@@ -111,6 +111,8 @@ test("Film player reuses small WMS PNGs and never requests each frame again",asy
  await waitUntil(()=>nodes.get("satTime").options.length===slots.length,"eight verified UTC times");
  assert.equal(nodes.get("satTimeline").max,"7");
  await waitUntil(()=>nodes.get("satImage").naturalWidth>0,"full resolution image");
+ assert.ok(fetches[0].includes("satellite_wms_times.json"),"Local verified WMS metadata must load before remote capabilities");
+ assert.ok(!fetches.some(url=>String(url).includes("GetCapabilities")),"Fresh local UTC metadata avoids remote GetCapabilities");
  const originalRequests=requests.length;
  nodes.get("satPlay").dispatch("click");
  await waitUntil(()=>!nodes.get("satFilmStage").hidden,"film preview started");
