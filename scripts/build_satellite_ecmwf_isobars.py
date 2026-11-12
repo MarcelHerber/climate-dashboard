@@ -180,11 +180,25 @@ def build_payload(grids, run, generated_at):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", type=Path, default=Path("data/satellite_mslp/latest.json"))
+    parser.add_argument("--ten-minute-dir", type=Path, default=Path("data/satellite_mslp/ten_minute"))
     args = parser.parse_args()
     now = dt.datetime.now(UTC)
     errors = []
+    from build_satellite_mslp_10min import build_10min
     for run in candidate_runs(now):
         try:
+            # Re-running an unchanged cycle must not waste compute or commits.
+            if args.out.is_file() and (args.ten_minute_dir/"index.json").is_file():
+                previous = json.loads(args.out.read_text(encoding="utf-8"))
+                manifest = json.loads((args.ten_minute_dir/"index.json").read_text(encoding="utf-8"))
+                valid_run = run.isoformat(timespec="seconds").replace("+00:00", "Z")
+                if (previous.get("run_utc")==valid_run and manifest.get("run_utc")==valid_run
+                        and manifest.get("schema_version")==2
+                        and len(manifest.get("hours", {}))==13
+                        and all((args.ten_minute_dir/path).is_file() for path in manifest["hours"].values())):
+                    print(json.dumps({"status":"unchanged","run_utc":valid_run,
+                                      "ten_minute_frames":73}))
+                    return 0
             with tempfile.TemporaryDirectory(prefix="sat-mslp-") as tmp:
                 path = Path(tmp)/"ifs_msl.grib2"
                 fetch_grib(run, path)
@@ -193,6 +207,7 @@ def main():
             age_h = (now-run).total_seconds()/3600
             if age_h > MAX_AGE_HOURS:
                 raise ValueError("Selected model run too old")
+            ten_index = build_10min(grids, run, now, args.ten_minute_dir)
             args.out.parent.mkdir(parents=True, exist_ok=True)
             target = args.out.with_suffix(".tmp")
             target.write_text(json.dumps(payload, ensure_ascii=False, separators=(",",":"), allow_nan=False)+"\n", encoding="utf-8")
@@ -201,7 +216,7 @@ def main():
                          run.isoformat(),len(payload["frames"]),args.out.stat().st_size)
             print(json.dumps({"status":"ok","run_utc":payload["run_utc"],
                               "frames":[v["valid_utc"] for v in payload["frames"]],
-                              "size_bytes":args.out.stat().st_size}))
+                              "size_bytes":args.out.stat().st_size, "ten_minute_frames":73, "chunks":len(ten_index["hours"])}))
             return 0
         except Exception as exc:
             errors.append(f"{run:%Y-%m-%dT%H:%MZ}: {type(exc).__name__}: {str(exc)[:160]}")
