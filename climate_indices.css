@@ -65,3 +65,15 @@ footer{max-width:1240px;margin:auto;padding:0 18px 32px;color:var(--muted);font-
 .tele-map-frame img[hidden]{display:none}
 #teleMaps > h3{font-size:16px;margin:0 0 6px}
 @media(max-width:700px){.tele-map-frame{min-height:90px}#teleMaps .toolbar .right{margin-left:0;width:100%}}
+
+/* EPS 50-member EOF teleconnection monitor */
+#epsEofPanel [hidden]{display:none!important}
+#epsEofPanel .tele-chart{height:480px;min-height:340px}
+#epsEofPanel .tele-options{gap:12px 22px}
+#epsEofPanel .small{max-width:1100px}
+@media(max-width:700px){
+ #epsEofPanel .tele-chart{height:365px;min-height:300px}
+ #epsEofPanel .toolbar label{min-width:0;flex:1 1 135px}
+ #epsEofPanel .toolbar .right{margin-left:0;flex:1 1 100%}
+ #epsEofPanel .toolbar .right button{flex:1 1 70px}
+}
