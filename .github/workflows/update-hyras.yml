@@ -161,6 +161,8 @@ jobs:
             --parameter all
 
       - name: Monatsausblick Niederschlag Tagesbeobachtungen erstellen
+        # Optionales Zusatzprodukt: Ausfall darf die normalen HYRAS-Updates nie blockieren.
+        continue-on-error: true
         run: |
           set -euo pipefail
           python -m py_compile scripts/build_monthly_outlook_precip_series.py
