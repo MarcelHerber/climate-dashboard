@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-12T08:50:11Z",
+  "generated_at": "2026-11-12T08:55:37Z",
   "provider": "EUMETSAT",
   "service": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
@@ -8,7 +8,6 @@
     "geocolour": {
       "layer": "mtg_fd:rgb_geocolour",
       "available_times": [
-        "2026-11-12T00:30:00Z",
         "2026-11-12T00:40:00Z",
         "2026-11-12T00:50:00Z",
         "2026-11-12T01:00:00Z",
@@ -55,29 +54,28 @@
         "2026-11-12T07:50:00Z",
         "2026-11-12T08:00:00Z",
         "2026-11-12T08:10:00Z",
-        "2026-11-12T08:20:00Z"
+        "2026-11-12T08:20:00Z",
+        "2026-11-12T08:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-12T08:20:00Z",
-      "latest_verified_time": null,
-      "map_ok": false,
-      "error": "The read operation timed out",
+      "latest_advertised_time": "2026-11-12T08:30:00Z",
+      "latest_verified_time": "2026-11-12T08:30:00Z",
+      "map_ok": true,
+      "error": null,
+      "ok": true,
+      "bytes": 337826,
+      "http_status": 200,
+      "content_type": "image/png",
+      "cors_allow_origin": "*",
+      "age_minutes": 25.6,
+      "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 307066,
+      "full_disk_bytes": 307731,
       "atlantic_ok": true,
-      "atlantic_bytes": 855750,
+      "atlantic_bytes": 859023,
       "southwest_ok": true,
-      "southwest_bytes": 1441900,
-      "film_preview_ok": true,
-      "film_preview_bytes": [
-        {
-          "width": 720,
-          "bytes": 546370
-        },
-        {
-          "width": 480,
-          "bytes": 258821
-        }
-      ]
+      "southwest_bytes": 1467846,
+      "film_preview_ok": false,
+      "film_preview_error": "The read operation timed out"
     },
     "dust": {
       "layer": "mtg_fd:rgb_dust",
@@ -140,14 +138,14 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 20.2,
+      "age_minutes": 25.6,
       "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 292678,
+      "full_disk_bytes": 257852,
       "atlantic_ok": true,
       "atlantic_bytes": 1046254,
       "southwest_ok": false,
-      "southwest_error": "HTTP Error 500: Internal Server Error",
+      "southwest_error": "The read operation timed out",
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
@@ -213,15 +211,22 @@
         "2026-11-12T08:30:00Z"
       ],
       "latest_advertised_time": "2026-11-12T08:30:00Z",
-      "latest_verified_time": null,
-      "map_ok": false,
-      "error": "The read operation timed out",
+      "latest_verified_time": "2026-11-12T08:30:00Z",
+      "map_ok": true,
+      "error": null,
+      "ok": true,
+      "bytes": 601851,
+      "http_status": 200,
+      "content_type": "image/png",
+      "cors_allow_origin": "*",
+      "age_minutes": 25.6,
+      "fresh": true,
       "full_disk_ok": true,
       "full_disk_bytes": 294365,
-      "atlantic_ok": true,
-      "atlantic_bytes": 570875,
-      "southwest_ok": false,
-      "southwest_error": "The read operation timed out",
+      "atlantic_ok": false,
+      "atlantic_error": "The read operation timed out",
+      "southwest_ok": true,
+      "southwest_bytes": 1607940,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
@@ -295,7 +300,7 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 20.2,
+      "age_minutes": 25.6,
       "fresh": true,
       "full_disk_ok": true,
       "full_disk_bytes": 72681,
@@ -318,7 +323,6 @@
     "firetemperature": {
       "layer": "mtg_fd:rgb_firetemperature",
       "available_times": [
-        "2026-11-12T00:30:00Z",
         "2026-11-12T00:40:00Z",
         "2026-11-12T00:50:00Z",
         "2026-11-12T01:00:00Z",
@@ -365,27 +369,35 @@
         "2026-11-12T07:50:00Z",
         "2026-11-12T08:00:00Z",
         "2026-11-12T08:10:00Z",
-        "2026-11-12T08:20:00Z"
+        "2026-11-12T08:20:00Z",
+        "2026-11-12T08:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-12T08:20:00Z",
-      "latest_verified_time": null,
-      "map_ok": false,
-      "error": "The read operation timed out",
+      "latest_advertised_time": "2026-11-12T08:30:00Z",
+      "latest_verified_time": "2026-11-12T08:30:00Z",
+      "map_ok": true,
+      "error": null,
+      "ok": true,
+      "bytes": 306409,
+      "http_status": 200,
+      "content_type": "image/png",
+      "cors_allow_origin": "*",
+      "age_minutes": 25.6,
+      "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 234909,
+      "full_disk_bytes": 238425,
       "atlantic_ok": true,
-      "atlantic_bytes": 439192,
+      "atlantic_bytes": 456800,
       "southwest_ok": true,
-      "southwest_bytes": 937050,
+      "southwest_bytes": 1006654,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 167499
+          "bytes": 175938
         },
         {
           "width": 480,
-          "bytes": 175938
+          "bytes": 184424
         }
       ]
     }
