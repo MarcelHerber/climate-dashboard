@@ -11,12 +11,13 @@ const builder=fs.readFileSync("scripts/build_pages_site.sh","utf8");
 
 function pluginInstance(){
   let plugin=null;
+  const selection={value:"temp"};
   const document={readyState:"loading",documentElement:{dataset:{theme:"light"}},
-    getElementById(id){return id==="paramSelect"?{value:"temp"}:{id};}};
+    getElementById(id){return id==="paramSelect"?selection:{id};}};
   const Chart={register(x){plugin=x;},getChart(){return null;}};
   vm.runInNewContext(source,{window:{Chart},document,console});
   assert.ok(plugin);
-  return {plugin,document};
+  return {plugin,document,selection};
 }
 function chart(id,values){
   return {
@@ -81,4 +82,52 @@ test("responsive styling and asset publication preserve original chart markup",(
   assert.ok(html.includes('id="monthlyDeviationChart"'));
   assert.ok(!source.includes('indexAxis:"y"'));
   assert.doesNotThrow(()=>new Function(source));
+});
+
+test("Phase 2 legend explains temperature/rain/sun and keyboard skips missing years",()=>{
+  const {plugin,document,selection}=pluginInstance();
+  function element(tag){
+    return {
+      tag,dataset:{},attributes:{},children:[],textContent:"",className:"",
+      setAttribute(name,value){this.attributes[name]=value;},
+      append(...items){this.children.push(...items);},
+      appendChild(item){this.children.push(item);},
+      replaceChildren(...items){this.children=items;}
+    };
+  }
+  document.createElement=element;
+  const host=element("div"),listeners={},dev=chart("monthlyDeviationChart",[-2,null,1]);
+  dev.canvas.parentElement=host;
+  dev.canvas.addEventListener=(name,cb)=>{listeners[name]=cb;};
+  dev.canvas.setAttribute=(name,value)=>{dev.canvas[name]=value;};
+  dev.setActiveElements=items=>{dev.selected=items;};
+  dev.tooltip={setActiveElements(items){dev.tooltipSelected=items;}};
+  dev.getDatasetMeta=()=>({data:[{tooltipPosition:()=>({x:5,y:40})}]});
+  plugin.beforeUpdate(dev);
+  assert.equal(host.children.length,1,"Create exactly one legend");
+  assert.equal(host.children[0].className,"monthly-climate-key");
+  assert.match(host.children[0].attributes["aria-label"],/Wärmer als Mittel/);
+  assert.equal(dev.canvas.tabIndex,0);
+  assert.ok(dev.canvas["aria-label"].includes("Pfeiltasten"));
+  assert.deepEqual(Array.from(dev.data.datasets[0].data),[-2,null,1]);
+  let prevented=0;
+  listeners.keydown({key:"ArrowRight",preventDefault(){prevented++;}});
+  assert.equal(dev.$climateFocus,0);
+  listeners.keydown({key:"ArrowRight",preventDefault(){prevented++;}});
+  assert.equal(dev.$climateFocus,2,"Missing value skipped on arrow navigation");
+  assert.equal(dev.selected[0].index,2);
+  listeners.keydown({key:"Escape",preventDefault(){prevented++;}});
+  assert.equal(dev.$climateFocus,-1);
+  assert.equal(prevented,3);
+  selection.value="rain";
+  plugin.beforeUpdate(dev);
+  assert.equal(host.children.length,1,"Legend must not duplicate after refresh");
+  assert.match(host.children[0].attributes["aria-label"],/Nasser als Mittel/);
+  selection.value="sun";
+  plugin.beforeUpdate(dev);
+  assert.match(host.children[0].attributes["aria-label"],/Sonniger als Mittel/);
+  assert.ok(!("indexAxis" in dev.options),"Vertical bars unchanged");
+  assert.match(css,/monthly-climate-key.*display:flex/s);
+  assert.match(css,/data-parameter="sun"/);
+  assert.match(css,/canvas#monthlyChart:focus-visible/);
 });
