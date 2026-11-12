@@ -12,6 +12,7 @@ import json
 import struct
 import tempfile
 import threading
+import traceback
 import zlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -39,10 +40,16 @@ CONTOURS = [
     {"hpa":995,"lines":[ring(-55,55,3)]},
     {"hpa":1000,"lines":[ring(-55,55,6)]},
     {"hpa":1005,"lines":[ring(-55,55,10)]},
-    # Deliberately a broad SHALLOW high with just one closed 1020 hPa
-    # contour, matching the previously missing real Iceland/Azores highs.
+    # Broad, shallow high with just one closed 1020-hPa contour
     {"hpa":1020,"lines":[ring(-25,43,10)]},
 ]
+# A separate fine-resolution contour fixture mimicking the real ECMWF
+# 2-hPa sidecars. This MUST NOT be interpolated from 5-hPa contour lines.
+FINE_CONTOURS = [
+    *[{"hpa":994+2*i,"lines":[ring(-55,55,3+i*1.4)]} for i in range(6)],
+    *[{"hpa":1028-2*i,"lines":[ring(-25,43,3+i*1.4)]} for i in range(6)],
+]
+FINE_REGIONS = ["europe","southwest","central","germany"]
 
 
 def png(width,height,number):
@@ -75,7 +82,10 @@ def model_index():
             "run_utc":RUN_STR,"generated_at":iso(datetime.now(UTC)),
             "time_resolution_minutes":10,"source_interval_hours":3,
             "hours":{"h"+f"{h:02d}":RUN_PATH+"/h"+f"{h:02d}"+".json"
-                     for h in range(19)}}
+                     for h in range(19)},
+            "fine_interval_hpa":2,"fine_regions":FINE_REGIONS,
+            "fine_hours":{"h"+f"{h:02d}":RUN_PATH+"/h"+f"{h:02d}"+"_2hpa.json"
+                          for h in range(19)}}
 
 
 def full_model():
@@ -88,14 +98,16 @@ def full_model():
                       for h in range(0,19,3)]}
 
 
-def hour_chunk(hour):
+def hour_chunk(hour,fine=False):
     length=1 if hour==18 else 6
     return {"schema_version":2,"model":"ECMWF IFS Open Data",
             "run_utc":RUN_STR,"hour":hour,
+            **({"interval_hpa":2,"regions":FINE_REGIONS} if fine else {}),
             "frames":[{"valid_utc":iso(RUN+timedelta(hours=hour,minutes=i*10)),
                        "forecast_minute":hour*60+i*10,
                        "interpolated":(hour*6+i)%18!=0,
-                       "contours":CONTOURS} for i in range(length)]}
+                       "contours":FINE_CONTOURS if fine else CONTOURS}
+                      for i in range(length)]}
 
 
 class Server(http.server.SimpleHTTPRequestHandler):
@@ -126,8 +138,11 @@ def exercise(browser,device,base,tmp):
         elif path.endswith("/data/satellite_mslp/ten_minute/index.json"):
             route.fulfill(status=200,body=json.dumps(model_index()),content_type="application/json")
         elif "/data/satellite_mslp/ten_minute/" in path and path.endswith(".json"):
-            hour=int(path.split("/h")[-1].replace(".json",""))
-            route.fulfill(status=200,body=json.dumps(hour_chunk(hour)),content_type="application/json")
+            filename=Path(path).stem
+            fine=filename.endswith("_2hpa")
+            hour=int(filename[1:3])
+            route.fulfill(status=200,body=json.dumps(hour_chunk(hour,fine=fine)),
+                          content_type="application/json")
         elif "geoserver/wms" in url:
             q=parse_qs(urlsplit(url).query)
             width=int(q.get("width",["1400"])[0])
@@ -146,7 +161,40 @@ def exercise(browser,device,base,tmp):
     page.goto(base+"/satelliten.html",wait_until="domcontentloaded",timeout=20000)
     page.wait_for_function(
         "()=>document.querySelector('#satTime')?.options.length>=8",timeout=15000)
+    # Exercise both fine and default modes with real browser rendering.
+    assert page.locator("#satIsobarSpacing").input_value()=="5"
+    for area in ("europe","southwest","central","germany"):
+        page.locator("#satRegion").select_option(area)
+        fine_option=page.locator('#satIsobarSpacing option[value="2"]')
+        assert fine_option.count()==1 and fine_option.is_enabled()
+        assert not fine_option.evaluate("(o) => o.hidden")
+        page.locator("#satIsobarSpacing").select_option("2")
+        page.wait_for_function(
+            "()=>document.querySelector('#satIsobarStatus')?.textContent.includes('2 hPa')"
+            "&&document.querySelectorAll('#satIsobarSvg path[stroke=\\'#ff4fcf\\']').length>0",
+            timeout=15000)
+        widths=page.locator("#satIsobarSvg path[stroke='#ff4fcf']").evaluate_all(
+            "(els)=>[...new Set(els.map(p=>Number(p.getAttribute('stroke-width'))))]")
+        assert widths==[0.75],(area,widths)
+        details["fine_2hpa_"+area]={"positive_lines":len(page.locator(
+            "#satIsobarSvg path[stroke='#ff4fcf']").all()),"widths":widths}
+        if area=="europe":
+            with page.expect_download(timeout=25000) as info:
+                page.locator("#satPdfIsobars").click()
+            artifact=info.value
+            target=Path(tmp)/(device+"_europe_2hpa.pdf")
+            artifact.save_as(target)
+            raw=target.read_bytes()
+            assert raw.startswith(b"%PDF-1.4")
+            assert b"Abstand 2 hPa" in raw
+            details["europe_2hpa_pdf"]={"bytes":len(raw),"filename":artifact.suggested_filename}
+        page.locator("#satIsobarSpacing").select_option("5")
+        assert page.locator("#satIsobarSpacing").input_value()=="5"
     page.locator("#satRegion").select_option("atlantic")
+    assert page.locator("#satIsobarSpacing").input_value()=="5"
+    assert not page.locator('#satIsobarSpacing option[value="2"]').is_enabled()
+    assert page.locator('#satIsobarSpacing option[value="2"]').evaluate("(o)=>o.hidden")
+    details["atlantic_fine_disabled"]=True
     page.wait_for_function(
         "()=>document.querySelector('#satImage')?.naturalWidth>0&&"
         "!document.querySelector('#satPngIsobars')?.disabled",timeout=15000)
@@ -179,6 +227,12 @@ def exercise(browser,device,base,tmp):
         details[button.lstrip("#")]={"filename":artifact.suggested_filename,
                                      "size":len(raw),"valid":True}
 
+    # Globe view is not an EPSG:4326 pressure overlay; it must never expose 2 hPa.
+    page.locator("#satRegion").select_option("disk")
+    assert page.locator("#satIsobarSpacing").is_disabled()
+    assert page.locator('#satIsobarSpacing option[value="2"]').evaluate("(o)=>o.hidden")
+    assert page.locator("#satIsobarSvg").is_hidden()
+    page.locator("#satRegion").select_option("atlantic")
     page.locator("#satFilmLength").select_option("6")
     page.locator("#satFilmQuality").select_option("320")
     page.locator("#satPlay").click()
@@ -219,7 +273,8 @@ def main():
                     for device in ("desktop","mobile"):
                         try:result[device]=exercise(browser,device,url,tmp)
                         except Exception as error:
-                            result[device]={"error":repr(error)}
+                            result[device]={"error":repr(error),
+                                            "traceback":traceback.format_exc(limit=8)[-2500:]}
                 finally:browser.close()
     finally:server.shutdown()
     OUTPUT.parent.mkdir(parents=True,exist_ok=True)
