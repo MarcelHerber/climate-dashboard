@@ -39,7 +39,7 @@ function fixture({failOnce=false,failFirstOnly=false}={}){
   createElementNS:()=>new FakeElement(),createDocumentFragment:()=>new FakeElement()},
   window:{},Date,console:{warn(){}},fetch:async()=>{
    calls++;
-   if((failOnce&&calls<=2)||(failFirstOnly&&calls===1))throw Error("Temporary ECMWF asset error");
+   if((failOnce&&calls<=3)||(failFirstOnly&&calls===1))throw Error("Temporary ECMWF asset error");
    return {ok:true,json:async()=>data};
   }};
  vm.runInNewContext(src,sandbox,{timeout:1000});
@@ -113,13 +113,13 @@ test("A failed ECMWF fetch is recoverable with the independent reload control",a
  await ready(api);
  api.sync({time:null,region:"southwest",source:"mtgi1"});
  assert.equal(map.get("satIsobarSvg").hidden,false);
- assert.equal(getCalls(),3,"Both endpoints failed, then manual reload succeeded");
+ assert.equal(getCalls(),4,"All three sources failed, then manual reload succeeded");
 });
 
-test("When the raw GitHub source fails, the published Pages pressure contours still appear",async()=>{
+test("When fast local preview fails, the full GitHub pressure contours still appear",async()=>{
  const {api,map,getCalls}=fixture({failFirstOnly:true});
  await ready(api);
  assert.equal(map.get("satIsobarSvg").hidden,false);
- assert.match(map.get("satIsobarStatus").textContent,/veröffentlichtes Kartenarchiv/);
+ assert.match(map.get("satIsobarStatus").textContent,/GitHub-Originaldaten/);
  assert.equal(getCalls(),2,"Fallback must use second source once");
 });
