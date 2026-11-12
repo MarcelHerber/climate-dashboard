@@ -1,0 +1,37 @@
+name: ECMWF EPS NAO AO 50 Member Live QA
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - "ECMWF EPS NAO AO Daten als Pages veröffentlichen"
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  browser:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/qa_ecmwf_nao_ao_eps.py
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Playwright mit Chromium installieren
+        run: |
+          python -m pip -q install playwright
+          python -m playwright install --with-deps chromium
+      - name: Echte 50 Member auf Desktop und Handy prüfen
+        run: python tests/qa_ecmwf_nao_ao_eps.py
+      - name: Screenshots und Vektor-Downloads archivieren
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ecmwf-eps-nao-ao-qa-${{ github.run_id }}
+          path: /tmp/ecmwf-eps-live
+          if-no-files-found: warn
+          retention-days: 7
