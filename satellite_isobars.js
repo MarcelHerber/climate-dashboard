@@ -206,8 +206,11 @@ function update(){
  const derivation=ten?(interpolated?" · 10-Minuten-Interpolation des MSLP-Gitterfelds":" · Original-IFS-Druckfeld"):" · 3-h-Original-Isobaren (Ersatz)";
  const origin=ten?" · stündlich zwischengespeicherte Vektorkarte":
   dataOrigin==="preview"?" · kompakte Originalkonturen":" · ECMWF-Originalkonturen";
- const syncLabel=satelliteTime?(aligned?" · Satellit "+utc(satelliteTime):
-   " · nicht zeitgleich mit Satellitenbild "+utc(satelliteTime)):" · eigenständige ECMWF-Karte ohne Satellitenbild";
+ const deltaMinutes=satelliteTime?Math.round((Date.parse(satelliteTime)-Date.parse(frame.valid_utc))/60000):null;
+ const syncLabel=satelliteTime?(aligned?
+   " · Satellit "+utc(satelliteTime)+(ten&&deltaMinutes!==0?" ("+(deltaMinutes>0?"+":"")+deltaMinutes+" min Zeitdifferenz)":""):
+   " · nicht zeitgleich mit Satellitenbild "+utc(satelliteTime)):
+   " · eigenständige ECMWF-Karte ohne Satellitenbild";
  note(base+derivation+" · "+lines+" Linien"+syncLabel+" · "+spacing.value+" hPa"+origin+" · © ECMWF");
 }
 async function load(force=false){
@@ -274,7 +277,8 @@ sync({time:null,region:region.value,source:source.value});
 if(typeof setInterval==="function"){
  setInterval(()=>{
   if(source.value==="mtgi1"&&toggle.checked&&!document.hidden&&!loading){
-   failed=false;void load(true);void loadTenIndex(true);
+   failed=false;void loadTenIndex(true);
+   if(!tenIndex)void load(true);
   }
  },15*60*1000);
 }
