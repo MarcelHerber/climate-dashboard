@@ -30,8 +30,8 @@ def smoke_duett():
     valid=grid[np.isfinite(grid)]
     if len(x)<100 or len(y)<100 or coverage<0.2 or not len(valid):
         raise RuntimeError("Invalid DUETT 1-km raster extent or coverage")
-    if (abs(float(np.median(np.diff(x)))-1000)>1 or
-        abs(float(np.median(np.diff(y)))-1000)>1):
+    if (abs(abs(float(np.median(np.diff(x))))-1000)>1 or
+        abs(abs(float(np.median(np.diff(y))))-1000)>1):
         raise RuntimeError("DWD DUETT coordinate spacing is not 1 km")
     print("LIVE DUETT",index[stamp],"grid",grid.shape,
           "finite coverage",round(coverage,3),
