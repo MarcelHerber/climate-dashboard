@@ -9,6 +9,8 @@ on:
       - "tests/test_satellite_film.cjs"
       - "satellite_overlay.js"
       - "satellite_isobars.js"
+      - "satellite_isobar_geometry.js"
+      - "tests/test_satellite_isobar_geometry.cjs"
       - "scripts/build_satellite_isobar_preview.py"
       - "tests/test_satellite_isobar_preview.py"
       - "tests/test_satellite_isobars.cjs"
@@ -43,7 +45,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python -m unittest discover -s tests -p test_satellite_isobar_preview.py -v && node --check satelliten.js && node --check satellite_overlay.js && node --check satellite_isobars.js && node --check satellite_map_export.js && node --check satellite_film_export.js && node --test tests/test_satelliten_ui.cjs tests/test_satellite_film.cjs tests/test_satellite_film_export.cjs tests/test_satellite_map_export.cjs tests/test_satellite_isobars.cjs tests/test_satellite_overlay.cjs 2>&1 | tee /tmp/mtg-film-tests.log
+          python -m unittest discover -s tests -p test_satellite_isobar_preview.py -v && node --check satelliten.js && node --check satellite_overlay.js && node --check satellite_isobar_geometry.js && node --check satellite_isobars.js && node --check satellite_map_export.js && node --check satellite_film_export.js && node --test tests/test_satelliten_ui.cjs tests/test_satellite_film.cjs tests/test_satellite_film_export.cjs tests/test_satellite_map_export.cjs tests/test_satellite_isobar_geometry.cjs tests/test_satellite_isobars.cjs tests/test_satellite_overlay.cjs 2>&1 | tee /tmp/mtg-film-tests.log
       - name: Report regression result without a redundant data commit
         if: always()
         env:
