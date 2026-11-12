@@ -82,14 +82,29 @@ class SatelliteCacheTests(unittest.TestCase):
         manifest = json.loads(cache.INDEX.read_text(encoding="utf-8"))
         self.assertEqual(manifest["entries"]["geocolour"]["atlantic"]["time"], verified)
 
-    def test_unverified_frames_do_not_trigger_downloads(self):
+    def test_failed_monitor_probe_does_not_create_untested_archive(self):
         advertised = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=10)).isoformat(timespec="seconds").replace("+00:00", "Z")
         status = self.status(advertised)
         status["products"]["geocolour"]["map_ok"] = False
+        status["products"]["geocolour"]["latest_verified_time"] = None
         self.write_status(status)
-        with patch.object(cache, "request_png", side_effect=AssertionError("unverified request")):
+        # A failed central monitor does not prove that every regional 400px
+        # rendering is broken. Probe it, but never save on a real PNG error.
+        with patch.object(cache, "request_png", side_effect=RuntimeError("HTTP 504")) as probe:
             self.assertEqual(cache.run(), 0)
+        self.assertEqual(probe.call_count, len(cache.REGIONS))
         self.assertFalse(cache.INDEX.exists())
+
+    def test_unverified_monitor_frame_can_become_a_real_snapshot(self):
+        advertised = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=10)).isoformat(timespec="seconds").replace("+00:00", "Z")
+        status = self.status(advertised)
+        status["products"]["geocolour"]["map_ok"] = False
+        status["products"]["geocolour"]["latest_verified_time"] = None
+        self.write_status(status)
+        with patch.object(cache, "request_png", return_value=b"real PNG from checked function"):
+            self.assertEqual(cache.run(), 0)
+        manifest=json.loads(cache.INDEX.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["entries"]["geocolour"]["europe"]["time"], advertised)
 
     def test_try_older_real_frame_when_latest_wms_render_fails(self):
         now = dt.datetime.now(dt.timezone.utc)
