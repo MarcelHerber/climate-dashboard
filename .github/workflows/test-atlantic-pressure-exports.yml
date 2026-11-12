@@ -45,7 +45,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mtg-atlantic-pressure-export-evidence
-          path: data/satellite_atlantic_export_test_latest.json
+          path: |
+            data/satellite_atlantic_export_test_latest.json
+            _satellite_test_screenshots/*-europe-2hpa-synthetic.png
+            _satellite_test_screenshots/*-atlantic-ht-synthetic.png
           if-no-files-found: ignore
       - name: Summarize evidence
         if: always()
