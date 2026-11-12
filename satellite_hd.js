@@ -324,7 +324,7 @@ function comparisonPlan(mode){
    cached:native?.ok?native.img:null
   };
  });
- return {scene:selectedScene,width:grid.width,height:grid.height,tiles:images};
+ return {scene:selectedScene,width:grid.width,height:grid.height,bbox:regions[selectedScene.region].slice(0,4),tiles:images};
 }
 window.SatelliteHD={sync:ready,cancel,viewChanged,boundsForTile,exportImage,comparisonPlan};
 setInfo("Standard · 800 px Einzelbild; echte HD-Kacheln bei Zoom oder Moduswechsel.");
