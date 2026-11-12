@@ -1177,6 +1177,37 @@ else
   echo "HINWEIS: ACE-Kartenarchiv wird beim ersten räumlichen Backfill erzeugt."
 fi
 
+# Phase 1: compact additional large public JSON files without touching raw archives.
+# JSON parsing is checked before/after; no station, value or date is omitted.
+python - <<'PY'
+import json
+from pathlib import Path
+site=Path("_site")
+names=(
+  "data.json",
+  "daily_tmax_1881_2026.json",
+  "station_records.json",
+  "station_climate_days_index.json",
+  "station_heatwaves_index.json",
+  "station_snow_height_additional_index.json",
+)
+saved=0
+for name in names:
+    p=site/name
+    if not p.is_file() or p.stat().st_size<500_000:
+        continue
+    original=p.read_bytes()
+    parsed=json.loads(original.decode("utf-8-sig"))
+    compact=(json.dumps(parsed,ensure_ascii=False,separators=(",",":"),allow_nan=False)+"\n").encode("utf-8")
+    if len(compact)>=len(original):
+        continue
+    assert json.loads(compact)==parsed, f"JSON equivalence failed: {name}"
+    p.write_bytes(compact)
+    saved+=len(original)-len(compact)
+    print(f"Compacted published archive {name}: {len(original):,} -> {len(compact):,} bytes")
+print(f"Additional JSON transfer savings (raw): {saved:,} bytes")
+PY
+
 touch _site/.nojekyll
 echo "Pages-Artefakt erfolgreich gebaut."
 echo "Schneehöhenprofile: $(find _site/station_snow_height_profiles -type f -name '*.json' | wc -l) Dateien"
