@@ -66,7 +66,7 @@ class CumulativeOutlookTests(unittest.TestCase):
             )
 
     def test_hourly_sunshine_seconds_become_valid_daily_hours(self):
-        hours = [f"2026-11-03T{hour:02d}:00" for hour in range(24)]
+        hours = [f"2026-11-03T{hour:02d}:00" for hour in range(1,24)] + ["2026-11-04T00:00"]
         location = {
             "hourly": {
                 "time": hours,
@@ -81,7 +81,7 @@ class CumulativeOutlookTests(unittest.TestCase):
         self.assertEqual(daily["sunshine_duration_member02"], [24.0])
 
     def test_incomplete_or_invalid_hour_is_not_zero(self):
-        times = [f"2026-11-03T{hour:02d}:00" for hour in range(24)]
+        times = [f"2026-11-03T{hour:02d}:00" for hour in range(1,24)] + ["2026-11-04T00:00"]
         hourly = {
             "time": times,
             "sunshine_duration_member01": [0.0] * 11 + [None] + [0.0] * 12,
