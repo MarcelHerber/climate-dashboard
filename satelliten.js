@@ -21,6 +21,7 @@ const id=x=>document.getElementById(x);
 const source=id("satSource"),product=id("satProduct"),region=id("satRegion"),time=id("satTime"),image=id("satImage"),empty=id("satEmpty"),status=id("satStatus");
 const prev=id("satPrev"),next=id("satNext"),play=id("satPlay"),png=id("satPng");
 const gif=id("satGif"),mp4=id("satMp4");
+const pngIso=id("satPngIsobars"),pdfIso=id("satPdfIsobars"),gifIso=id("satGifIsobars");
 const timeline=id("satTimeline"),timelineLabel=id("satTimelineLabel"),filmImage=id("satFilmStage");
 const filmLength=id("satFilmLength"),filmQuality=id("satFilmQuality"),filmSpeed=id("satFilmSpeed");
 const filmProgress=id("satFilmProgress"),filmProgressLabel=id("satFilmProgressLabel"),filmProgressWrap=id("satFilmProgressWrap");
@@ -56,10 +57,13 @@ function buttons(){
  next.disabled=!ready||index>=frames.length-1;
  play.disabled=!ready||index<1||exportBusy;
  gif.disabled=filmItems.length<2||source.value!=="mtgi1"||filmLoading||exportBusy;
+ gifIso.disabled=gif.disabled||region.value==="disk"||!window.SatelliteMapExport;
  mp4.disabled=filmItems.length<2||source.value!=="mtgi1"||filmLoading||exportBusy||!exporters?.supportsMP4();
  mp4.title=exporters?.supportsMP4()?"Echten MP4/H.264-Film herunterladen":"MP4/H.264 in diesem Browser nicht unterstützt";
  time.disabled=!frames.length||source.value!=="mtgi1";
  png.disabled=!loaded||source.value!=="mtgi1";
+ pngIso.disabled=png.disabled||region.value==="disk"||exportBusy||!window.SatelliteMapExport;
+ pdfIso.disabled=pngIso.disabled;
  updateTimeline();
 }
 function formatUTC(t){return new Intl.DateTimeFormat("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(t))+" UTC";}
@@ -493,6 +497,79 @@ async function downloadPNG(){
  }catch(_){setStatus("EUMETSAT erlaubt für diese Browseranfrage keinen direkten PNG-Canvas-Export (CORS). Öffne das Originalbild bzw. den EUMETView-Link; es wurde kein falsches Downloadbild erzeugt.","warning");}
  finally{buttons();}
 }
+// Extra composite exports preserve the original PNG/GIF buttons.
+const composite=window.SatelliteMapExport;
+function exportTime(){
+ if(!filmImage.hidden&&filmItems[filmPosition])return filmItems[filmPosition].time;
+ if(cachedImage?.time)return cachedImage.time;
+ return verified&&frames[index]?frames[index]:null;
+}
+async function exportPixels(t){
+ const visible=!filmImage.hidden?filmItems[filmPosition]?.img:image;
+ if(cachedImage?.time===t&&visible?.naturalWidth)return visible;
+ try{
+  return await new Promise((resolve,reject)=>{
+   const img=new Image();img.crossOrigin="anonymous";img.decoding="async";
+   let done=false;const finish=err=>{if(done)return;done=true;clearTimeout(timer);
+    img.onload=null;img.onerror=null;err?reject(err):resolve(img);};
+   const timer=setTimeout(()=>finish(Error("WMS-Hochauflösung zu langsam.")),10000);
+   img.onload=()=>finish();img.onerror=()=>finish(Error("WMS-PNG nicht erreichbar."));
+   img.src=imageUrl(t);
+  });
+ }catch(error){
+  if(visible?.naturalWidth)return visible;
+  throw error;
+ }
+}
+async function downloadComposite(format){
+ if(exportBusy||!composite||!window.SatelliteIsobars?.exportAt)return;
+ const t=exportTime(),place=region.value;
+ if(!t){setStatus("Kein bestätigter Satellitenzeitpunkt für den Isobarenexport.","warning");return;}
+ exportBusy=true;buttons();
+ try{
+  setStatus("Erzeuge "+format.toUpperCase()+" mit pinken Isobaren und UTC-Kennzeichnung …","info");
+  const overlay=await window.SatelliteIsobars.exportAt(t,place,Number(id("satIsobarSpacing").value)||5);
+  const img=await exportPixels(t);
+  const arg={image:img,overlay,region:place,regionName:REGIONS[place].name,product:product.value,
+   productName:description().name,credit:description().credit};
+  const result=format==="pdf"?await composite.renderPDF(arg):await composite.renderPNG(arg);
+  const bytes=composite.download(result);
+  setStatus(format.toUpperCase()+" mit pinken Isobaren gespeichert ("+(bytes/1048576).toFixed(1)+
+   " MB). ECMWF gültig "+formatUTC(overlay.validUTC)+" · "+overlay.method+".","info");
+ }catch(err){
+  setStatus("Kein "+format.toUpperCase()+" mit Isobaren erstellt: "+(err?.message||err)+
+   ". Bei CORS-Sperre ist ein serverseitiger Satellitenbildcache erforderlich.","warning");
+ }finally{exportBusy=false;buttons();}
+}
+async function downloadGIFIsobars(){
+ if(exportBusy||filmLoading||filmItems.length<2||!composite||!window.SatelliteIsobars?.exportAt)return;
+ if(filmPlaying)stop(false);
+ exportBusy=true;buttons();
+ try{
+  const selected=filmItems.slice(),place=region.value,overlays=[];
+  for(let i=0;i<selected.length;i++){
+   setStatus("Lade 10-Minuten-Isobaren für GIF: "+(i+1)+"/"+selected.length,"info");
+   overlays.push(await window.SatelliteIsobars.exportAt(
+    selected[i].time,place,Number(id("satIsobarSpacing").value)||5,{strictTenMinute:true}));
+  }
+  const result=await exporters.exportGIF({
+   frames:selected,isobarOverlays:overlays,region:place,product:product.value,
+   productName:description().name,credit:description().credit,
+   width:Math.min(480,Number(filmQuality.value)||320),delayMs:Number(filmSpeed.value)||750,
+   progress:(n,total)=>setStatus("GIF mit pinken Isobaren: "+n+"/"+total,"info")
+  });
+  result.name=result.name.replace(/\.gif$/,"_isobaren.gif");
+  const size=exporters.download(result);
+  setStatus("GIF mit echten zeitlich zugeordneten pinken Isobaren gespeichert ("+
+   selected.length+" Bilder · "+(size/1048576).toFixed(1)+" MB).","info");
+ }catch(err){
+  setStatus("GIF mit Isobaren nicht erstellt: "+(err?.message||err)+
+   ". Kein Export ohne passende Drucklinien.","warning");
+ }finally{exportBusy=false;buttons();}
+}
+pngIso.addEventListener("click",()=>downloadComposite("png"));
+pdfIso.addEventListener("click",()=>downloadComposite("pdf"));
+gifIso.addEventListener("click",downloadGIFIsobars);
 [source,product].forEach(el=>el.addEventListener("change",refresh));
 region.addEventListener("change",()=>{
  stop();
