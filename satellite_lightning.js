@@ -13,7 +13,7 @@ const AREAS={
  germany:[5,47,16,56,1140,950]
 };
 const stage=$("satLightningOverlay");
-let context={time:null,region:"europe",source:"mtgi1"},timeline=[],checked=0,loading=null,epoch=0;
+let context={time:null,region:"europe",source:"mtgi1"},timeline=[],checked=0,loading=null,epoch=0,lastLoadError="";
 const fmt=t=>new Date(t).toISOString().slice(0,16).replace("T"," ")+" UTC";
 function clear(message){
  stage.replaceChildren();stage.hidden=true;
@@ -42,16 +42,19 @@ async function loadTimes(){
   try{
    const response=await fetch("./data/satellite_wms_times.json",{cache:"no-store"});
    if(!response.ok)throw Error("Statusdatei nicht erreichbar");
-   const info=await response.json(),entry=info.products?.lightning;
+   const info=await response.json();
+   // The hourly WMS monitor publishes LI at the root, while some prior
+   // schemas used products.lightning. Accept only validated values.
+   const entry=info.lightning||info.products?.lightning;
    const age=Date.now()-Date.parse(info.generated_at);
    if(!info.capabilities_ok||age<0||age>4*3600000||
       entry?.layer!==LAYER||!entry.map_ok||!entry.latest_verified_time)
     throw Error("Noch kein bildgeprüfter LI-WMS-Lauf");
    const listed=readTimes((entry.available_times||[]).join(","));
    if(!listed.includes(new Date(entry.latest_verified_time).toISOString()))throw Error("LI-Zeitprüfung widersprüchlich");
-   timeline=listed;
+   timeline=listed;lastLoadError="";
   }catch(err){
-   timeline=[];status.textContent="LI-AFA derzeit nicht verifiziert: "+err.message+". Keine Blitzdaten eingeblendet.";
+   timeline=[];lastLoadError=err.message;status.textContent="LI-AFA derzeit nicht verifiziert: "+err.message+". Keine Blitzdaten eingeblendet.";
   }finally{loading=null;}
   return timeline;
  })();
@@ -74,6 +77,7 @@ async function update(input){
  if(!Number.isFinite(Date.parse(context.time))){clear("Kein geprüfter Satellitenzeitpunkt für die LI-Synchronisierung.");return;}
  clear("Prüfe offizielle MTG-LI-Blitzakkumulationen …");
  const times=await loadTimes();if(epoch!==mine)return;
+ if(!times.length){clear("LI-AFA nicht verfügbar: "+(lastLoadError||"keine geprüften UTC-Zeitpunkte")+".");return;}
  const target=Date.parse(context.time);
  // AFA timestamp describes the beginning of its 5-minute accumulation.
  const latest=[...times].reverse().find(t=>Date.parse(t)+5*60000<=target);
