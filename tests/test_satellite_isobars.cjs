@@ -51,7 +51,7 @@ async function ready(api){
 }
 test("ECMWF layer has explicit controls and synchronizes on satellite still and film frames",()=>{
  for(const id of ["satIsobarSvg","satShowIsobars","satIsobarSpacing","satIsobarStatus"])assert.ok(html.includes('id="'+id+'"'));
- assert.ok(html.includes('src="satellite_isobars.js"'));
+ assert.match(html,/src="satellite_isobars\\.js(?:\\?v=[^"]+)?"/);
  assert.match(satellite,/SatelliteIsobars\?\.sync\(\{time:t,region/);
  assert.match(satellite,/SatelliteIsobars\?\.sync\(\{time:item\.time,region/);
  assert.doesNotThrow(()=>new vm.Script(src));
