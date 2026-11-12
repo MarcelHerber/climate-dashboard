@@ -201,7 +201,7 @@ jobs:
           name: era5-running-0p1-${{ needs.target.outputs.month_key }}-${{ matrix.variable }}-${{ matrix.start }}-${{ matrix.end }}
           path: .era5_running_cache_0p1
           include-hidden-files: true
-          retention-days: 7
+          retention-days: 40
           if-no-files-found: error
 
   publish-reference:
@@ -241,6 +241,15 @@ jobs:
         with:
           path: .era5_running_cache_0p1
           key: era5-land-running-0p1-reference-v1-${{ needs.target.outputs.month_key }}
+      - name: Vollständigen Referenzcache als 40-Tage-Backup sichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: era5-land-running-reference-full-${{ needs.target.outputs.month_key }}
+          path: .era5_running_cache_0p1
+          include-hidden-files: true
+          compression-level: 1
+          retention-days: 40
+          if-no-files-found: error
       - name: Laufende ERA5-Land-Daten nach Cachebau starten
         env:
           GH_TOKEN: ${{ github.token }}
