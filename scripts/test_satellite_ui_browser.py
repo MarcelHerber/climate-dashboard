@@ -287,8 +287,23 @@ def exercise(page, viewport_label, official_xml):
     page.locator("#satPlay").click()
     page.locator("#satGif").wait_for(state="visible")
     page.wait_for_function("() => !document.getElementById('satGif').disabled",timeout=30000)
-    evidence["mocked_frame_requests"]=len(frame_requests)
-    assert 2<=evidence["mocked_frame_requests"]<=8
+    # The route also sees the 400px still image triggered by the region
+    # switch. Count only 320px film frames and 240px retries, not stills.
+    film_requests=[
+        url for url in frame_requests
+        if int(parse_qs(urlsplit(url).query).get("width", ["0"])[0]) in (320,240)
+    ]
+    unique_film_times={
+        parse_qs(urlsplit(url).query).get("time", [""])[0]
+        for url in film_requests
+    }
+    evidence["mocked_frame_requests"]=len(film_requests)
+    evidence["mocked_frame_unique_utc"]=len(unique_film_times)
+    evidence["all_mocked_wms_requests"]=len(frame_requests)
+    assert 2<=len(unique_film_times)<=8, (
+        "Insufficient unique film timestamps: "+str(evidence))
+    assert 2<=len(film_requests)<=16, (
+        "Unexpected number of 320px/240px film requests: "+str(evidence))
     with page.expect_download(timeout=30000) as download_info:
         page.locator("#satGif").click()
     gif=download_info.value
