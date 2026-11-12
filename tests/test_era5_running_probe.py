@@ -10,6 +10,46 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import update_era5_land_europe_running as running
 
 
+
+def test_cds_definite_unavailable_date_is_not_retried(monkeypatch, tmp_path):
+    calls = []
+    sleeps = []
+
+    class Client:
+        def retrieve(self, dataset, request, target):
+            calls.append(target)
+            raise RuntimeError(
+                "400 Client Error: None of the data you have requested is available yet. "
+                "The latest date available for this dataset is: 2026-11-07 20:00"
+            )
+
+    monkeypatch.setattr(running.time, "sleep", lambda delay: sleeps.append(delay))
+    with pytest.raises(RuntimeError, match="latest date available"):
+        running.retrieve(Client(), running.DAILY_DATASET, {},
+                         tmp_path / "future.nc", "daily availability probe")
+    assert len(calls) == 1
+    assert sleeps == []
+
+
+def test_cds_transient_errors_still_retry(monkeypatch, tmp_path):
+    calls = []
+    sleeps = []
+    target = tmp_path / "retried.nc"
+
+    class Client:
+        def retrieve(self, dataset, request, file_path):
+            calls.append(file_path)
+            if len(calls) < 3:
+                raise RuntimeError("503 transient CDN error")
+            Path(file_path).write_bytes(b"valid response")
+
+    monkeypatch.setattr(running.time, "sleep", lambda delay: sleeps.append(delay))
+    running.retrieve(Client(), running.DAILY_DATASET, {}, target, "retry probe")
+    assert len(calls) == 3
+    assert sleeps == [10, 30]
+    assert target.read_bytes() == b"valid response"
+
+
 def test_probe_starts_yesterday_not_six_days_ago():
     candidates = running.probe_candidate_dates(date(2026, 11, 5))
     assert len(candidates) == running.MAX_LOOKBACK_DAYS == 14
