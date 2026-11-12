@@ -76,7 +76,7 @@ def verify(page,out:Path,label:str):
     assert metrics["chart"]<=metrics["panel"]+2,metrics
     assert metrics["content"]<=metrics["screen"]+3,metrics
     assert not errors,errors[:5]
-    page.screenshot(path=str(out/(label+"_eps.png")),full_page=True,animations="disabled")
+    page.screenshot(path=str(out/(label+"_eps_screenshot.png")),full_page=True,animations="disabled")
     print(json.dumps({"viewport":label,"dataset_count":initial["count"],"member_count":50,
                       "export_count":3,"metrics":metrics}),flush=True)
 
