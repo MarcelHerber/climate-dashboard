@@ -9,6 +9,8 @@ const SST_ARCHIVE_BASES=[
 let sstArchiveBase=SST_ARCHIVE_BASES[0];
 let sstManifestPromise=null;
 let sstManifest=null;
+let sstManifestLoadedAt=0;
+const SST_MANIFEST_REFRESH_MS=30*60*1000;
 let sstMounted=false;
 let sstState={region:"europe",view:"absolute",date:null};
 
@@ -92,6 +94,7 @@ async function sstLoadManifestFrom(base){
   }
 }
 async function loadSstManifest(){
+  if(sstManifestLoadedAt&&Date.now()-sstManifestLoadedAt>SST_MANIFEST_REFRESH_MS)sstManifestPromise=null;
   if(!sstManifestPromise){
     // The fastest CDN may hold an older manifest for hours. Read the raw
     // repository source first; use the mirrored endpoints only as fallback.
@@ -102,6 +105,7 @@ async function loadSstManifest(){
       })
       .then(({payload,base})=>{
         sstArchiveBase=base;
+        sstManifestLoadedAt=Date.now();
         return payload;
       })
       .catch(error=>{
@@ -282,7 +286,20 @@ async function downloadSstPdf(){
 window.downloadSstPdf=downloadSstPdf;
 
 async function mountSstEurope(){
-  if(sstMounted&&sstManifest){sstRenderMap();return;}
+  if(sstMounted&&sstManifest){
+    const previouslyLatest=sstLatestDateForRegion();
+    try{
+      const refreshed=await loadSstManifest();
+      if(refreshed!==sstManifest){
+        sstManifest=refreshed;
+        sstPopulateRegions();
+        if(!sstRegionHasDate(sstState.date)||sstState.date===previouslyLatest)sstState.date=sstLatestDateForRegion();
+        sstUpdateDateBounds();
+      }
+    }catch(error){console.warn("SST-Archiv konnte nicht erneut geprüft werden; zeige bisherigen Stand:",error);}
+    sstRenderMap();
+    return;
+  }
   sstSetStatus("SST-Archiv wird geladen …");
   try{
     sstManifest=await loadSstManifest();
@@ -303,6 +320,9 @@ document.addEventListener("click",event=>{
 });
 document.addEventListener("DOMContentLoaded",()=>{
   if(sstEl("sst-europe")?.classList.contains("active"))mountSstEurope();
+});
+document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden&&sstEl("sst-europe")?.classList.contains("active"))mountSstEurope();
 });
 
 const sstTab=sstEl("sst-europe");
