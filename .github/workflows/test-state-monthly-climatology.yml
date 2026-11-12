@@ -1,0 +1,48 @@
+name: Monatsausblick Klimareferenz PR-Tests
+
+on:
+  pull_request:
+    paths:
+      - "scripts/build_monthly_outlook_climatology.py"
+      - "tests/test_monthly_outlook_climatology.py"
+      - "state_monthly_ensemble.js"
+      - ".github/workflows/test-state-monthly-climatology.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: PR-Branch auschecken
+        uses: actions/checkout@v6
+      - name: Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Pakete
+        run: |
+          python -m pip install -r requirements-hyras.txt
+          python -m pip install shapely
+      - name: Syntax- und Funktionstests
+        run: |
+          python -m py_compile scripts/build_monthly_outlook_climatology.py
+          python -m unittest discover -s tests -p test_monthly_outlook_climatology.py -v
+          node --check state_monthly_ensemble.js
+      - name: Echte DWD-Referenzdaten für November 1991-2020 prüfen
+        run: |
+          python scripts/build_monthly_outlook_climatology.py \
+            --months 11 --output /tmp/climate-smoke-november.json
+          python - <<'PY'
+          import json
+          d=json.load(open("/tmp/climate-smoke-november.json"))
+          assert set(d["months"]) == {"11"}
+          for parameter in ("sunshine","precipitation"):
+              r=d["months"]["11"][parameter]
+              assert len(r)==17 and r["Deutschland"]["month_total"]>0
+              print(parameter,"Deutschland November-Normal:",r["Deutschland"]["month_total"])
+          PY
