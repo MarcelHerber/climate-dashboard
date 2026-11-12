@@ -69,6 +69,7 @@ required_root_files=(
   climate_advanced.js
   climate_indices.js
   nao_ao_forecast.js
+  ecmwf_teleconnections.js
   nao_ao_maps.js
   climate_indices.css
   stratosphere_temperature.js
@@ -942,6 +943,28 @@ PY
   mkdir -p _site/data/nao_ao_forecast/ecmwf_maps
   cp data/nao_ao_forecast/ecmwf_maps/*.png data/nao_ao_forecast/ecmwf_maps/index.json _site/data/nao_ao_forecast/ecmwf_maps/
 fi
+
+# ECMWF ENS NAO/AO projection: serve only verified real 50-member dataset.
+if [[ -s data/nao_ao_forecast/ecmwf_indices.json ]]; then
+  python - <<'PY'
+import json
+from pathlib import Path
+p=Path("data/nao_ao_forecast/ecmwf_indices.json")
+obj=json.loads(p.read_text(encoding="utf-8"))
+assert obj.get("schema")==1 and obj.get("ready") is True
+assert obj.get("expected_members")==50 and obj.get("is_official_cpc") is False
+assert obj.get("nao_is_cpc_exact_method") is False
+for key in ("nao","ao"):
+ row=obj["indices"][key]
+ assert len(row["members"])==50 and len(row["mean"])==16
+ assert all(n==50 for n in row["member_count"])
+ assert row["quality"]["holdout_correlation"]>=0.55
+print("ECMWF EPS 50-member EOF forecast validated for Pages.")
+PY
+  mkdir -p _site/data/nao_ao_forecast
+  cp data/nao_ao_forecast/ecmwf_indices.json _site/data/nao_ao_forecast/ecmwf_indices.json
+fi
+node --check _site/ecmwf_teleconnections.js
 
 # NOAA/CPC extended archive as before.
 if [[ -s climate_indices/index.json ]]; then
