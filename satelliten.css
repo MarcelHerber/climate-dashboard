@@ -132,3 +132,19 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
   pointer-events:none;
 }
 @media(max-width:650px){.sat-pressure-center{font-size:36px}}
+
+/* Phase 1 viewport tools; overlays are children of the transformed stack. */
+.sat-view-controls{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin:0 0 8px}
+.sat-view-controls button,.sat-view-controls select{background:var(--sat-button);color:var(--sat-text);border:1px solid var(--sat-border);border-radius:8px;min-height:40px;padding:7px 12px;font:inherit}
+.sat-view-controls button{cursor:pointer}
+.sat-view-controls button:disabled,.sat-view-controls select:disabled{opacity:.55;cursor:not-allowed}
+.sat-view-controls output{min-width:56px;font-variant-numeric:tabular-nums;text-align:center;font-weight:750}
+.sat-view-controls label{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:700}
+.sat-view-note{font-size:12px;color:var(--sat-muted);margin:0 0 10px}
+.sat-picture-frame.sat-pannable{cursor:grab;touch-action:none}
+.sat-picture-frame.sat-pannable:active{cursor:grabbing}
+.sat-image-stack{will-change:transform}
+.sat-image-stack[data-ir-preset="contrast"] > #satImage,.sat-image-stack[data-ir-preset="contrast"] #satFilmStage img{filter:contrast(1.45) brightness(1.06)}
+.sat-image-stack[data-ir-preset="monochrome"] > #satImage,.sat-image-stack[data-ir-preset="monochrome"] #satFilmStage img{filter:grayscale(1) contrast(1.16)}
+.sat-image-stack[data-ir-preset="negative"] > #satImage,.sat-image-stack[data-ir-preset="negative"] #satFilmStage img{filter:grayscale(1) invert(1) contrast(1.25)}
+@media(max-width:650px){.sat-view-controls{gap:6px}.sat-view-controls label{width:100%;justify-content:space-between}.sat-view-controls select{max-width:60%}}
