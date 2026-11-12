@@ -17,7 +17,7 @@ const MAX_SEPARATION=4*3600*1000; // never show a 12h old "matching" isobar fiel
 const MAX_DATA_AGE=30*3600*1000;
 const MAX_STANDALONE_AGE=12*3600*1000; // older forecasts may be shown, clearly labelled
 const ns="http://www.w3.org/2000/svg";
-const ENDPOINTS=["./data/satellite_mslp/preview.json","https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/data/satellite_mslp/latest.json","./data/satellite_mslp/latest.json"];
+const ENDPOINTS=["./data/satellite_mslp/preview.json","./data/satellite_mslp/latest.json","https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/data/satellite_mslp/latest.json"];
 function note(s){status.textContent=s;}
 function utc(time){return new Date(time).toISOString().slice(0,16).replace("T"," ")+" UTC";}
 function frameFor(time){
@@ -120,12 +120,18 @@ async function load(force=false){
   try{
    // On first load use the small Pages preview. On manual/periodic refresh
    // ask GitHub for the newest full dataset without blanking the visible map.
-   const choices=force&&data?[ENDPOINTS[1],ENDPOINTS[0],ENDPOINTS[2]]:ENDPOINTS;
+   const choices=force&&data?[ENDPOINTS[2],ENDPOINTS[0],ENDPOINTS[1]]:ENDPOINTS;
    for(const url of choices){
     try{
-     const r=await fetch(url,{cache:"no-store"});
-     if(!r.ok)throw Error("HTTP "+r.status);
-     const d=await r.json();
+     // A blocked remote host must not stall the usable same-origin vector data.
+     const ctrl=typeof AbortController==="function"?new AbortController():null;
+     const timer=ctrl&&typeof setTimeout==="function"?setTimeout(()=>ctrl.abort(),5500):null;
+     let d;
+     try{
+      const r=await fetch(url,{cache:"no-store",...(ctrl?{signal:ctrl.signal}:{})});
+      if(!r.ok)throw Error("HTTP "+r.status);
+      d=await r.json();
+     }finally{if(timer!==null&&typeof clearTimeout==="function")clearTimeout(timer);}
      if(d.schema_version!==1||d.model!=="ECMWF IFS Open Data"||
         d.field!=="mean sea-level pressure"||d.units!=="hPa"||
         d.resolution_degrees!==0.25||d.interval_hpa!==5||
@@ -142,10 +148,10 @@ async function load(force=false){
      }
 
      if(data&&Date.parse(d.run_utc)<Date.parse(data.run_utc))throw Error("Älterer ECMWF-Lauf als der bereits geladene Stand");
-     data=d;failed=false;errorDetail="";dataOrigin=url===ENDPOINTS[0]?"preview":url===ENDPOINTS[1]?"github":"pages";
+     data=d;failed=false;errorDetail="";dataOrigin=url===ENDPOINTS[0]?"preview":url===ENDPOINTS[1]?"pages":"github";
      break;
     }catch(err){
-     problems.push((url===ENDPOINTS[0]?"Schnelle Isobaren":"GitHub Druckdaten")+": "+(err?.message||String(err)));
+     problems.push((url===ENDPOINTS[0]?"Schnelle Isobaren":url===ENDPOINTS[1]?"Lokale ECMWF-Daten":"GitHub-Rohdaten")+": "+(err?.message||String(err)));
     }
    }
    if(!data)throw Error(problems.join(" | "));
