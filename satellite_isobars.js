@@ -165,6 +165,25 @@ function draw(frame,bbox,gap){
    batch.appendChild(label);
   }
  }
+ // H/T only for significant, fully closed nested IFS isobars.
+ const limits={atlantic:8,europe:6,southwest:5,central:3,germany:2};
+ const systems=geometry.detectPressureSystems?.(frame.contours,bbox,{
+  maxSystems:limits[context.region]||5,minRings:3,minSeparation:94
+ })||[];
+ for(const center of systems){
+  const lon=((center.lon-minX)/(maxX-minX))*1000;
+  const lat=((maxY-center.lat)/(maxY-minY))*1000;
+  const glyph=document.createElementNS(ns,"text");
+  glyph.setAttribute("x",lon.toFixed(2));
+  glyph.setAttribute("y",lat.toFixed(2));
+  glyph.setAttribute("class","sat-pressure-center");
+  glyph.setAttribute("data-pressure-type",center.type);
+  glyph.setAttribute("aria-label",(center.type==="T"?"Tief":"Hoch")+
+   "druckzentrum "+center.hpa+" hPa");
+  glyph.setAttribute("fill",center.type==="T"?"#cf4baf":"#9750c4");
+  glyph.textContent=center.type;
+  batch.appendChild(glyph);
+ }
  svg.replaceChildren(batch);
  return count;
 }
