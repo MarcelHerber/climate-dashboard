@@ -8,7 +8,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 BASE="https://marcelherber.github.io/climate-dashboard/"
-MARKER="monthly_climate_bars.js?v=20261112-phase2-climate-key-v2"
+MARKER="monthly_climate_bars.js?v=20261112-phase2-climate-key-v3"
 REPORT=Path("climate_bars_audit")
 REPORT.mkdir(exist_ok=True)
 
