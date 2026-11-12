@@ -133,9 +133,8 @@ test("Atlantic PNG, vector PDF and GIF contain only verified H/T letters",async(
   {hpa:1005,lines:[ring(-55,55,10)]},
   {hpa:1000,lines:[ring(-55,55,6)]},
   {hpa:995,lines:[ring(-55,55,3)]},
-  {hpa:1020,lines:[ring(-20,43,10)]},
-  {hpa:1025,lines:[ring(-20,43,6)]},
-  {hpa:1030,lines:[ring(-20,43,3)]}
+  // The H must be recognized from only one broad closed 1020-hPa ring.
+  {hpa:1020,lines:[ring(-20,43,10)]}
  ]};
  const found=api.pressureCenters(layer,"atlantic");
  assert.deepEqual(Array.from(found,x=>x.type).sort(),["H","T"]);
