@@ -34,10 +34,48 @@
   "target_days": 30,
   "initial_backfill_days": 30,
   "archive_policy": "append_only",
-  "archive_days": 31,
-  "fully_mapped_days": 31,
-  "latest_date": "2026-11-04",
+  "archive_days": 32,
+  "fully_mapped_days": 32,
+  "latest_date": "2026-11-05",
   "days": [
+    {
+      "date": "2026-11-05",
+      "regions": {
+        "80": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_80n_20261105.png",
+          "anomaly_png": "maps/anomaly_80n_20261105.png",
+          "mean_c": -11.29,
+          "mean_anomaly_k": 8.23,
+          "min_c": -29.87,
+          "max_c": -0.09,
+          "min_anomaly_k": -2.81,
+          "max_anomaly_k": 19.3
+        },
+        "70": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_70n_20261105.png",
+          "anomaly_png": "maps/anomaly_70n_20261105.png",
+          "mean_c": -10.21,
+          "mean_anomaly_k": 6.64,
+          "min_c": -32.01,
+          "max_c": 6.34,
+          "min_anomaly_k": -8.67,
+          "max_anomaly_k": 19.3
+        },
+        "60": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_60n_20261105.png",
+          "anomaly_png": "maps/anomaly_60n_20261105.png",
+          "mean_c": -8.03,
+          "mean_anomaly_k": 6.07,
+          "min_c": -36.83,
+          "max_c": 10.66,
+          "min_anomaly_k": -8.67,
+          "max_anomaly_k": 19.3
+        }
+      }
+    },
     {
       "date": "2026-11-04",
       "regions": {
@@ -1217,5 +1255,5 @@
       }
     }
   ],
-  "generated_utc": "2026-11-11T18:00:31+00:00"
+  "generated_utc": "2026-11-12T01:33:20+00:00"
 }
