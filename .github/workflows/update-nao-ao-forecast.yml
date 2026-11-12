@@ -18,18 +18,25 @@ permissions:
 
 concurrency:
   group: noaa-cpc-nao-ao-forecast
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   forecast:
     runs-on: ubuntu-latest
     timeout-minutes: 22
     steps:
-      - name: Repository main auschecken
+      - name: Repository main auschecken (nur notwendige Dateien)
         uses: actions/checkout@v6
         with:
           ref: main
-          fetch-depth: 0
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/
+            tests/
+            nao_ao_forecast.js
+            zirkulation.html
+            data/nao_ao_forecast/
       - name: Python 3.13
         uses: actions/setup-python@v6
         with:
