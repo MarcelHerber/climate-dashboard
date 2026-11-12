@@ -18,6 +18,7 @@ on:
       - "tests/test_state_monthly_hydro_sum.py"
       - "tests/test_state_monthly_precip_outlook.py"
       - "tests/test_state_monthly_sun_outlook.py"
+      - ".github/workflows/update-state-monthly-precip.yml"
       - ".github/workflows/test-state-monthly-hydro.yml"
   workflow_dispatch:
 
