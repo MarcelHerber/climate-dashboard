@@ -70,7 +70,13 @@ def test_daily_workflow_requires_exact_reference_cache_and_probe_validation():
     workflow = (ROOT / '.github/workflows/update-era5-land-running.yml').read_text(encoding='utf-8')
     assert 'Frischen gemeinsamen ERA5-Land-T/P-Tag bestimmen' in workflow
     assert 'era5-land-running-0p1-reference-v1-${{ steps.probe.outputs.month_key }}' in workflow
-    assert 'fail-on-cache-miss: true' in workflow
+    # A missing GitHub Actions cache must no longer block every daily update.
+    # Recover a validated full-month backup, or start a new reference build.
+    assert 'fail-on-cache-miss: true' not in workflow
+    assert "steps.reference-cache.outputs.cache-hit != 'true'" in workflow
+    assert 'era5-land-running-reference-full-' in workflow
+    assert 'gh workflow run "$WORKFLOW" --ref main' in workflow
+    assert 'Referenzcache bei Bedarf automatisch neu aufbauen' in workflow
     assert '--expected "$EXPECTED_DATA_THROUGH"' in workflow
     header = workflow.split('jobs:', 1)[0]
     # The data-heavy job is triggered only when its probe/workflow is edited,
@@ -87,6 +93,8 @@ def test_reference_workflow_prebuilds_calendar_month_and_dispatches_running_upda
     assert 'reference-month' in workflow
     assert 'era5-land-running-0p1-reference-v1-${{ needs.target.outputs.month_key }}' in workflow
     assert 'gh workflow run update-era5-land-running.yml --ref main' in workflow
+    assert 'era5-land-running-reference-full-' in workflow
+    assert 'retention-days: 40' in workflow
 
 
 def test_completed_backfill_month_skips_live_probe():
