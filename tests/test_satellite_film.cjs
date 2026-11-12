@@ -148,13 +148,13 @@ test("Film player reuses small WMS PNGs and never requests each frame again",asy
  nodes.get("satRegion").dispatch("change");
  assert.equal(fetches.length,before,"switching region must not re-fetch time metadata");
 });
-test("One failed 480px WMS frame falls back once to 720px and playback still starts",async()=>{
+test("One failed 480px WMS frame falls back to a lighter 320px preview",async()=>{
  const {nodes,requests}=fixture({failOne480:true});
  await waitUntil(()=>nodes.get("satTime").options.length===8,"UTC timestamps");
  nodes.get("satPlay").dispatch("click");
  await waitUntil(()=>!nodes.get("satFilmStage").hidden,"movie with fallback starts");
  assert.equal(requests.filter(r=>new URL(r.url).searchParams.get("width")==="480").length,6);
- assert.equal(requests.filter(r=>new URL(r.url).searchParams.get("width")==="720").length,1);
+ assert.equal(requests.filter(r=>new URL(r.url).searchParams.get("width")==="320").length,1);
  assert.equal(nodes.get("satFilmProgress").value,6);
  assert.ok(nodes.get("satFilmStage").children[0].naturalWidth>0);
  nodes.get("satPlay").dispatch("click");
@@ -192,7 +192,7 @@ test("36-frame GeoColour film recovers once from a failed 320px image",async()=>
  nodes.get("satPlay").dispatch("click");
  await waitUntil(()=>!nodes.get("satFilmStage").hidden,"recovered 36-frame film",5000);
  assert.equal(requests.filter(r=>new URL(r.url).searchParams.get("width")==="320").length,36);
- assert.equal(requests.filter(r=>new URL(r.url).searchParams.get("width")==="720").length,1);
+ assert.equal(requests.filter(r=>new URL(r.url).searchParams.get("width")==="240").length,1);
  assert.equal(nodes.get("satFilmProgress").value,36);
  assert.ok(state.maxActive<=2);
  nodes.get("satPlay").dispatch("click");
