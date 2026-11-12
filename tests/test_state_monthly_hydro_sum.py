@@ -65,6 +65,33 @@ class CumulativeOutlookTests(unittest.TestCase):
                 aggregation="sum",
             )
 
+    def test_hourly_sunshine_seconds_become_valid_daily_hours(self):
+        hours = [f"2026-11-03T{hour:02d}:00" for hour in range(24)]
+        location = {
+            "hourly": {
+                "time": hours,
+                "sunshine_duration_member01": [1800.0] * 24,
+                "sunshine_duration_member02": [3600.0] * 24,
+            },
+            "hourly_units": {"sunshine_duration": "s"},
+        }
+        daily = outlook.hourly_sunshine_to_daily(location)["daily"]
+        self.assertEqual(daily["time"], ["2026-11-03"])
+        self.assertEqual(daily["sunshine_duration_member01"], [12.0])
+        self.assertEqual(daily["sunshine_duration_member02"], [24.0])
+
+    def test_incomplete_or_invalid_hour_is_not_zero(self):
+        times = [f"2026-11-03T{hour:02d}:00" for hour in range(24)]
+        hourly = {
+            "time": times,
+            "sunshine_duration_member01": [0.0] * 11 + [None] + [0.0] * 12,
+        }
+        location = {"hourly": hourly, "hourly_units": {"sunshine_duration": "s"}}
+        self.assertEqual(outlook.hourly_sunshine_to_daily(location)["daily"]["sunshine_duration_member01"], [None])
+        location["hourly"]["time"] = times[:-1]
+        location["hourly"]["sunshine_duration_member01"] = [0.0] * 23
+        self.assertEqual(outlook.hourly_sunshine_to_daily(location)["daily"]["time"], [])
+
     def test_model_gap_stops_forecast_and_prevents_fabricated_zero(self):
         model = {
             **self.model,
