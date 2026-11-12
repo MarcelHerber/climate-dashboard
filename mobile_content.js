@@ -71,7 +71,7 @@ function chartPoint(chart,index){
  for(let datasetIndex=0;datasetIndex<sets.length;datasetIndex++){
   if(chart.isDatasetVisible?.(datasetIndex)===false)continue;
   const value=sets[datasetIndex]?.data?.[index];
-  if(value===null||value===undefined)return null;
+  if(value===null||value===undefined)continue;
   if(typeof value==="number"&&!Number.isFinite(value))continue;
   if(typeof value==="object"&&value!==null&&
      !Object.values(value).some(v=>typeof v==="number"&&Number.isFinite(v)))continue;
@@ -125,7 +125,8 @@ function improveChartInteraction(chart){
   if(!length)return;
   const delta=event.key==="ArrowRight"?1:-1;
   for(let step=0;step<length;step++){
-   const index=(active+(delta===1?0:length)+delta*(step+1)+length)%length;
+   const start=active<0?(delta===1?-1:0):active;
+   const index=((start+delta*(step+1))%length+length)%length;
    if(chartPoint(chart,index)){
     event.preventDefault();select(index);return;
    }
