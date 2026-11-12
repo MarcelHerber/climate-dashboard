@@ -4,6 +4,7 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const vm=require("node:vm");
 const src=fs.readFileSync("satellite_isobars.js","utf8");
+const geom=fs.readFileSync("satellite_isobar_geometry.js","utf8");
 const html=fs.readFileSync("satelliten.html","utf8");
 const satellite=fs.readFileSync("satelliten.js","utf8");
 
@@ -66,6 +67,7 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
    }
    return {ok:true,json:async()=>data};
   }};
+ vm.runInNewContext(geom,sandbox,{timeout:1000});
  vm.runInNewContext(src,sandbox,{timeout:1000});
  return {map,data,api:sandbox.window.SatelliteIsobars,run,getCalls:()=>calls};
 }
