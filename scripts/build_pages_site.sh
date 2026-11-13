@@ -134,6 +134,9 @@ required_root_files=(
   temperatur_anomalie_europa.html
   cpc_europe.js
   cpc_europe.css
+  gfs_analysis_europe.html
+  gfs_analysis_europe.js
+  gfs_analysis_europe.css
   era5_synoptic.js
   era5_synoptic.css
   state_monthly_ensemble.js
@@ -204,6 +207,41 @@ assert '["temperatur_anomalie_europa.html","Aktuelle Temperaturabweichung · NOA
 print("NOAA CPC navigation and independent page included in Pages site")
 PY
 node --check _site/cpc_europe.js
+
+# Publish only analysis records made from all four actual NOAA GFS f000 cycles.
+# The 1991-2020 anomaly is not published until the CFSR/CFSv2 normal is validated.
+if [[ -s gfs_analysis_europe/index.json ]]; then
+  mkdir -p _site/gfs_analysis_europe
+  cp gfs_analysis_europe/index.json _site/gfs_analysis_europe/index.json
+  python - <<'PY'
+import json
+from pathlib import Path
+x=json.loads(Path("_site/gfs_analysis_europe/index.json").read_text(encoding="utf-8"))
+assert x["schema"]==1 and x["type"]=="model_analysis_not_observation"
+assert x["provider"]=="NOAA NOMADS GFS 0.5° analysis f000"
+assert x["grid_degrees"]==0.5 and x["data_through"]==x["dates"][-1]
+assert bool(x.get("anomaly_q10_b64"))==bool(x["reference_ready"])
+print("GFS f000 analysis verified, climatology ready:",x["reference_ready"])
+PY
+else
+  echo "GFS 0,5° analysis is not yet verified; no imaginary 1991–2020 anomaly published."
+fi
+# Add a distinct desktop link next to the observation-only product.
+python - <<'PY'
+from pathlib import Path
+page=Path("_site/index.html")
+s=page.read_text(encoding="utf-8")
+anchor='<a class="tab-button" data-nav-group="europe" href="temperatur_anomalie_europa.html">Aktuelle Temperaturabweichung</a>'
+extra='<a class="tab-button" data-nav-group="europe" href="gfs_analysis_europe.html">GFS-Analyse · CFSR</a>'
+if extra not in s:
+    if s.count(anchor)!=1:
+        raise SystemExit("GFS Europe: CPC menu anchor is missing or ambiguous")
+    s=s.replace(anchor,anchor+"\n          "+extra,1)
+    page.write_text(s,encoding="utf-8")
+assert '["gfs_analysis_europe.html","GFS-Analyse · CFSR 1991–2020"]' in Path("_site/mobile_navigation.js").read_text(encoding="utf-8")
+PY
+node --check _site/gfs_analysis_europe.js
+
 
 # Phase 2: bust old cached Gebietsmittel styles/scripts in published Pages.
 # The source index stays intact for unrelated work and its huge file need not
