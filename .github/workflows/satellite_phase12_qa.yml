@@ -21,6 +21,10 @@ on:
       - ".github/workflows/deploy-pages-only.yml"
       - "scripts/audit_satellite_layers.py"
       - "scripts/build_pages_site.sh"
+      - "scripts/update_satellite_dwd_fronts.py"
+      - "tests/test_satellite_dwd_fronts.py"
+      - ".github/workflows/update-satellite-dwd-fronts.yml"
+      - "data/synoptic_charts/dwd_fronts_satellite.json"
       - "tests/test_satellite_*.cjs"
   push:
     branches: [main]
@@ -41,6 +45,10 @@ on:
       - ".github/workflows/deploy-pages-only.yml"
       - "scripts/audit_satellite_layers.py"
       - "scripts/build_pages_site.sh"
+      - "scripts/update_satellite_dwd_fronts.py"
+      - "tests/test_satellite_dwd_fronts.py"
+      - ".github/workflows/update-satellite-dwd-fronts.yml"
+      - "data/synoptic_charts/dwd_fronts_satellite.json"
       - "tests/test_satellite_*.cjs"
   workflow_dispatch:
 
@@ -59,6 +67,7 @@ jobs:
       - name: JavaScript syntax
         run: |
           node --check satelliten.js
+          node --check satellite_dwd_fronts.js
           node --check satellite_view_options.js
           node --check satellite_lightning.js
           node --check satellite_radar.js
@@ -70,6 +79,8 @@ jobs:
         run: python -m unittest discover -s tests -p "test_satellite_live_quality.py" -v
       - name: MTG monitor and freshness watchdog regression tests
         run: python -m unittest discover -s tests -p "test_satellite_wms_monitor.py" -v
+      - name: DWD original front analysis metadata and imagery safety tests
+        run: python -m unittest discover -s tests -p "test_satellite_dwd_fronts.py" -v
       - name: Satellite regression tests
         run: |
           node --test tests/test_satelliten_ui.cjs
