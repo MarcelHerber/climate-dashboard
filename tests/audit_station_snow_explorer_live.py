@@ -145,7 +145,7 @@ def case(browser,width):
           const cx=(bounds.left+bounds.right)/2;
           const cy=(bounds.top+bounds.bottom)/2;
           const candidates=[...map.querySelectorAll('.station-snow-cluster-icon')]
-            .map(el=>{
+            .map((el,index)=>{
               const r=el.getBoundingClientRect(),x=(r.left+r.right)/2,y=(r.top+r.bottom)/2;
               if(x<bounds.left+24||x>bounds.right-24||
                  y<bounds.top+24||y>bounds.bottom-24||
@@ -153,7 +153,7 @@ def case(browser,width):
                 return null;
               const top=document.elementFromPoint(x,y);
               if(top!==el&&!el.contains(top))return null;
-              return {x,y,title:el.title,distance:Math.hypot(x-cx,y-cy)};
+              return {x,y,index,title:el.title,distance:Math.hypot(x-cx,y-cy)};
             }).filter(Boolean).sort((a,b)=>a.distance-b.distance);
           return candidates[0]||null;
         }""")
@@ -163,10 +163,21 @@ def case(browser,width):
         if mobile:
             page.touchscreen.tap(hit["x"],hit["y"])
         else:
-            page.mouse.click(hit["x"],hit["y"])
-        page.wait_for_function("""zoom =>
-            window.StationSnowExplorer?.getState()?.mapZoom>zoom""",
-            arg=before_zoom,timeout=10000)
+            # A Playwright locator click waits for the icon to be stable
+            # and avoids a drag-start on desktop Leaflet maps.
+            cluster.nth(hit["index"]).click(timeout=15000)
+        try:
+            page.wait_for_function("""zoom =>
+                window.StationSnowExplorer?.getState()?.mapZoom>zoom""",
+                arg=before_zoom,timeout=10000)
+        except Exception:
+            result["clusterDiagnostics"]=page.evaluate("""()=>({
+              zoom:window.StationSnowExplorer?.getState()?.mapZoom,
+              clusterCount:document.querySelectorAll(
+                '#stationSnowMap .station-snow-cluster-icon').length,
+              mapStatus:document.querySelector('#stationSnowMapStatus')?.textContent
+            })""")
+            raise
         result["mapClickOk"]=True
         result["mapZoomBefore"]=before_zoom
         result["mapZoomAfter"]=page.evaluate(
