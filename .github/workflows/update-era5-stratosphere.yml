@@ -22,7 +22,11 @@ permissions:
 
 concurrency:
   group: era5-stratosphere-daily
-  cancel-in-progress: false
+  # Supersede stale code-triggered jobs so a historical backfill from an
+  # earlier commit cannot delay an urgent current-data fix for hours.
+  # Scheduled and manually dispatched historical backfills are not canceled
+  # by another scheduled run.
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   daily-and-history:
