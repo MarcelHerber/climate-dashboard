@@ -620,7 +620,11 @@ async function pdf(){
   try{
     const c=await exportCanvas(),J=window.jspdf&&window.jspdf.jsPDF;if(!J)throw new Error("jsPDF ist nicht geladen.");
     const p=new J({orientation:"landscape",unit:"mm",format:"a4"}),pw=p.internal.pageSize.getWidth(),ph=p.internal.pageSize.getHeight(),m=7,s=Math.min((pw-2*m)/c.width,(ph-2*m)/c.height),w=c.width*s,h=c.height*s;
-    p.addImage(c.toDataURL("image/jpeg",.93),"JPEG",(pw-w)/2,(ph-h)/2,w,h,undefined,"FAST");p.save(filename("pdf"));
+    // This four-panel PDF is a raster snapshot. Do not imply editable vector curves.
+    p.addImage(c.toDataURL("image/jpeg",.93),"JPEG",(pw-w)/2,(ph-h)/2,w,h,undefined,"FAST");
+    p.setFontSize(8);p.setTextColor(85,95,110);
+    p.text("Raster-PDF (JPEG) · Kurven nicht einzeln als Vektoren bearbeitbar",m,ph-2);
+    p.save(filename("pdf"));
   }catch(e){alert("PDF konnte nicht erstellt werden: "+e.message);}
 }
 function mount(){
