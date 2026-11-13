@@ -44,7 +44,7 @@ def from_utc(raw):
 def official_gml(url):
     parsed=urlsplit(url)
     return (parsed.scheme=="https" and parsed.netloc in ("opendata.dwd.de","maps.dwd.de") and
-            parsed.path.lower().endswith((".gml",".xml")) and not parsed.query and not parsed.fragment)
+            parsed.path.lower().endswith((".gml",".xml")) and re.search(r"(?:analysis|analyse|ana_|bwkman)",parsed.path,re.I) is not None and not parsed.query and not parsed.fragment)
 
 def get(url,limit=MAX_FILE):
     req=urllib.request.Request(url,headers={"User-Agent":"ClimateDashboard-OfficialDWDFrontDiscovery/1.0"})
@@ -76,6 +76,10 @@ def extract_features(xml,now,source_url):
     if b"<!DOCTYPE" in xml.upper() or b"<!ENTITY" in xml.upper():
         raise ValueError("External XML entity declarations are not accepted")
     root=ET.fromstring(xml)
+    # Reject forecast products that are not manual surface analysis.
+    if any(local(n.tag) in ("forecasttime","forecaststep","leadtime","prognosistime")
+           for n in root.iter()):
+        raise ValueError("NinJo GML contains forecast fields, not manual analysis")
     members=[x for x in root.iter() if local(x.tag) in ("featuremember","member")]
     if not members:raise ValueError("No explicit GML FeatureMembers")
     features=[];valid_times=set();total=0
@@ -90,6 +94,7 @@ def extract_features(xml,now,source_url):
                 stamp=from_utc((node.text or "").strip())
                 if stamp:valid=stamp
         if not front_type:continue
+        if valid is None:raise ValueError("Feature has front geometry but no explicit analysis validity UTC")
         geometries=[el for el in member.iter() if local(el.tag)=="linestring"]
         for line in geometries:
             srs=line.attrib.get("srsName","")
