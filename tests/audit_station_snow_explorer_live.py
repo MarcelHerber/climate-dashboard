@@ -121,12 +121,46 @@ def case(browser,width):
                                timeout=20000)
         mapstatus=page.locator("#stationSnowMapStatus").inner_text()
         result["mapStatus"]=mapstatus
-        # At low zoom many DWD stations must be clustered.
-        cluster=page.locator("#stationSnowMap .station-snow-cluster-icon").first
+        # Test a cluster that a human can actually touch. DOM order may
+        # start with offscreen/clipped icons, which Playwright cannot tap
+        # reliably when another Leaflet marker overlays their hit target.
+        map_element=page.locator("#stationSnowMap")
+        map_element.scroll_into_view_if_needed(timeout=15000)
+        page.wait_for_timeout(250)
+        cluster=page.locator("#stationSnowMap .station-snow-cluster-icon")
         assert cluster.count()>0,"Cluster missing for >5000 plotted stations"
-        if mobile: cluster.tap(timeout=15000)
-        else: cluster.click(timeout=15000)
+        hit=page.evaluate("""() => {
+          const map=document.querySelector('#stationSnowMap');
+          const bounds=map.getBoundingClientRect();
+          const cx=(bounds.left+bounds.right)/2;
+          const cy=(bounds.top+bounds.bottom)/2;
+          const candidates=[...map.querySelectorAll('.station-snow-cluster-icon')]
+            .map(el=>{
+              const r=el.getBoundingClientRect(),x=(r.left+r.right)/2,y=(r.top+r.bottom)/2;
+              if(x<bounds.left+24||x>bounds.right-24||
+                 y<bounds.top+24||y>bounds.bottom-24||
+                 x<12||x>window.innerWidth-12||y<12||y>window.innerHeight-12)
+                return null;
+              const top=document.elementFromPoint(x,y);
+              if(top!==el&&!el.contains(top))return null;
+              return {x,y,title:el.title,distance:Math.hypot(x-cx,y-cy)};
+            }).filter(Boolean).sort((a,b)=>a.distance-b.distance);
+          return candidates[0]||null;
+        }""")
+        assert hit,"No visible, unobstructed station cluster available for touch"
+        before_zoom=page.evaluate("() => window.StationSnowExplorer.getState().mapZoom")
+        assert before_zoom is not None,"Map zoom state not available"
+        if mobile:
+            page.touchscreen.tap(hit["x"],hit["y"])
+        else:
+            page.mouse.click(hit["x"],hit["y"])
+        page.wait_for_function("""zoom =>
+            window.StationSnowExplorer?.getState()?.mapZoom>zoom""",
+            arg=before_zoom,timeout=10000)
         result["mapClickOk"]=True
+        result["mapZoomBefore"]=before_zoom
+        result["mapZoomAfter"]=page.evaluate(
+            "() => window.StationSnowExplorer.getState().mapZoom")
         result["mapReady"]=page.evaluate("""()=>window.StationSnowExplorer.getState().mapReady""")
         assert page.evaluate("""()=>document.querySelector('#stationSnowMap').clientWidth>0""")
         result["mapNoOverflow"]=page.evaluate("""()=>{
