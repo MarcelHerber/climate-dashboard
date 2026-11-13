@@ -9,7 +9,7 @@ assert.ok(a>0 && b>a);
 const helpers=src.slice(a,b);
 const browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
 try{
- for(const vp of [{name:"desktop",width:1440,height:900},{name:"handy",width:390,height:844}]){
+ for(const vp of [{name:"desktop",width:1440,height:900},{name:"tablet",width:768,height:900},{name:"handy430",width:430,height:844},{name:"handy390",width:390,height:844},{name:"handy360",width:360,height:800},{name:"handy320",width:320,height:740}]){
   const context=await browser.newContext({viewport:vp});
   const page=await context.newPage(),errors=[];
   page.on("pageerror",e=>errors.push(e.message));
@@ -33,7 +33,20 @@ try{
     actionWidths:actions.map(a=>Math.round(a.getBoundingClientRect().width)),
     outside:actions.filter(el=>{
       const r=el.getBoundingClientRect();return r.left<0||r.right>innerWidth+1;
-    }).length
+    }).length,
+    overflowing:[...document.querySelectorAll("#main *")].filter(el=>{
+      const r=el.getBoundingClientRect();
+      return r.width>0 && (r.right>innerWidth+3||r.left < -3);
+    }).slice(0,12).map(el=>({
+      tag:el.tagName,id:el.id,cls:String(el.className||"").slice(0,95),
+      left:Math.round(el.getBoundingClientRect().left),
+      right:Math.round(el.getBoundingClientRect().right),
+      scrollWidth:el.scrollWidth
+    })),
+    modeSelector:{
+      columns:getComputedStyle(document.querySelector(".mosmix-mode-group")).gridTemplateColumns,
+      width:Math.round(document.querySelector(".mosmix-mode-group").getBoundingClientRect().width)
+    }
    };
   });
   assert.equal(info.cards,6);
@@ -41,6 +54,7 @@ try{
   assert.ok(info.actionWidths.every(n=>n>=40));
   assert.equal(info.outside,0,"Single PNG/PDF/SVG download buttons clipped");
   assert.ok(info.scroll<=info.client+2,vp.name+" scroll overflow "+JSON.stringify(info));
+  assert.ok(info.modeSelector.width<=vp.width-18,"Mode selector exceeds viewport "+JSON.stringify(info));
   assert.deepEqual(errors,[]);
   await page.screenshot({path:"/tmp/mosmix-single-export-"+vp.name+".png",fullPage:true});
   console.log("MOSMIX single export layout",vp.name,"PASS",JSON.stringify(info));
