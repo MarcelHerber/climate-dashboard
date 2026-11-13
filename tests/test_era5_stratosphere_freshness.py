@@ -29,7 +29,7 @@ class StratosphereFreshnessTests(unittest.TestCase):
 
         def retrieve(client, year, month, days, levels=(10, 30, 50, 100)):
             requested.append(tuple(days))
-            if days == (8,):
+            if tuple(days) == (8,):
                 raise RuntimeError(
                     "None of the data you have requested is available yet. "
                     "The latest date available for this dataset is: 2026-11-07")
