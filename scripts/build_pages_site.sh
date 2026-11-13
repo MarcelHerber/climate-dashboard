@@ -218,7 +218,7 @@ import json
 from pathlib import Path
 x=json.loads(Path("_site/gfs_analysis_europe/index.json").read_text(encoding="utf-8"))
 assert x["schema"]==1 and x["type"]=="model_analysis_not_observation"
-assert x["provider"]=="NOAA NOMADS GFS 0.5° analysis f000"
+assert x["provider"]=="NOAA NCEP GFS 0.5° analysis f000"
 assert x["grid_degrees"]==0.5 and x["data_through"]==x["dates"][-1]
 assert bool(x.get("anomaly_q10_b64"))==bool(x["reference_ready"])
 print("GFS f000 analysis verified, climatology ready:",x["reference_ready"])
