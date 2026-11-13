@@ -3,7 +3,9 @@ name: Europa Tmin · MOSMIX + ICON-EU (privates Wolkenlabor)
 on:
   workflow_dispatch:
   schedule:
-    - cron: "45 4,10,16,22 * * *"
+    # A 10:45 UTC run cannot publish five upcoming nights: yesterday's
+    # 06 UTC minimum is already in the past; today's 12 UTC cycle is not ready.
+    - cron: "45 4,16,22 * * *"
   push:
     branches: [main]
     paths:
