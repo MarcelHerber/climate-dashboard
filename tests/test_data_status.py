@@ -334,6 +334,31 @@ class DataStatusTests(unittest.TestCase):
                 rows = {r["id"]: r for r in status.build()["datasets"]}
         self.assertEqual(rows["synoptic_original"]["status"], "current")
 
+    def test_circulation_status_is_independent_for_delayed_gbi_source(self):
+        today = datetime.now(timezone.utc).date()
+        recent_month = (today.replace(day=1)-timedelta(days=1)).strftime("%Y-%m")
+        old_month = f"{today.year-1}-{today.month:02d}"
+        rows = [["2000-01", 1.0]] * 350
+        archive = {
+            "ready": True, "generated_at": datetime.now(timezone.utc).isoformat(),
+            "europe": {
+                **{key: {"latest_month": recent_month, "monthly": rows}
+                   for key in ("scand", "ea", "eawr")},
+                "gbi": {"latest_month": old_month, "monthly": rows}
+            }
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)/"climate_indices"
+            folder.mkdir()
+            (folder/"index.json").write_text(json.dumps(archive), encoding="utf-8")
+            with patch.object(status, "ROOT", Path(temp)):
+                entries = {x["id"]: x for x in status.build()["datasets"]}
+        for key in ("scand", "ea", "eawr"):
+            self.assertEqual(entries[key]["status"], "current")
+        self.assertEqual(entries["gbi"]["status"], "delayed")
+        self.assertIn("Quellverzug", entries["gbi"]["note"])
+        self.assertNotIn("circulation", entries)
+
     def test_noaa_index_freshness_uses_older_subproduct(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
