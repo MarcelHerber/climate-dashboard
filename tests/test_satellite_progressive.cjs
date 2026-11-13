@@ -150,11 +150,17 @@ test("Zoom 2K → 4K → 2K restores original WMS tiles from memory",async()=>{
  const initial=a.requests.length;
  a.model.scale=3.2;a.hd.viewChanged({scale:3.2});
  await until(()=>a.requests.length>initial,"4K visible tiles requested");
- const countAfter4k=a.requests.length;
+ // In-flight 4K tiles may finish (and schedule more 4K requests) before
+ // the 180ms zoom debounce. Only additional 2K network calls indicate a
+ // cache regression; count by native WMS output width, not total requests.
+ const initial2k=a.requests.filter(v=>v.w<=700).length;
  a.model.scale=1;a.hd.viewChanged({scale:1});
  await until(()=>a.els.get("satHDTiles").children.length===6,"2K cached after zoom out");
- assert.equal(a.requests.length,countAfter4k,"no new 2K tile downloads on zoom back");
+ assert.equal(a.requests.filter(v=>v.w<=700).length,initial2k,
+  "no new 2K WMS tiles requested when leaving the 4K zoom");
  assert.ok(a.hd.cacheStats().hits>=6);
+ assert.ok(a.els.get("satHDTiles").children.every(node=>Number(node.style.width.replace("%",""))>0),
+  "all returned 2K tiles are actually attached with valid dimensions");
 });
 test("Changing UTC or WMS layer never reuses unrelated pixels, but returning to prior UTC hits cache",async()=>{
  const a=build();
