@@ -1121,8 +1121,16 @@
     offscreen.height = spec[0] === "sunDaily" ? 440 : 585;
     let copyChart = null;
     try {
-      const options = chart.config.options || {};
-      const scales = Object.assign({}, options.scales || {});
+      const options = chart.config._config?.options || chart.config.options || {};
+      const scales = Object.fromEntries(Object.entries(options.scales || {}).map(function(entry) {
+        const key=entry[0],value=entry[1] || {},ticks=value.ticks || {};
+        return [key,Object.assign({},value,{
+          ticks:Object.assign({},ticks,{
+            maxTicksLimit:Math.max(Number(ticks.maxTicksLimit) || 0,key === "x" ? 14 : 8),
+            maxRotation:key === "x" ? 35 : (ticks.maxRotation ?? 0)
+          })
+        })];
+      }));
       const displayX = chart.options?.scales?.x;
       if (displayX) {
         scales.x = Object.assign({}, scales.x || {}, {
@@ -1144,6 +1152,8 @@
           animation:false,
           devicePixelRatio:2,
           events:[],
+          // The offscreen export must not inherit mobile-only Chart.js styling.
+          plugins:Object.assign({},options.plugins || {},{climateMobileLegibilityV1:false}),
           scales:scales
         })
       });
