@@ -420,6 +420,19 @@ def build(remote=None):
         udays = complete_days(wind_fields)
         wind_years = estrat.get("reference_wind_years_completed")
         wind_years_label = f"{wind_years}/30" if isinstance(wind_years,int) else "noch nicht ermittelt"
+        # Show incremental real-day progress instead of 0/366 until all
+        # historical years are finally complete. Full-sample climate normals
+        # remain strict and independent of this progress indicator.
+        from calendar import isleap
+        total_wind_reference_days = sum(366 if isleap(y) else 365 for y in range(1991, 2021))
+        verified_wind_reference_days = sum(
+            all(isinstance(row.get(field), (int, float))
+                and not isinstance(row[field], bool)
+                and abs(row[field]) < float("inf") for field in wind_fields)
+            for row in (estrat.get("series") or [])
+            if isinstance(row, dict) and isinstance(row.get("date"), str)
+            and "1991-01-01" <= row["date"] <= "2020-12-31"
+        )
         latest_day = estrat.get("data_through")
         latest_row = next((r for r in reversed(estrat.get("series") or [])
                            if isinstance(r, dict) and r.get("date") == latest_day), None)
@@ -438,7 +451,9 @@ def build(remote=None):
         items.append(result("era5_strat_reference", "ERA5 Stratosphäre · Klimareferenz", "Atmosphäre",
             latest_day, estrat.get("generated_at"),
             f"1991–2020 · Temperatur: {tdays}/366 Klimatologietage · "
-            f"Zonalwind: {udays}/366 · vollständige Temperaturjahre: {complete}/30",
+            f"Zonalwind: {udays}/366 vollständige Klimatologietage · "
+            f"Windtageswerte: {verified_wind_reference_days}/{total_wind_reference_days} · "
+            f"vollständige Temperaturjahre: {complete}/30",
             f"Windjahre: {wind_years_label} · "
             + ("Historische Referenz unvollständig" if complete < 30 or tdays < 366 or udays < 366
                else "Temperatur- und Zonalwindreferenz vollständig"),
