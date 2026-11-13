@@ -66,3 +66,14 @@ def test_interpolation_rejects_gaps_and_incorrect_grid():
 def test_missing_originals_never_generate_climatology(tmp_path: Path):
     with pytest.raises(FileNotFoundError):
         reference.make_normals(tmp_path)
+
+
+def test_alternate_official_ncar_gdex_high_res_2m_sources_only():
+    assert ingest.alternate_source_urls(1992,7) == [
+        "https://tds.gdex.ucar.edu/thredds/fileServer/files/g/d093001/1992/"
+        "tmp2m.gdas.199207.grb2"]
+    assert ingest.alternate_source_urls(2018,9) == [
+        "https://tds.gdex.ucar.edu/thredds/fileServer/files/g/d094001/2018/"
+        "tmp2m.cdas1.201809.grb2"]
+    assert ".l.gdas." not in ingest.alternate_source_urls(1992,7)[0]
+    assert ".l.cdas1." not in ingest.alternate_source_urls(2018,9)[0]
