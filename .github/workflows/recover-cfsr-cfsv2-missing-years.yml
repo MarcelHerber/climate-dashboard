@@ -1,0 +1,156 @@
+name: CFSR 1991–2020 · recover 11 failed historical years
+
+on:
+  push:
+    branches:
+      - feature/gfs-cfsr-1991-2020-europe-20261113
+    paths:
+      - ".github/workflows/recover-cfsr-cfsv2-missing-years.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: cfsr-recovery-20261113
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+            tests
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install validation dependencies
+        run: python -m pip install numpy requests pytest
+      - name: Verify that all eleven missing high-resolution originals are available at GDEX
+        run: python scripts/probe_missing_cfs_originals.py
+      - name: Reject incomplete years and source substitutions
+        run: |
+          python -m pytest -q tests/test_cfsr_cfsv2_import.py
+          python -m compileall -q scripts/import_cfsr_cfsv2_1991_2020.py scripts/build_gfs_cfsr_1991_2020.py
+
+  recover-year:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit.message == 'Recover verified missing CFS years from NCAR GDEX')
+    needs: preflight
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        year: [1992, 1996, 1998, 2000, 2001, 2002, 2007, 2008, 2009, 2010, 2018]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 345
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install full GRIB2 decoder
+        run: python -m pip install numpy requests eccodes
+      - name: Reconstruct all twelve official 2m TMP months, trying NCAR high-resolution fallback on HTTP 404
+        run: python scripts/import_cfsr_cfsv2_1991_2020.py --year ${{ matrix.year }}
+      - name: Archive verified recovered annual source
+        uses: actions/upload-artifact@v4
+        with:
+          name: cfs-recovered-year-${{ matrix.year }}
+          path: gfs_analysis_europe/reference_sources/t2m_6h_${{ matrix.year }}.npz
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 7
+
+  finalize:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit.message == 'Recover verified missing CFS years from NCAR GDEX')
+    needs: recover-year
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+          sparse-checkout-cone-mode: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy requests
+      - name: Restore the nineteen verified original successful years without redownloading them
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 43474332315
+          pattern: cfs-historical-year-*
+          merge-multiple: true
+          path: gfs_analysis_europe/reference_sources
+      - name: Restore the eleven verified recovered high-resolution years
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cfs-recovered-year-*
+          merge-multiple: true
+          path: gfs_analysis_europe/reference_sources
+      - name: Require all 30 complete years and exactly 360 original monthly sources
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root=Path("gfs_analysis_europe/reference_sources")
+          years=sorted(int(p.stem.rsplit("_",1)[-1]) for p in root.glob("t2m_6h_????.npz"))
+          expected=list(range(1991,2021))
+          assert years==expected, f"Expected {expected}, got {years}"
+          print("30 original annual samples restored with 11 newly recovered and 19 reused")
+          PY
+          python scripts/build_gfs_cfsr_1991_2020.py
+          python - <<'PY'
+          import numpy as np
+          from pathlib import Path
+          from scripts.build_gfs_cfsr_1991_2020 import check_source
+          p=Path("gfs_analysis_europe/climatology_1991_2020.npz")
+          with np.load(p,allow_pickle=False) as z:
+              assert z["normal_t2m_c"].shape==(365,76,140)
+              assert np.all(z["year_count"]==30)
+          for year in range(1991,2021):
+              check_source(year,Path("gfs_analysis_europe/reference_sources") / f"t2m_6h_{year}.npz")
+          print("PASS: 365 daily CFS normals, 30 years, 360 verified originals")
+          PY
+      - name: Preserve final genuine 1991–2020 climate reference
+        uses: actions/upload-artifact@v4
+        with:
+          name: cfsr-cfsv2-1991-2020-climatology-verified
+          path: gfs_analysis_europe/climatology_1991_2020.npz
+          retention-days: 30
+          if-no-files-found: error
+      - name: Commit validated reference only to development branch, not production
+        if: github.ref == 'refs/heads/feature/gfs-cfsr-1991-2020-europe-20261113'
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f gfs_analysis_europe/climatology_1991_2020.npz
+          git commit -m "GFS Europa: vollständig validierte CFSR/CFSv2-Klimatologie 1991–2020"
+          for TRY in 1 2 3; do
+            git fetch origin feature/gfs-cfsr-1991-2020-europe-20261113
+            if ! git rebase origin/feature/gfs-cfsr-1991-2020-europe-20261113; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:feature/gfs-cfsr-1991-2020-europe-20261113; then
+              exit 0
+            fi
+            sleep $((TRY*5))
+          done
+          exit 1
