@@ -13,6 +13,14 @@ import build_polar_vortex_map as vortex
 
 
 class PolarVortexMapTests(unittest.TestCase):
+    def test_daily_candidate_dates_do_not_skip_newer_available_era5t(self):
+        days=vortex.candidate_days(date(2026,11,13))
+        self.assertEqual(days[0],date(2026,11,8))
+        self.assertEqual(days[1],date(2026,11,7))
+        self.assertEqual(days[-1],date(2026,11,2))
+        self.assertEqual(len(days),len(set(days)))
+        self.assertEqual(len(days),7)
+
     def test_request_is_verified_utc_daily_z10_not_forecast(self):
         request=vortex.request_for(date(2026,10,7))
         self.assertEqual(request["variable"],["geopotential"])
