@@ -1,0 +1,121 @@
+name: NOAA CPC · Europa Temperaturabweichung (Beobachtungen)
+on:
+  push:
+    branches: [main, feature/cpc-europe-observations-20261113]
+    paths:
+      - "scripts/update_cpc_europe.py"
+      - "tests/test_cpc_europe.py"
+      - "cpc_europe.js"
+      - "cpc_europe.css"
+      - "temperatur_anomalie_europa.html"
+      - "mobile_navigation.js"
+      - "scripts/build_pages_site.sh"
+      - ".github/workflows/update-cpc-europe.yml"
+  schedule:
+    - cron: "20 19 * * *"
+      timezone: "Europe/Berlin"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: cpc-europe-data
+  cancel-in-progress: true
+
+jobs:
+  cpc-observation-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Dependencies for NOAA OPeNDAP and validated country boundaries
+        run: python -m pip install numpy xarray netCDF4 scipy shapely cartopy pillow matplotlib pytest
+
+      - name: Unit tests and browser syntax
+        run: |
+          python -m pytest -q tests/test_cpc_europe.py
+          python -m compileall -q scripts/update_cpc_europe.py
+          node --check cpc_europe.js
+          bash -n scripts/build_pages_site.sh
+
+      - name: Download real NOAA CPC observations and matched 1991–2020 daily normals
+        run: |
+          python scripts/update_cpc_europe.py --days 110
+          python - <<'PY'
+          import base64, json
+          from datetime import date
+          from pathlib import Path
+          import numpy as np
+          root=Path("cpc_europe")
+          data=json.loads((root/"index.json").read_text(encoding="utf-8"))
+          assert data["schema"]==1
+          assert data["provider"]=="NOAA CPC Global Unified Temperature"
+          assert data["reference"]=="NOAA CPC daily long-term means 1991–2020"
+          assert data["grid_degrees"]==0.5
+          assert len(data["dates"])>=30 and data["data_through"]==data["dates"][-1]
+          assert (date.today()-date.fromisoformat(data["data_through"])).days<=5
+          n=data["width"]*data["height"]
+          grid=np.frombuffer(base64.b64decode(data["anomaly_q10_b64"]),dtype="<i2")
+          masks=np.frombuffer(base64.b64decode(data["country_mask_b64"]),dtype="<i2")
+          assert len(grid)==n*len(data["dates"]) and len(masks)==n
+          assert np.any((grid!=data["missing"]) & (grid>=-150) & (grid<=150))
+          assert len(data["countries"])>=25
+          assert (root/"boundaries.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+          print("Live dataset QA:", data["data_through"], len(data["dates"]),
+                "days",len(data["countries"]),"countries",n,"cells")
+          PY
+
+      - name: Save QA evidence for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpc-europe-data-${{ github.run_id }}
+          path: cpc_europe/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Publish only real validated CPC data to main
+        if: github.ref == 'refs/heads/main'
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cpc_europe/index.json cpc_europe/boundaries.png
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "NOAA CPC: already current."
+            exit 0
+          fi
+          git commit -m "NOAA CPC Europa Beobachtungskarten bis aktualisierten Datenstand"
+          for ATTEMPT in 1 2 3; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep $((ATTEMPT*5))
+          done
+          exit 1
+
+      - name: Publish updated real observations on GitHub Pages
+        if: github.ref == 'refs/heads/main' && steps.publish.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-pages-only.yml --repo "$GITHUB_REPOSITORY" --ref main
