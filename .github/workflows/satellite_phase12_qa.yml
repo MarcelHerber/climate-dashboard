@@ -87,6 +87,7 @@ jobs:
           node --test tests/test_satellite_phase12.cjs
           node --test tests/test_satellite_tile_cache.cjs
           node --test tests/test_satellite_hd.cjs
+          node --test tests/test_satellite_dwd_fronts.cjs
           node --test tests/test_satellite_progressive.cjs
           node --test tests/test_satellite_quality_comparison.cjs
           node --test tests/test_satellite_fullhd_film.cjs
