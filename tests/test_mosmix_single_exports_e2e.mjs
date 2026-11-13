@@ -104,9 +104,9 @@ try{
     if(format==="pdf")assert.equal(readFile(path).subarray(0,5).toString(),"%PDF-");
     else if(format==="svg"){
       const svg=readFile(path,"utf8");
-      assert.match(svg,/<svg\\b/);
+      assert.match(svg,/<svg\b/);
       assert.match(svg,/inkscape:label=/);
-      assert.doesNotMatch(svg,/<image\\b/);
+      assert.doesNotMatch(svg,/<image\b/);
     }else assert.deepEqual([...readFile(path).subarray(0,8)],[137,80,78,71,13,10,26,10]);
     console.log("MOSMIX SINGLE EXPORT",vp.name,key,format,statSync(path).size,"bytes");
   }
@@ -122,4 +122,4 @@ try{
   await context.close();
  }
 }finally{await browser.close()}
-console.log("PASS: Chart.js 4 real renders, jsPDF 4 vector PDF and SVG exports on desktop and mobile");
+console.log("PASS: 6 charts × PNG, vector PDF, layered SVG on desktop and mobile");
