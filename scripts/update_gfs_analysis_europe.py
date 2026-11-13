@@ -115,25 +115,90 @@ def grib_2m_analysis(raw: bytes, day: date, cycle: int) -> np.ndarray:
         ec.codes_release(gid)
 
 
+def object_url(day: date, cycle: int, *, host: str) -> str:
+    if cycle not in CYCLES:
+        raise ValueError("Not an analysis cycle")
+    suffix = f"gfs.{day:%Y%m%d}/{cycle:02d}/atmos/gfs.t{cycle:02d}z.pgrb2.0p50.f000"
+    if host == "s3":
+        return "https://noaa-gfs-bdp-pds.s3.amazonaws.com/" + suffix
+    if host == "nomads":
+        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/" + suffix
+    raise ValueError("Unsupported official GFS host")
+
+
+def read_byte_range(day: date, cycle: int, *, host: str) -> tuple[bytes, str, str]:
+    """Official GRIB index byte offsets for exactly the 2m TMP analysis field.
+
+    Avoid pulling 140 MB whole-world model files. Only request the ~260 KB
+    GFS f000 temperature message using HTTP 206 Range support.
+    """
+    url = object_url(day, cycle, host=host)
+    index_res = requests.get(url + ".idx", timeout=(15, 40),
+                             headers={"User-Agent": "climate-dashboard-europe/1.0"})
+    index_res.raise_for_status()
+    parts = [line.split(":") for line in index_res.text.splitlines() if line.strip()]
+    candidates = [i for i, p in enumerate(parts)
+                  if len(p) >= 6 and p[2] == f"d={day:%Y%m%d}{cycle:02d}"
+                  and p[3] == "TMP" and p[4] == "2 m above ground"
+                  and p[5] == "anl"]
+    if len(candidates) != 1:
+        raise ValueError("Official .idx has no unique 2m TMP analysis")
+    i = candidates[0]
+    if i + 1 >= len(parts):
+        raise ValueError("2m TMP GRIB message is last, range end unknown")
+    first = int(parts[i][1])
+    last = int(parts[i + 1][1]) - 1
+    if not 0 <= first < last or not 20_000 <= last - first + 1 <= 2_000_000:
+        raise ValueError("Invalid GFS 2m TMP range, refuse whole-model download")
+    with requests.get(url, timeout=(20, 60),
+                      headers={"Range": f"bytes={first}-{last}",
+                               "User-Agent": "climate-dashboard-europe/1.0"},
+                      stream=True) as r:
+        if r.status_code != 206:
+            raise ValueError(f"Server did not honor GRIB byte range: {r.status_code}")
+        r.raise_for_status()
+        expected = last - first + 1
+        if int(r.headers.get("Content-Length", expected)) != expected:
+            raise ValueError("GRIB range length mismatch")
+        raw = r.content
+    if len(raw) != expected or not raw.startswith(b"GRIB"):
+        raise ValueError("Downloaded GRIB field failed byte-range verification")
+    return raw, url, f"bytes={first}-{last}"
+
+
 def read_analysis(day: date, cycle: int) -> tuple[np.ndarray, dict]:
+    errors = []
+    for host in ("s3", "nomads"):
+        for attempt in range(2):
+            try:
+                raw, url, selected_range = read_byte_range(day, cycle, host=host)
+                field = grib_2m_analysis(raw, day, cycle)
+                return field, {
+                    "cycle_utc": f"{cycle:02d}:00", "forecast_hour": 0,
+                    "source_url": url, "byte_range": selected_range,
+                    "sha256": sha256(raw).hexdigest(), "bytes": len(raw),
+                }
+            except (requests.RequestException, ValueError, RuntimeError) as exc:
+                errors.append(f"{host}: {exc}")
+                if attempt == 0:
+                    time.sleep(1)
+    # The NOAA/NCEP web filter is the final source; it may return HTTP 500.
     url = analysis_url(day, cycle)
-    last = None
-    for attempt in range(3):
-        try:
-            response = requests.get(url, timeout=(20, 75),
-                                    headers={"User-Agent": "climate-dashboard-europe/1.0"})
-            response.raise_for_status()
-            field = grib_2m_analysis(response.content, day, cycle)
-            return field, {
-                "cycle_utc": f"{cycle:02d}:00", "forecast_hour": 0,
-                "source_url": url, "sha256": sha256(response.content).hexdigest(),
-                "bytes": len(response.content),
-            }
-        except (requests.RequestException, ValueError, RuntimeError) as exc:
-            last = exc
-            if attempt < 2:
-                time.sleep(2 ** attempt)
-    raise RuntimeError(f"GFS analysis {day} {cycle:02d} UTC unavailable: {last}")
+    try:
+        resp = requests.get(url, timeout=(20, 75),
+                            headers={"User-Agent": "climate-dashboard-europe/1.0"})
+        resp.raise_for_status()
+        field = grib_2m_analysis(resp.content, day, cycle)
+        return field, {
+            "cycle_utc": f"{cycle:02d}:00", "forecast_hour": 0,
+            "source_url": url, "sha256": sha256(resp.content).hexdigest(),
+            "bytes": len(resp.content),
+        }
+    except (requests.RequestException, ValueError, RuntimeError) as exc:
+        errors.append(f"nomads-filter: {exc}")
+    raise RuntimeError(f"GFS analysis {day} {cycle:02d} UTC unavailable: "
+                       + "; ".join(errors))
+
 
 
 def save_day(day: date) -> Path:
@@ -150,7 +215,7 @@ def save_day(day: date) -> Path:
     path = RAW / f"{day.isoformat()}.json"
     info = {
         "schema": 1, "day": day.isoformat(), "kind": "GFS analysis f000",
-        "source": "NOAA NOMADS GFS 0.5 degree",
+        "source": "NOAA GFS analysis 0.5 degree (S3/NOMADS)",
         "metric": "mean(00,06,12,18 UTC) 2m temperature",
         "grid": "CPC aligned, GFS 0.5 degree quarter-cell interpolation",
         "cycles_utc": [0, 6, 12, 18],
@@ -212,7 +277,7 @@ def publish_index(archive: list[tuple[date, np.ndarray]], *,
     temps = np.stack([field for _, field in archive])
     payload = {
         "schema": 1,
-        "provider": "NOAA NOMADS GFS 0.5° analysis f000",
+        "provider": "NOAA NCEP GFS 0.5° analysis f000",
         "type": "model_analysis_not_observation",
         "metric": "Mean of four UTC 2m temperature analysis fields (00/06/12/18)",
         "source": "https://www.nco.ncep.noaa.gov/pmb/products/gfs/",
