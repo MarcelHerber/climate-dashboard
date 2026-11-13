@@ -6,12 +6,12 @@
   <meta name="theme-color" content="#153752">
   <meta name="description" content="Tägliche beobachtungsbasierte Temperaturabweichungen in Europa auf dem NOAA CPC 0,5-Grad-Raster, Referenz 1991–2020.">
   <title>Europa · aktuelle Temperaturabweichungen | Climate Dashboard</title>
-  <link rel="stylesheet" href="cpc_europe.css?v=1">
+  <link rel="stylesheet" href="cpc_europe.css?v=2">
   <link rel="stylesheet" href="mobile_navigation.css">
   <link rel="stylesheet" href="dashboard_theme.css">
   <script src="dashboard_theme.js" defer></script>
   <script src="mobile_navigation.js" defer></script>
-  <script src="cpc_europe.js?v=1" defer></script>
+  <script src="cpc_europe.js?v=2" defer></script>
 </head>
 <body>
   <header class="cpc-header">
@@ -39,12 +39,16 @@
         <label>Von <input type="date" id="cpcStart"></label>
         <label>Bis <input type="date" id="cpcEnd"></label>
       </div>
+      <label class="cpc-smoothing-control">
+        <input id="cpcSmooth" type="checkbox" checked>
+        <span><strong>Weiche Farbflächen</strong> · optische Glättung der Anomalie zwischen vorhandenen Rasterzellen. Messdaten, Datenlücken und Ländermittel bleiben unverändert (0,5°).</span>
+      </label>
       <div class="cpc-export">
         <button type="button" id="cpcPng" disabled>PNG speichern</button>
         <button type="button" id="cpcPdf" disabled>PDF / Drucken</button>
         <button type="button" id="cpcCsv" disabled>Ländermittel CSV</button>
       </div>
-      <p class="cpc-note">Die Zeitraumwahl reicht über die letzten rund 110 Beobachtungstage. Einzelne fehlende Rasterwerte werden nicht ergänzt.</p>
+      <p class="cpc-note">Die Zeitraumwahl reicht über die letzten rund 110 Beobachtungstage. Einzelne fehlende Rasterwerte werden nicht ergänzt. Die Glättung verändert keine Messwerte und erhöht nicht die physikalische Auflösung.</p>
     </section>
     <section class="cpc-panel" aria-labelledby="map-heading">
       <div class="cpc-section-head">
