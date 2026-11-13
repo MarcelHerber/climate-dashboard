@@ -1,0 +1,97 @@
+name: NOAA WPC aktuelle Frontanalyse (GeoJSON)
+on:
+  schedule:
+    # US surface analysis is revised every 3 hours.
+    - cron: "40 1,4,7,10,13,16,19,22 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update_satellite_noaa_wpc_fronts.py"
+      - "tests/test_satellite_noaa_wpc_fronts.py"
+      - ".github/workflows/update-satellite-noaa-wpc-fronts.yml"
+permissions:
+  contents: write
+concurrency:
+  group: satellite-noaa-wpc-fronts
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: |
+            scripts/update_satellite_noaa_wpc_fronts.py
+            tests/test_satellite_noaa_wpc_fronts.py
+            data/synoptic_charts/noaa_wpc_fronts_geo.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Check official WPC coded bulletin parser
+        run: |
+          python -m py_compile scripts/update_satellite_noaa_wpc_fronts.py
+          python -m unittest discover -s tests -p 'test_satellite_noaa_wpc_fronts.py' -v
+      - name: Decode current observed front polylines
+        run: python scripts/update_satellite_noaa_wpc_fronts.py
+      - name: Publish latest verified NOAA data without overwriting newer updates
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp data/synoptic_charts/noaa_wpc_fronts_geo.json "$RUNNER_TEMP/wpc-candidate.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git reset --hard origin/main
+            WPC_CANDIDATE="$RUNNER_TEMP/wpc-candidate.json" python - <<'PY'
+          import json,os
+          from pathlib import Path
+          from datetime import datetime,timezone
+          file=Path("data/synoptic_charts/noaa_wpc_fronts_geo.json")
+          source=json.loads(Path(os.environ["WPC_CANDIDATE"]).read_text(encoding="utf-8"))
+          try:current=json.loads(file.read_text(encoding="utf-8"))
+          except (ValueError,OSError):current={}
+          def date(value):
+              try:return datetime.fromisoformat(str(value).replace("Z","+00:00")).astimezone(timezone.utc)
+              except (ValueError,TypeError):return datetime.min.replace(tzinfo=timezone.utc)
+          if date(current.get("checked_at"))<date(source.get("checked_at")):
+              file.parent.mkdir(parents=True,exist_ok=True)
+              file.write_text(json.dumps(source,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+              print("New NOAA frontal data:",source["status"],source.get("valid_utc"))
+          else:
+              print("Main already has a newer NOAA frontal report")
+          PY
+            git add data/synoptic_charts/noaa_wpc_fronts_geo.json
+            if git diff --cached --quiet; then
+              echo "Already current; no report commit"
+              exit 0
+            fi
+            git commit -m "Update verified NOAA WPC analyzed frontal coordinates"
+            if git push origin HEAD:main; then
+              echo "Official WPC fronts JSON published"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::Could not save WPC frontal report after concurrent commits."
+          exit 1
+      - name: Explain exact data coverage and validity
+        if: always()
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          from pathlib import Path
+          import json
+          p=Path("data/synoptic_charts/noaa_wpc_fronts_geo.json")
+          if not p.exists():raise SystemExit(0)
+          x=json.loads(p.read_text(encoding="utf-8"))
+          print("## Official NOAA WPC surface fronts")
+          print("- Analysis valid at:",x.get("valid_utc"))
+          print("- Status:",x["status"])
+          print("- Number of geographic frontal polylines:",len(x.get("features",[])))
+          print("- Primarily North America and the western North Atlantic.")
+          print("- This is not the manual DWD central-Europe front analysis.")
+          if x.get("error"):print("- Source error:",x["error"])
+          PY
