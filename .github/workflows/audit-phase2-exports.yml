@@ -9,6 +9,7 @@ on:
       - monthly_frequency.js
       - t850_ensembles.js
       - t850_vector_export.js
+      - scientific_vector_actions.js
       - mosmix.js
       - mosmix_vector_export.js
       - mobile_content.css
@@ -17,6 +18,7 @@ on:
       - scripts/inject_mobile_navigation.py
       - tests/test_phase2_exports.cjs
       - tests/test_t850_vector_export.cjs
+      - tests/test_scientific_vector_actions.cjs
       - tests/audit_phase2_exports_live.py
       - .github/workflows/audit-phase2-exports.yml
 
@@ -45,6 +47,7 @@ jobs:
             monthly_frequency.js
             t850_ensembles.js
             t850_vector_export.js
+            scientific_vector_actions.js
             mosmix.js
             mosmix_vector_export.js
             mobile_content.css
@@ -53,6 +56,7 @@ jobs:
             scripts/inject_mobile_navigation.py
             tests/test_phase2_exports.cjs
             tests/test_t850_vector_export.cjs
+            tests/test_scientific_vector_actions.cjs
             tests/test_mosmix_vector_exports.mjs
             tests/test_dashboard_hq_export.cjs
             tests/test_mobile_content.cjs
@@ -62,6 +66,7 @@ jobs:
           node --check monthly_frequency.js
           node --check t850_ensembles.js
           node --check t850_vector_export.js
+          node --check scientific_vector_actions.js
           node --check mosmix.js
           node --check mosmix_vector_export.js
           node --check mobile_content.js
@@ -69,6 +74,7 @@ jobs:
         run: |
           node --test tests/test_phase2_exports.cjs
           node --test tests/test_t850_vector_export.cjs
+          node --test tests/test_scientific_vector_actions.cjs
           node tests/test_mosmix_vector_exports.mjs
           node --test tests/test_dashboard_hq_export.cjs
           node --test tests/test_mobile_content.cjs
