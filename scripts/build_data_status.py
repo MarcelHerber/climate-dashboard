@@ -342,13 +342,23 @@ def add_climate_indices(items):
         "NOAA/CPC monatlicher Zonalwind", cadence="monthly",allowed_delay=3,
         incomplete=min(len(q30.get("monthly") or []),len(q50.get("monthly") or []))<300))
     europe = p.get("europe") or {}
-    keys=("scand","ea","eawr","gbi")
-    sources=[europe.get(key) or {} for key in keys]
-    items.append(result("circulation", "SCAND, EA, EA/WR und GBI", "Indizes",
-        common_latest(*(v.get("latest_month") for v in sources)), stamp,
-        "4 monatliche Zirkulationsindizes",
-        "Datenstand des ältesten der vier Indizes", cadence="monthly", allowed_delay=4,
-        incomplete=any(len(v.get("monthly") or [])<300 for v in sources)))
+    # Each index has its own publisher cadence. NOAA/PSL's NCEP/NCAR GBI
+    # source can be months behind CPC teleconnections; never make all four
+    # indices look delayed because only the independently sourced GBI lags.
+    for key,label in (
+        ("scand", "SCAND · Skandinavisches Muster"),
+        ("ea", "EA · Ostatlantisches Muster"),
+        ("eawr", "EA/WR · Ostatlantik/Westrussland"),
+        ("gbi", "GBI · Grönland-Blocking-Index"),
+    ):
+        dataset = europe.get(key) or {}
+        rows = dataset.get("monthly") or []
+        note = ("NOAA/PSL NCEP/NCAR-Reanalyse · Quellverzug möglich · "
+                "eigene saisonale Standardisierung (1981–2010)"
+                if key == "gbi" else "NOAA/CPC monatlicher Zirkulationsindex")
+        items.append(result(key, label, "Indizes",
+            dataset.get("latest_month"), stamp, f"{len(rows)} Monatswerte",
+            note, cadence="monthly", allowed_delay=4, incomplete=len(rows)<300))
     mjo=p.get("mjo") or {}
     items.append(result("mjo","MJO · Wheeler–Hendon RMM","Indizes",
         mjo.get("latest_date"),stamp,
