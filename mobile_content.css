@@ -250,3 +250,69 @@
    .strato-downloads,.strato-export-actions,.mosmix-meteogram-actions
  ) :is(button,a){flex:1 1 95px}
 }
+
+/* Phase 2 · Export- und Auswahlleisten 320–430 px, no scientific data changes.
+   Scope to actual modules; controls wrap instead of widening the viewport. */
+@media(max-width:600px){
+ body.cd-mobile-ready :is(
+   .mosmix-chart-export-actions,.monthly-frequency-export-bar,
+   .t850-export,.hyras-map-actions,.hyras-tmean-downloads,
+   .era5-atmos-toolbar,.era5-europe-toolbar,.strato-chart-export,
+   .state-monthly-export-actions
+ ){
+   box-sizing:border-box;display:flex;align-items:stretch;
+   flex-wrap:wrap;gap:8px;width:100%;max-width:100%;min-width:0;
+ }
+ body.cd-mobile-ready :is(
+   .mosmix-chart-export-actions,.monthly-frequency-export-bar,
+   .t850-export,.hyras-map-actions,.hyras-tmean-downloads,
+   .era5-atmos-toolbar,.era5-europe-toolbar,.strato-chart-export,
+   .state-monthly-export-actions
+ ) :is(button,a){
+   box-sizing:border-box;flex:1 1 118px;min-width:0;min-height:44px;
+   max-width:100%;padding:9px 10px;line-height:1.3;
+   white-space:normal;overflow-wrap:anywhere;text-align:center;
+   touch-action:manipulation;
+ }
+ body.cd-mobile-ready :is(
+   .monthly-frequency-controls,.mosmix-chart-toolbar,
+   .t850-controls,.era5-atmos-layout,.era5-europe-controls,
+   .hyras-daily-anomaly-controls,.strato-diagnostic-controls
+ ){min-width:0;max-width:100%;box-sizing:border-box}
+ body.cd-mobile-ready :is(
+   .monthly-frequency-controls,.mosmix-chart-toolbar,
+   .t850-controls,.era5-europe-controls,.strato-diagnostic-controls
+ ) :is(label,select,input,button){
+   max-width:100%;min-width:0;box-sizing:border-box;
+ }
+ body.cd-mobile-ready :is(.era5-atmos-card,.era5-atmos-image-wrap,
+   .era5-atmos-layout,.monthly-frequency-card,.monthly-frequency-chart-wrap,
+   .t850-model-card,.t850-comparison-card,.mosmix-chart-card){
+   box-sizing:border-box;max-width:100%;min-width:0
+ }
+ body.cd-mobile-ready .era5-atmos-image-wrap{min-height:260px}
+ body.cd-mobile-ready .monthly-frequency-export-bar .monthly-frequency-export-btn{font-weight:700}
+ body.cd-mobile-ready .mosmix-chart-export-actions button{font-size:12px}
+}
+@media(max-width:430px){
+ body.cd-mobile-ready .monthly-frequency-controls{grid-template-columns:minmax(0,1fr)}
+ body.cd-mobile-ready .mosmix-chart-export-actions{
+   display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px
+ }
+ body.cd-mobile-ready .monthly-frequency-export-bar{
+   display:grid;grid-template-columns:repeat(2,minmax(0,1fr))
+ }
+ body.cd-mobile-ready :is(.t850-export,.hyras-map-actions,.hyras-tmean-downloads){
+   flex-wrap:wrap
+ }
+ body.cd-mobile-ready .t850-export :is(button,a){flex:1 1 125px}
+}
+@media(max-width:350px){
+ body.cd-mobile-ready :is(
+   .era5-atmos-layout,.monthly-frequency-chart-wrap,
+   .mosmix-chart-wrap,.t850-chart-shell
+ ){min-width:0;max-width:100%;overflow-x:clip}
+ body.cd-mobile-ready .mosmix-chart-export-actions button{
+   padding:8px 3px;font-size:11px
+ }
+}
