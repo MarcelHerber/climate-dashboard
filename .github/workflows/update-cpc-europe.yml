@@ -1,7 +1,7 @@
 name: NOAA CPC · Europa Temperaturabweichung (Beobachtungen)
 on:
   push:
-    branches: [main, feature/cpc-europe-observations-20261113]
+    branches: [main, feature/cpc-europe-observations-20261113, fix/cpc-europe-smooth-0p5-presentation-20261113]
     paths:
       - "scripts/update_cpc_europe.py"
       - "tests/test_cpc_europe.py"
