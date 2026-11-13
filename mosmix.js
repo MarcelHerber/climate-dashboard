@@ -455,7 +455,7 @@
   function ensureVectorExport(){
     if(window.MosmixVectorExport)return Promise.resolve();
     if(!vectorLoadPromise)vectorLoadPromise=loadLibrary(
-      "./mosmix_vector_export.js?v=20261111-vector-v2",
+      "./mosmix_vector_export.js?v=20261113-phase2-export-v1",
       "MOSMIX-Vektorexport").then(function(){
         if(!window.MosmixVectorExport)
           throw new Error("MOSMIX-Vektorexport konnte nicht initialisiert werden.");
