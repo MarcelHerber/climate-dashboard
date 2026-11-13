@@ -109,6 +109,7 @@ required_root_files=(
   satellite_lightning.js
   satellite_radar.js
   satellite_view_options.js
+  satellite_tile_cache.js
   satellite_hd.js
   satellite_quality_comparison.js
   satellite_fullhd_film.js
@@ -610,6 +611,7 @@ node --check _site/satellite_overlay.js
 node --check _site/satellite_lightning.js
 node --check _site/satellite_radar.js
 node --check _site/satellite_view_options.js
+node --check _site/satellite_tile_cache.js
 node --check _site/satellite_hd.js
 node --check _site/satellite_quality_comparison.js
 node --check _site/satellite_fullhd_film.js
@@ -621,6 +623,7 @@ node --test tests/test_satellite_overlay.cjs
 node --test tests/test_satelliten_ui.cjs
 node --test tests/test_satellite_phase12.cjs
 node --test tests/test_satellite_source_alignment.cjs
+node --test tests/test_satellite_tile_cache.cjs
 node --test tests/test_satellite_hd.cjs
 node --test tests/test_satellite_progressive.cjs
 node --test tests/test_satellite_quality_comparison.cjs

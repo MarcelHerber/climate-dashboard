@@ -6,6 +6,8 @@ on:
       - "satelliten.js"
       - "satelliten.css"
       - "satellite_*.js"
+      - "satellite_tile_cache.js"
+      - "tests/test_satellite_tile_cache.cjs"
       - "tests/test_satellite_hd.cjs"
       - "scripts/check_satellite_wms.py"
       - "scripts/audit_satellite_live_quality.py"
@@ -72,6 +74,7 @@ jobs:
         run: |
           node --test tests/test_satelliten_ui.cjs
           node --test tests/test_satellite_phase12.cjs
+          node --test tests/test_satellite_tile_cache.cjs
           node --test tests/test_satellite_hd.cjs
           node --test tests/test_satellite_progressive.cjs
           node --test tests/test_satellite_quality_comparison.cjs

@@ -1,6 +1,7 @@
 "use strict";
 const test=require("node:test"),assert=require("node:assert/strict"),fs=require("node:fs"),vm=require("node:vm");
 const js=fs.readFileSync("satellite_hd.js","utf8"),html=fs.readFileSync("satelliten.html","utf8");
+const cacheJs=fs.readFileSync("satellite_tile_cache.js","utf8");
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(ok,label,timeout=4300){
  const end=Date.now()+timeout;
@@ -54,6 +55,7 @@ function build({failOne=false,delayLast=false}={}){
  }
  const environment={document,Image,window:{},URLSearchParams,Math,Date,Number,String,Map,Set,
   Promise,Error,setTimeout,clearTimeout};
+ vm.runInNewContext(cacheJs,environment,{timeout:2000});
  vm.runInNewContext(js,environment,{timeout:2000});
  const scene=previewWidth=>({ready:true,cached:false,previewWidth,time:UTC,
   source:"mtgi1",region:"europe",product:"geocolour",layer:"mtg_fd:rgb_geocolour"});
@@ -126,4 +128,68 @@ test("Scene changes cancel previous progressive WMS requests and restore origina
  await sleep(430);
  assert.equal(a.els.get("satHDTiles").children.length,0,
   "late arrivals from the old UTC can never paint onto a new scene");
+});
+
+test("Revisiting an unchanged UTC frame reuses all decoded 2K tiles without another WMS request",async()=>{
+ const a=build();
+ a.hd.sync(a.scene(800));
+ await until(()=>a.els.get("satHDTiles").children.length===6,"initial HD complete");
+ assert.equal(a.requests.length,6);
+ const before=a.hd.cacheStats();
+ assert.equal(before.entries,6);
+ a.hd.sync(a.scene(800));
+ await until(()=>a.els.get("satHDTiles").children.length===6,"6 cached tiles restored");
+ assert.equal(a.requests.length,6,"exact same EUMETSAT UTC/region/quality must not refetch");
+ assert.equal(a.hd.cacheStats().hits-before.hits,6);
+ assert.match(a.els.get("satHDStatus").textContent,/6 Kacheln aus Bildcache/);
+});
+test("Zoom 2K → 4K → 2K restores original WMS tiles from memory",async()=>{
+ const a=build();
+ a.hd.sync(a.scene(800));
+ await until(()=>a.els.get("satHDTiles").children.length===6,"2K complete");
+ const initial=a.requests.length;
+ a.model.scale=3.2;a.hd.viewChanged({scale:3.2});
+ await until(()=>a.requests.length>initial,"4K visible tiles requested");
+ // In-flight 4K tiles may finish (and schedule more 4K requests) before
+ // the 180ms zoom debounce. Only additional 2K network calls indicate a
+ // cache regression; count by native WMS output width, not total requests.
+ const initial2k=a.requests.filter(v=>v.w<=700).length;
+ a.model.scale=1;a.hd.viewChanged({scale:1});
+ await until(()=>a.els.get("satHDTiles").children.length===6,"2K cached after zoom out");
+ assert.equal(a.requests.filter(v=>v.w<=700).length,initial2k,
+  "no new 2K WMS tiles requested when leaving the 4K zoom");
+ assert.ok(a.hd.cacheStats().hits>=6);
+ assert.ok(a.els.get("satHDTiles").children.every(node=>Number(node.style.width.replace("%",""))>0),
+  "all returned 2K tiles are actually attached with valid dimensions");
+});
+test("Changing UTC or WMS layer never reuses unrelated pixels, but returning to prior UTC hits cache",async()=>{
+ const a=build();
+ a.hd.sync(a.scene(800));
+ await until(()=>a.els.get("satHDTiles").children.length===6,"first UTC");
+ const first=a.requests.length;
+ const later={...a.scene(800),time:"2026-11-13T09:20:00Z"};
+ a.hd.sync(later);
+ await until(()=>a.els.get("satHDTiles").children.length===6,"later UTC");
+ assert.equal(a.requests.length,first+6,"different UTC must fetch new satellite pixels");
+ assert.ok(a.requests.slice(first).every(v=>v.url.searchParams.get("time")===later.time));
+ const afterTwo=a.requests.length;
+ a.hd.sync(a.scene(800));
+ await until(()=>a.els.get("satHDTiles").children.length===6,"previous UTC from cache");
+ assert.equal(a.requests.length,afterTwo);
+ a.els.get("satProduct").value="ir105";
+ a.hd.sync({...a.scene(800),product:"ir105",layer:"mtg_fd:ir105_hrfi"});
+ await until(()=>a.els.get("satHDTiles").children.length===6,"different product");
+ assert.equal(a.requests.length,afterTwo+6,"different product must not be faked with GeoColour");
+});
+test("User can clear in-memory cache without losing the currently visible HD picture",async()=>{
+ const a=build();
+ a.hd.sync(a.scene(800));
+ await until(()=>a.els.get("satHDTiles").children.length===6,"initial HD");
+ assert.equal(a.hd.cacheStats().entries,6);
+ const visible=a.els.get("satHDTiles").children.length;
+ a.hd.clearTileCache();
+ assert.equal(a.hd.cacheStats().entries,0);
+ assert.equal(a.els.get("satHDTiles").children.length,visible,"onscreen HD not discarded");
+ a.hd.sync(a.scene(800));
+ await until(()=>a.requests.length>=12,"cache emptied means real WMS refetch");
 });

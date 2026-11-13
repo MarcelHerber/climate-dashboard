@@ -201,3 +201,7 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 .sat-compare-box[hidden]{display:none}
 @media(max-width:920px){.sat-compare-grid{grid-template-columns:1fr 1fr}.sat-compare-grid figure:last-child{grid-column:1/-1}}
 @media(max-width:600px){.sat-compare-grid{grid-template-columns:1fr}.sat-compare-grid figure:last-child{grid-column:auto}.sat-compare-toolbar{display:grid;grid-template-columns:1fr}.sat-compare-toolbar button,.sat-compare-toolbar select{width:100%}.sat-compare-toolbar label{display:grid;grid-template-columns:1fr}}
+
+/* Cache controls are informative and secondary to primary export actions. */
+.sat-hd-controls #satClearTileCache{font-weight:600;font-size:12px;opacity:.88}
+.sat-hd-controls #satClearTileCache:hover{opacity:1}
