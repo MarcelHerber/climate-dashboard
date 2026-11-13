@@ -32,7 +32,7 @@ def selected_picture(page, choice):
           if(!img?.src?.startsWith('https://view.eumetsat.int/geoserver/wms'))return false;
           const url=new URL(img.src);
           return url.searchParams.get('layers')===layer&&img.complete&&img.naturalWidth>0;
-        }""",code,timeout=28000)
+        }""",arg=code,timeout=28000)
         img=page.locator("#satImage").evaluate("""(image)=>{
           const u=new URL(image.src);
           return {width:image.naturalWidth,height:image.naturalHeight,
@@ -67,6 +67,26 @@ def finished_overlay(page, name, timeout=20000):
             "status_has_utc":bool(UTC.search(message))}
 
 
+def temporal_assertion(kind, info, satellite_utc):
+    """A displayed radar or LI overlay must not claim a future timestamp."""
+    stamp=datetime.fromisoformat(satellite_utc.replace("Z","+00:00"))
+    dates=[datetime.strptime(value,"%Y-%m-%d %H:%M UTC").replace(tzinfo=timezone.utc)
+           for value in UTC.findall(info.get("status",""))]
+    if not info.get("displayed"):
+        return "not displayed; source/UTC compatibility explicitly reported"
+    if not dates:
+        return "ERROR: visible source with no UTC in overlay status"
+    if kind=="radar":
+        delay=(stamp-dates[0]).total_seconds()/60
+        return "OK" if 0<=delay<=20 else f"ERROR: radar time difference {delay:.1f} min"
+    if len(dates)<2:
+        return "ERROR: LI interval start and end missing"
+    gap=(stamp-dates[-1]).total_seconds()/60
+    duration=(dates[-1]-dates[0]).total_seconds()/60
+    return "OK" if 0<=gap<=10 and duration in (5,15,30) else \
+           f"ERROR: LI end-time lag {gap:.1f} min or invalid accumulation length {duration:.1f}"
+
+
 def snapshot(page, viewport):
     result={"viewport":viewport, "at":datetime.now(timezone.utc).isoformat()}
     errors=[]
@@ -99,7 +119,11 @@ def snapshot(page, viewport):
     }""")
     result["images"]={}
     for product in PRODUCTS:
-        result["images"][product]=selected_picture(page,product)
+        picked=selected_picture(page,product)
+        latest=result["manifest"].get("products",{}).get(product,{}).get("latest_verified_time")
+        picked["matches_published_verified_utc"]=bool(picked.get("ok") and
+             picked.get("time")==latest)
+        result["images"][product]=picked
     # Source-specific overlays should be temporally coherent with the
     # chosen actual satellite image, not with a default/guessed time.
     page.locator("#satProduct").select_option("geocolour")
@@ -112,6 +136,7 @@ def snapshot(page, viewport):
         for key,check in result["overlay_checks"].items():
             if check["displayed"] and not check["status_has_utc"]:
                 check["warning"]="Layer is visible, but status lacks a verifiable UTC stamp."
+            check["temporal_consistency"]=temporal_assertion(key,check,sample["time"])
     else:
         result["overlay_checks"]["warning"]="No confirmed GeoColour image: overlays not asserted."
     result["compare_opt_in"]=page.locator("#satCompareRun").count()==1
