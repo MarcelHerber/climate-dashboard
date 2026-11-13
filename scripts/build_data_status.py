@@ -87,6 +87,7 @@ def external_archives():
         "europe_tmin": "europe-tmin-lab-data/data/europe-tmin-lab/current.json",
         "icon": "icon-hazards-data/data/icon-hazards/current.json",
         "sst": "sst-archive/manifest.json",
+        "opera": "opera-data/data/opera/current.json",
         "ssw": "stratosphere-data/data/stratosphere/ssw_catalog.json",
     }
     result = {}
@@ -239,6 +240,31 @@ def add_external(items, remote):
     else:
         items.append(result("icon_hazards", "ICON-EU Wettergefahren", "Vorhersagen",
             None, None, "Laufmetadaten fehlen", "Datenzweig vorübergehend nicht prüfbar"))
+
+    # An advertised MeteoGate timestamp is not evidence of a published COG.
+    # Report only frames that the OPERA ingest actually downloaded and verified.
+    opera = remote.get("opera")
+    for kind, label, max_delay in (
+        ("dbzh", "OPERA Europa · Radarreflektivität", 1.0),
+        ("rate", "OPERA Europa · Niederschlagsrate", 1.25),
+    ):
+        product = ((opera.get("products") or {}).get(kind) or {}) if isinstance(opera, dict) else {}
+        frames = product.get("frames") or []
+        verified = sorted(
+            f["utc"] for f in frames if isinstance(f, dict)
+            and isinstance(f.get("utc"), str) and valid_date(f["utc"])
+        ) if isinstance(frames, list) else []
+        if verified:
+            items.append(result("opera_" + kind, label, "Radar",
+                verified[-1], opera.get("updated_utc"),
+                f"{len(verified)} überprüfte Echtzeitbilder",
+                "EUMETNET OPERA / MeteoGate · nur erfolgreich validierte COG-Dateien",
+                cadence="hourly", allowed_delay=max_delay, incomplete=len(verified)<4))
+        else:
+            items.append(result("opera_" + kind, label, "Radar", None,
+                opera.get("updated_utc") if isinstance(opera, dict) else None,
+                "Keine verifizierten Radarframes im Datenarchiv",
+                "OPERA-Datenbranch fehlt oder enthält keine gültigen Bilddaten"))
 
     ssw = remote.get("ssw")
     if ssw and ssw.get("schema_version") == 1:
