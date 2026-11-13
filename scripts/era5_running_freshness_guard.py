@@ -5,7 +5,7 @@ import argparse
 import calendar
 import json
 import os
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -26,13 +26,29 @@ def validate_index_data_through(index_path: Path, expected_data_through: str) ->
     actual_raw = payload.get('data_through')
     if not actual_raw:
         raise RuntimeError(f'ERA5-Running-Index enthält kein data_through: {index_path}')
-    actual = date.fromisoformat(str(actual_raw)).isoformat()
-    if actual != expected:
+    actual_day = date.fromisoformat(str(actual_raw))
+    expected_day = date.fromisoformat(expected)
+    # The CDS can publish another complete UTC day between the initial probe
+    # and the expensive 0.1-degree calculation. A *newer*, valid day is an
+    # improvement, not a failed freshness check.
+    if actual_day < expected_day:
         raise RuntimeError(
-            f'ERA5-Running-Datenstand stimmt nicht mit der frischen Probe überein: '
-            f'Index={actual}, Probe={expected}'
+            f'ERA5-Running-Datenstand ist älter als die frische Probe: '
+            f'Index={actual_day.isoformat()}, Probe={expected}'
         )
-    return actual
+    # Reject future/partial UTC days even when the preliminary probe is old.
+    last_complete_utc_day = datetime.now(timezone.utc).date() - timedelta(days=1)
+    if actual_day > last_complete_utc_day:
+        raise RuntimeError(
+            f'ERA5-Running-Index meldet einen noch nicht vollständig vergangenen UTC-Tag: '
+            f'{actual_day.isoformat()} (maximal {last_complete_utc_day.isoformat()})'
+        )
+    if actual_day > expected_day:
+        print(
+            f'ERA5-Land: während der Berechnung neuer vollständiger Tag verfügbar: '
+            f'Probe={expected}, Index={actual_day.isoformat()}'
+        )
+    return actual_day.isoformat()
 
 
 def validate_backfill_end_day(
