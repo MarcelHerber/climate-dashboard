@@ -159,6 +159,8 @@ def case(browser,width):
         }""")
         assert hit,"No visible, unobstructed station cluster available for touch"
         before_zoom=page.evaluate("() => window.StationSnowExplorer.getState().mapZoom")
+        result["mapZoomBefore"]=before_zoom
+        result["clickedCluster"]=hit
         assert before_zoom is not None,"Map zoom state not available"
         if mobile:
             page.touchscreen.tap(hit["x"],hit["y"])
@@ -175,7 +177,11 @@ def case(browser,width):
               zoom:window.StationSnowExplorer?.getState()?.mapZoom,
               clusterCount:document.querySelectorAll(
                 '#stationSnowMap .station-snow-cluster-icon').length,
-              mapStatus:document.querySelector('#stationSnowMapStatus')?.textContent
+              mapStatus:document.querySelector('#stationSnowMapStatus')?.textContent,
+              mapBounds:document.querySelector('#stationSnowMap')?.getBoundingClientRect().toJSON(),
+              clusterUnderClick:document.elementFromPoint(
+                window.__snowAuditClickX||0,window.__snowAuditClickY||0
+              )?.className
             })""")
             raise
         result["mapClickOk"]=True
