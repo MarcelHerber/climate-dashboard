@@ -1,0 +1,109 @@
+name: CFSR/CFSv2 1991–2020 · verified historical 2m reference
+
+on:
+  push:
+    branches:
+      - feature/gfs-cfsr-1991-2020-europe-20261113
+    paths:
+      - "scripts/import_cfsr_cfsv2_1991_2020.py"
+      - "scripts/probe_cfsr_cfsv2_sources.py"
+      - "scripts/build_gfs_cfsr_1991_2020.py"
+      - "tests/test_cfsr_cfsv2_import.py"
+      - ".github/workflows/backfill-cfsr-cfsv2-1991-2020.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test prerequisites
+        run: python -m pip install numpy requests pytest
+      - name: Verify NCEI historical CFSR and CFSv2 originals with tiny live GRIB reads
+        run: python scripts/probe_cfsr_cfsv2_sources.py
+      - name: Verify historical boundaries, archive URLs and interpolation
+        run: |
+          python -m pytest -q tests/test_cfsr_cfsv2_import.py tests/test_gfs_analysis_europe.py
+          python -m compileall -q scripts/import_cfsr_cfsv2_1991_2020.py scripts/build_gfs_cfsr_1991_2020.py
+
+  historical-year:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validation
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        year: [1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 345
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install GRIB decoder and data libraries
+        run: python -m pip install numpy requests eccodes
+      - name: Import exactly twelve official source months, validate 4 zero-lead 2m cycles/day
+        run: python scripts/import_cfsr_cfsv2_1991_2020.py --year ${{ matrix.year }}
+      - name: Save independently verified year with original source checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: cfs-historical-year-${{ matrix.year }}
+          path: gfs_analysis_europe/reference_sources/t2m_6h_${{ matrix.year }}.npz
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 1
+
+  finalize-climatology:
+    if: github.event_name == 'workflow_dispatch'
+    needs: historical-year
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy
+      - name: Restore all thirty validated historical years
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cfs-historical-year-*
+          merge-multiple: true
+          path: gfs_analysis_europe/reference_sources
+      - name: Refuse missing originals, wrong source transitions and forecasts
+        run: |
+          python scripts/build_gfs_cfsr_1991_2020.py
+          python - <<'PY'
+          from pathlib import Path
+          import numpy as np
+          from scripts import update_gfs_analysis_europe as gfs
+          from scripts import build_gfs_cfsr_1991_2020 as builder
+          p=Path("gfs_analysis_europe/climatology_1991_2020.npz")
+          with np.load(p,allow_pickle=False) as z:
+              assert z["normal_t2m_c"].shape==(365,76,140)
+              assert np.all(z["year_count"]==30)
+          original=builder.make_normals()
+          assert original[1].min()==30
+          reference=gfs.read_normals(p)
+          assert reference is not None
+          assert reference[1]["source_months"]==360
+          assert reference[1]["years"]==30
+          print("CFSR/CFSv2 daily reference verified:",p,
+                "from 360 official monthly GRIB sources")
+          PY
+      - name: Archive proven 1991–2020 reference for publication after review
+        uses: actions/upload-artifact@v4
+        with:
+          name: cfsr-cfsv2-1991-2020-climatology-verified
+          path: gfs_analysis_europe/climatology_1991_2020.npz
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 1
