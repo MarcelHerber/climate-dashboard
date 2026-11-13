@@ -83,7 +83,21 @@ function drawPanel(target,item){
  ctx.clearRect(0,0,outWidth,outHeight);
  ctx.imageSmoothingEnabled=true;
  ctx.imageSmoothingQuality="high";
- ctx.drawImage(item.image,sx,sy,sw,sh,0,0,outWidth,outHeight);
+ if(item.image){
+  ctx.drawImage(item.image,sx,sy,sw,sh,0,0,outWidth,outHeight);
+ }else if(Array.isArray(item.tiles)){
+  // Do not allocate an additional full 4096px canvas: sample directly from
+  // already decoded, contiguous WMS tiles. Rounded destination edges meet
+  // exactly, avoiding faint seams at CSS/device pixel boundaries.
+  for(const tile of item.tiles){
+   const l=Math.max(sx,tile.x),r=Math.min(sx+sw,tile.x+tile.width);
+   const t=Math.max(sy,tile.y),b=Math.min(sy+sh,tile.y+tile.height);
+   if(r<=l||b<=t)continue;
+   const dx=Math.round((l-sx)*outWidth/sw),dy=Math.round((t-sy)*outHeight/sh);
+   const dr=Math.round((r-sx)*outWidth/sw),db=Math.round((b-sy)*outHeight/sh);
+   if(dr>dx&&db>dy)ctx.drawImage(tile.img,l-tile.x,t-tile.y,r-l,b-t,dx,dy,dr-dx,db-dy);
+  }
+ }
  const frac=Math.round(cropWindow.fractionX*100);
  target.info.textContent=item.width+" × "+item.height+" WMS-Pixel · gleicher "+
   frac+"-%-Ausschnitt mit "+sw+" × "+sh+" Quellpixeln"+(item.cached?" · vorhandene Kacheln genutzt":"");
@@ -136,15 +150,11 @@ async function mosaic(plan,live,progress){
  if(failed)throw failed;
  if(!live())throw Error("Kartenansicht hat sich geändert.");
  if(images.some(x=>!x))throw Error("Unvollständiges HD-/4K-Mosaik wird nicht als Vergleichsbild angezeigt.");
- const canvas=document.createElement("canvas");canvas.width=plan.width;canvas.height=plan.height;
- const ctx=canvas.getContext("2d");
- if(!ctx)throw Error("Vergleichs-Canvas nicht verfügbar.");
- for(let i=0;i<images.length;i++){
-  const tile=plan.tiles[i];
-  ctx.drawImage(images[i],tile.x,tile.y,tile.width,tile.height);
- }
- return {image:canvas,width:plan.width,height:plan.height,
-  cached:plan.tiles.every(t=>t.cached),source:"EUMETSAT WMS, vollständig geladen"};
+ // Keep decoded original tiles only; a second full-resolution mosaic canvas
+ // would double 4K memory use on mobile devices without adding any detail.
+ return {tiles:plan.tiles.map((tile,i)=>({...tile,img:images[i]})),
+  width:plan.width,height:plan.height,cached:plan.tiles.every(t=>t.cached),
+  source:"EUMETSAT WMS, vollständig geladen"};
 }
 async function compare(){
  if(working||!enabled)return;
