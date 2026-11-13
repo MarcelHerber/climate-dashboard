@@ -2,9 +2,11 @@
 from __future__ import annotations
 import sys
 import unittest
+from unittest.mock import Mock, patch
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import build_state_monthly_sun_outlook as sun
+import build_state_monthly_ensemble_outlook as ensemble
 
 
 class SunOutlookTests(unittest.TestCase):
@@ -45,6 +47,35 @@ class SunOutlookTests(unittest.TestCase):
         doc["data_through"]="2026-11-03"
         with self.assertRaises(ValueError):
             sun.validate_observations(doc)
+
+    def test_rate_limit_does_not_multiply_calls_by_splitting(self):
+        refs = [ensemble.LocationRef("Hessen", 0.25, 50.1, 8.7) for _ in range(4)]
+        with patch.object(ensemble, "fetch_json", side_effect=RuntimeError("HTTP 429: rate limit")) as fetch:
+            with self.assertRaisesRegex(RuntimeError, "HTTP 429"):
+                ensemble.request_model_chunk(
+                    "gefs", refs, variable="sunshine_duration", time_resolution="hourly",
+                )
+        self.assertEqual(fetch.call_count, 1)
+
+    def test_sunshine_http_429_waits_for_provider_cooldown(self):
+        limited = Mock(status_code=429, text="Minutely API request limit exceeded")
+        ok = Mock(status_code=200)
+        ok.json.return_value = {"success": True}
+        with (
+            patch.object(ensemble.requests, "get", side_effect=[limited, ok]) as request,
+            patch.object(ensemble, "reserve_sunshine_request") as pace,
+            patch.object(ensemble, "cooldown_sunshine_requests") as cooldown,
+        ):
+            result = ensemble.fetch_json(
+                ensemble.ENSEMBLE_API,
+                params={"hourly": "sunshine_duration"},
+                retries=2,
+            )
+        self.assertEqual(result, {"success": True})
+        self.assertEqual(request.call_count, 2)
+        self.assertEqual(pace.call_count, 2)
+        cooldown.assert_called_once()
+
 
 
 if __name__=="__main__":
