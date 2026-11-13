@@ -11,7 +11,9 @@ CASES = [(1992,7),(1996,8),(1998,4),(2000,4),(2001,5),(2002,12),(2007,4),(2008,9
 def gdex_url(year, month):
     dataset = "d093001" if (year,month)<(2011,4) else "d094001"
     ym=f"{year:04d}{month:02d}"
-    return f"https://tds.gdex.ucar.edu/thredds/fileServer/files/g/{dataset}/{year}/tmp2m.gdas.{ym}.grb2"
+    filename = (f"tmp2m.gdas.{ym}.grb2" if dataset=="d093001"
+                else f"tmp2m.cdas1.{ym}.grb2")
+    return f"https://tds.gdex.ucar.edu/thredds/fileServer/files/g/{dataset}/{year}/{filename}"
 
 def probe(year,month):
     url=gdex_url(year,month)
