@@ -19,7 +19,7 @@ on:
   # as soon as the verified monitor has committed them to main. Bot pushes
   # made with GITHUB_TOKEN do not independently trigger the push workflow.
   workflow_run:
-    workflows: ["Build DWD snow-height profiles", "Update satellite ECMWF isobars", "MTG EUMETView live data check"]
+    workflows: ["Build DWD snow-height profiles", "Update satellite ECMWF isobars", "MTG EUMETView live data check", "DWD Boden-Frontenanalyse aktuell"]
     types: [completed]
 
 permissions:

@@ -1,0 +1,112 @@
+name: DWD Boden-Frontenanalyse aktuell
+# Only official original manual surface analyses, not forecast composites.
+on:
+  # Allow the latest 00/06/12/18-UTC hand analysis time to become available.
+  schedule:
+    - cron: "15 2,10,15,20 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update_satellite_dwd_fronts.py"
+      - "tests/test_satellite_dwd_fronts.py"
+      - "satellite_dwd_fronts.js"
+      - ".github/workflows/update-satellite-dwd-fronts.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dwd-manual-front-analysis-source
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: |
+            scripts/update_satellite_dwd_fronts.py
+            tests/test_satellite_dwd_fronts.py
+            satellite_dwd_fronts.js
+            satelliten.html
+            scripts/build_pages_site.sh
+            data/synoptic_charts/dwd_fronts_satellite.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate manual DWD analysis filenames and real UTC
+        run: |
+          python -m py_compile scripts/update_satellite_dwd_fronts.py
+          python -m unittest discover -s tests -p 'test_satellite_dwd_fronts.py' -v
+      - name: Fetch latest verified original DWD analysis PNG metadata
+        run: python scripts/update_satellite_dwd_fronts.py
+      - name: Save report safely despite concurrent other dashboard updates
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp data/synoptic_charts/dwd_fronts_satellite.json "$RUNNER_TEMP/fronts-candidate.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git reset --hard origin/main
+            DWD_CANDIDATE="$RUNNER_TEMP/fronts-candidate.json" python - <<'PY'
+          from pathlib import Path
+          from datetime import datetime,timezone
+          import json,os
+          src=json.loads(Path(os.environ["DWD_CANDIDATE"]).read_text(encoding="utf-8"))
+          target=Path("data/synoptic_charts/dwd_fronts_satellite.json")
+          try:
+              cur=json.loads(target.read_text(encoding="utf-8"))
+          except (ValueError,OSError):
+              cur={}
+          def date(value):
+              try:
+                  return datetime.fromisoformat(str(value).replace("Z","+00:00")).astimezone(timezone.utc)
+              except (ValueError,TypeError):
+                  return datetime.min.replace(tzinfo=timezone.utc)
+          if date(cur.get("generated_at"))>=date(src.get("generated_at")):
+              print("Newer DWD front analysis metadata already committed")
+          else:
+              target.parent.mkdir(parents=True,exist_ok=True)
+              target.write_text(json.dumps(src,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+              print("Prepared verified DWD front analysis:",src["generated_at"],src["status"])
+          PY
+            git add data/synoptic_charts/dwd_fronts_satellite.json
+            if git diff --cached --quiet; then
+              echo "No newer DWD front analysis information to publish."
+              exit 0
+            fi
+            git commit -m "Update official DWD manual front analysis UTC and source URLs"
+            if git push origin HEAD:main; then
+              echo "Verified DWD front analysis manifest published."
+              exit 0
+            fi
+            echo "::warning::Concurrent main update; retry $attempt/4."
+            sleep 3
+          done
+          echo "::error::Could not publish updated DWD front analysis metadata."
+          exit 1
+      - name: Report actual analysis validity, not guessed current time
+        if: always()
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          path=Path("data/synoptic_charts/dwd_fronts_satellite.json")
+          if not path.exists():
+              print("DWD front analysis report missing")
+              raise SystemExit(0)
+          d=json.loads(path.read_text(encoding="utf-8"))
+          print("## DWD original surface front analyses")
+          print("- Check:",d.get("generated_at"))
+          print("- State:",d.get("status"))
+          for region in ("atlantic","central"):
+              m=d.get("maps",{}).get(region,{})
+              print(f"- {region}: {m.get('valid_utc','not available')}, verified: {m.get('image_verified',False)}, fresh: {m.get('fresh',False)}")
+          print("Original image URLs only, no geographic overlays or forecast maps.")
+          PY
