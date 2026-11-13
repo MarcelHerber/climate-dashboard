@@ -77,6 +77,36 @@ class DataStatusTests(unittest.TestCase):
         self.assertEqual(items["europe_tmax"]["cadence"], "hourly")
         self.assertIn("T", items["europe_tmax"]["latest"])
 
+    def test_sunshine_archive_requires_real_observations_and_four_ensembles(self):
+        now = datetime.now(timezone.utc)
+        observed = (now.date() - timedelta(days=1)).isoformat()
+        def archive(models):
+            regions = ["Deutschland", *[f"Region {i}" for i in range(16)]]
+            return {
+                "schema_version": 1, "parameter": "sunshine", "unit": "h",
+                "observation_data_through": observed,
+                "generated_at": now.isoformat(), "models_order": models,
+                "regions_order": regions,
+                "regions": {r: {"models": {k: {"stats": {}} for k in models}}
+                            for r in regions},
+                "model_errors": {},
+            }
+        models = ["gefs", "ifs", "aifs", "icon_eu"]
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(status, "ROOT", Path(tmp)):
+                good = next(x for x in status.build({"sun_monthly": archive(models)})
+                            ["datasets"] if x["id"] == "sun_monthly")
+                partial = next(x for x in status.build({
+                    "sun_monthly": archive(models[:-1])})["datasets"]
+                    if x["id"] == "sun_monthly")
+                unknown = next(x for x in status.build()["datasets"]
+                               if x["id"] == "sun_monthly")
+        self.assertEqual(good["status"], "current")
+        self.assertEqual(partial["status"], "incomplete")
+        self.assertEqual(unknown["status"], "unknown")
+        self.assertEqual(good["latest"], observed)
+        self.assertIn("4/4 Ensemblemodelle", good["coverage"])
+
     def test_snow_station_gaps_are_visible_without_false_global_failure(self):
         recent = (datetime.now(timezone.utc).date()-timedelta(days=2)).isoformat()
         def snow(available):
