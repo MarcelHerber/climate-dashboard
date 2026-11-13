@@ -62,7 +62,9 @@
       count:group.count,lat:group.lat/group.count,lon:group.lon/group.count,
       stations:group.stations
     }));
-    const minSeparation=48;
+    // 36px icon plus borders and a generous finger-friendly buffer.
+    // In dense areas, adjacent clusters must never steal mobile touch targets.
+    const minSeparation=64;
     let changed=true;
     while(changed){
       changed=false;
