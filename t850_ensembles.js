@@ -560,6 +560,12 @@ function exportMetadata(){
     rows.push("Auswertung: Ensemble-Member, Mittelwert und Perzentile");
   }
   rows.push("Ansicht: "+(view==="four"?"4er-Tafel und Modellvergleich":model?.label||"GFS / GEFS"));
+  // Match the site-wide PNG/PDF provenance conventions; preserve all plotted
+  // member series, their legend and independent model time axes.
+  rows.push("Zeitachse: UTC (Z) · exakter Prognosezeitpunkt siehe Diagramm");
+  rows.push("Quelle: Open-Meteo Ensemble API / zugrunde liegende Wettermodelle");
+  rows.push("Erstellt: "+new Date().toLocaleString("de-DE")+
+    " · Climate Dashboard Deutschland · Werte und Einheiten unverändert");
   return rows;
 }
 function wrapExportLine(ctx,text,maxWidth){
