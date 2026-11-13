@@ -175,7 +175,7 @@ done
 # Keep source HTML and all existing PNG/CSV controls intact.
 python - <<'PY'
 from pathlib import Path
-for filename in ("index.html","stratosphaere.html"):
+for filename in ("index.html","stratosphaere.html","station_jahresanalyse.html"):
     path=Path("_site")/filename
     html=path.read_text(encoding="utf-8")
     scripts=(
