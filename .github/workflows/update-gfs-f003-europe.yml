@@ -1,0 +1,72 @@
+name: GFS Europa f003 · echte Prognose und homogene Referenz
+on:
+  push:
+    branches: [feature/gfs-cfsr-1991-2020-europe-20261113]
+    paths:
+      - "scripts/update_gfs_f003_europe.py"
+      - "tests/test_gfs_f003_europe.py"
+      - ".github/workflows/update-gfs-f003-europe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verified-forecast:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+            tests
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy requests eccodes pytest
+      - name: Confirm GFS f003 2m TMP field integrity and nonmixing of CFS normals
+        run: |
+          python -m pytest -q tests/test_gfs_f003_europe.py
+          python -m compileall -q scripts/update_gfs_f003_europe.py
+      - name: Fetch four authentic GFS f003 0.5-degree fields per UTC day
+        run: python scripts/update_gfs_f003_europe.py --days-back 2
+      - name: Validate original GRIB field provenance and anomaly withholding
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from datetime import date
+          import numpy as np
+          import base64
+          root=Path("gfs_analysis_europe")
+          x=json.loads((root/"index_f003.json").read_text())
+          assert x["schema"]==1
+          assert x["type"]=="model_forecast_not_observation"
+          assert x["provider"]=="NOAA NCEP GFS 0.5° forecast f003"
+          assert x["dates"] and x["data_through"]==x["dates"][-1]
+          assert (date.today()-date.fromisoformat(x["data_through"])).days<=4
+          assert not x["reference_ready"] and not x["anomaly_q10_b64"]
+          for day in x["dates"]:
+              d=json.loads((root/"f003_daily"/(day+".json")).read_text())
+              assert d["kind"]=="GFS 3-hour forecast f003"
+              assert d["cycles_utc"]==[0,6,12,18]
+              assert len(d["sources"])==4
+              assert all(f["forecast_hour"]==3 for f in d["sources"])
+          v=np.frombuffer(base64.b64decode(x["temperature_q10_b64"]),dtype="<i2")
+          assert v.size==len(x["dates"])*140*76
+          assert int(np.sum(v==-32768))<v.size//100
+          print("GFS f003 real data verified, anomalies correctly withheld until 30-year baseline")
+          PY
+      - name: Preserve genuine forecast QA but never publish incomplete reference
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gfs-europe-f003-dev-only-${{ github.run_id }}
+          path: |
+            gfs_analysis_europe/index_f003.json
+            gfs_analysis_europe/f003_daily
+          retention-days: 7
+          if-no-files-found: ignore
