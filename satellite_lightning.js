@@ -40,7 +40,14 @@ async function loadTimes(){
  checked=Date.now();
  loading=(async()=>{
   try{
-   const response=await fetch("./data/satellite_wms_times.json",{cache:"no-store"});
+   // Abort a stalled Pages manifest fetch so LI does not show an endless spinner.
+   const controller=typeof AbortController==="function"?new AbortController():null;
+   const deadline=controller?setTimeout(()=>controller.abort(),8000):null;
+   let response;
+   try{
+    response=await fetch("./data/satellite_wms_times.json",controller?
+      {cache:"no-store",signal:controller.signal}:{cache:"no-store"});
+   }finally{if(deadline!==null)clearTimeout(deadline);}
    if(!response.ok)throw Error("Statusdatei nicht erreichbar");
    const info=await response.json();
    // The hourly WMS monitor publishes LI at the root, while some prior
