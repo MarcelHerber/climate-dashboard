@@ -232,12 +232,30 @@ for name in ("index.html","mosmix.html"):
     page=Path("_site")/name
     html=page.read_text(encoding="utf-8")
     updated,count=re.subn(r"mosmix\.js(?:\?v=[A-Za-z0-9_.-]+)?",
-                           "mosmix.js?v=20261111-svg-vector-live-v2",html)
+                           "mosmix.js?v=20261113-phase2-exports-v1",html)
     if count:
         page.write_text(updated,encoding="utf-8")
         print(f"MOSMIX cache version in {name}: {count} reference(s)")
     else:
         print(f"MOSMIX: no direct script reference in {name}; dynamic loader unaffected.")
+PY
+
+
+# Phase 2: keep ensemble and Gebietsmittel export builds in sync on Pages.
+# Rewrite versioned references in the generated artifact only, avoiding
+# unrelated changes in the large main index.html.
+python - <<'PY'
+from pathlib import Path
+import re
+path=Path("_site/index.html")
+html=path.read_text(encoding="utf-8")
+for filename in ("monthly_frequency.js","t850_ensembles.js"):
+    pattern=re.escape(filename)+r"(?:\?v=[A-Za-z0-9_.-]+)?"
+    html,count=re.subn(pattern,filename+"?v=20261113-phase2-exports-v1",html)
+    if count!=1:
+        raise SystemExit(f"Phase 2: missing/duplicate chart asset {filename}: {count}")
+path.write_text(html,encoding="utf-8")
+print("Phase 2: Klima-Häufigkeiten und Ensembles mit aktualisiertem PNG/PDF-Export veröffentlicht.")
 PY
 
 # Phase 1: compact station-year catalogue and independent comparison page.
