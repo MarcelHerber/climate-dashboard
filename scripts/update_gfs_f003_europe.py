@@ -133,7 +133,7 @@ def object_url(day: date, cycle: int, *, host: str) -> str:
 
 
 def read_byte_range(day: date, cycle: int, *, host: str) -> tuple[bytes, str, str]:
-    """Official GRIB index byte offsets for exactly the 2m TMP analysis field.
+    """Official GRIB index byte offsets for exactly the +3h 2m TMP forecast field.
 
     Avoid pulling 140 MB whole-world model files. Only request the ~260 KB
     GFS f003 temperature message using HTTP 206 Range support.
@@ -335,8 +335,8 @@ def main() -> None:
     days = load_days()
     ref = read_normals(BASELINE)
     result = publish_index(days, normal=ref, out=OUT / "index_f003.json")
-    print(f"GFS analysis available until {result['data_through']}; "
-          f"{len(days)} daily analyses; verified 1991–2020 reference={bool(ref)}",
+    print(f"GFS f003 forecast available until {result['data_through']}; "
+          f"{len(days)} genuine f003 daily forecasts; verified 1991–2020 reference={bool(ref)}",
           flush=True)
 
 
