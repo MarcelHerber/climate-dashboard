@@ -329,7 +329,7 @@
       el.start.max=el.end.max=data.data_through;
       if(data.reference_ready){
         el.reference.classList.add("ready");
-        el.reference.textContent="Geprüfte 1991–2020-Referenz vorhanden: CFSR 1991–2010 + CFSv2 2011–2020.";
+        el.reference.textContent="Geprüfte 1991–2020-Referenz vorhanden: CFSR bis März 2011 + CFSv2 ab April 2011.";
         el.metric.value="anomaly";
       }else{
         el.reference.textContent="CFSR/CFSv2-Referenz 1991–2020 noch nicht vollständig geprüft. Bis dahin nur absolute GFS-Temperaturanalysen; keine Anomalie berechnet.";
