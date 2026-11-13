@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 
 VERSION="20261030-mobile-categories-v2"
-CONTENT_VERSION="20261112-phase2-touchcharts-v1"
+CONTENT_VERSION="20261113-phase2-responsive-v2"
 STYLE=f'<link rel="stylesheet" href="mobile_navigation.css?v={VERSION}">'
 CONTENT_STYLE=f'<link rel="stylesheet" href="mobile_content.css?v={CONTENT_VERSION}">'
 SCRIPT=f'<script defer src="mobile_navigation.js?v={VERSION}"></script>'
