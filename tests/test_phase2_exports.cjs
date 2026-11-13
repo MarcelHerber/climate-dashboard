@@ -29,7 +29,7 @@ test("temperature, sunshine and precipitation frequency PNG/PDF share HQ export"
  assert.doesNotMatch(block,/\.data\.datasets\s*=/);
 });
 
-test("ensemble PNG/PDF use the identical metadata-bearing screenshot",()=>{
+test("ensemble PNG retains metadata-bearing screenshots; PDF and SVG are independent vectors",()=>{
  const start=ensemble.indexOf("function exportMetadata()");
  const end=ensemble.indexOf("function wrapExportLine",start);
  const meta=ensemble.slice(start,end);
@@ -41,7 +41,10 @@ test("ensemble PNG/PDF use the identical metadata-bearing screenshot",()=>{
  assert.ok(first>0 && second>first);
  assert.match(ensemble.slice(second,second+500),/withExportHeader\(captured\)/);
  assert.match(ensemble,/async function png\(\).*?exportCanvas\(\)/s);
- assert.match(ensemble,/async function pdf\(\).*?exportCanvas\(\)/s);
+ assert.match(ensemble,/async function pdf\(\).*?ensureT850Vectors\(\)/s);
+ assert.match(ensemble,/async function svg\(\).*?ensureT850Vectors\(\)/s);
+ assert.match(ensemble,/exporter\.drawPdf\(doc,scene\)/);
+ assert.match(ensemble,/exporter\.saveSvg\(vectorScenes\(exporter\)/);
 });
 
 test("MOSMIX PNG/SVG/PDF preserve vector layers and the same UTC and provenance",()=>{
@@ -75,7 +78,9 @@ test("responsive scientific modules keep download controls within mobile viewpor
 
 test("Pages includes cache-busted presentation assets and all mobile pages",()=>{
  assert.match(builder,/for filename in \("monthly_frequency\.js","t850_ensembles\.js"\)/);
- assert.match(builder,/filename\+"\?v=20261113-phase2-exports-v1"/);
+ assert.match(builder,/version="20261113-t850-vectors-v1" if filename=="t850_ensembles.js"/);
+ assert.match(builder,/filename\+"\?v="\+version/);
+ assert.match(builder,/t850_vector_export\.js/);
  assert.match(builder,/mosmix\.js\?v=20261113-phase2-exports-v1/);
  assert.match(builder,/test_mosmix_vector_exports\.mjs/);
  assert.match(mobileBuild,/CONTENT_VERSION="20261113-phase2-responsive-v2"/);
@@ -94,12 +99,15 @@ test("MOSMIX single PNG exports preserve fuller axes independently of mobile tic
  assert.match(source,/copyChart\.destroy\(\)/);
 });
 
-test("T850 ensemble PDF is explicitly labeled as raster, not vector",()=>{
+test("T850 PDF is true multi-page vector without embedded JPEG",()=>{
  const start=ensemble.indexOf("async function pdf()");
  const end=ensemble.indexOf("function mount()",start);
  const source=ensemble.slice(start,end);
  assert.ok(start>0&&end>start);
- assert.match(source,/addImage\(c\.toDataURL\("image\/jpeg"/);
- assert.match(source,/Raster-PDF \(JPEG\)/);
- assert.match(source,/nicht einzeln als Vektoren bearbeitbar/);
+ assert.match(source,/new J\(\{orientation:"landscape",unit:"mm",format:"a3"\}\)/);
+ assert.match(source,/doc\.addPage\("a3","landscape"\)/);
+ assert.match(source,/exporter\.drawPdf\(doc,scene\)/);
+ assert.doesNotMatch(source,/\.addImage\(|image\/jpeg|Raster-PDF/);
+ assert.match(source,/svgButton\.addEventListener\("click",svg\)/);
+ assert.match(source,/t850_vector_export\.js\?v=/);
 });
