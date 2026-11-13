@@ -49,6 +49,24 @@ class SatelliteLiveQualityTests(TestCase):
             self.assertGreater(h,0)
         self.assertEqual(mod.TARGETS["ir105"],"mtg_fd:ir105_hrfi")
 
+    def test_quality_requests_include_identical_verified_utc_and_all_three_densities(self):
+        jobs=mod.source_jobs(stamp(-10))
+        self.assertEqual(len(jobs),9)
+        self.assertTrue(all(len(job)==4 and job[2]==stamp(-10) for job in jobs))
+        self.assertEqual(set(job[3] for job in jobs),{800,2048,4096})
+        self.assertEqual(set(job[0] for job in jobs),set(mod.TARGETS))
+
+    def test_chromium_wait_functions_use_keyword_args_to_avoid_immediate_typeerror(self):
+        import ast
+        script=(ROOT/"scripts/test_satellite_published_browser.py").read_text(encoding="utf-8")
+        tree=ast.parse(script)
+        calls=[n for n in ast.walk(tree) if isinstance(n,ast.Call)
+               and isinstance(n.func,ast.Attribute)
+               and n.func.attr=="wait_for_function"]
+        self.assertGreaterEqual(len(calls),3)
+        self.assertTrue(all(len(c.args)==1 for c in calls),
+                        "Playwright page.wait_for_function must use arg= keyword")
+
     def test_li_interval_must_be_finished_before_satellite_and_recent(self):
         li={"lightning":{"map_ok":True,"latest_verified_time":stamp(-5),
                          "available_times":[stamp(-25),stamp(-20),stamp(-15),stamp(-10),stamp(-5)]}}
