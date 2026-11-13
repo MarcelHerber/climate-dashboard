@@ -360,7 +360,7 @@ for name in ("index.html","mosmix.html"):
     page=Path("_site")/name
     html=page.read_text(encoding="utf-8")
     updated,count=re.subn(r"mosmix\.js(?:\?v=[A-Za-z0-9_.-]+)?",
-                           "mosmix.js?v=20261113-phase2-exports-v1",html)
+                           "mosmix.js?v=20261113-mosmix-mobile-exports-v2",html)
     if count:
         page.write_text(updated,encoding="utf-8")
         print(f"MOSMIX cache version in {name}: {count} reference(s)")
