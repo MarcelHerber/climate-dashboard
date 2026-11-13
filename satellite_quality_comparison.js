@@ -180,7 +180,6 @@ async function compare(){
     });
     if(!live())throw Error("Bildwechsel: Vergleich abgebrochen.");
     show();
-    target.info.textContent=target.info.textContent; // compare only validated images
    }catch(error){
     if(!live())throw Error("Bildwechsel: Vergleich abgebrochen.");
     target.info.textContent="Nicht verfügbar: "+(error?.message||String(error));
