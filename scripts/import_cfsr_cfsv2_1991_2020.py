@@ -21,7 +21,10 @@ import time
 import numpy as np
 import requests
 
-from build_gfs_cfsr_1991_2020 import expected_days
+try:
+    from scripts.build_gfs_cfsr_1991_2020 import expected_days
+except ModuleNotFoundError:  # directly executed as a script
+    from build_gfs_cfsr_1991_2020 import expected_days
 
 H, W = 76, 140
 TARGET_LAT = 71.75 - np.arange(H) * 0.5
