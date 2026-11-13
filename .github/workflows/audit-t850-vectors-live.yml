@@ -1,0 +1,48 @@
+name: T850 Ensembles · echte PDF/SVG-Vektorexporte mit GEFS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - t850_vector_export.js
+      - t850_ensembles.js
+      - tests/audit_t850_vectors_live.py
+      - scripts/build_pages_site.sh
+      - .github/workflows/audit-t850-vectors-live.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: t850-live-vectors
+  cancel-in-progress: true
+
+jobs:
+  browser-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/audit_t850_vectors_live.py
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Playwright Chromium and pypdf
+        run: |
+          python -m pip install "playwright==1.57.0" "pypdf>=5,<8"
+          python -m playwright install --with-deps chromium
+      - name: Validate genuine GEFS ensemble SVG layers and A3 vector PDF (390/1200 px)
+        run: python -u tests/audit_t850_vectors_live.py
+      - name: Preserve vector downloads, screenshots and test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t850-vector-real-gefs-mobile-desktop
+          path: t850_vector_live/
+          retention-days: 14
+          if-no-files-found: warn
