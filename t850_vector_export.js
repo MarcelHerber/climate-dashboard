@@ -76,10 +76,14 @@ function buildScene(chart,info){
   chart.data.datasets.forEach((ds,i)=>{
     const visible=typeof chart.isDatasetVisible==="function"?chart.isDatasetVisible(i):!ds.hidden;
     if(!visible)return;
-    const label=String(ds.label||"Reihe "+(i+1));
+    const rawLabel=String(ds.label||"Reihe "+(i+1));
+    const earlier=chart.data.datasets.slice(0,i).filter(item=>item.label===rawLabel).length;
+    // The Chart.js fill edges share a legend label, but need distinct SVG layers.
+    const label=rawLabel.startsWith("10.–90.")?(earlier?"90. Perzentil":"10. Perzentil"):
+      rawLabel.startsWith("25.–75.")?(earlier?"75. Perzentil":"25. Perzentil"):rawLabel;
     const percentile=label.includes("Perzentil");
     let paint=color(ds.borderColor||ds.backgroundColor);
-    if(percentile)paint={hex:label.includes("25.")?"#5599d2":"#8aa9d6",opacity:.85};
+    if(percentile)paint={hex:/^(25|75)\./.test(label)?"#5599d2":"#8aa9d6",opacity:.85};
     // Mobile Chart.js opacity is often 0.2; keep members legible on white paper.
     if(label.startsWith("Member "))paint.opacity=.50;
     const points=segments(ds,xa,ya);
