@@ -294,7 +294,12 @@ async function manifestFallback(mine,reason){
   if(!times.includes(layer.latest_verified_time))throw new Error("Abgleich zwischen Zeitstempel und Bildprüfung fehlt");
   frames=[...new Set(times)].sort().slice(-48);
   if(!frames.length)throw new Error("Keine bestätigten Zeitpunkte");
-  metadataSource="manifest";fillTimes();drawFrame(frames[index]);
+  metadataSource="manifest";fillTimes();
+  // The newest advertised UTC can return 500/504 while an earlier frame
+  // has a successful PNG check. Start with that last *verified* frame.
+  index=frames.indexOf(layer.latest_verified_time);
+  time.value=String(index);
+  drawFrame(frames[index]);
   const lastAge=Date.now()-Date.parse(layer.latest_verified_time);
   if(lastAge>90*60000)setStatus("Letzter geprüfter Satellitenzeitpunkt liegt "+Math.round(lastAge/60000)+" Minuten zurück (nicht aktuell). "+reason,"warning");
   else setStatus("UTC-Zeiten aus dem GitHub-WMS-Livetest übernommen; Bild wird geladen. "+reason,"info");
@@ -324,10 +329,15 @@ async function tryFastManifest(mine){
   if(!frames.length)return false;
   metadataSource="manifest";
   fillTimes();
+  const verified=Boolean(layer.map_ok&&frames.includes(layer.latest_verified_time));
+  if(verified){
+   index=frames.indexOf(layer.latest_verified_time);
+   time.value=String(index);
+  }
   drawFrame(frames[index]);
-  const confirmed=Boolean(layer.map_ok&&layer.latest_verified_time===frames[index]);
+  const confirmed=verified;
   setStatus(confirmed
-    ?"Zeitachse direkt aus dem letzten erfolgreichen WMS-Bildcheck geladen. Lade Satellitenvorschau …"
+    ?"Zeitachse aus dem WMS-Status geladen. Lade die zuletzt tatsächlich bestätigte "+(frames[index]||"")+"-UTC-Aufnahme …"
     :"Zeitachse aus der echten WMS-Liste geladen. Bildabruf noch nicht bestätigt …",
     confirmed?"info":"warning");
   return true;

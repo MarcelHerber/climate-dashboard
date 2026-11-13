@@ -1,0 +1,45 @@
+name: MTG satellite data freshness watchdog
+# Independent guard: detect stalled hourly jobs and actual source image lag.
+on:
+  schedule:
+    - cron: "12,42 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/check_satellite_status_freshness.py"
+      - ".github/workflows/check-satellite-freshness.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mtg-freshness-watchdog
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/check_satellite_status_freshness.py
+            data/satellite_wms_times.json
+      - name: Check freshness of last successful verified MTG imagery
+        id: check
+        run: |
+          python scripts/check_satellite_status_freshness.py
+      - name: Explain failed or degraded MTG data status
+        if: always()
+        run: |
+          echo "## MTG satellite data freshness" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Independent of GitHub Actions MTG producer and its schedule." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Monitored: actual report execution UTC and latest verified WMS PNG UTC." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Thresholds: 150 min; stale source or stalled writer produces a failing check." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Recovery: inspect **MTG EUMETView live data check** workflow, run manually if needed, then verify the refreshed status JSON." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dataset: \`data/satellite_wms_times.json\`" >> "$GITHUB_STEP_SUMMARY"

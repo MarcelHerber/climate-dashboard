@@ -4,11 +4,22 @@ on:
     branches: [main]
     paths:
       - "scripts/check_satellite_wms.py"
+      - "tests/test_satellite_wms_monitor.py"
       - "satelliten.js"
       - ".github/workflows/check-satellite-wms.yml"
   schedule:
-    - cron: "23 * * * *"
+    # Two lightweight checks per hour: GitHub scheduled events can be delayed
+    # or skipped under host load. These do not perform expensive regional maps.
+    - cron: "23,53 * * * *"
+    # Full disk, Atlantic, Southwest and movie probes once per day only.
+    - cron: "31 3 * * *"
   workflow_dispatch:
+    inputs:
+      deep:
+        description: "Also check regional maps and film frames (slower)"
+        type: boolean
+        default: false
+        required: false
 
 permissions:
   contents: write
@@ -30,21 +41,72 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             scripts/check_satellite_wms.py
+            scripts/check_satellite_status_freshness.py
+            tests/test_satellite_wms_monitor.py
+            .github/workflows/check-satellite-wms.yml
+            .github/workflows/check-satellite-freshness.yml
+            .github/workflows/deploy-pages-only.yml
             data/satellite_wms_times.json
-      - name: Check WMS monitor syntax
-        run: python -m py_compile scripts/check_satellite_wms.py
-      - name: Probe official WMS metadata and five verified imagery layers
-        run: python scripts/check_satellite_wms.py
-      - name: Save status in repository for same-origin browser fallback
+      - name: Check monitor syntax and fast/deep behavior
         run: |
+          python -m py_compile scripts/check_satellite_wms.py
+          python -m unittest discover -s tests -p 'test_satellite_wms_monitor.py' -v
+      - name: Probe official WMS metadata and verified imagery UTC
+        run: |
+          if [[ "${{ github.event.schedule }}" == "31 3 * * *" || "${{ inputs.deep }}" == "true" ]]; then
+            python scripts/check_satellite_wms.py --deep
+          else
+            python scripts/check_satellite_wms.py
+          fi
+      - name: Publish verified status with retry after concurrent bot commits
+        shell: bash
+        run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/satellite_wms_times.json
-          if ! git diff --cached --quiet; then
+          cp data/satellite_wms_times.json "$RUNNER_TEMP/mtg-wms-candidate.json"
+          # Other dashboard workflows update main frequently. Avoid failing on
+          # a non-fast-forward push or ever replacing a *newer* MTG report.
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git reset --hard origin/main
+            MTG_REPORT="$RUNNER_TEMP/mtg-wms-candidate.json" python - <<'PY'
+          from datetime import datetime, timezone
+          from pathlib import Path
+          import json, os
+          candidate=json.loads(Path(os.environ["MTG_REPORT"]).read_text(encoding="utf-8"))
+          dest=Path("data/satellite_wms_times.json")
+          try:
+              current=json.loads(dest.read_text(encoding="utf-8"))
+          except (OSError, ValueError):
+              current={}
+          def timestamp(value):
+              try:
+                  return datetime.fromisoformat(str(value).replace("Z","+00:00")).astimezone(timezone.utc)
+              except (TypeError, ValueError):
+                  return datetime.min.replace(tzinfo=timezone.utc)
+          if timestamp(current.get("generated_at")) >= timestamp(candidate.get("generated_at")):
+              print("A newer/equally recent WMS report is already committed; not overwriting it.")
+          else:
+              dest.parent.mkdir(parents=True,exist_ok=True)
+              dest.write_text(json.dumps(candidate,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+              print("Prepared fresh verified WMS report:", candidate["generated_at"])
+          PY
+            git add data/satellite_wms_times.json
+            if git diff --cached --quiet; then
+              echo "MTG status is already current; no new commit."
+              exit 0
+            fi
             git commit -m "Update verified EUMETSAT WMS data status"
-            git pull --rebase origin main
-            git push origin HEAD:main
-          fi
+            if git push origin HEAD:main; then
+              echo "MTG report published."
+              exit 0
+            fi
+            echo "::warning::Concurrent main update during MTG push; retry $attempt/4."
+            sleep 3
+          done
+          echo "::error::Could not publish MTG report after four non-fast-forward retries."
+          exit 1
       - name: Summarize live check
         if: always()
         run: |
@@ -54,6 +116,9 @@ jobs:
           import json
           data=json.load(open("data/satellite_wms_times.json"))
           print("GetCapabilities:", "OK" if data.get("capabilities_ok") else "Nicht erreichbar")
+          print("Modus:",data.get("check_mode","legacy"),"| Monitorzustand:",data.get("monitor_status","unbekannt"),
+                "| geprüft:",data.get("generated_at"))
+          print("WMS-Zeitpunkte und Bildantworten bleiben auch bei veraltetem UTC transparent.")
           print()
           print("| Produkt | PNG | Aufnahme UTC | Frisch |")
           print("|---|---|---|---|")

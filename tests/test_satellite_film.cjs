@@ -6,7 +6,7 @@ const vm=require("node:vm");
 const source=fs.readFileSync("satelliten.js","utf8");
 const html=fs.readFileSync("satelliten.html","utf8");
 
-function fixture({failOne480=false,failOne320=false,failLargeStill=false,failAllWms=false,archiveAvailable=false,totalSlots=8}={}){
+function fixture({failOne480=false,failOne320=false,failLargeStill=false,failAllWms=false,archiveAvailable=false,totalSlots=8,verifiedLagSlots=0}={}){
  let failed480=false,failed320=false;
  const nodes=new Map(),requests=[],fetches=[],preloaded=[],state={active:0,maxActive:0};
  const options=["satSource","satProduct","satRegion","satTime","satImage","satEmpty","satStatus",
@@ -77,7 +77,7 @@ function fixture({failOne480=false,failOne320=false,failLargeStill=false,failAll
  const now=Date.now();
  const slots=Array.from({length:totalSlots},(_,i)=>new Date(Math.floor((now-(totalSlots-i)*600000)/600000)*600000).toISOString());
  const manifest={generated_at:new Date().toISOString(),capabilities_ok:true,products:{
-  geocolour:{map_ok:true,latest_verified_time:slots.at(-1),available_times:slots}
+  geocolour:{map_ok:true,latest_verified_time:slots.at(-1-verifiedLagSlots),available_times:slots}
  }};
  const fetch=async (url,opts)=>{
   fetches.push(url);
@@ -267,4 +267,18 @@ test("Lightweight film controls exist and preserve original high-res export",()=
  assert.match(source,/filmImage\.replaceChildren\(item\.img\)/);
  assert.match(source,/await Promise\.all\(\[worker\(\),worker\(\)\]\)/);
  assert.match(source,/ctx\.drawImage\(img,0,header\)/);
+});
+
+test("Fast start selects the last successfully verified WMS UTC, never a newer untested frame",async()=>{
+ const {nodes,requests,slots,fetches}=fixture({verifiedLagSlots:1});
+ await waitUntil(()=>nodes.get("satTime").options.length===slots.length,"manifest contains multiple advertised UTC times");
+ await waitUntil(()=>nodes.get("satImage").naturalWidth===800,"last verified 800px still loaded");
+ const selected=nodes.get("satTime").value;
+ assert.equal(selected,String(slots.length-2),"Verified UTC should be selected over newest advertised");
+ const stills=requests.filter(r=>String(r.url).includes("GetMap")&&
+   new URL(r.url).searchParams.get("width")==="800");
+ assert.ok(stills.length>=1);
+ assert.equal(new URL(stills[0].url).searchParams.get("time"),slots.at(-2));
+ assert.ok(!fetches.some(u=>String(u).includes("GetCapabilities")));
+ assert.match(nodes.get("satStatus").textContent,/Schärfere Vorschau|bestätigte/);
 });
