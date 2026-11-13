@@ -104,6 +104,7 @@ required_root_files=(
   saharastaub_extended.js
   satelliten.html
   satelliten.js
+  satellite_dwd_fronts.js
   satelliten.css
   satellite_overlay.js
   satellite_lightning.js
@@ -205,6 +206,25 @@ assert '["temperatur_anomalie_europa.html","Aktuelle Temperaturabweichung · NOA
 print("NOAA CPC navigation and independent page included in Pages site")
 PY
 node --check _site/cpc_europe.js
+
+# Official DWD manual front analysis metadata: one tiny JSON manifest only.
+# The original image is served directly from the DWD Open Data URL.
+if [[ -s data/synoptic_charts/dwd_fronts_satellite.json ]]; then
+  mkdir -p _site/data/synoptic_charts
+  cp data/synoptic_charts/dwd_fronts_satellite.json _site/data/synoptic_charts/
+  python - <<'PY'
+import json
+from pathlib import Path
+d=json.loads(Path("_site/data/synoptic_charts/dwd_fronts_satellite.json").read_text(encoding="utf-8"))
+assert d["schema_version"]==1 and d["kind"]=="analysis"
+assert d["source_page"]=="https://opendata.dwd.de/weather/charts/analysis/"
+for region,item in d.get("maps",{}).items():
+    assert region in ("atlantic","central")
+    assert item["kind"]=="analysis" and item["image_verified"] is True
+    assert item["source_url"].startswith(d["source_page"])
+print("DWD original front analysis metadata published:",d.get("status"))
+PY
+fi
 
 # Phase 2: bust old cached Gebietsmittel styles/scripts in published Pages.
 # The source index stays intact for unrelated work and its huge file need not
@@ -610,6 +630,7 @@ PY
 # Desktop bleibt unverändert; keine individuellen Seiteninhalte werden verändert.
 python scripts/inject_mobile_navigation.py _site
 node --check _site/satelliten.js
+node --check _site/satellite_dwd_fronts.js
 node --check _site/satellite_overlay.js
 node --check _site/satellite_lightning.js
 node --check _site/satellite_radar.js
@@ -628,6 +649,7 @@ node --test tests/test_satellite_phase12.cjs
 node --test tests/test_satellite_source_alignment.cjs
 node --test tests/test_satellite_tile_cache.cjs
 node --test tests/test_satellite_hd.cjs
+python -m unittest discover -s tests -p "test_satellite_dwd_fronts.py" -v
 node --test tests/test_satellite_progressive.cjs
 node --test tests/test_satellite_quality_comparison.cjs
 node --test tests/test_satellite_fullhd_film.cjs
