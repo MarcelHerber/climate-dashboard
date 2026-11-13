@@ -130,6 +130,9 @@ required_root_files=(
   t850_ensembles.css
   era5_europe.js
   era5_europe.css
+  temperatur_anomalie_europa.html
+  cpc_europe.js
+  cpc_europe.css
   era5_synoptic.js
   era5_synoptic.css
   state_monthly_ensemble.js
@@ -163,6 +166,43 @@ for file in "${required_root_files[@]}"; do
   fi
   cp "$file" _site/
 done
+
+
+# NOAA CPC European observed-temperature anomalies. Publish only genuinely
+# downloaded and validated observational grids; never fake successful data.
+if [[ -s cpc_europe/index.json && -s cpc_europe/boundaries.png ]]; then
+  mkdir -p _site/cpc_europe
+  cp cpc_europe/index.json cpc_europe/boundaries.png _site/cpc_europe/
+  python - <<'PY'
+import json
+from pathlib import Path
+r=Path("_site")
+idx=json.loads((r/"cpc_europe/index.json").read_text(encoding="utf-8"))
+assert idx["schema"]==1 and idx["provider"]=="NOAA CPC Global Unified Temperature"
+assert idx["reference"]=="NOAA CPC daily long-term means 1991–2020"
+assert len(idx["dates"])>=30 and idx["data_through"]==idx["dates"][-1]
+assert (r/"cpc_europe/boundaries.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+print("NOAA CPC genuine published observations through",idx["data_through"])
+PY
+else
+  echo "NOAA CPC Europa: Datenworkflow noch nicht abgeschlossen; Seite bleibt ehrlich im Ladefehler-Zustand."
+fi
+# Link the observation-only page next to ERA5-Land in the desktop navigation.
+python - <<'PY'
+from pathlib import Path
+page=Path("_site/index.html")
+s=page.read_text(encoding="utf-8")
+target='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\\'era5Europe\\')">ERA5-Land Europa</button>'
+link='<a class="tab-button" data-nav-group="europe" href="temperatur_anomalie_europa.html">Aktuelle Temperaturabweichung</a>'
+if link not in s:
+    if s.count(target)!=1:
+        raise SystemExit("NOAA CPC: unable to locate unique European navigation anchor")
+    s=s.replace(target,target+"\n          "+link,1)
+    page.write_text(s,encoding="utf-8")
+assert '["temperatur_anomalie_europa.html","Aktuelle Temperaturabweichung · NOAA CPC"]' in Path("_site/mobile_navigation.js").read_text(encoding="utf-8")
+print("NOAA CPC navigation and independent page included in Pages site")
+PY
+node --check _site/cpc_europe.js
 
 # Phase 2: bust old cached Gebietsmittel styles/scripts in published Pages.
 # The source index stays intact for unrelated work and its huge file need not
