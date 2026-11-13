@@ -82,6 +82,7 @@ def external_archives():
     sources = {
         "mosmix": "mosmix-data/data/mosmix/manifest.json",
         "mosmix_quality": "mosmix-data/data/mosmix/quality_status.json",
+        "sun_monthly": "state-monthly-sun/state_monthly_sun.json",
         "fast_live": "fast-live/fast_state.json",
         "europe_tmax": "europe-tmax-lab-data/data/europe-tmax-lab/current.json",
         "europe_tmin": "europe-tmin-lab-data/data/europe-tmin-lab/current.json",
@@ -161,6 +162,42 @@ def add_external(items, remote):
     else:
         items.append(result("mosmix", "MOSMIX-L", "Vorhersagen", None, None,
             "Laufmetadaten fehlen", "Datenzweig vorübergehend nicht prüfbar"))
+
+    # Sunshine observation cutoff is NOT the date of the forecast horizon.
+    # Count only available real ensemble products and the 17 DUETT regions.
+    sunshine = remote.get("sun_monthly")
+    if isinstance(sunshine, dict):
+        keys = sunshine.get("models_order") or []
+        regions = sunshine.get("regions") or {}
+        order = sunshine.get("regions_order") or []
+        required = {"gefs", "ifs", "aifs", "icon_eu"}
+        valid_models = (isinstance(keys, list) and set(keys) == required
+                        and len(keys) == len(required))
+        valid_regions = (isinstance(regions, dict) and isinstance(order, list)
+                         and len(order) == 17 and len(set(order)) == 17
+                         and set(regions) == set(order)
+                         and all(isinstance(regions.get(k), dict)
+                                 and set(regions[k].get("models") or {}) == set(keys)
+                                 for k in order))
+        errors = sunshine.get("model_errors") or {}
+        healthy = (sunshine.get("schema_version") == 1
+                   and sunshine.get("parameter") == "sunshine"
+                   and sunshine.get("unit") == "h"
+                   and valid_models and valid_regions and not errors)
+        items.append(result(
+            "sun_monthly", "Monatsausblick · DUETT Sonnenschein", "Vorhersagen",
+            sunshine.get("observation_data_through"), sunshine.get("generated_at"),
+            f"{len(regions)}/17 Regionen · {len(keys)}/4 Ensemblemodelle",
+            "Beobachtung: DWD DUETT, Prognose: GEFS, ECMWF IFS/AIFS und ICON-EU"
+            + (" · Ensemblefehler gemeldet" if errors else ""),
+            allowed_delay=4, incomplete=not healthy,
+        ))
+    else:
+        items.append(result(
+            "sun_monthly", "Monatsausblick · DUETT Sonnenschein", "Vorhersagen",
+            None, None, "Sonnenschein-Datenbranch nicht prüfbar",
+            "Kein veröffentlichter DUETT-Beobachtungs- und Ensemble-Nachweis",
+        ))
 
     # Separate real (not simulated) station and raster checks for the private
     # five-day experiment. A valid ICON field does not imply every city has TN/TX.
