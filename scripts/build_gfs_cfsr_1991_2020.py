@@ -18,7 +18,7 @@ SOURCE=ROOT/"gfs_analysis_europe"/"reference_sources"
 DEST=ROOT/"gfs_analysis_europe"/"climatology_1991_2020.npz"
 H,W=76,140
 REFERENCE_NAME="CFSR 1991-03/2011 + CFSv2 04/2011-2020"
-APPROVED_HOSTS={"www.ncei.noaa.gov","ncei.noaa.gov","gdex.ucar.edu","rda.ucar.edu"}
+APPROVED_HOSTS={"www.ncei.noaa.gov","ncei.noaa.gov","gdex.ucar.edu","tds.gdex.ucar.edu","rda.ucar.edu","thredds.rda.ucar.edu"}
 
 def expected_days(year: int)->list[str]:
     start=date(year,1,1)
