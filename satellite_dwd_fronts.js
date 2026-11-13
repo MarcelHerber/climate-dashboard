@@ -46,7 +46,7 @@ function verifiedGmlURL(value){
   const u=new URL(value);
   return u.protocol==="https:"&&
    (u.hostname==="opendata.dwd.de"||u.hostname==="maps.dwd.de")&&
-   /\\.(?:gml|xml)$/i.test(u.pathname)&&!u.hash;
+   /\.(?:gml|xml)$/i.test(u.pathname)&&!u.hash;
  }catch(_){return false;}
 }
 function clean(){
