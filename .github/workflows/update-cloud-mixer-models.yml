@@ -91,11 +91,15 @@ jobs:
               for kind,path in frame["layers"].items():
                   assert kind in data["layers"]
                   target=root/path
-                  assert target.is_file() and target.stat().st_size>300
+                  # Fully clear real cloud fields compress to PNG files below 300 bytes.
+                  # Verify the actual image instead of rejecting valid small PNGs.
+                  assert target.is_file() and target.stat().st_size>100
                   with Image.open(target) as image:
                       image.verify()
                   with Image.open(target) as image:
                       assert image.mode=="L" and image.size==(461,361)
+                      # 255 means no source data; 0 means verified cloud-free.
+                      assert image.getextrema()[0]<255
           print("PASS: Originalfelder verifiziert:",data["source_id"],len(data["frames"]),data["cycle"])
           PY
       - name: Nur vollständig geprüfte Modellfelder publizieren
