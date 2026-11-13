@@ -54,12 +54,24 @@ def interpolate_europe(values: np.ndarray, lats: np.ndarray, lons: np.ndarray) -
     """Spatial bilinear interpolation to *fixed* CPC centres; never changes resolution."""
     if values.ndim != 2 or lats.shape != values.shape or lons.shape != values.shape:
         raise ValueError("Unexpected source grid dimensions")
-    lat = lats[:, 0].astype(np.float64)
-    lon = (lons[0, :].astype(np.float64) % 360)
-    if (not np.all(np.diff(lat) < 0) or not np.all(np.diff(lon) > 0)
-        or not np.allclose(lats, lat[:, None], atol=0.005)
-        or not np.allclose(lons % 360, lon[None, :], atol=0.005)):
+    source_lat = lats[:, 0].astype(np.float64)
+    source_lon = lons[0, :].astype(np.float64) % 360
+    if (not np.allclose(lats, source_lat[:, None], atol=0.005)
+        or not np.allclose(lons % 360, source_lon[None, :], atol=0.005)):
         raise ValueError("Source grid is not regular/gaussian row-major lat-lon")
+    # GRIB producers may use south-to-north rows and -180..180 longitudes.
+    # Normalize axes before interpolation to avoid shifted country anomalies.
+    lat = source_lat
+    if np.all(np.diff(lat) > 0):
+        lat = lat[::-1]
+        values = values[::-1, :]
+    if not np.all(np.diff(lat) < 0):
+        raise ValueError("Source latitude axis is not strictly monotonic")
+    lon_order = np.argsort(source_lon)
+    lon = source_lon[lon_order]
+    values = values[:, lon_order]
+    if not np.all(np.diff(lon) > 0):
+        raise ValueError("Source longitude axis has duplicate or invalid cells")
     if not (lat[-1] < min(TARGET_LAT) < max(TARGET_LAT) < lat[0]):
         raise ValueError("Source latitude grid does not cover Europe")
     # Account for periodicity: 359.75 must interpolate across the dateline.
