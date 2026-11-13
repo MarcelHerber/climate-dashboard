@@ -2,8 +2,8 @@
 """NOAA GFS 0.5 degree *analysis* f000, 2m temperature Europe.
 
 Never substitutes model forecasts, station estimates or unrelated climate normals.
-1991-2020 anomalies are only published after a verified CFSR (1991-2010) +
-CFSv2 (2011-2020) 6-hour-analysis 2m-temperature reference is installed.
+1991-2020 anomalies are only published after a verified CFSR (1991-03/2011) +
+CFSv2 (04/2011-2020) 6-hour-analysis 2m-temperature reference is installed.
 The display grid is shifted half a native cell to match the existing CPC
 Europe country masks; this interpolation does not increase resolution.
 """
@@ -236,7 +236,7 @@ def read_normals(path: Path) -> tuple[np.ndarray, dict] | None:
     if normals.shape != (365, HEIGHT, WIDTH) or count.shape != normals.shape:
         raise ValueError("Invalid CFSR/CFSv2 reference dimensions")
     expected = {
-        "source": "CFSR 1991-2010 + CFSv2 2011-2020",
+        "source": "CFSR 1991-03/2011 + CFSv2 04/2011-2020",
         "first_year": 1991, "last_year": 2020,
         "years": 30, "sample_hours_utc": [0, 6, 12, 18],
         "grid": "CPC-aligned GFS 0.5 degree Europe",
@@ -288,7 +288,7 @@ def publish_index(archive: list[tuple[date, np.ndarray]], *,
         "lat_south": 34.25, "lon_west": -24.75, "lon_east": 44.75,
         "grid_degrees": 0.5,
         "reference_ready": normal is not None,
-        "reference": "CFSR 1991-2010 + CFSv2 2011-2020, 1991-2020",
+        "reference": "CFSR 1991-03/2011 + CFSv2 04/2011-2020, 1991-2020",
         "temperature_q10_b64": encode_q10(temps),
         "anomaly_q10_b64": None,
         "method": "Only verified GFS f000 runs; 0.5-degree grid, bilinear quarter-cell shift",
