@@ -7,6 +7,14 @@
     if(value===null || typeof value!=="object")return value;
     seen=seen||new WeakMap();
     if(seen.has(value))return seen.get(value);
+    // Chart.js time scales and scientific series can contain Date objects.
+    // A plain-object copy turns those into {}, breaking export timestamps.
+    if(value instanceof Date){
+      const result=new Date(value.getTime());seen.set(value,result);return result;
+    }
+    if(ArrayBuffer.isView(value) && !(value instanceof DataView)){
+      const result=new value.constructor(value);seen.set(value,result);return result;
+    }
     if(Array.isArray(value)){
       const result=[];seen.set(value,result);
       value.forEach((entry,i)=>{result[i]=copy(entry,seen);});
