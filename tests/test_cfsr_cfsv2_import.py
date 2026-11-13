@@ -46,6 +46,15 @@ def test_spatial_interpolation_preserves_constant_kelvin_field():
     assert np.isclose(ingest.TARGET_LON[-1],44.75)
 
 
+
+def test_remapping_handles_reverse_latitude_and_minus180_to180_grid():
+    lat=np.repeat(np.arange(-90.,90.1,1.)[:,None],360,axis=1)
+    lon=np.repeat(np.arange(-180.,180.,1.)[None,:],181,axis=0)
+    vals=np.full((181,360),278.15,dtype=np.float32)
+    result=ingest.interpolate_europe(vals,lat,lon)
+    assert result.shape==(76,140)
+    assert np.allclose(result,5.,atol=0.002)
+
 def test_interpolation_rejects_gaps_and_incorrect_grid():
     x=np.full((3,3),280,dtype=np.float32)
     with pytest.raises(ValueError,match="grid"):
