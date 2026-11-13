@@ -46,6 +46,17 @@ def source_url(year: int, month: int) -> str:
     return f"{NCEI}/model-cfs_v2_anl_ts/{year}/{ym}/tmp2m.gdas.{ym}.grib2"
 
 
+def alternate_source_urls(year: int, month: int) -> list[str]:
+    """The same original high-resolution TMP2M time series, from NCAR GDEX.
+
+    Never use the *.l.gdas (low-resolution) archive as a replacement.
+    """
+    ym=f"{year:04d}{month:02d}"
+    dataset="d093001" if (year, month) < (2011,4) else "d094001"
+    filename=f"tmp2m.gdas.{ym}.grb2"
+    return [f"https://tds.gdex.ucar.edu/thredds/fileServer/files/g/{dataset}/{year}/{filename}"]
+
+
 def year_product(year: int) -> str:
     return "CFSR" if year <= 2010 else ("CFSR+CFSv2" if year == 2011 else "CFSv2")
 
@@ -174,19 +185,37 @@ def import_year(year: int, output: Path = OUT) -> Path:
         raise ValueError("Reference year must be 1991–2020")
     days, provenance = {}, []
     for month in range(1,13):
-        url = source_url(year,month)
-        print(f"Reading verified original {year}-{month:02d}: {url}",flush=True)
+        original_url=source_url(year,month)
+        urls=[original_url]+alternate_source_urls(year,month)
+        print(f"Reading verified original {year}-{month:02d}: {original_url}",flush=True)
         with tempfile.TemporaryDirectory(prefix="ncei-cfs-") as dirname:
-            source = Path(dirname)/"tmp2m.grib2"
-            for attempt in range(3):
-                try:
-                    checksum=download_original(url,source)
-                    fields=decode_month(source,year,month)
+            source=Path(dirname)/"tmp2m.grib2"
+            fields=None
+            failure_messages=[]
+            for url in urls:
+                for attempt in range(3):
+                    try:
+                        checksum=download_original(url,source)
+                        fields=decode_month(source,year,month)
+                        print(f"Verified official original {year}-{month:02d}: {url}",flush=True)
+                        break
+                    except requests.HTTPError as exc:
+                        failure_messages.append(f"{url}: {exc}")
+                        # Missing NOAA original => move to same high-res series at NCAR.
+                        if exc.response is not None and exc.response.status_code in (404,410):
+                            print(f"Original missing at this archive, checking other official high-res host: {url}",flush=True)
+                            break
+                        if attempt==2: break
+                        time.sleep(10*(attempt+1))
+                    except (OSError, requests.RequestException) as exc:
+                        failure_messages.append(f"{url}: {exc}")
+                        if attempt==2: break
+                        time.sleep(10*(attempt+1))
+                if fields is not None:
                     break
-                except (OSError,requests.RequestException) as exc:
-                    if attempt==2: raise
-                    print(f"Retrying NCEI month: {exc}",flush=True)
-                    time.sleep(10*(attempt+1))
+            if fields is None:
+                raise RuntimeError(f"No complete original high-res CFS TMP2M month {year}-{month:02d}. "
+                                   + " | ".join(failure_messages[-5:]))
             days.update(fields)
         provenance.append({
             "month":month,
