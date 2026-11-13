@@ -311,7 +311,7 @@
  body.cd-mobile-ready :is(
    .era5-atmos-layout,.monthly-frequency-chart-wrap,
    .mosmix-chart-wrap,.t850-chart-shell
- ){min-width:0;max-width:100%;overflow-x:clip}
+ ){min-width:0;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
  body.cd-mobile-ready .mosmix-chart-export-actions button{
    padding:8px 3px;font-size:11px
  }
