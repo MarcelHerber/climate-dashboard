@@ -253,6 +253,12 @@ def contact_sheet(data, time_utc):
     return str(out)
 
 
+def source_jobs(observed_utc, targets=TARGETS, resolutions=SIZES):
+    """Each job carries the exact same verified UTC explicitly."""
+    return [(key, layer, observed_utc, size)
+            for key, layer in targets.items() for size in resolutions]
+
+
 def main(argv=None):
     parser=argparse.ArgumentParser()
     parser.add_argument("--site",default=SITE)
@@ -284,11 +290,11 @@ def main(argv=None):
     }
     pixels={}
     if observed and not args.skip_images:
-        jobs=[(key,layer,res) for key,layer in TARGETS.items() for res in SIZES]
+        jobs=source_jobs(observed)
         with ThreadPoolExecutor(max_workers=2) as pool:
             tasks={pool.submit(source_png,*item):item for item in jobs}
             for finished in as_completed(tasks):
-                key,layer,res=tasks[finished]
+                key,layer,observed_sample,res=tasks[finished]
                 try:
                     img,stat=finished.result()
                 except Exception as error:
