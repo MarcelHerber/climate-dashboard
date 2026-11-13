@@ -18,7 +18,13 @@ let metadata=null,lastMeta=0,serial=0,context={time:null,region:"europe",source:
 function clear(message){overlay.hidden=true;overlay.removeAttribute("src");if(message)status.textContent=message;}
 async function manifest(){
  if(metadata&&Date.now()-lastMeta<120000)return metadata;
- const response=await fetch("https://api.rainviewer.com/public/weather-maps.json",{cache:"no-store"});
+ const controller=typeof AbortController==="function"?new AbortController():null;
+ const deadline=controller?setTimeout(()=>controller.abort(),8500):null;
+ let response;
+ try{
+  response=await fetch("https://api.rainviewer.com/public/weather-maps.json",controller?
+    {cache:"no-store",signal:controller.signal}:{cache:"no-store"});
+ }finally{if(deadline!==null)clearTimeout(deadline);}
  if(!response.ok)throw Error("Radar-Metadaten HTTP "+response.status);
  const data=await response.json();
  if(!Array.isArray(data.radar?.past)||!/^https:\/\/[a-z0-9.-]+\.rainviewer\.com$/i.test(data.host))
