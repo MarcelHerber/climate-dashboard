@@ -108,6 +108,6 @@ test("T850 PDF is true multi-page vector without embedded JPEG",()=>{
  assert.match(source,/doc\.addPage\("a3","landscape"\)/);
  assert.match(source,/exporter\.drawPdf\(doc,scene\)/);
  assert.doesNotMatch(source,/\.addImage\(|image\/jpeg|Raster-PDF/);
- assert.match(source,/svgButton\.addEventListener\("click",svg\)/);
- assert.match(source,/t850_vector_export\.js\?v=/);
+ assert.match(ensemble,/svgButton\.addEventListener\("click",svg\)/);
+ assert.match(ensemble,/t850_vector_export\.js\?v=/);
 });
