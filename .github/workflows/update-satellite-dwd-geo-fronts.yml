@@ -1,0 +1,100 @@
+name: DWD NinJo-GML Frontenquellen (WFS)
+on:
+  schedule:
+    - cron: "28 0,6,12,18 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update_satellite_dwd_geo_fronts.py"
+      - "tests/test_satellite_dwd_geo_fronts.py"
+      - ".github/workflows/update-satellite-dwd-geo-fronts.yml"
+permissions:
+  contents: write
+concurrency:
+  group: satellite-dwd-ninjo-vector-source
+  cancel-in-progress: false
+jobs:
+  discovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      # Optional only after DWD officially confirms a GML feed URL.
+      DWD_NINJO_GML_URL: ${{ vars.DWD_NINJO_GML_URL }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: |
+            scripts/update_satellite_dwd_geo_fronts.py
+            tests/test_satellite_dwd_geo_fronts.py
+            data/synoptic_charts/dwd_fronts_geo.json
+            data/synoptic_charts/dwd_fronts_discovery.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate official GML UTC and axis order
+        run: |
+          python -m py_compile scripts/update_satellite_dwd_geo_fronts.py
+          python -m unittest discover -s tests -p 'test_satellite_dwd_geo_fronts.py' -v
+      - name: Discover official WFS layers and decode approved NinJo GML
+        run: python scripts/update_satellite_dwd_geo_fronts.py
+      - name: Publish source availability without fabricating front locations
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp data/synoptic_charts/dwd_fronts_geo.json "$RUNNER_TEMP/gml-candidate.json"
+          cp data/synoptic_charts/dwd_fronts_discovery.json "$RUNNER_TEMP/discovery-candidate.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git reset --hard origin/main
+            DWD_FRONT_CAND="$RUNNER_TEMP/gml-candidate.json" DWD_DISC_CAND="$RUNNER_TEMP/discovery-candidate.json" python - <<'PY'
+          from pathlib import Path
+          from datetime import datetime,timezone
+          import json,os
+          for name,env in [("dwd_fronts_geo.json","DWD_FRONT_CAND"),
+                           ("dwd_fronts_discovery.json","DWD_DISC_CAND")]:
+              dest=Path("data/synoptic_charts")/name
+              src=json.loads(Path(os.environ[env]).read_text(encoding="utf-8"))
+              try:current=json.loads(dest.read_text(encoding="utf-8"))
+              except (ValueError,OSError):current={}
+              def date(value):
+                  try:return datetime.fromisoformat(str(value).replace("Z","+00:00")).astimezone(timezone.utc)
+                  except (ValueError,TypeError):return datetime.min.replace(tzinfo=timezone.utc)
+              if date(current.get("checked_at"))<date(src.get("checked_at")):
+                  dest.parent.mkdir(parents=True,exist_ok=True)
+                  dest.write_text(json.dumps(src,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+                  print(name,src.get("status"),src.get("verified_public_ninjo_gml"))
+          PY
+            git add data/synoptic_charts/dwd_fronts_geo.json data/synoptic_charts/dwd_fronts_discovery.json
+            if git diff --cached --quiet; then
+              echo "No newer WFS source status"
+              exit 0
+            fi
+            git commit -m "Update verified DWD NinJo front-vector access audit"
+            if git push origin HEAD:main; then
+              echo "DWD WFS audit committed"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::Concurrent main updates prevented WFS audit publishing"
+          exit 1
+      - name: Report verified source status
+        if: always()
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          from pathlib import Path
+          import json
+          for name in ("dwd_fronts_discovery.json","dwd_fronts_geo.json"):
+              p=Path("data/synoptic_charts")/name
+              if p.is_file():
+                  data=json.loads(p.read_text(encoding="utf-8"))
+                  print(f"## {name}")
+                  print("Time:",data.get("checked_at"))
+                  print("Verified:",data.get("status")=="verified")
+                  print("Public WFS candidates:",data.get("public_wfs_front_layers"))
+                  print("Features:",len(data.get("features",[])))
+          PY
