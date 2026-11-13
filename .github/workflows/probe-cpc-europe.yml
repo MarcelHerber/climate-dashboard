@@ -1,0 +1,38 @@
+name: CPC Europe real-data probe
+on:
+  push:
+    branches: [feature/cpc-europe-observations-20261113]
+    paths: [.github/workflows/probe-cpc-europe.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python -m pip install numpy xarray netCDF4
+      - name: Probe current and reference real CPC NetCDF
+        run: |
+          python - <<'PY'
+          import xarray as xr
+          import numpy as np
+          for suffix,var in [
+             ("tmax.2026.nc","tmax"),
+             ("tmin.2026.nc","tmin"),
+             ("tmax.day.ltm.1991-2020.nc","tmax"),
+             ("tmin.day.ltm.1991-2020.nc","tmin")
+          ]:
+              url="https://psl.noaa.gov/thredds/dodsC/Datasets/cpc_global_temp/"+suffix
+              print("OPEN",url,flush=True)
+              ds=xr.open_dataset(url,engine="netcdf4",decode_times=False)
+              print("DIMS",dict(ds.sizes),"VAR",list(ds.data_vars),flush=True)
+              a=ds[var].isel(time=slice(-2,None),lat=slice(35,113),lon=slice(0,90)).load()
+              print("SAMPLE",a.shape, "FINITE",int(np.isfinite(a).sum()),"MIN",float(a.min(skipna=True)),flush=True)
+              print("TIME",ds["time"].values[-3:],ds["time"].attrs,flush=True)
+              ds.close()
+          PY

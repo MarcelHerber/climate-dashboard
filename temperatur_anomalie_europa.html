@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#153752">
+  <meta name="description" content="Tägliche beobachtungsbasierte Temperaturabweichungen in Europa auf dem NOAA CPC 0,5-Grad-Raster, Referenz 1991–2020.">
+  <title>Europa · aktuelle Temperaturabweichungen | Climate Dashboard</title>
+  <link rel="stylesheet" href="cpc_europe.css?v=1">
+  <link rel="stylesheet" href="mobile_navigation.css">
+  <link rel="stylesheet" href="dashboard_theme.css">
+  <script src="dashboard_theme.js" defer></script>
+  <script src="mobile_navigation.js" defer></script>
+  <script src="cpc_europe.js?v=1" defer></script>
+</head>
+<body>
+  <header class="cpc-header">
+    <div class="cpc-header-inner">
+      <a class="cpc-back" href="./index.html">← Climate Dashboard</a>
+      <div class="cpc-eyebrow">Europa · aktuelle Beobachtungen</div>
+      <h1>Temperaturabweichungen Europa</h1>
+      <p>Stationsbasierte Tageshöchst- und -tiefsttemperaturen · tägliche Klimareferenz 1991–2020 · ohne Wettermodell-Prognosen</p>
+    </div>
+  </header>
+  <main>
+    <section class="cpc-panel cpc-controls" aria-labelledby="controls-heading">
+      <h2 id="controls-heading">Zeitraum auswählen</h2>
+      <div class="cpc-fields">
+        <label>Auswahl
+          <select id="cpcPreset">
+            <option value="month">Monat bisher</option>
+            <option value="7">Letzte 7 Tage</option>
+            <option value="14">Letzte 14 Tage</option>
+            <option value="30">Letzte 30 Tage</option>
+            <option value="season">Saison bisher</option>
+            <option value="custom">Benutzerdefinierter Zeitraum</option>
+          </select>
+        </label>
+        <label>Von <input type="date" id="cpcStart"></label>
+        <label>Bis <input type="date" id="cpcEnd"></label>
+      </div>
+      <div class="cpc-export">
+        <button type="button" id="cpcPng" disabled>PNG speichern</button>
+        <button type="button" id="cpcPdf" disabled>PDF / Drucken</button>
+        <button type="button" id="cpcCsv" disabled>Ländermittel CSV</button>
+      </div>
+      <p class="cpc-note">Die Zeitraumwahl reicht über die letzten rund 110 Beobachtungstage. Einzelne fehlende Rasterwerte werden nicht ergänzt.</p>
+    </section>
+    <section class="cpc-panel" aria-labelledby="map-heading">
+      <div class="cpc-section-head">
+        <div>
+          <div class="cpc-eyebrow">NOAA CPC Global Unified Temperature</div>
+          <h2 id="map-heading">2-m-Temperaturabweichung</h2>
+          <p id="cpcPeriodLabel">Lade geprüfte tägliche Beobachtungen …</p>
+        </div>
+        <div class="cpc-status" id="cpcDataStatus">Datenstand wird ermittelt</div>
+      </div>
+      <div class="cpc-map-container">
+        <canvas id="cpcMap" role="img" aria-label="Karte der europäischen Temperaturabweichungen. Land anklicken, um Ländermittel zu markieren." width="1400" height="760"></canvas>
+        <img id="cpcBoundaries" src="cpc_europe/boundaries.png?v=1" alt="" aria-hidden="true" width="1400" height="760">
+        <div id="cpcStatus" class="cpc-map-status" role="status" aria-busy="true">Wetterbeobachtungen werden geladen …</div>
+      </div>
+      <div id="cpcLegend" class="cpc-legend" aria-label="Temperaturabweichung in Kelvin"></div>
+      <p id="cpcMessage" class="cpc-warning" role="alert" hidden></p>
+    </section>
+    <section class="cpc-panel" aria-labelledby="countries-heading">
+      <div class="cpc-section-head">
+        <div>
+          <div class="cpc-eyebrow">Flächengewichtet · Landzellen</div>
+          <h2 id="countries-heading">Ländermittel</h2>
+          <p>Rangfolge nach Temperaturabweichung. Land in der Karte oder Tabelle wählen.</p>
+        </div>
+        <strong id="cpcSelected" class="cpc-selected">Land in der Tabelle wählen</strong>
+      </div>
+      <div class="cpc-country-grid">
+        <div class="cpc-country-table-wrap">
+          <table>
+            <thead><tr><th>Land</th><th>Abweichung</th><th>Abdeckung</th></tr></thead>
+            <tbody id="cpcCountryRows"><tr><td colspan="3">Daten werden geladen …</td></tr></tbody>
+          </table>
+        </div>
+        <div class="cpc-chart-box">
+          <h3>Täglicher Verlauf des gewählten Landes</h3>
+          <canvas id="cpcChart" aria-label="Zeitreihe der täglichen Temperaturabweichungen für das gewählte Land"></canvas>
+          <p>Die Ländermittel werden auf 0,5°-Rasterzellen aus beobachteten Tageswerten berechnet. Kleine Länder und schlecht beobachtete Gebiete können fehlen.</p>
+        </div>
+      </div>
+    </section>
+    <section class="cpc-method" aria-labelledby="method-heading">
+      <h2 id="method-heading">Daten und Methodik</h2>
+      <p><strong>Datenquelle:</strong> NOAA/NCEP Climate Prediction Center, bereitgestellt von NOAA Physical Sciences Laboratory (PSL). Stationsbasierte griddierte Global Unified Temperature, 0,5°-Raster. Rohwerte aus Tageshöchst- und -tiefsttemperaturen, 06–06 UTC, kein 24-Stunden-Tagesmittel.</p>
+      <p><strong>Temperaturkennwert:</strong> (Tmax + Tmin) / 2. <strong>Anomalie:</strong> Differenz zum entsprechenden Tagesmittel aus den NOAA-CPC-Tagesnormalwerten 1991–2020. Für den 29. Februar wird die Referenz zwischen 28. Februar und 1. März interpoliert. Gebietsmittel sind flächengewichtet. Werte mit unzureichender zeitlicher oder räumlicher Datenabdeckung bleiben ausgeblendet.</p>
+      <p><strong>Einordnung:</strong> Das Raster basiert auf Stationsmeldungen, nicht auf einer Wettermodellprognose. Es kann daher Lücken und Interpolationsunsicherheiten aufweisen. Die jüngsten sieben Tage sind vorläufig und können von NOAA nachträglich korrigiert werden. Es ist fachlich nicht identisch mit den 24-h-Tagesmitteln der ERA5-Land-Reanalyse; nur die Farbklassen sind vergleichbar.</p>
+      <p><a href="https://psl.noaa.gov/data/gridded/data.cpc.globaltemp.html" target="_blank" rel="noopener noreferrer">Offizielle Datenbeschreibung NOAA PSL</a> · <a href="https://psl.noaa.gov/thredds/catalog/Datasets/cpc_global_temp/catalog.html" target="_blank" rel="noopener noreferrer">NOAA CPC Datenarchiv und Referenz 1991–2020</a></p>
+    </section>
+  </main>
+</body>
+</html>
