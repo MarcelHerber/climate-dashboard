@@ -19,6 +19,8 @@ try{
   const errors=[];
   page.on("pageerror",error=>errors.push(error.message));
   const ids=["mosmixTempChart","mosmixRainChart","mosmixWindChart","mosmixPressureChart","mosmixSunChart","mosmixSunDailyChart"];
+  const keys=["temp","rain","wind","pressure","sun","sunDaily"];
+  const formats=["png","pdf","svg"];
   const html='<!doctype html><html lang="de"><meta charset="utf-8">'+
     '<style>body{font:14px system-ui;background:#fff}canvas{display:block;max-width:100%}</style>'+
     '<body><h1>MOSMIX PNG/PDF Echtexport-Test</h1>'+
@@ -29,6 +31,9 @@ try{
     '<button id="single-rain-pdf">Nur Regen PDF</button>'+
     '<button id="single-temp-svg">Nur Temperatur SVG</button>'+
     '<button id="all-png">Alle PNG</button>'+
+    keys.flatMap(key=>formats.map(format=>
+      '<button id="single-'+key+'-'+format+'">'+key+' '+format.toUpperCase()+'</button>'
+    )).join("")+
     '</body></html>';
   await page.setContent(html);
   await page.addScriptTag({path:scripts.chartjs});
@@ -77,31 +82,42 @@ try{
     document.getElementById("single-rain-pdf").addEventListener("click",()=>api.downloadMeteogram("pdf","rain"));
     document.getElementById("single-temp-svg").addEventListener("click",()=>api.downloadMeteogram("svg","temp"));
     document.getElementById("all-png").addEventListener("click",()=>api.downloadMeteogram("png"));
+    for(const key of ["temp","rain","wind","pressure","sun","sunDaily"]){
+      for(const format of ["png","pdf","svg"]){
+        document.getElementById("single-"+key+"-"+format)
+          .addEventListener("click",()=>api.downloadMeteogram(format,key));
+      }
+    }
   },code);
-  for(const [button,suffix,prefix] of [
-    ["#single-temp-png","_temp.png","single-temp"],
-    ["#single-rain-pdf","_rain.pdf","single-rain"],
-    ["#single-temp-svg","_temp.svg","single-temp-svg"],
-    ["#all-png",".png","all-meteograms"]
-  ]){
+  // Every chart gets its own PNG, vector PDF and layered SVG, on both viewports.
+  for(const key of keys)for(const format of formats){
+    const suffix="_"+key+"."+format;
     const [download]=await Promise.all([
-      page.waitForEvent("download",{timeout:45000}),
-      page.locator(button).click()
+      page.waitForEvent("download",{timeout:55000}),
+      page.locator("#single-"+key+"-"+format).click()
     ]);
     const filename=download.suggestedFilename();
     assert.ok(filename.endsWith(suffix),filename+" wrong suffix "+suffix);
-    const path="/tmp/mosmix-real-"+vp.name+"-"+prefix+(suffix.endsWith(".pdf")?".pdf":suffix.endsWith(".svg")?".svg":".png");
+    const path="/tmp/mosmix-real-"+vp.name+"-"+key+"."+format;
     await download.saveAs(path);
-    assert.ok(statSync(path).size>(path.endsWith(".png")?8000:1500),"Export output empty: "+path);
-    if(path.endsWith(".pdf"))assert.equal(readFile(path).subarray(0,5).toString(),"%PDF-");
-    else if(path.endsWith(".svg")){
+    assert.ok(statSync(path).size>(format==="png"?8000:1500),"Export output empty: "+path);
+    if(format==="pdf")assert.equal(readFile(path).subarray(0,5).toString(),"%PDF-");
+    else if(format==="svg"){
       const svg=readFile(path,"utf8");
-      assert.match(svg,/<svg\b/);
+      assert.match(svg,/<svg\\b/);
       assert.match(svg,/inkscape:label=/);
-      assert.doesNotMatch(svg,/<image\b/);
+      assert.doesNotMatch(svg,/<image\\b/);
     }else assert.deepEqual([...readFile(path).subarray(0,8)],[137,80,78,71,13,10,26,10]);
-    console.log("MOSMIX CHARTJS EXPORT",vp.name,filename,statSync(path).size,"bytes");
+    console.log("MOSMIX SINGLE EXPORT",vp.name,key,format,statSync(path).size,"bytes");
   }
+  const [all]=await Promise.all([
+    page.waitForEvent("download",{timeout:60000}),
+    page.locator("#all-png").click()
+  ]);
+  assert.ok(all.suggestedFilename().endsWith(".png"));
+  const allPath="/tmp/mosmix-real-"+vp.name+"-all-meteograms.png";
+  await all.saveAs(allPath);
+  assert.ok(statSync(allPath).size>8000);
   assert.deepEqual(errors,[],"Browser JS errors "+errors.join(";"));
   await context.close();
  }
