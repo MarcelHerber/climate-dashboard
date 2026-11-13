@@ -54,11 +54,22 @@ def test_time_decoding_and_climate_source():
     assert REFERENCE_MIN_YEARS >= 10
 
 def test_same_era5_anomaly_palette():
-    from scripts.update_era5_land_europe_palette import TEMP_ANOMALY_LEVELS,TEMP_ANOMALY_COLORS
+    # Read constant declarations without importing the large ERA5 CDS runtime.
+    import ast
+    source=(ROOT/"scripts/update_era5_land_europe_palette.py").read_text(encoding="utf-8")
+    declarations=ast.parse(source).body
+    values={}
+    for node in declarations:
+        if isinstance(node,ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name):
+            name=node.targets[0].id
+            if name in ("TEMP_ANOMALY_LEVELS","TEMP_ANOMALY_COLORS"):
+                values[name]=ast.literal_eval(node.value)
+    levels=values["TEMP_ANOMALY_LEVELS"]
+    colors=values["TEMP_ANOMALY_COLORS"]
     js=(ROOT/"cpc_europe.js").read_text(encoding="utf-8")
-    for c in TEMP_ANOMALY_COLORS:
-        assert c in js
-    assert len(TEMP_ANOMALY_COLORS)==len(TEMP_ANOMALY_LEVELS)==19
+    for color in colors:
+        assert color in js
+    assert len(colors)==len(levels)==19
 
 def test_real_dataset_and_clear_observation_disclosure():
     html=(ROOT/"temperatur_anomalie_europa.html").read_text(encoding="utf-8")
