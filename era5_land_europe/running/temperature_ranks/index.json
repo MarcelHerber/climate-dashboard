@@ -394,8 +394,31 @@
     "2026-11-03",
     "2026-11-04",
     "2026-11-05",
-    "2026-11-06"
+    "2026-11-06",
+    "2026-11-07"
   ],
   "archive_index_pattern": "era5_land_europe/running/temperature_ranks/archive/{date}/index.json",
-  "archive_image_format": "lossless-webp"
+  "archive_image_format": "lossless-webp",
+  "data_archive_pattern": "era5_land_europe/running/temperature_ranks/data_archive/{year}-{month}.npz",
+  "data_archives": {
+    "2026-11": {
+      "file": "era5_land_europe/running/temperature_ranks/data_archive/2026-11.npz",
+      "format": "npz-uint8-ranks",
+      "missing_value": 0,
+      "grid": "0,1° ERA5-Land",
+      "history_start": 1950,
+      "history_end": 2025,
+      "historical_years": 76,
+      "products": [
+        "day",
+        "month_to_date",
+        "season_to_date",
+        "year_to_date"
+      ],
+      "first_date": "2026-11-01",
+      "last_date": "2026-11-07",
+      "days": 7,
+      "bytes": 1271576
+    }
+  }
 }
