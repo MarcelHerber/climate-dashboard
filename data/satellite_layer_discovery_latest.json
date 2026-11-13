@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-11-12T18:35:40+00:00",
+  "checked_at": "2026-11-13T18:02:24+00:00",
   "provider": "EUMETSAT EUMETView",
   "wms": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
@@ -11,11 +11,16 @@
       {
         "layer": "mtg_fd:ir105_hrfi",
         "title": "FCI HRFI IR10.5 μm Image - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-12T18:10:00Z",
-        "map_ok": false,
+        "latest_advertised_time": "2026-11-13T17:40:00Z",
+        "map_ok": true,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Air105_hrfi",
-        "error": "The read operation timed out"
+        "bytes": 80270,
+        "http_status": 200,
+        "cors_allow_origin": "*",
+        "latest_verified_time": "2026-11-13T17:40:00Z",
+        "age_minutes": 22.5,
+        "recent": true
       }
     ],
     "convection": [],
@@ -23,22 +28,32 @@
       {
         "layer": "mtg_fd:rgb_firetemperature",
         "title": "Fire Temperature RGB - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-12T18:10:00Z",
-        "map_ok": false,
+        "latest_advertised_time": "2026-11-13T17:40:00Z",
+        "map_ok": true,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_firetemperature",
-        "error": "HTTP Error 504: Gateway Time-out"
+        "bytes": 58699,
+        "http_status": 200,
+        "cors_allow_origin": "*",
+        "latest_verified_time": "2026-11-13T17:40:00Z",
+        "age_minutes": 22.6,
+        "recent": true
       }
     ],
     "lightning": [
       {
         "layer": "mtg_fd:li_afa",
         "title": "LI Accumulated Flash Area - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-12T18:25:00Z",
-        "map_ok": false,
+        "latest_advertised_time": "2026-11-13T17:50:00Z",
+        "map_ok": true,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Ali_afa",
-        "error": "HTTP Error 504: Gateway Time-out"
+        "bytes": 3195,
+        "http_status": 200,
+        "cors_allow_origin": "*",
+        "latest_verified_time": "2026-11-13T17:50:00Z",
+        "age_minutes": 12.6,
+        "recent": true
       }
     ],
     "ash": [],
@@ -46,11 +61,16 @@
       {
         "layer": "mtg_fd:rgb_cloudphase",
         "title": "Cloud Phase RGB - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-12T18:10:00Z",
-        "map_ok": false,
+        "latest_advertised_time": "2026-11-13T17:40:00Z",
+        "map_ok": true,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_cloudphase",
-        "error": "The read operation timed out"
+        "bytes": 38693,
+        "http_status": 200,
+        "cors_allow_origin": "*",
+        "latest_verified_time": "2026-11-13T17:40:00Z",
+        "age_minutes": 22.6,
+        "recent": true
       }
     ],
     "water_vapour": []
