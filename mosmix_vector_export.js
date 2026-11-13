@@ -173,7 +173,7 @@ function drawScene(chart,info){
   ];
   const footer=[
     {kind:"line",x1:LEFT,y1:679,x2:RIGHT,y2:679,color:[221,227,234],width:1.2},
-    {kind:"text",x:LEFT,y:705,text:"Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L · Zeitachse: UTC (Z) · editierbare Vektorkurven",size:13,color:[85,100,118]},
+    {kind:"text",x:LEFT,y:705,text:"Quelle: DWD MOSMIX-L · Rohzeiten UTC (Z), 00-Uhr-Marken MEZ/MESZ · Vektorkurven",size:13,color:[85,100,118]},
     {kind:"text",x:LEFT,y:727,text:"Erstellt: "+new Date().toLocaleString("de-DE")+" · Climate Dashboard Deutschland · Werte unverändert",size:12,color:[85,100,118]}
   ];
   return {width:W,height:H,header,axes,legend,series,footer};
