@@ -53,7 +53,8 @@ def alternate_source_urls(year: int, month: int) -> list[str]:
     """
     ym=f"{year:04d}{month:02d}"
     dataset="d093001" if (year, month) < (2011,4) else "d094001"
-    filename=f"tmp2m.gdas.{ym}.grb2"
+    filename=(f"tmp2m.gdas.{ym}.grb2" if dataset=="d093001"
+              else f"tmp2m.cdas1.{ym}.grb2")
     return [f"https://tds.gdex.ucar.edu/thredds/fileServer/files/g/{dataset}/{year}/{filename}"]
 
 
