@@ -41,6 +41,14 @@ function dwdURL(value){
    u.pathname.startsWith("/weather/charts/analysis/")&&!u.search&&!u.hash;
  }catch(_){return false;}
 }
+function verifiedGmlURL(value){
+ try{
+  const u=new URL(value);
+  return u.protocol==="https:"&&
+   (u.hostname==="opendata.dwd.de"||u.hostname==="maps.dwd.de")&&
+   /\\.(?:gml|xml)$/i.test(u.pathname)&&!u.hash;
+ }catch(_){return false;}
+}
 function clean(){
  svg.replaceChildren();
  svg.setAttribute("hidden","");
@@ -57,7 +65,7 @@ function validate(json){
     json.coordinate_reference_system!=="EPSG:4326"||
     json.georeferencing_verified!==true||
     json.front_source_format!=="NinJo-GML"||
-    !dwdURL(json.source_url)||parseUTC(json.valid_utc)===null||
+    !verifiedGmlURL(json.source_url)||parseUTC(json.valid_utc)===null||
     !Array.isArray(json.features)||json.features.length<1||json.features.length>700)return null;
  const age=Date.now()-parseUTC(json.valid_utc);
  if(age < -15*60000||age>30*3600000)return null;
