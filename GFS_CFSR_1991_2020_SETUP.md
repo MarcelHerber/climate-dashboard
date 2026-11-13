@@ -70,3 +70,30 @@ Automatischer GitHub-Actions-Lauf:
 Das kurze NOAA-NOMADS-Dreharchiv bietet keinen vollständigen historischen
 Monat. Für ältere Zeiträume ist ein ergänzender GFS-Archivimport notwendig;
 fehlende Tage dürfen nicht ergänzt oder als vollständiger Monat bezeichnet werden.
+
+
+## 30-Jahre-Backfill auf GitHub Actions
+
+Der Workflow `.github/workflows/backfill-cfsr-cfsv2-1991-2020.yml`
+ist auf `main` registriert, damit er auf GitHub manuell aufgerufen werden kann.
+
+- GitHub → **Actions** → **CFSR/CFSv2 1991–2020 · verified historical 2m reference**
+  → **Run workflow**; unbedingt den Branch
+  `feature/gfs-cfsr-1991-2020-europe-20261113` auswählen.
+- Ein normaler Push führt nur sehr kurze Unit- und NCEI-GRIB2-Quellentests aus.
+  **Er startet nicht** den ressourcenintensiven 360-Monats-Download.
+- Der manuelle Gesamtlauf importiert 30 Jahrgänge (maximal zwei gleichzeitig),
+  bewahrt Originaldatei-URLs und SHA-256-Prüfsummen auf, prüft die
+  365×4×76×140-Datenfelder je Jahr und verweigert jedes unvollständige Jahr.
+- Erst nach vollständigem Erfolg entstehen die überprüften Tagesnormale.
+  Das Finale speichert das Referenz-Artefakt und committet es ausschließlich
+  auf den GFS-Entwicklungsbranch, nicht auf die veröffentlichte `main`-Seite.
+- Erst nach unabhängiger Prüfung, PR-Merge und dem nächsten gültigen
+  täglichen GFS-Lauf können die Anomalien auf der veröffentlichten Website
+  angezeigt werden.
+
+**Wichtig:** Der erfolgreiche Test von GRIB2-Signaturen oder synthetischen
+Gitterwerten bedeutet nicht, dass der 30-jährige Rücklauf abgeschlossen ist.
+Die NCEI-Archive umfassen hunderte GB; Netzwerkunterbrechungen,
+Archivdefekte oder die f000-Zeitmetadaten können einzelne Jahrgänge blockieren.
+Fehlende Referenzwerte werden in keinem Fall synthetisch ersetzt.
