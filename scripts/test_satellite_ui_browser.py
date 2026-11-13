@@ -129,20 +129,23 @@ def exercise(page, viewport_label, official_xml):
 
     evidence["hd_script_available"]=page.evaluate("() => typeof window.SatelliteHD?.sync === 'function'")
     evidence["hd_tiles_present"]=page.locator("#satHDTiles").count()==1
-    evidence["dwd_front_card"]=page.locator("#satDwdFrontAnalysisSection").count()==1
-    evidence["dwd_front_regions"]=page.locator("#satFrontRegion option").count()==2
-    evidence["dwd_front_official_source"]=page.locator("#satFrontSource").get_attribute("href")=="https://opendata.dwd.de/weather/charts/analysis/"
-    evidence["dwd_front_status"]=page.locator("#satFrontStatus").count()==1
-    assert (evidence["dwd_front_card"] and evidence["dwd_front_regions"]
-            and evidence["dwd_front_official_source"] and evidence["dwd_front_status"]), (
-                "Missing official original DWD front analysis module: "+
-                str({key:evidence.get(key) for key in (
-                    "dwd_front_card","dwd_front_regions","dwd_front_official_source",
-                    "dwd_front_status")})+
-                ", href="+str(page.locator("#satFrontSource").get_attribute("href"))+
-                ", sectionCount="+str(page.locator("#satDwdFrontAnalysisSection").count())
-            )
 
+    evidence["dwd_front_svg"]=page.locator("#satDwdFrontSvg").count()==1
+    evidence["dwd_front_toggle"]=page.locator("#satShowDwdFronts").count()==1
+    evidence["dwd_front_original_png_panel_removed"]=page.locator("#satDwdFrontAnalysisSection").count()==0
+    evidence["dwd_front_status"]=page.locator("#satDwdFrontStatus").count()==1
+    evidence["dwd_front_original_source"]=page.locator("#satDwdFrontSource").get_attribute("href").startswith("https://opendata.dwd.de/")
+    assert (evidence["dwd_front_svg"] and evidence["dwd_front_toggle"] and
+            evidence["dwd_front_original_png_panel_removed"] and
+            evidence["dwd_front_status"] and evidence["dwd_front_original_source"]), "Direct DWD fronts overlay controls missing"
+    # No true DWD GML has been published yet: a verified PNG is *not* sufficient
+    # to draw any manual fronts on the EUMETSAT EPSG:4326 image.
+    evidence["dwd_no_fake_manual_fronts"]=page.evaluate("""() =>
+      document.querySelector('#satShowDwdFronts').disabled &&
+      document.querySelector('#satDwdFrontSvg').hasAttribute('hidden') &&
+      document.querySelectorAll('#satDwdFrontSvg path').length===0
+    """)
+    assert evidence["dwd_no_fake_manual_fronts"], "DWD PNG plotted as if geographically verified"
     evidence["tile_cache_ready"]=page.evaluate("() => typeof window.SatelliteTileCache?.create === 'function' && typeof window.SatelliteHD?.cacheStats === 'function'")
     evidence["tile_cache_clear_visible"]=page.locator("#satClearTileCache").count()==1
     evidence["tile_cache_start_empty"]=page.evaluate("() => window.SatelliteHD?.cacheStats()?.entries === 0")
