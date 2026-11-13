@@ -122,6 +122,7 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
  id("satValid").textContent=t?"Beobachtung: "+formatUTC(t):"Beobachtungszeit: nicht überprüft";
  window.SatelliteIsobars?.sync({time:t,region:region.value,source:source.value});
  window.SatelliteFrontAnalysis?.sync({time:t,region:region.value,source:source.value});
+ window.SatelliteNOAAFronts?.sync({time:t,region:region.value,source:source.value});
  window.SatelliteLightning?.sync({time:t,region:region.value,source:source.value});
  window.SatelliteRadar?.sync({time:t,region:region.value,source:source.value});
  const projection=region.value==="disk"?"AUTO:97004 (geostationär)":"EPSG:4326";
@@ -168,6 +169,7 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
      image.alt=description().name+" – gespeicherte Satellitenaufnahme "+formatUTC(item.time);
      window.SatelliteIsobars?.sync({time:item.time,region:region.value,source:source.value});
      window.SatelliteFrontAnalysis?.sync({time:item.time,region:region.value,source:source.value});
+ window.SatelliteNOAAFronts?.sync({time:item.time,region:region.value,source:source.value});
   window.SatelliteLightning?.sync({time:item.time,region:region.value,source:source.value});
   window.SatelliteRadar?.sync({time:item.time,region:region.value,source:source.value});
      buttons();
@@ -211,6 +213,7 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
    id("satValid").textContent="Kein Satellitenbild · unabhängige ECMWF-Modellprognose";
    window.SatelliteIsobars?.sync({time:null,region:region.value,source:source.value});
    window.SatelliteFrontAnalysis?.sync({time:null,region:region.value,source:source.value});
+ window.SatelliteNOAAFronts?.sync({time:null,region:region.value,source:source.value});
    window.SatelliteLightning?.sync({time:null,region:region.value,source:source.value});
    window.SatelliteRadar?.sync({time:null,region:region.value,source:source.value});
    empty.textContent="Weder aktuelle EUMETSAT-Aufnahmen noch ein geprüftes Archivbild verfügbar. Die ECMWF-Isobaren können unabhängig angezeigt werden.";
@@ -356,6 +359,7 @@ async function refresh(){
  if(source.value==="mtgi2"){
   window.SatelliteIsobars?.sync({time:null,region:region.value,source:source.value});
    window.SatelliteFrontAnalysis?.sync({time:null,region:region.value,source:source.value});
+ window.SatelliteNOAAFronts?.sync({time:null,region:region.value,source:source.value});
   id("satRawImage").hidden=true;
   image.hidden=true;empty.hidden=false;empty.textContent="MTG-I2: erste Aufnahmen und die 2,5-Minuten-Animation sind über den ESA-Link abrufbar. Noch keine reguläre Livequelle.";
   id("satMapTitle").textContent="MTG-I2 · Erstaufnahmen (November 2026)";
