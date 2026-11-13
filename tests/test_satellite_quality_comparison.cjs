@@ -108,7 +108,7 @@ test("Comparison is strictly opt-in and uses same verified time, layer, extent f
  assert.equal(first[3],176,"standard crop uses actual 800px source");
  assert.ok(a.els.get("satCompareHD").calls.length>0);
  assert.ok(a.els.get("satCompare4K").calls.length>0);
- const cropPixels=id=>Number(a.els.get(id).textContent.match(/mit (\\d+) ×/)[1]);
+ const cropPixels=id=>Number(a.els.get(id).textContent.match(/mit (\d+) ×/)[1]);
  assert.ok(cropPixels("satCompareInfoStandard")<cropPixels("satCompareInfoHD"));
  assert.ok(cropPixels("satCompareInfoHD")<cropPixels("satCompareInfo4K"));
  assert.ok(a.els.get("satCompareHD").calls.every(args=>args[7]>=0&&args[7]<=620),
