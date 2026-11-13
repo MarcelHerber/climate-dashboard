@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validation:
@@ -107,3 +107,25 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 1
+      - name: Commit only fully verified 1991–2020 reference to GFS development branch
+        if: github.ref == 'refs/heads/feature/gfs-cfsr-1991-2020-europe-20261113'
+        env:
+          TARGET_BRANCH: feature/gfs-cfsr-1991-2020-europe-20261113
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f gfs_analysis_europe/climatology_1991_2020.npz
+          git commit -m "GFS Europa: verifizierte CFSR/CFSv2-Tagesnormalwerte 1991–2020" || exit 0
+          for TRY in 1 2 3; do
+            git fetch origin "$TARGET_BRANCH"
+            if ! git rebase "origin/$TARGET_BRANCH"; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:"$TARGET_BRANCH"; then
+              exit 0
+            fi
+            sleep $((TRY*4))
+          done
+          exit 1
