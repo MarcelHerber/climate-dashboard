@@ -78,8 +78,11 @@ def grib_2m_analysis(raw: bytes, day: date, cycle: int) -> np.ndarray:
 
     if len(raw) < 150 or not raw.startswith(b"GRIB"):
         raise ValueError("NOMADS did not return a GRIB2 analysis")
-    import io
-    gid = ec.codes_grib_new_from_file(io.BytesIO(raw))
+    import tempfile
+    with tempfile.TemporaryFile(mode='w+b') as f:
+        f.write(raw)
+        f.seek(0)
+        gid = ec.codes_grib_new_from_file(f)
     if gid is None:
         raise ValueError("GRIB2 analysis was empty")
     try:
