@@ -1,0 +1,48 @@
+name: Phase 2 · Stratosphäre und DWD-Stationsdiagramme Vektor Live
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scientific_vector_actions.js
+      - t850_vector_export.js
+      - scripts/build_pages_site.sh
+      - tests/audit_phase2_science_vectors_live.py
+      - .github/workflows/audit-phase2-science-vectors-live.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase2-science-vectors-live
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/audit_phase2_science_vectors_live.py
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Chromium Playwright and PDF inspector
+        run: |
+          python -m pip install "playwright==1.57.0" "pypdf>=5,<8"
+          python -m playwright install --with-deps chromium
+      - name: Verify SVG and true PDF vectors with real GEFS and DWD station data
+        run: python -u tests/audit_phase2_science_vectors_live.py
+      - name: Preserve exported PDF/SVG and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-science-vectors-mobile-desktop
+          path: phase2_science_vectors_live/
+          if-no-files-found: warn
+          retention-days: 14
