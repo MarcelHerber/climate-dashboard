@@ -1203,7 +1203,7 @@
   function exportCombinedPng() {
     const sections = meteogramExportSections();
     const meta = meteogramExportMeta();
-    const width = 1100, gap = 15, pad = 25, header = 118, footer = 55;
+    const width = 1100, gap = 15, pad = 25, header = 118, footer = 81;
     const height = header + footer + pad + sections.reduce(function(n,c){return n+c.height+gap;},0);
     const out = document.createElement("canvas");
     out.width = width;out.height = height;
@@ -1216,7 +1216,9 @@
     let y = header;
     sections.forEach(function(section){ ctx.drawImage(section,0,y);y+=section.height+gap; });
     ctx.fillStyle = "#64748b";ctx.font = "16px Arial";
-    ctx.fillText("Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L · originale Zeitraumsummen und Windböen",pad,height-24);
+    ctx.fillText("Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L · UTC (Z) · Originalwerte",pad,height-49);
+    ctx.fillText("Erstellt: "+new Date().toLocaleString("de-DE")+
+      " · Climate Dashboard Deutschland",pad,height-25);
     const link = document.createElement("a");
     link.download = meta.filename+".png";
     link.href = out.toDataURL("image/png");
@@ -1277,7 +1279,7 @@
   function exportSinglePng(which) {
     const section = meteogramExportSections(which)[0];
     const meta = meteogramExportMeta();
-    const pad = 34, top = 140, bottom = 72;
+    const pad = 34, top = 140, bottom = 94;
     const out = document.createElement("canvas");
     out.width = section.width;
     out.height = top + section.height + bottom;
@@ -1291,7 +1293,9 @@
     ctx.fillText("Diagrammzeitraum: "+singleMeteogramLabel(),pad,113,out.width-2*pad);
     ctx.drawImage(section,0,top);
     ctx.fillStyle = "#64748b";ctx.font = "18px Arial";
-    ctx.fillText("Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L · Prognosewerte",pad,out.height-27,out.width-2*pad);
+    ctx.fillText("Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L · Zeitachse UTC (Z)",pad,out.height-54,out.width-2*pad);
+    ctx.fillText("Erstellt: "+new Date().toLocaleString("de-DE")+
+      " · Climate Dashboard Deutschland",pad,out.height-28,out.width-2*pad);
     const link = document.createElement("a");
     link.download = singleMeteogramFilename(meta,section)+".png";
     link.href = out.toDataURL("image/png");
