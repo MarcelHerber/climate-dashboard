@@ -15,8 +15,9 @@ Rasterzelle verschoben. Die physikalische Auflösung erhöht sich dadurch nicht.
 ## Referenz 1991–2020
 
 Es ist eine tagesgenaue Normaltemperatur aus historischen NOAA-Analysen erforderlich:
-- 1991–2010: CFSR, 00/06/12/18 UTC, f000.
-- 2011–2020: CFSv2, 00/06/12/18 UTC, f000.
+- 1991–März 2011: CFSR TMP2M 00/06/12/18 UTC, Vorlauf 0.
+- April 2011–2020: CFSv2 TMP2M 00/06/12/18 UTC, Vorlauf 0.
+- 2-m-Temperatur ist ein Modellfeld (bei CFSR nicht zwingend direkt analysiert), kein Stationsmesswert; ein kurzer f000-Spin-up ist möglich.
 - 30 vollständige Jahre, 365 Tage pro Jahr ohne den 29. Februar.
 - Mittelwert derselben vier Tageszeiten; fünftägig zyklisch geglättete
   Tagesnormaltemperatur; für 29. Februar Interpolation zwischen 28.02. und 01.03.
@@ -37,9 +38,16 @@ die originale Quellprüfsumme dokumentieren.
 Jede Datei enthält:
 - temp_c: Array (365, 4, 76, 140) in °C.
 - dates: die 365 ISO-Kalendertage ohne 29. Februar.
-- metadata_json: Produkt CFSR bzw. CFSv2, Jahr, Stunden [0,6,12,18],
-  forecast_hour=0, offizielle primary_source_url und
-  primary_source_sha256.
+- metadata_json: Produkt CFSR/CFSv2 (2011 geteilt), Jahr,
+  Stunden [0,6,12,18], forecast_hour=0 und 12 offizielle Monatsdateien
+  mit URLs und SHA-256-Prüfsummen.
+
+Import (je Jahr aus zwölf NCEI-Monatsdateien, ca. 0,5–1 GB Originalgröße
+je Monat):
+
+\`\`\`bash
+python scripts/import_cfsr_cfsv2_1991_2020.py --year 1991
+\`\`\`
 
 Erst wenn alle 30 Jahresdateien vorliegen, erzeugt
 python scripts/build_gfs_cfsr_1991_2020.py
