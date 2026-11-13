@@ -205,3 +205,34 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 /* Cache controls are informative and secondary to primary export actions. */
 .sat-hd-controls #satClearTileCache{font-weight:600;font-size:12px;opacity:.88}
 .sat-hd-controls #satClearTileCache:hover{opacity:1}
+
+
+/* Phase 1: genuinely published DWD surface FRONT ANALYSIS, as original chart.
+   Distinct from time-synchronous EUMETSAT WMS and ECMWF model contours. */
+.sat-dwd-fronts{scroll-margin-top:22px}
+.sat-front-heading{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.sat-front-heading h2{margin-top:5px}
+.sat-front-kind{border:1px solid var(--sat-border);border-radius:20px;padding:5px 10px;color:var(--sat-muted);font-size:12px;font-weight:750}
+.sat-front-intro{color:var(--sat-muted);font-size:13px;line-height:1.65;max-width:none!important}
+.sat-front-controls{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:13px 0}
+.sat-front-controls label{font-size:13px;font-weight:700;display:flex;flex-direction:column;gap:5px;min-width:230px}
+.sat-front-controls select,.sat-front-controls button{font:inherit;color:var(--sat-text);background:var(--sat-button);border:1px solid var(--sat-border);border-radius:8px;min-height:42px;padding:9px 12px}
+.sat-front-controls button{font-size:13px;cursor:pointer}
+.sat-front-controls button:disabled{opacity:.55;cursor:not-allowed}
+.sat-front-valid{font-weight:750;font-size:13px;color:var(--sat-text);font-variant-numeric:tabular-nums;padding-bottom:9px}
+.sat-front-status{max-width:none!important;font-size:13px;color:var(--sat-muted);background:var(--sat-bg);border-left:3px solid var(--sat-link);border-radius:5px;padding:9px 12px;min-height:40px}
+.sat-front-image-link{display:block;margin:12px 0 8px;border:1px solid var(--sat-border);background:#fff;border-radius:8px;overflow:hidden;max-width:1060px}
+.sat-front-image-link[hidden]{display:none}
+.sat-front-image-link img{display:block;width:100%;height:auto;object-fit:contain}
+.sat-front-image-link img[hidden]{display:none}
+.sat-front-meta{max-width:none!important;font-size:12px;line-height:1.55;color:var(--sat-muted);font-variant-numeric:tabular-nums}
+.sat-front-footer{display:flex;flex-wrap:wrap;align-items:center;gap:9px 18px;font-size:12px;color:var(--sat-muted);margin-top:12px}
+.sat-front-footer a{font-weight:700}
+@media(max-width:650px){
+ .sat-front-controls{display:grid;grid-template-columns:1fr;gap:8px}
+ .sat-front-controls label{min-width:0;width:100%}
+ .sat-front-controls select,.sat-front-controls button{width:100%}
+ .sat-front-valid{padding:3px 0}
+ .sat-front-heading h2{font-size:18px}
+ .sat-front-footer{display:grid;gap:6px}
+}
