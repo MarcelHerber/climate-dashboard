@@ -79,6 +79,13 @@ function ready(input){
 }
 function viewChanged(state){
  zoom=clamp(Number(state?.scale)||1,1,4);
+ // When crossing 300%, cancel obsolete WMS requests immediately instead of
+ // letting them fill all network slots during the normal 180ms zoom debounce.
+ // The decoded tiles from the previous 2K/4K grid remain in the LRU cache.
+ if(layout&&quality.value==="standard"){
+  const target=zoom>=AUTO_4K_ZOOM?4096:AUTO_HD_WIDTH;
+  if(layout.width!==target)clear();
+ }
  schedule();
 }
 function visible(){
