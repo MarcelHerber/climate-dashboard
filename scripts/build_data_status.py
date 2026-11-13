@@ -420,14 +420,29 @@ def build(remote=None):
         udays = complete_days(wind_fields)
         wind_years = estrat.get("reference_wind_years_completed")
         wind_years_label = f"{wind_years}/30" if isinstance(wind_years,int) else "noch nicht ermittelt"
-        items.append(result("era5_strat", "ERA5 Stratosphäre", "Atmosphäre",
-            estrat.get("data_through"), estrat.get("generated_at"),
+        latest_day = estrat.get("data_through")
+        latest_row = next((r for r in reversed(estrat.get("series") or [])
+                           if isinstance(r, dict) and r.get("date") == latest_day), None)
+        current_fields = (*temp_fields, *wind_fields)
+        daily_complete = bool(latest_row) and all(
+            isinstance(latest_row.get(k), (float, int))
+            and not isinstance(latest_row[k], bool)
+            and abs(latest_row[k]) < float("inf") for k in current_fields)
+        items.append(result("era5_strat", "ERA5 Stratosphäre · Tageswerte", "Atmosphäre",
+            latest_day, estrat.get("generated_at"),
+            f"{len(estrat.get('series') or [])} echte Tage · "
+            f"letzter Tag: {sum(isinstance((latest_row or {}).get(k), (int,float)) for k in wind_fields)}/4 Windhöhen · "
+            f"{sum(isinstance((latest_row or {}).get(k), (int,float)) for k in temp_fields)}/4 Temperaturhöhen",
+            "ERA5-Tagesdaten · unabhängig von der historischen Klimareferenz",
+            allowed_delay=9, incomplete=not daily_complete))
+        items.append(result("era5_strat_reference", "ERA5 Stratosphäre · Klimareferenz", "Atmosphäre",
+            latest_day, estrat.get("generated_at"),
             f"1991–2020 · Temperatur: {tdays}/366 Klimatologietage · "
-            f"Zonalwind: {udays}/366 · Vollständige Temperaturjahre: {complete}/30",
+            f"Zonalwind: {udays}/366 · vollständige Temperaturjahre: {complete}/30",
             f"Windjahre: {wind_years_label} · "
             + ("Historische Referenz unvollständig" if complete < 30 or tdays < 366 or udays < 366
                else "Temperatur- und Zonalwindreferenz vollständig"),
-            allowed_delay=14, incomplete=complete < 30 or tdays < 366 or udays < 366))
+            allowed_delay=9, incomplete=complete < 30 or tdays < 366 or udays < 366))
 
     # DMI index and ERA5 Arctic map archive are independent products.
     # Count only validated observations and complete three-region map days.
