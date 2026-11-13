@@ -92,10 +92,17 @@ try{
   // Every chart gets its own PNG, vector PDF and layered SVG, on both viewports.
   for(const key of keys)for(const format of formats){
     const suffix="_"+key+"."+format;
-    const [download]=await Promise.all([
-      page.waitForEvent("download",{timeout:55000}),
-      page.locator("#single-"+key+"-"+format).click()
-    ]);
+    let download;
+    try{
+      [download]=await Promise.all([
+        page.waitForEvent("download",{timeout:14000}),
+        page.locator("#single-"+key+"-"+format).click()
+      ]);
+    }catch(error){
+      const status=await page.locator("#mosmixExportStatus").textContent().catch(()=>"?");
+      throw new Error("MOSMIX "+vp.name+" "+key+" "+format+" export failed: "+
+        status+"; browser errors: "+JSON.stringify(errors)+"; "+error.message);
+    }
     const filename=download.suggestedFilename();
     assert.ok(filename.endsWith(suffix),filename+" wrong suffix "+suffix);
     const path="/tmp/mosmix-real-"+vp.name+"-"+key+"."+format;
