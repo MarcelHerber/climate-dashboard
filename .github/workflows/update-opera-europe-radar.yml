@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - "scripts/build_opera_europe_radar.py"
+      - "tests/test_opera_europe_backup.py"
       - ".github/workflows/update-opera-europe-radar.yml"
 
 permissions:
@@ -18,7 +19,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Testabhängigkeiten
+        run: pip install "numpy>=2,<3" "rasterio>=1.4,<2" "pillow>=11,<13" "requests>=2,<3"
+      - name: OPERA Backup und Echtbild-Prüfung
+        run: |
+          python -m py_compile scripts/build_opera_europe_radar.py
+          python -m unittest discover -s tests -p test_opera_europe_backup.py -v
+
   update:
+    if: ${{ github.event_name != 'push' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
