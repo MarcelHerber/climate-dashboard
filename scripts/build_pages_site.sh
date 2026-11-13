@@ -105,6 +105,7 @@ required_root_files=(
   satelliten.html
   satelliten.js
   satellite_dwd_fronts.js
+  satellite_noaa_fronts.js
   satelliten.css
   satellite_overlay.js
   satellite_lightning.js
@@ -228,6 +229,26 @@ assert '["temperatur_anomalie_europa.html","Aktuelle Temperaturabweichung · NOA
 print("NOAA CPC navigation and independent page included in Pages site")
 PY
 node --check _site/cpc_europe.js
+
+# NOAA WPC high-resolution analyzed frontal positions: copy only verified
+# official coordinates with the producer's precise UTC and provenance.
+if [[ -s data/synoptic_charts/noaa_wpc_fronts_geo.json ]]; then
+  mkdir -p _site/data/synoptic_charts
+  cp data/synoptic_charts/noaa_wpc_fronts_geo.json _site/data/synoptic_charts/
+  python - <<'PY'
+import json
+from pathlib import Path
+j=json.loads(Path("_site/data/synoptic_charts/noaa_wpc_fronts_geo.json").read_text(encoding="utf-8"))
+assert j["provider"]=="NOAA WPC" and j["kind"]=="analysis"
+assert j["source_url"]=="https://tgftp.nws.noaa.gov/data/raw/as/asus02.kwbc.cod.sus.txt"
+if j["status"]=="verified":
+    assert j["georeferencing_verified"] and j["front_source_format"]=="CODSUS-HIRES"
+    assert 0<len(j["features"])<=600 and j["valid_utc"]
+else:
+    assert not j["features"] and not j["georeferencing_verified"]
+print("NOAA WPC fronts:",j["status"],"features:",len(j["features"]))
+PY
+fi
 
 # Official DWD manual front analysis metadata: one tiny JSON manifest only.
 # The original image is served directly from the DWD Open Data URL.
@@ -670,6 +691,7 @@ PY
 python scripts/inject_mobile_navigation.py _site
 node --check _site/satelliten.js
 node --check _site/satellite_dwd_fronts.js
+node --check _site/satellite_noaa_fronts.js
 node --check _site/satellite_overlay.js
 node --check _site/satellite_lightning.js
 node --check _site/satellite_radar.js
@@ -689,7 +711,9 @@ node --test tests/test_satellite_source_alignment.cjs
 node --test tests/test_satellite_tile_cache.cjs
 node --test tests/test_satellite_hd.cjs
 node --test tests/test_satellite_dwd_fronts.cjs
+node --test tests/test_satellite_noaa_fronts.cjs
 python -m unittest discover -s tests -p "test_satellite_dwd_fronts.py" -v
+python -m unittest discover -s tests -p "test_satellite_noaa_wpc_fronts.py" -v
 node --test tests/test_satellite_progressive.cjs
 node --test tests/test_satellite_quality_comparison.cjs
 node --test tests/test_satellite_fullhd_film.cjs
