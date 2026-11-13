@@ -99,3 +99,9 @@ Vor einer finalen Live-Freigabe im Browser unter 320, 360, 390, 428, 768 und 800
 - Falls neue HTML-Seiten hinzukommen, ihre Navigation im Kategorienkatalog ergänzen und Tests beibehalten
 
 **Noch offen:** Eine echte gerätebasierte oder Browser-Emulations-Abnahme sowie die Bestätigung des Live-GitHub-Pages-Deploys. Die GitHub-Actions-Ausführung ist in dieser Umgebung nicht auslesbar.
+
+## HQ-Export: UTC-Zeitachsen und mobile Unabhängigkeit (13. November 2026)
+
+Der bereits vorhandene `dashboard_export_hq.js` rendert unterstützte Chart.js-Diagramme mit eigenständiger Druckauflösung (2200 × 1470 Pixel). Die mobile Diagrammverdichtung wird bei diesem Export-Rendering deaktiviert. Bei der Rekonstruktion von Daten und Konfigurationen bleiben nun auch echte JavaScript-`Date`-Objekte und numerische Typed Arrays erhalten, statt Datumswerte zu leeren Objekten zu machen. Der Regressionstest `tests/test_dashboard_hq_export.cjs` deckt UTC-Datumslabels, wissenschaftliche Werte, die unveränderte Originalgrafik und die Export-Tickzahl ab.
+
+**Geltungsbereich:** Diese Absicherung gilt für Exporte, die `DashboardExportHQ.renderChart` einsetzen. Modulinterne Canvas-, SVG- oder PDF-Routinen werden dadurch nicht automatisch auf HQ-Rendering umgestellt. Die reale GitHub-Actions-Ausführung, mobil erzeugte Downloadartefakte und Geräteabnahme müssen separat kontrolliert werden.
