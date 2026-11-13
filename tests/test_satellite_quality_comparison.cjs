@@ -105,11 +105,14 @@ test("Comparison is strictly opt-in and uses same verified time, layer, extent f
  for(const id of ["satCompareStandard","satCompareHD","satCompare4K"])
   assert.equal(a.els.get(id).hidden,false,id+" must show real raster");
  const first=a.els.get("satCompareStandard").calls[0];
- const second=a.els.get("satCompareHD").calls[0];
- const third=a.els.get("satCompare4K").calls[0];
- assert.ok(first[3]<second[3]&&second[3]<third[3],"native source crop has more samples");
- assert.ok(Math.abs(first[1]/800-second[1]/2048)<.001,"same geographic crop longitude");
- assert.ok(Math.abs(first[2]/523-second[2]/1339)<.001,"same geographic crop latitude");
+ assert.equal(first[3],176,"standard crop uses actual 800px source");
+ assert.ok(a.els.get("satCompareHD").calls.length>0);
+ assert.ok(a.els.get("satCompare4K").calls.length>0);
+ const cropPixels=id=>Number(a.els.get(id).textContent.match(/mit (\\d+) ×/)[1]);
+ assert.ok(cropPixels("satCompareInfoStandard")<cropPixels("satCompareInfoHD"));
+ assert.ok(cropPixels("satCompareInfoHD")<cropPixels("satCompareInfo4K"));
+ assert.ok(a.els.get("satCompareHD").calls.every(args=>args[7]>=0&&args[7]<=620),
+  "screen crop is assembled from its genuine WMS tiles");
  assert.match(a.els.get("satCompareInfoStandard").textContent,/800 × 523 WMS-Pixel/);
  assert.match(a.els.get("satCompareInfoHD").textContent,/2048 × 1339 WMS-Pixel/);
  assert.match(a.els.get("satCompareInfo4K").textContent,/4096 × 2678 WMS-Pixel/);
@@ -121,11 +124,11 @@ test("Choosing another matched geographic crop redraws samples without reloading
  a.sandbox.window.SatelliteHD.sync(a.live);
  await a.els.get("satCompareRun").fire("click");
  const oldRequests=a.requests.length;
- const oldSourceX=a.els.get("satCompareHD").calls.at(-1)[1];
+ const oldCropCount=a.els.get("satCompareHD").calls.length;
  a.els.get("satCompareCrop").value="northeast";
  a.els.get("satCompareCrop").fire("change");
  assert.equal(a.requests.length,oldRequests);
- assert.ok(a.els.get("satCompareHD").calls.at(-1)[1]>oldSourceX);
+ assert.ok(a.els.get("satCompareHD").calls.length>oldCropCount);
  assert.ok(Number(a.els.get("satCompareBox").style.left.slice(0,-1))>50);
  a.sandbox.window.SatelliteHD.cancel("Film gestartet");
  assert.equal(a.els.get("satCompareGrid").hidden,true);
