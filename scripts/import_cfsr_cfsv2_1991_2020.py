@@ -66,12 +66,12 @@ def interpolate_europe(values: np.ndarray, lats: np.ndarray, lons: np.ndarray) -
         lat = lat[::-1]
         values = values[::-1, :]
     if not np.all(np.diff(lat) < 0):
-        raise ValueError("Source latitude axis is not strictly monotonic")
+        raise ValueError("Source grid latitude axis is not strictly monotonic")
     lon_order = np.argsort(source_lon)
     lon = source_lon[lon_order]
     values = values[:, lon_order]
     if not np.all(np.diff(lon) > 0):
-        raise ValueError("Source longitude axis has duplicate or invalid cells")
+        raise ValueError("Source grid longitude axis has duplicate or invalid cells")
     if not (lat[-1] < min(TARGET_LAT) < max(TARGET_LAT) < lat[0]):
         raise ValueError("Source latitude grid does not cover Europe")
     # Account for periodicity: 359.75 must interpolate across the dateline.
