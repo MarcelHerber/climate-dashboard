@@ -179,3 +179,25 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 
 @media(min-width:900px){.sat-film-controls:has(#satMp4Quality){grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:650px){.sat-film-controls:has(#satMp4Quality){grid-template-columns:1fr 1fr}.sat-film-controls label:last-child{grid-column:auto}}
+
+/* Three independent WMS source rasters, one UTC and one geographic crop. */
+.sat-quality-compare{margin-top:18px}
+.sat-quality-lead,.sat-quality-footnote{font-size:13px;color:var(--sat-muted);line-height:1.6;max-width:none}
+.sat-compare-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 8px}
+.sat-compare-toolbar label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700}
+.sat-compare-toolbar button,.sat-compare-toolbar select{font:inherit;font-size:13px;font-weight:700;border:1px solid var(--sat-border);border-radius:8px;background:var(--sat-button);color:var(--sat-text);min-height:40px;padding:7px 12px}
+.sat-compare-toolbar button{cursor:pointer}
+.sat-compare-toolbar button:disabled{opacity:.55;cursor:not-allowed}
+.sat-compare-status{font-size:12px;color:var(--sat-muted);font-variant-numeric:tabular-nums;margin:8px 0}
+.sat-compare-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+.sat-compare-grid[hidden]{display:none}
+.sat-compare-grid figure{min-width:0;margin:0;border:1px solid var(--sat-border);border-radius:9px;background:#0b1829;overflow:hidden}
+.sat-compare-grid canvas{display:block;width:100%;height:auto;aspect-ratio:auto;image-rendering:auto}
+.sat-compare-grid canvas[hidden]{display:none}
+.sat-compare-grid figcaption{padding:10px 11px;display:grid;gap:5px;background:var(--sat-bg);color:var(--sat-text);min-height:72px}
+.sat-compare-grid figcaption strong{font-size:14px}
+.sat-compare-grid figcaption span{font-size:12px;color:var(--sat-muted);font-variant-numeric:tabular-nums;line-height:1.4;overflow-wrap:anywhere}
+.sat-compare-box{position:absolute;border:2px solid #ffc55e;background:rgba(255,197,94,.11);outline:1px solid rgba(13,28,45,.75);z-index:7;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.24) inset}
+.sat-compare-box[hidden]{display:none}
+@media(max-width:920px){.sat-compare-grid{grid-template-columns:1fr 1fr}.sat-compare-grid figure:last-child{grid-column:1/-1}}
+@media(max-width:600px){.sat-compare-grid{grid-template-columns:1fr}.sat-compare-grid figure:last-child{grid-column:auto}.sat-compare-toolbar{display:grid;grid-template-columns:1fr}.sat-compare-toolbar button,.sat-compare-toolbar select{width:100%}.sat-compare-toolbar label{display:grid;grid-template-columns:1fr}}
