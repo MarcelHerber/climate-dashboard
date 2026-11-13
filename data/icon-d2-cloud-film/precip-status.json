@@ -1,12 +1,19 @@
 {
-  "run_id": "43414294160",
-  "run_url": "https://github.com/MarcelHerber/climate-dashboard/actions/runs/43414294160",
-  "checked_utc": "2026-11-13T11:07:05.726856+00:00",
+  "run_id": "43510685859",
+  "run_url": "https://github.com/MarcelHerber/climate-dashboard/actions/runs/43510685859",
+  "checked_utc": "2026-11-13T21:27:47.068184+00:00",
   "cloud_cycle": "2026111118",
-  "generate": "success",
-  "validate": "success",
-  "publish": "success",
+  "generate": "failure",
+  "validate": "skipped",
+  "publish": "skipped",
   "build_log_tail": [
-    "2026-11-13 11:07:04,912 INFO Vollständiger Niederschlag für 2026111118 bereits vorhanden"
+    "Traceback (most recent call last):",
+    "  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/build_icon_d2_precip_film.py\", line 238, in <module>",
+    "    main()",
+    "  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/build_icon_d2_precip_film.py\", line 234, in main",
+    "    build(args.out, args.max_workers)",
+    "  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/build_icon_d2_precip_film.py\", line 148, in build",
+    "    raise RuntimeError(\"Wolkenlauf für Niederschlagsberechnung zu alt\")",
+    "RuntimeError: Wolkenlauf für Niederschlagsberechnung zu alt"
   ]
 }
