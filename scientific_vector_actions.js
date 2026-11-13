@@ -140,6 +140,11 @@ function install(){
 function init(){
  install();
  if(!installed)root.addEventListener("load",install,{once:true});
+ // Main dashboard may load Chart.js lazily after DOMContentLoaded.
+ // Capture script load events so later-created station charts get the exporter.
+ document.addEventListener("load",event=>{
+   if(event.target?.tagName==="SCRIPT"&&!installed)install();
+ },true);
  const css=document.createElement("style");
  css.textContent=".cd-sciv-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:7px 0 15px;max-width:100%}.cd-sciv-button{min-height:44px;padding:9px 13px;border:1px solid #9badbf;border-radius:8px;background:#fff;color:#183854;font:700 13px/1.3 system-ui,sans-serif;cursor:pointer}.cd-sciv-button:disabled{opacity:.55;cursor:wait}.cd-sciv-status{flex:1 1 170px;font:12px/1.4 system-ui,sans-serif;overflow-wrap:anywhere}";
  document.head.appendChild(css);
