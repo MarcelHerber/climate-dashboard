@@ -62,7 +62,7 @@ jobs:
           p=Path("gfs_analysis_europe")
           x=json.loads((p/"index.json").read_text(encoding="utf-8"))
           assert x["schema"]==1 and x["type"]=="model_analysis_not_observation"
-          assert x["provider"]=="NOAA NOMADS GFS 0.5° analysis f000"
+          assert x["provider"]=="NOAA NCEP GFS 0.5° analysis f000"
           assert x["grid_degrees"]==0.5 and x["width"]==140 and x["height"]==76
           assert x["dates"] and x["data_through"]==x["dates"][-1]
           assert (date.today()-date.fromisoformat(x["data_through"])).days<=5
