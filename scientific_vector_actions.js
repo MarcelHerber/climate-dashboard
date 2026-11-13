@@ -17,6 +17,21 @@ const TARGETS={
   slug:"dwd_station_schneehoehe",
   title:"Stationsdiagramm · tägliche Schneehöhe",
   source:"Quelle: DWD Climate Data Center · Stationsmessungen und Klimareferenz"
+ },
+ stationSnowCumChart:{
+  slug:"dwd_station_schneehoehe_kumuliert",
+  title:"Stationsdiagramm · akkumulierte Schneehöhe",
+  source:"Quelle: DWD Climate Data Center · Stationsmessungen und qualitätsgeprüfte Referenz"
+ },
+ stationPrecipChart:{
+  slug:"dwd_station_niederschlag",
+  title:"Stationsdiagramm · Niederschlag",
+  source:"Quelle: DWD Climate Data Center · tägliche Stationsniederschläge"
+ },
+ sjaChart:{
+  slug:"dwd_stations_jahresanalyse",
+  title:"DWD Stations-Jahresanalyse",
+  source:"Quelle: DWD Climate Data Center · Stationsjahrgänge und Klimareferenzen"
  }
 };
 let installed=false;
@@ -47,15 +62,18 @@ function describe(chart,config){
  const labels=chart.data.labels||[];
  const starts=String(labels[0]??"–"),ends=String(labels[labels.length-1]??"–");
  let station="";
- if(chart.canvas.id==="stationSnowChart"){
-   const value=document.getElementById("stationSnowSelectedMeta")?.textContent?.trim();
+ if(["stationSnowChart","stationSnowCumChart","stationPrecipChart","sjaChart"].includes(chart.canvas.id)){
+   const selectedInfo=chart.canvas.id==="sjaChart"?"sjaSelected":"stationSnowSelectedMeta";
+   const value=document.getElementById(selectedInfo)?.textContent?.trim();
    station=value?value.slice(0,170):"Station laut Auswahl";
  }
+ const annualTitle=chart.canvas.id==="sjaChart"?
+   document.getElementById("sjaChartTitle")?.textContent?.trim():"";
  const selected=chart.data.datasets.filter((_,i)=>chart.isDatasetVisible?.(i)!==false).length;
  return {
-   title:config.title,
+   title:annualTitle?config.title+" · "+annualTitle:config.title,
    axis:chart.scales?.y?.options?.title?.text || chart.options?.scales?.y?.title?.text ||
-      (chart.canvas.id==="stationSnowChart"?"Schneehöhe [cm]":"Zonalwind [m/s]"),
+      (chart.canvas.id.startsWith("stationSnow")?"Schneehöhe [cm]":"Einheit siehe Diagramm"),
    source:config.source,
    subtitle:"Originalwerte · unabhängige Vektoransicht",
    metadata:[
@@ -84,7 +102,9 @@ function jsPDF(){
 async function download(canvas,format,row){
  const chart=chartFor(canvas),target=TARGETS[canvas.id];
  if(!target||!activeData(chart))throw Error("Bitte zuerst ein Diagramm mit gültigen Daten laden.");
- if(chart.config?.type!=="line"||chart.scales?.x?.type!=="category")
+ if(chart.config?.type!=="line"||chart.scales?.x?.type!=="category" ||
+   chart.data.datasets.some((ds,i)=>
+     chart.isDatasetVisible?.(i)!==false && ds.type && ds.type!=="line"))
    throw Error("Vektorexport unterstützt hier derzeit nur Linien mit Kategorien-/Datumsachse.");
  const exporter=root.T850VectorExport;
  if(!exporter)throw Error("Wissenschaftlicher Vektorexport wurde nicht geladen.");
@@ -100,9 +120,12 @@ async function download(canvas,format,row){
 }
 function add(chart){
  const canvas=chart.canvas,target=TARGETS[canvas?.id];
- if(!target||!activeData(chart))return;
+ if(!target||!activeData(chart)||chart.config?.type!=="line"||
+   chart.scales?.x?.type!=="category" ||
+   chart.data.datasets.some((ds,i)=>
+     chart.isDatasetVisible?.(i)!==false && ds.type && ds.type!=="line"))return;
  if(controls.has(canvas))return;
- const wrapper=canvas.closest(".chart,.chart-container,.station-snow-chart,.strato-eps-chart")||canvas.parentElement;
+ const wrapper=canvas.closest(".chart,.chart-container,.station-snow-chart,.strato-eps-chart,.sja-chartbox")||canvas.parentElement;
  if(!wrapper?.insertAdjacentElement)return;
  const row=document.createElement("div");
  row.className="cd-sciv-actions";
