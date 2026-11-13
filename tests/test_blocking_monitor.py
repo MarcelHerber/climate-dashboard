@@ -24,6 +24,13 @@ class BlockingMonitorTests(unittest.TestCase):
         for phi in (75,80,85):
             self.z[np.where(self.lat==phi)[0][0],:]=5250
 
+    def test_era5_blocking_checks_d5_d6_before_older_data(self):
+        days=blocking.candidate_days(date(2026,11,13))
+        self.assertEqual(days[0],date(2026,11,8))
+        self.assertEqual(days[1],date(2026,11,7))
+        self.assertEqual(days[-1],date(2026,11,3))
+        self.assertEqual(len(days),len(set(days)))
+
     def test_real_era5_daily_request_shape(self):
         req=blocking.request([date(2026,10,3),date(2026,10,4)])
         self.assertEqual(req["pressure_level"],["500"])
