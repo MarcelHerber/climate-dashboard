@@ -50,7 +50,8 @@ function fixture(id="stratoEpsCanvas",withData=true){
     createElement:node,
     addEventListener(type,handler){listeners[type]=handler},
     getElementById(key){
-      if(key==="stationSnowSelectedMeta")return {textContent:"Station 03668 · Nürnberg"};
+      if(key==="stationSnowSelectedMeta"||key==="sjaSelected")return {textContent:"Station 03668 · Nürnberg"};
+      if(key==="sjaChartTitle")return {textContent:"Tagesmitteltemperatur"};
       return null;
     }
   };
@@ -59,7 +60,7 @@ function fixture(id="stratoEpsCanvas",withData=true){
   return {plugin,chart,window,actions,downloads};
 }
 test("real stratosphere and DWD station canvases gain two vector download controls",()=>{
- for(const id of ["stratoEpsCanvas","stratoEnsembleCanvas","stationSnowChart"]){
+ for(const id of ["stratoEpsCanvas","stratoEnsembleCanvas","stationSnowChart","stationSnowCumChart","stationPrecipChart","sjaChart"]){
    const h=fixture(id);
    assert.equal(h.plugin.length,1);
    h.plugin[0].afterUpdate(h.chart);
@@ -100,8 +101,25 @@ test("missing observations do not create misleading vector buttons",()=>{
 });
 test("the published build injects the assets on both pages",()=>{
  const build=fs.readFileSync("scripts/build_pages_site.sh","utf8");
- for(const name of ["index.html","stratosphaere.html","scientific_vector_actions.js"])
+ for(const name of ["index.html","stratosphaere.html","station_jahresanalyse.html","scientific_vector_actions.js"])
    assert.ok(build.includes(name),name+" not staged for Pages");
  assert.match(build,/t850_vector_export\.js\?v=20261113-vector-source-v2/);
  assert.match(build,/node --test tests\/test_scientific_vector_actions\.cjs/);
+});
+
+test("DWD annual diagram includes selected station, units and chart title",async()=>{
+ const h=fixture("sjaChart");
+ h.plugin[0].afterUpdate(h.chart);
+ const button=h.actions[0].children.find(n=>n.textContent==="SVG (Ebenen)");
+ await button.events.click();
+ const info=h.downloads.find(d=>d.scene).scene;
+ assert.match(info.title,/Tagesmitteltemperatur/);
+ assert.match(info.metadata[0],/Nürnberg/);
+ assert.match(info.source,/DWD Climate Data Center/);
+});
+test("mixed line and bar charts are not offered an incorrect vector-line export",()=>{
+ const h=fixture("sjaChart");
+ h.chart.data.datasets[0].type="bar";
+ h.plugin[0].afterUpdate(h.chart);
+ assert.equal(h.actions.length,0);
 });
