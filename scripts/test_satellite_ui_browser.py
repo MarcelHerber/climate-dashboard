@@ -130,6 +130,12 @@ def exercise(page, viewport_label, official_xml):
     evidence["hd_script_available"]=page.evaluate("() => typeof window.SatelliteHD?.sync === 'function'")
     evidence["hd_tiles_present"]=page.locator("#satHDTiles").count()==1
 
+    evidence["noaa_front_svg"]=page.locator("#satWpcFrontSvg").count()==1
+    evidence["noaa_front_toggle"]=page.locator("#satShowWpcFronts").count()==1
+    evidence["noaa_front_status"]=page.locator("#satWpcFrontStatus").count()==1
+    evidence["noaa_front_source"]=page.locator("#satWpcFrontSource").get_attribute("href")=="https://tgftp.nws.noaa.gov/data/raw/as/asus02.kwbc.cod.sus.txt"
+    assert (evidence["noaa_front_svg"] and evidence["noaa_front_toggle"] and
+            evidence["noaa_front_status"] and evidence["noaa_front_source"]), "Official NOAA geographic fronts overlay missing"
     evidence["dwd_front_svg"]=page.locator("#satDwdFrontSvg").count()==1
     evidence["dwd_front_toggle"]=page.locator("#satShowDwdFronts").count()==1
     evidence["dwd_front_original_png_panel_removed"]=page.locator("#satDwdFrontAnalysisSection").count()==0

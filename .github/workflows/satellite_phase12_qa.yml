@@ -22,6 +22,14 @@ on:
       - "scripts/audit_satellite_layers.py"
       - "scripts/build_pages_site.sh"
       - "scripts/update_satellite_dwd_fronts.py"
+      - "scripts/update_satellite_noaa_wpc_fronts.py"
+      - "scripts/update_satellite_dwd_geo_fronts.py"
+      - "tests/test_satellite_dwd_geo_fronts.py"
+      - "data/synoptic_charts/dwd_fronts_discovery.json"
+      - ".github/workflows/update-satellite-dwd-geo-fronts.yml"
+      - "tests/test_satellite_noaa_wpc_fronts.py"
+      - ".github/workflows/update-satellite-noaa-wpc-fronts.yml"
+      - "data/synoptic_charts/noaa_wpc_fronts_geo.json"
       - "tests/test_satellite_dwd_fronts.py"
       - ".github/workflows/update-satellite-dwd-fronts.yml"
       - "data/synoptic_charts/dwd_fronts_satellite.json"
@@ -46,6 +54,14 @@ on:
       - "scripts/audit_satellite_layers.py"
       - "scripts/build_pages_site.sh"
       - "scripts/update_satellite_dwd_fronts.py"
+      - "scripts/update_satellite_noaa_wpc_fronts.py"
+      - "scripts/update_satellite_dwd_geo_fronts.py"
+      - "tests/test_satellite_dwd_geo_fronts.py"
+      - "data/synoptic_charts/dwd_fronts_discovery.json"
+      - ".github/workflows/update-satellite-dwd-geo-fronts.yml"
+      - "tests/test_satellite_noaa_wpc_fronts.py"
+      - ".github/workflows/update-satellite-noaa-wpc-fronts.yml"
+      - "data/synoptic_charts/noaa_wpc_fronts_geo.json"
       - "tests/test_satellite_dwd_fronts.py"
       - ".github/workflows/update-satellite-dwd-fronts.yml"
       - "data/synoptic_charts/dwd_fronts_satellite.json"
@@ -68,6 +84,7 @@ jobs:
         run: |
           node --check satelliten.js
           node --check satellite_dwd_fronts.js
+          node --check satellite_noaa_fronts.js
           node --check satellite_view_options.js
           node --check satellite_lightning.js
           node --check satellite_radar.js
@@ -79,6 +96,25 @@ jobs:
         run: python -m unittest discover -s tests -p "test_satellite_live_quality.py" -v
       - name: MTG monitor and freshness watchdog regression tests
         run: python -m unittest discover -s tests -p "test_satellite_wms_monitor.py" -v
+      - name: DWD official WFS discovery and GML coordinate parsing tests
+        run: python -m unittest discover -s tests -p "test_satellite_dwd_geo_fronts.py" -v
+      - name: NOAA official high-resolution WPC frontal geometry tests
+        run: python -m unittest discover -s tests -p "test_satellite_noaa_wpc_fronts.py" -v
+      - name: Probe official WPC coded bulletin and DWD public WFS with live sources
+        run: |
+          python scripts/update_satellite_noaa_wpc_fronts.py
+          python scripts/update_satellite_dwd_geo_fronts.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for filename in ("noaa_wpc_fronts_geo.json","dwd_fronts_geo.json","dwd_fronts_discovery.json"):
+              j=json.loads((Path("data/synoptic_charts")/filename).read_text(encoding="utf-8"))
+              print(filename,"status",j.get("status"),"features",len(j.get("features",[])),
+                    "wfs_candidates",j.get("public_wfs_front_layers"),
+                    "valid",j.get("valid_utc"),"problem",j.get("error",j.get("reason")))
+              if j.get("status")=="verified":
+                  assert j.get("georeferencing_verified") is True and j.get("features")
+          PY
       - name: DWD original front analysis metadata and imagery safety tests
         run: python -m unittest discover -s tests -p "test_satellite_dwd_fronts.py" -v
       - name: Satellite regression tests
@@ -88,6 +124,7 @@ jobs:
           node --test tests/test_satellite_tile_cache.cjs
           node --test tests/test_satellite_hd.cjs
           node --test tests/test_satellite_dwd_fronts.cjs
+          node --test tests/test_satellite_noaa_fronts.cjs
           node --test tests/test_satellite_progressive.cjs
           node --test tests/test_satellite_quality_comparison.cjs
           node --test tests/test_satellite_fullhd_film.cjs
