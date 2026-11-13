@@ -47,7 +47,7 @@ jobs:
           python -m compileall -q scripts/import_cfsr_cfsv2_1991_2020.py scripts/build_gfs_cfsr_1991_2020.py
 
   historical-year:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit.message == 'Start verified CFSR/CFSv2 30-year backfill')
     needs: validation
     strategy:
       fail-fast: false
@@ -85,7 +85,7 @@ jobs:
           compression-level: 1
 
   finalize-climatology:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit.message == 'Start verified CFSR/CFSv2 30-year backfill')
     needs: historical-year
     runs-on: ubuntu-24.04
     timeout-minutes: 45
