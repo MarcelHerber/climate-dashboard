@@ -49,7 +49,7 @@ test("MOSMIX PNG/SVG/PDF preserve vector layers and the same UTC and provenance"
  assert.match(scene,/Rohzeiten UTC \(Z\)/);
  assert.match(scene,/MEZ\/MESZ/);
  assert.match(scene,/Erstellt:/);
- assert.match(scene,/Deutscher Wetterdienst/);
+ assert.match(scene,/Quelle: DWD MOSMIX-L/);
  assert.match(vectors,/inkscape:groupmode="layer"/);
  const pdf=mosmix.slice(mosmix.indexOf("function exportCombinedPdf()"),mosmix.indexOf("function singleMeteogramFilename"));
  assert.doesNotMatch(pdf,/\.addImage\(/);
