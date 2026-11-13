@@ -299,6 +299,9 @@ with path.open("w",encoding="utf-8") as handle:
 print("Stationsniederschlag-Index:",original,"->",path.stat().st_size,"Byte (verlustfrei)")
 PY
 node --check _site/dashboard_export_hq.js
+# Phase 2 exporters need to parse before the published site is updated.
+node --check _site/monthly_frequency.js
+node --check _site/t850_ensembles.js
 # Reuse the existing validated 1:50m Natural Earth geometry for satellite
 # coastlines and borders; local asset avoids a fragile third-party tile server.
 python - <<'PY'
