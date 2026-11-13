@@ -73,8 +73,12 @@ function chartPoint(chart,index){
   const value=sets[datasetIndex]?.data?.[index];
   if(value===null||value===undefined)continue;
   if(typeof value==="number"&&!Number.isFinite(value))continue;
-  if(typeof value==="object"&&value!==null&&
-     !Object.values(value).some(v=>typeof v==="number"&&Number.isFinite(v)))continue;
+  // For {x, y} time series, x is only the timestamp: a missing y is not
+  // an observed value and must not receive a keyboard tooltip.
+  if(typeof value==="object"&&value!==null){
+   if(Object.hasOwn(value,"y")&&(value.y==null||!Number.isFinite(Number(value.y))))continue;
+   if(!Object.values(value).some(v=>typeof v==="number"&&Number.isFinite(v)))continue;
+  }
   return {datasetIndex,index};
  }
  return null;
