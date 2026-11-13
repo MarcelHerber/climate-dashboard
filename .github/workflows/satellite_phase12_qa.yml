@@ -100,6 +100,21 @@ jobs:
         run: python -m unittest discover -s tests -p "test_satellite_dwd_geo_fronts.py" -v
       - name: NOAA official high-resolution WPC frontal geometry tests
         run: python -m unittest discover -s tests -p "test_satellite_noaa_wpc_fronts.py" -v
+      - name: Probe official WPC coded bulletin and DWD public WFS with live sources
+        run: |
+          python scripts/update_satellite_noaa_wpc_fronts.py
+          python scripts/update_satellite_dwd_geo_fronts.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for filename in ("noaa_wpc_fronts_geo.json","dwd_fronts_geo.json","dwd_fronts_discovery.json"):
+              j=json.loads((Path("data/synoptic_charts")/filename).read_text(encoding="utf-8"))
+              print(filename,"status",j.get("status"),"features",len(j.get("features",[])),
+                    "wfs_candidates",j.get("public_wfs_front_layers"),
+                    "valid",j.get("valid_utc"),"problem",j.get("error",j.get("reason")))
+              if j.get("status")=="verified":
+                  assert j.get("georeferencing_verified") is True and j.get("features")
+          PY
       - name: DWD original front analysis metadata and imagery safety tests
         run: python -m unittest discover -s tests -p "test_satellite_dwd_fronts.py" -v
       - name: Satellite regression tests
