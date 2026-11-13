@@ -121,6 +121,12 @@ def exercise(page, viewport_label, official_xml):
     evidence["image_status"]=page.locator("#satStatus").inner_text()
     evidence["image_url"]=page.locator("#satImage").get_attribute("src")
     evidence["standard_quality_selected"]=page.locator("#satStillQuality").input_value()=="standard"
+    evidence["progressive_auto_default"]=page.locator("#satStillQuality option:checked").inner_text().startswith("Automatisch")
+    evidence["progressive_4k_explicit"]=page.locator("#satStillQuality option[value='4k']").count()==1
+    evidence["progressive_economy_available"]=page.locator("#satStillQuality option[value='economy']").count()==1
+    assert (evidence["progressive_auto_default"] and evidence["progressive_4k_explicit"]
+            and evidence["progressive_economy_available"]), "Progressive HD/4K and data saver controls unavailable"
+
     evidence["hd_script_available"]=page.evaluate("() => typeof window.SatelliteHD?.sync === 'function'")
     evidence["hd_tiles_present"]=page.locator("#satHDTiles").count()==1
     evidence["quality_compare_script"]=page.evaluate("() => typeof window.SatelliteQualityCompare?.compare === 'function'")

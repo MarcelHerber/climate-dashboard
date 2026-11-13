@@ -228,12 +228,12 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
    loaded=true;empty.hidden=true;image.hidden=!filmImage.hidden;
    id("satImageInfo").textContent=note+" · tatsächlich geladen: "+image.naturalWidth+" × "+image.naturalHeight+" px"+(level?" · reduzierte Vorschau":"");
    window.SatelliteHD?.sync({time:t,region:region.value,source:source.value,
-     product:product.value,layer:p.layer,ready:true,cached:false});
+     product:product.value,layer:p.layer,ready:true,cached:false,previewWidth:image.naturalWidth});
    buttons();
    if(!filmImage.hidden)return;
    if(level||fallbackDepth)setStatus("Bild für "+(t?formatUTC(t):"unbekannte Zeit")+" in "+image.naturalWidth+
      " px geladen"+(fallbackDepth?" · ältere bestätigte Aufnahme":" · reduzierte Vorschau")+". Originalauflösung über Bildlink oder PNG-Download.","warning");
-   else if(t)setStatus("Schärfere Vorschau für "+formatUTC(t)+" geladen ("+image.naturalWidth+" × "+image.naturalHeight+" px) · HD/4K über Kacheln auswählbar · Originalauflösung über Bildlink oder PNG-Download · Zeit aus "+
+   else if(t)setStatus("Schärfere Vorschau für "+formatUTC(t)+" geladen ("+image.naturalWidth+" × "+image.naturalHeight+" px) · automatisches HD-Nachladen beginnt nach der Vorschau · 4K ab 300 % Zoom oder manuell · Originalauflösung über Bildlink oder PNG-Download · Zeit aus "+
        (metadataSource==="manifest"?"WMS-Zeitliste im GitHub-Datenstatus":"WMS-Metadaten")+".","info");
    else setStatus("Einzelbild geladen. Der Aufnahmezeitpunkt ist noch nicht verifiziert; keine Live-Behauptung.","warning");
   };

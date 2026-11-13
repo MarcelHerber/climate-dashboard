@@ -18,6 +18,9 @@ const regions={
  germany:[5,47,16,56,1140,950]
 };
 let scene=null,zoom=1,epoch=0,timer=0,queue=[],busy=0,tiles=new Map(),layout=null,downloadBusy=false;
+const AUTO_HD_WIDTH=2048,AUTO_4K_ZOOM=3;
+// A verified small still is always shown first; the background WMS upgrade
+// must never delay it or masquerade as extra native satellite detail.
 const fmt=t=>new Date(t).toISOString().slice(0,16).replace("T"," ")+" UTC";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function setInfo(message){info.textContent=message;}
@@ -30,7 +33,7 @@ function boundsForTile(col,row,cols,rows,bbox){
 }
 function specs(mode,scale,area){
  const native=mode==="4k"?4096:mode==="hd"?2048:
-   scale>=2.75?4096:scale>=1.35?2048:0;
+   mode==="standard"?(scale>=AUTO_4K_ZOOM?4096:AUTO_HD_WIDTH):0;
  if(!native)return null;
  const targetH=Math.round(native*area[5]/area[4]);
  const tileLimit=native===4096?1024:700;
@@ -47,7 +50,7 @@ function clear(reason){
  tiles.clear();busy=0;layout=null;
  stage.replaceChildren();stage.hidden=true;
  if(reason)setInfo(reason);
- download.disabled=!scene||quality.value==="standard"||downloadBusy||source.value!=="mtgi1"||region.value==="disk";
+ download.disabled=!scene||(quality.value==="standard"||quality.value==="economy")||downloadBusy||source.value!=="mtgi1"||region.value==="disk";
  if(pdfButton)pdfButton.disabled=download.disabled||!isobarChoice?.checked;
 }
 function ready(input){
@@ -55,11 +58,14 @@ function ready(input){
   typeof input.layer!=="string"||!/^mtg_fd:[a-z0-9_]+$/i.test(input.layer)){
   scene=null;clear(input?.cached?"Archivbild · keine nachladbaren HD-Daten.":"Keine aktuelle Einzelbild-Vorlage für HD.");return;
  }
- scene={time:input.time,source:input.source,region:input.region,product:input.product,layer:input.layer};
+ scene={time:input.time,source:input.source,region:input.region,product:input.product,
+  layer:input.layer,previewWidth:Number(input.previewWidth)||800};
  window.SatelliteQualityCompare?.invalidate("Neues Satellitenbild geladen.");
- clear("Standardbild geprüft · HD-Kacheln bei Bedarf verfügbar.");
+ clear("Schnelle "+scene.previewWidth+"-px-Vorschau sichtbar · automatisch HD wird bei geeignetem WMS nachgeladen.");
  window.SatelliteQualityCompare?.availability(true);
- schedule();
+ // Leave the first 800px still responsive, and avoid competing with its decode.
+ // Manual HD/4K selections are immediate; auto remains a background request.
+ schedule(quality.value==="standard"?750:180);
 }
 function viewChanged(state){
  zoom=clamp(Number(state?.scale)||1,1,4);
@@ -89,6 +95,10 @@ function tileUrl(tile,area,grid,selectedScene=scene){
 }
 function display(tile){
  if(!tile.ok||tile.node)return;
+ // At normal zoom expose all 2K pixels together. Until EVERY tile succeeds,
+ // keep the already-visible 800px image untouched; never show patchy HD.
+ const seamlessAuto=quality.value==="standard"&&zoom<AUTO_4K_ZOOM;
+ if(seamlessAuto&&!Array.from(tiles.values()).every(item=>item.ok))return;
  const img=tile.img;
  img.className="sat-hd-tile";
  img.style.left=(tile.col*layout.tw/layout.width*100)+"%";
@@ -105,10 +115,14 @@ function stats(){
  let ok=0,errors=0;
  for(const tile of tiles.values()){if(tile.ok)ok++;if(tile.failed)errors++;}
  const size=layout.width+" × "+layout.height+" px";
- setInfo((quality.value==="standard"?"Detailzoom":"WMS "+(quality.value==="4k"?"4K":"HD"))+
-  " · geografisch aufgelöste Kacheln · "+ok+"/"+(layout.cols*layout.rows)+
-  " Kacheln geladen"+(errors?" · "+errors+" nicht erreichbar (Standardbild sichtbar)":"")+
-  " · Zielraster "+size+(zoom>1?" · Zoom "+Math.round(zoom*100)+" %":""));
+ const auto=quality.value==="standard";
+ const complete=ok===layout.cols*layout.rows;
+ setInfo((auto?(layout.width===4096?"Automatisch · 4K-Detailzoom":"Automatisch · HD nach 800-px-Vorschau"):
+  "WMS "+(quality.value==="4k"?"4K":"HD"))+
+  " · "+ok+"/"+(layout.cols*layout.rows)+" echte WMS-Kacheln"+(complete?" vollständig":" geladen")+
+  (errors?" · "+errors+" nicht erreichbar (Vorschau bleibt sichtbar)":"")+
+  " · Zielraster "+size+(zoom>1?" · Zoom "+Math.round(zoom*100)+" %":"")+
+  (auto&&layout.width===2048&&!complete?" · Vorschau bleibt bis zum vollständigen HD-Bild sichtbar":""));
 }
 function pump(){
  if(!scene||!layout)return;
@@ -124,8 +138,15 @@ function pump(){
    if(finished)return;finished=true;clearTimeout(timeout);img.onload=null;img.onerror=null;
    if(gen!==epoch)return;
    busy--;tile.loading=false;
-   if(valid&&img.naturalWidth>0){tile.ok=true;display(tile);}
-   else{tile.failed=true;img.removeAttribute("src");}
+   const expectedW=Math.min(layout.tw,layout.width-tile.col*layout.tw);
+   const expectedH=Math.min(layout.th,layout.height-tile.row*layout.th);
+   if(valid&&img.naturalWidth===expectedW&&img.naturalHeight===expectedH){
+    tile.ok=true;
+    if(quality.value==="standard"&&zoom<AUTO_4K_ZOOM){
+     if(Array.from(tiles.values()).every(item=>item.ok))
+      for(const completeTile of tiles.values())display(completeTile);
+    }else display(tile);
+   }else{tile.failed=true;img.removeAttribute("src");}
    stats();pump();
   };
   const timeout=setTimeout(()=>complete(false),12000);
@@ -158,13 +179,26 @@ function render(){
  if(!scene||source.value!=="mtgi1"||product.value!==scene.product||region.value!==scene.region){
   clear("Keine geprüfte Einzelbildansicht für HD aktiv.");return;
  }
+ const auto=quality.value==="standard";
+ // A 400/320px fallback indicates source instability. Do not intensify the
+ // outage with automatic tile requests; explicit HD/4K remains available.
+ if(auto&&scene.previewWidth<800){
+  if(layout||tiles.size)clear();
+  setInfo("Vorschau "+scene.previewWidth+" px · automatisches HD wegen WMS-Rückfall pausiert. HD/4K manuell möglich.");
+  return;
+ }
+ if(quality.value==="economy"){
+  if(layout||tiles.size)clear();
+  setInfo("Datensparmodus · nur die ursprüngliche "+scene.previewWidth+"-px-Vorschau; keine automatischen Kacheln.");
+  return;
+ }
  const area=regions[scene.region];
  let grid;
  try{grid=specs(quality.value,zoom,area);}
  catch(error){clear("HD nicht möglich: "+error.message);return;}
- download.disabled=quality.value==="standard"||downloadBusy;
+ download.disabled=(quality.value==="standard"||quality.value==="economy")||downloadBusy;
  if(pdfButton)pdfButton.disabled=download.disabled||!isobarChoice?.checked;
- if(!grid){clear("Standard · hochauflösende Kacheln werden ab 135 % Zoom automatisch geladen.");return;}
+ if(!grid){clear("Nur die bestätigte Vorschau verfügbar.");return;}
  const key=[scene.time,scene.layer,scene.region,grid.width,grid.height].join("|");
  if(layout?.key!==key){
   clear();
@@ -172,7 +206,7 @@ function render(){
  }
  ensureTiles(false);
 }
-function schedule(){clearTimeout(timer);timer=setTimeout(render,180);}
+function schedule(delay=180){clearTimeout(timer);timer=setTimeout(render,delay);}
 function cancel(reason){
  scene=null;clear(reason||"HD-Kacheln für Film/Wechsel ausgeblendet.");
  window.SatelliteQualityCompare?.invalidate("Film oder Bildauswahl geändert; Vergleich zurückgesetzt.");
@@ -248,7 +282,7 @@ async function compositeLayers(ctx,sceneData,grid,choice){
  return overlay;
 }
 async function exportImage(format="png"){
- if(downloadBusy||!scene||quality.value==="standard")return;
+ if(downloadBusy||!scene||quality.value==="standard"||quality.value==="economy")return;
  const gen=epoch,ctxScene={...scene},grid=layout;
  if(!grid||grid.width!==({hd:2048,"4k":4096}[quality.value])){
   setInfo("Für den Download bitte zunächst das gewählte HD-/4K-Bild laden.");return;
@@ -294,14 +328,14 @@ async function exportImage(format="png"){
   setInfo("HD-/4K-"+format.toUpperCase()+" nicht möglich: "+(error?.message||String(error)));
  }finally{
   downloadBusy=false;
-  download.disabled=!scene||quality.value==="standard";
+  download.disabled=!scene||quality.value==="standard"||quality.value==="economy";
   if(pdfButton)pdfButton.disabled=download.disabled||!isobarChoice?.checked;
  }
 }
 download.addEventListener("click",()=>exportImage("png"));
 if(pdfButton)pdfButton.addEventListener("click",()=>exportImage("pdf"));
 if(isobarChoice)isobarChoice.addEventListener("change",()=>{
- if(pdfButton)pdfButton.disabled=downloadBusy||quality.value==="standard"||!scene||!isobarChoice.checked;
+ if(pdfButton)pdfButton.disabled=downloadBusy||(quality.value==="standard"||quality.value==="economy")||!scene||!isobarChoice.checked;
 });
 /* Read-only verified scene plan for the opt-in, like-for-like comparison.
  * Uses the SAME pixel-aligned tileUrl and grid geometry as HD/4K download.
@@ -327,5 +361,5 @@ function comparisonPlan(mode){
  return {scene:selectedScene,width:grid.width,height:grid.height,bbox:regions[selectedScene.region].slice(0,4),tiles:images};
 }
 window.SatelliteHD={sync:ready,cancel,viewChanged,boundsForTile,exportImage,comparisonPlan};
-setInfo("Standard · 800 px Einzelbild; echte HD-Kacheln bei Zoom oder Moduswechsel.");
+setInfo("Automatisch · erst 800 px Vorschau, danach 2048 px im Hintergrund · 4K ab 300 % Zoom.");
 })();
