@@ -561,6 +561,7 @@ node --test tests/test_satelliten_ui.cjs
 node --test tests/test_satellite_phase12.cjs
 node --test tests/test_satellite_source_alignment.cjs
 node --test tests/test_satellite_hd.cjs
+node --test tests/test_satellite_quality_comparison.cjs
 node --test tests/test_satellite_fullhd_film.cjs
 node --test tests/test_satellite_film.cjs
 grep -Eq 'src="satelliten[.]js([?][^"]*)?"' _site/satelliten.html
