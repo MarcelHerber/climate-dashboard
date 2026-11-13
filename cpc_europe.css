@@ -18,6 +18,8 @@ h3{font-size:1rem;margin:0 0 12px}
 .cpc-fields label{display:flex;flex-direction:column;gap:6px;flex:1 1 190px;font-size:.84rem;font-weight:600}
 .cpc-fields select,.cpc-fields input{border:1px solid #b8cbda;color:var(--cpc-ink);background:var(--cpc-card);font:inherit;border-radius:9px;min-height:44px;padding:9px;max-width:100%}
 .cpc-fields :focus-visible,button:focus-visible{outline:3px solid #2878b5;outline-offset:2px}
+.cpc-smoothing-control{display:flex;align-items:flex-start;gap:10px;margin:14px 0 0;font-size:.85rem;color:var(--cpc-muted);cursor:pointer}
+.cpc-smoothing-control input{flex:none;width:18px;height:18px;margin:2px 0 0;accent-color:#2878b5}
 .cpc-export{display:flex;flex-wrap:wrap;gap:9px;margin-top:15px}
 .cpc-export button{border:1px solid #aac2d6;border-radius:8px;background:#eaf3fa;color:#153c5c;min-height:42px;padding:8px 14px;font-weight:600;cursor:pointer}
 .cpc-export button:not(:disabled):hover{background:#d7eafa}
