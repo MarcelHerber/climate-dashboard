@@ -83,7 +83,7 @@ def audit(browser,kind,width):
             return !!chart && !!document.querySelector('script[src*="scientific_vector_actions.js"]') &&
               chart.data.datasets.some((dataset,i)=>chart.isDatasetVisible(i) &&
                 dataset.data?.some(v=>typeof v==='number'&&Number.isFinite(v)));
-        }""",target,timeout=160000)
+        }""",arg=target,timeout=160000)
         controls=page.locator("#"+target).locator("xpath=..").locator("xpath=following-sibling::div[contains(@class,'cd-sciv-actions')][1]")
         controls.wait_for(state="visible",timeout=30000)
         before=page.evaluate("""id=>JSON.stringify(Chart.getChart(document.getElementById(id)).data.datasets.map(ds=>ds.data))""",target)
