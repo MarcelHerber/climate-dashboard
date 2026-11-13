@@ -129,6 +129,11 @@ def exercise(page, viewport_label, official_xml):
 
     evidence["hd_script_available"]=page.evaluate("() => typeof window.SatelliteHD?.sync === 'function'")
     evidence["hd_tiles_present"]=page.locator("#satHDTiles").count()==1
+    evidence["tile_cache_ready"]=page.evaluate("() => typeof window.SatelliteTileCache?.create === 'function' && typeof window.SatelliteHD?.cacheStats === 'function'")
+    evidence["tile_cache_clear_visible"]=page.locator("#satClearTileCache").count()==1
+    evidence["tile_cache_start_empty"]=page.evaluate("() => window.SatelliteHD?.cacheStats()?.entries === 0")
+    assert evidence["tile_cache_ready"] and evidence["tile_cache_clear_visible"], "MTG WMS tile cache not loaded before HD"
+
     evidence["quality_compare_script"]=page.evaluate("() => typeof window.SatelliteQualityCompare?.compare === 'function'")
     evidence["quality_compare_grid_present"]=page.locator("#satCompareGrid").count()==1
     evidence["quality_compare_initially_hidden"]=page.locator("#satCompareGrid").is_hidden()
