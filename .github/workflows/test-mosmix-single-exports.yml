@@ -1,6 +1,13 @@
 name: MOSMIX Einzel-Diagramm-Downloads · PNG Vektor-PDF SVG
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "mosmix.js"
+      - "tests/test_mosmix_single_exports_browser.mjs"
+      - "tests/test_mosmix_single_exports_e2e.mjs"
+      - ".github/workflows/test-mosmix-single-exports.yml"
   pull_request:
     paths:
       - "mosmix.js"
