@@ -102,11 +102,14 @@ function buildScene(chart,info){
     dates.push({text:String(labels[i]||""),px:xa(i)});
   const metadata=(info?.metadata||[]).map(String);
   return {title:String(info?.title||"Ensemblevorhersage"),metadata,
-    axis:String(info?.axis||""),series,ticks,dates,plot:P,model:String(info?.model||"")};
+    axis:String(info?.axis||""),series,ticks,dates,plot:P,model:String(info?.model||""),
+    subtitle:String(info?.subtitle||"Ensemble-Vektorexport"),
+    source:String(info?.source||"Quelle: Open-Meteo Ensemble API / zugrunde liegende Modelle")};
 }
 function legend(scene){
  const out=[],seen=new Set();
- const members=scene.series.filter(s=>s.label.startsWith("Member "));
+ const isMember=s=>/^(?:_?(?:GEFS|EPS)(?:[_ ]|$)|Member )/i.test(s.label);
+ const members=scene.series.filter(isMember);
  if(members.length)out.push({label:"Member ("+members.length+")",hex:"#64748b"});
  for(const series of scene.series){
    const label=series.label;
@@ -115,7 +118,7 @@ function legend(scene){
       label.startsWith("Hauptlauf")?"Hauptlauf":
       label.startsWith("Ensemble-Mittel")?"Ensemble-Mittel":
       label.includes("1991–2020")?"ERA5 1991–2020":
-      label.startsWith("Member ")?"Member":
+      isMember(series)?"Member":
       label;
    if(key==="Member"||seen.has(key))continue;
    seen.add(key);
@@ -134,11 +137,11 @@ function svgScene(scene,index){
  let s='<defs><clipPath id="'+clipid+'"><rect x="'+P.x+'" y="'+(P.y+dy)+'" width="'+P.w+'" height="'+P.h+'"/></clipPath></defs>';
  s+='<g id="'+prefix+'metadata" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Angaben')+'">';
  s+=svgText(65,62+dy,scene.title,31,"#152c43");
- s+=svgText(66,95+dy,scene.axis+" · Ensemble-Vektorexport",19,"#41566a");
+ s+=svgText(66,95+dy,scene.axis+" · "+scene.subtitle,19,"#41566a");
  scene.metadata.slice(0,5).forEach((v,i)=>s+=svgText(66,127+dy+i*23,v,16,"#475569"));
  const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
  if(created)s+=svgText(P.x,863+dy,created,15);
- s+=svgText(P.x,887+dy,"Quelle: Open-Meteo Ensemble API / zugrunde liegende Modelle",15);
+ s+=svgText(P.x,887+dy,scene.source,15);
  s+=svgText(P.x,911+dy,"UTC (Z) · Mess- und Prognosewerte unverändert · Kurven als benannte Vektorebenen",15);
  s+="</g>";
  s+='<g id="'+prefix+'legend" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Legende')+'">';
@@ -188,7 +191,7 @@ function drawPdf(pdf,scene){
  };
  pdf.setFillColor(255,255,255);pdf.rect(0,0,pw,ph,"F");
  text(scene.title,65,62,31,"#152c43");
- text(scene.axis+" · Vektor-PDF",66,95,19,"#41566a");
+ text(scene.axis+" · "+scene.subtitle,66,95,19,"#41566a");
  scene.metadata.slice(0,5).forEach((m,i)=>text(m,66,127+i*23,16,"#475569"));
  let lx=585;
  for(const item of legend(scene)){
@@ -201,7 +204,7 @@ function drawPdf(pdf,scene){
  }
  const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
  if(created)text(created,P.x,863,15);
- text("Quelle: Open-Meteo Ensemble API / Modelle",P.x,887,15);
+ text(scene.source,P.x,887,15);
  text("UTC (Z) · einzelne Kurven als Vektorpfade · Daten unverändert",P.x,911,15);
  pdf.setLineWidth(.5);pdf.setDrawColor(196,208,219);pdf.rect(X(P.x),Y(P.y),P.w*s,P.h*s,"S");
  for(const t of scene.ticks){
