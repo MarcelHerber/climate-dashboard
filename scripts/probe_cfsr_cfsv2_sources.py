@@ -8,7 +8,10 @@ still safe here, but is reported as such.
 from __future__ import annotations
 import argparse
 import requests
-from scripts.import_cfsr_cfsv2_1991_2020 import source_url
+try:
+    from scripts.import_cfsr_cfsv2_1991_2020 import source_url
+except ModuleNotFoundError:
+    from import_cfsr_cfsv2_1991_2020 import source_url
 
 
 def probe(url: str) -> dict:
