@@ -63,7 +63,7 @@ def decode_q10(data: str, shape: tuple[int, ...]) -> np.ndarray:
 
 def analysis_url(day: date, cycle: int) -> str:
     if cycle not in CYCLES:
-        raise ValueError("Only 00,06,12,18 UTC analysis cycles")
+        raise ValueError("Only 00,06,12,18 UTC model cycles")
     params = {
         "file": f"gfs.t{cycle:02d}z.pgrb2.0p50.f003",
         "lev_2_m_above_ground": "on",
@@ -136,7 +136,7 @@ def read_byte_range(day: date, cycle: int, *, host: str) -> tuple[bytes, str, st
     """Official GRIB index byte offsets for exactly the 2m TMP analysis field.
 
     Avoid pulling 140 MB whole-world model files. Only request the ~260 KB
-    GFS f000 temperature message using HTTP 206 Range support.
+    GFS f003 temperature message using HTTP 206 Range support.
     """
     url = object_url(day, cycle, host=host)
     index_res = requests.get(url + ".idx", timeout=(15, 40),
@@ -216,7 +216,7 @@ def save_day(day: date) -> Path:
     stack = np.stack(fields)
     daily = stack.mean(axis=0)
     if np.count_nonzero(np.isfinite(daily)) < WIDTH * HEIGHT * 0.99:
-        raise ValueError("Incomplete GFS analysis coverage")
+        raise ValueError("Incomplete GFS f003 coverage")
     RAW.mkdir(parents=True, exist_ok=True)
     path = RAW / f"{day.isoformat()}.json"
     info = {
@@ -269,8 +269,8 @@ def load_days(days: int = 110) -> list[tuple[date, np.ndarray]]:
             or obj.get("cycles_utc") != [0, 6, 12, 18]
             or len(obj.get("sources", [])) != 4):
             raise ValueError(f"Unverified GFS sample: {path}")
-        if any(item.get("forecast_hour") != 0 for item in obj["sources"]):
-            raise ValueError("Forecast data detected in analysis archive")
+        if any(item.get("forecast_hour") != 3 for item in obj["sources"]):
+            raise ValueError("Wrong forecast lead in GFS f003 archive")
         collection.append((d, decode_q10(obj["temperature_c_q10_b64"], (HEIGHT, WIDTH))))
     return collection
 
@@ -278,7 +278,7 @@ def load_days(days: int = 110) -> list[tuple[date, np.ndarray]]:
 def publish_index(archive: list[tuple[date, np.ndarray]], *,
                   normal: tuple[np.ndarray, dict] | None, out: Path) -> dict:
     if not archive:
-        raise RuntimeError("No verified GFS analysis days")
+        raise RuntimeError("No verified GFS f003 forecast days")
     dates = [d for d, _ in archive]
     if dates != sorted(set(dates)):
         raise ValueError("GFS days not sorted or duplicated")
@@ -331,7 +331,7 @@ def main() -> None:
             except RuntimeError as exc:
                 print(f"Skipping incomplete GFS day: {exc}", flush=True)
         if successes == 0 and not RAW.exists():
-            raise RuntimeError("No complete genuine GFS analysis day available")
+            raise RuntimeError("No complete genuine GFS f003 forecast day available")
     days = load_days()
     ref = read_normals(BASELINE)
     result = publish_index(days, normal=ref, out=OUT / "index_f003.json")
