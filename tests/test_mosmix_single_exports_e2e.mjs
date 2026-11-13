@@ -27,9 +27,9 @@ try{
     '<select id="mosmixDiagramRange"><option value="all">Alle Tage</option><option value="72" selected>Ab jetzt · 3 Tage</option></select>'+
     '<div id="mosmixExportStatus"></div>'+
     ids.map(id=>'<canvas id="'+id+'" width="720" height="300"></canvas>').join("")+
-    '<button id="single-temp-png">Nur Temperatur PNG</button>'+
-    '<button id="single-rain-pdf">Nur Regen PDF</button>'+
-    '<button id="single-temp-svg">Nur Temperatur SVG</button>'+
+
+
+
     '<button id="all-png">Alle PNG</button>'+
     keys.flatMap(key=>formats.map(format=>
       '<button id="single-'+key+'-'+format+'">'+key+' '+format.toUpperCase()+'</button>'
@@ -78,9 +78,9 @@ try{
       "\nreturn {downloadMeteogram,meteogramExportSections};");
     const api=make(...Object.values(dependencies));
     window.mosmixExportTest=api;
-    document.getElementById("single-temp-png").addEventListener("click",()=>api.downloadMeteogram("png","temp"));
-    document.getElementById("single-rain-pdf").addEventListener("click",()=>api.downloadMeteogram("pdf","rain"));
-    document.getElementById("single-temp-svg").addEventListener("click",()=>api.downloadMeteogram("svg","temp"));
+
+
+
     document.getElementById("all-png").addEventListener("click",()=>api.downloadMeteogram("png"));
     for(const key of ["temp","rain","wind","pressure","sun","sunDaily"]){
       for(const format of ["png","pdf","svg"]){
