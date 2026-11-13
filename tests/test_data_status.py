@@ -135,6 +135,34 @@ class DataStatusTests(unittest.TestCase):
         self.assertIn("15/30", rows["era5_strat_reference"]["note"])
 
 
+    def test_historical_stratosphere_wind_progress_counts_only_verified_days(self):
+        latest = (datetime.now(timezone.utc).date()-timedelta(days=6)).isoformat()
+        all_winds = {f"u60_{level}": 18.0 for level in (10,30,50,100)}
+        latest_values = {"date": latest, **all_winds,
+                         **{f"tcap_{level}": -55.0 for level in (10,30,50,100)}}
+        rows = [
+            {"date": "1991-01-01", **all_winds},
+            {"date": "1991-01-02", "u60_10": 19.0},  # incomplete
+            {"date": "1992-02-29", **all_winds},
+            latest_values,
+        ]
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            folder = root / "era5_stratosphere"
+            folder.mkdir()
+            (folder/"index.json").write_text(json.dumps({
+                "ready": True, "data_through": latest,
+                "reference_years_completed": 30,
+                "reference_wind_years_completed": 0,
+                "reference": {}, "series": rows
+            }), encoding="utf-8")
+            with patch.object(status, "ROOT", root):
+                results = {row["id"]: row for row in status.build()["datasets"]}
+        self.assertEqual(results["era5_strat"]["status"], "current")
+        self.assertEqual(results["era5_strat_reference"]["status"], "incomplete")
+        self.assertIn("Windtageswerte: 2/10958", results["era5_strat_reference"]["coverage"])
+        self.assertIn("Zonalwind: 0/366", results["era5_strat_reference"]["coverage"])
+
     def test_forecasts_do_not_use_valid_end_as_last_observation(self):
         now = datetime.now(timezone.utc)
         run_date = now.date().isoformat()
