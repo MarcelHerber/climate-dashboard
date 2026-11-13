@@ -15,9 +15,11 @@ on:
     - cron: "13 * * * *"
   workflow_dispatch:
   # Actions-authored snow profile data commits do not fire another push run.
-  # Publish the rebuilt historical year curves after that workflow succeeds.
+  # Publish the rebuilt historical year curves, and refresh MTG timestamps
+  # as soon as the verified monitor has committed them to main. Bot pushes
+  # made with GITHUB_TOKEN do not independently trigger the push workflow.
   workflow_run:
-    workflows: ["Build DWD snow-height profiles", "Update satellite ECMWF isobars"]
+    workflows: ["Build DWD snow-height profiles", "Update satellite ECMWF isobars", "MTG EUMETView live data check"]
     types: [completed]
 
 permissions:
