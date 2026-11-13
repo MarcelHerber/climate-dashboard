@@ -14,7 +14,7 @@
     range:$("cpcPreset"), start:$("cpcStart"), end:$("cpcEnd"),
     period:$("cpcPeriodLabel"), updated:$("cpcDataStatus"),
     table:$("cpcCountryRows"), selected:$("cpcSelected"),
-    legend:$("cpcLegend"), png:$("cpcPng"), pdf:$("cpcPdf"),
+    legend:$("cpcLegend"), smooth:$("cpcSmooth"), png:$("cpcPng"), pdf:$("cpcPdf"),
     csv:$("cpcCsv"), message:$("cpcMessage"), chart:$("cpcChart")
   };
   if (!el.canvas) return;
@@ -63,11 +63,17 @@
       throw new Error("Unstimmiger Datenstand.");
   }
   function shade(){
-    const html=LEVELS.map((v,i) =>
-      '<span title="'+(v>0?"+":"")+v+' K" style="background:'+rgb(i)+'"></span>').join("");
-    el.legend.innerHTML='<div class="cpc-spectrum">'+html+'</div>'+
+    const soft=Boolean(el.smooth?.checked);
+    const stops=LEVELS.map((v,i)=>COLORS[i]+" "+((v+8)/16*100).toFixed(2)+"%").join(",");
+    const discrete=LEVELS.map((v,i)=>
+      '<span title="'+(v>0?"+":"")+v+' K" style="background:'+COLORS[i]+'"></span>').join("");
+    el.legend.innerHTML='<div class="cpc-spectrum"'+
+      (soft?' style="background:linear-gradient(to right,'+stops+')"':'')+'>'+
+      (soft?"":discrete)+'</div>'+
       '<div class="cpc-legend-values"><span>−8 K</span><span>−4</span><span>0</span><span>+4</span><span>+8 K</span></div>'+
-      '<small>Dieselben diskreten Farbstufen wie bei ERA5-Land · 0 K neutral</small>';
+      '<small>ERA5-Land-Farbwerte · '+(soft?
+        "Weiche Darstellung; unveränderte 0,5°-Beobachtungswerte":
+        "Originales 0,5°-Raster; diskrete Farbklassen")+"</small>";
   }
   function selectedRange(){
     const end=el.end.value, start=el.start.value;
@@ -134,19 +140,69 @@
     })).filter(c=>Number.isFinite(c.value) && c.coverage>=0.45)
       .sort((a,b)=>b.value-a.value);
   }
+  // These RGB values are the unmodified ERA5 palette anchors. Interpolation
+  // applies ONLY to display pixels; the NOAA observations remain at 0.5°.
+  const PALETTE_RGB=COLORS.map(hex=>[
+    parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)
+  ]);
+  const SOFT_PALETTE=Array.from({length:321},(_,i)=>{
+    const v=-8+i/20;
+    let j=0;
+    while(j<LEVELS.length-2&&v>LEVELS[j+1])j++;
+    const t=Math.max(0,Math.min(1,(v-LEVELS[j])/(LEVELS[j+1]-LEVELS[j])));
+    return PALETTE_RGB[j].map((c,k)=>Math.round(c+(PALETTE_RGB[j+1][k]-c)*t));
+  });
+  const SEA_RGB=[234,240,243];
   function drawMap(field){
-    const cw=data.width,ch=data.height, px=10;
+    const cw=data.width,ch=data.height,px=10;
     const canvas=el.canvas,ctx=canvas.getContext("2d",{alpha:false});
     canvas.width=cw*px;canvas.height=ch*px;
-    ctx.fillStyle="#eaf0f3";ctx.fillRect(0,0,canvas.width,canvas.height);
-    for(let y=0;y<ch;y++){
-      for(let x=0;x<cw;x++){
-        const k=y*cw+x,v=field[k];
+    const soft=Boolean(el.smooth?.checked);
+    if(!soft){
+      ctx.fillStyle="#eaf0f3";ctx.fillRect(0,0,canvas.width,canvas.height);
+      for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){
+        const v=field[y*cw+x];
         if(!Number.isFinite(v))continue;
         ctx.fillStyle=COLORS[colorIndex(v)];
         ctx.fillRect(x*px,y*px,px,px);
       }
+      drawn=true;return;
     }
+    // Bilinear interpolation between four REAL, present native grid cells.
+    // At a coast, sparse-data edge or missing cell, retain the original cell
+    // without inventing observations or drawing color over empty territory.
+    const w=canvas.width,h=canvas.height;
+    const image=ctx.createImageData(w,h),rgba=image.data;
+    for(let py=0;py<h;py++){
+      const yNative=Math.min(ch-1,Math.floor(py/px));
+      const gy=(py+0.5)/px-0.5;
+      const y0=Math.max(0,Math.min(ch-1,Math.floor(gy)));
+      const y1=Math.max(0,Math.min(ch-1,y0+1));
+      const fy=Math.max(0,Math.min(1,gy-y0));
+      const row0=y0*cw,row1=y1*cw;
+      for(let p=0;p<w;p++){
+        const nativeX=Math.min(cw-1,Math.floor(p/px));
+        const native=field[yNative*cw+nativeX];
+        const pos=(py*w+p)*4;
+        if(!Number.isFinite(native)){
+          rgba[pos]=SEA_RGB[0];rgba[pos+1]=SEA_RGB[1];rgba[pos+2]=SEA_RGB[2];rgba[pos+3]=255;
+          continue;
+        }
+        const gx=(p+0.5)/px-0.5;
+        const x0=Math.max(0,Math.min(cw-1,Math.floor(gx)));
+        const x1=Math.max(0,Math.min(cw-1,x0+1));
+        const fx=Math.max(0,Math.min(1,gx-x0));
+        const a=field[row0+x0],b=field[row0+x1];
+        const c=field[row1+x0],d=field[row1+x1];
+        const v=(Number.isFinite(a)&&Number.isFinite(b)&&Number.isFinite(c)&&Number.isFinite(d))
+          ? a*(1-fx)*(1-fy)+b*fx*(1-fy)+c*(1-fx)*fy+d*fx*fy
+          : native;
+        const lookup=Math.max(0,Math.min(320,Math.round((v+8)*20)));
+        const rgb=SOFT_PALETTE[lookup];
+        rgba[pos]=rgb[0];rgba[pos+1]=rgb[1];rgba[pos+2]=rgb[2];rgba[pos+3]=255;
+      }
+    }
+    ctx.putImageData(image,0,0);
     drawn=true;
   }
   function table(stats){
@@ -269,6 +325,7 @@
     if(id>=0){selectedCountry=id;tableSelect();}
   });
   el.range.addEventListener("change",()=>applyPreset(el.range.value));
+  el.smooth?.addEventListener("change",()=>{shade();render();});
   [el.start,el.end].forEach(node=>node.addEventListener("change",()=>{
     el.range.value="custom";render();
   }));
