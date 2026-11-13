@@ -53,6 +53,30 @@ def main():
                     assert page.locator("#cpcCountryRows tr[data-country]").count()>=20
                     assert page.locator("#cpcMap").evaluate("e=>e.width")>=1000
                     assert page.locator("#cpcBoundaries").evaluate("e=>e.complete && e.naturalWidth>1000")
+                    # Visual-only smoothing must yield many interpolated colors,
+                    # while the source country means and latest observation date stay unchanged.
+                    original_row=page.locator("#cpcCountryRows tr[data-country]").first.inner_text()
+                    original_date=page.locator("#cpcDataStatus").inner_text()
+                    assert page.locator("#cpcSmooth").is_checked()
+                    count_colors="""() => {
+                      const c=document.getElementById("cpcMap");
+                      const d=c.getContext("2d").getImageData(0,0,c.width,c.height).data;
+                      const colors=new Set();
+                      for(let y=12;y<c.height-12;y+=7)for(let x=12;x<c.width-12;x+=7){
+                        const p=(y*c.width+x)*4;
+                        colors.add(d[p]+","+d[p+1]+","+d[p+2]);
+                      }
+                      return colors.size;
+                    }"""
+                    soft_colors=page.evaluate(count_colors)
+                    page.locator("#cpcSmooth").uncheck()
+                    raster_colors=page.evaluate(count_colors)
+                    assert soft_colors>raster_colors+30,(soft_colors,raster_colors)
+                    assert raster_colors<=25,raster_colors
+                    assert page.locator("#cpcCountryRows tr[data-country]").first.inner_text()==original_row
+                    assert page.locator("#cpcDataStatus").inner_text()==original_date
+                    page.locator("#cpcSmooth").check()
+                    assert page.evaluate(count_colors)==soft_colors
                     page.select_option("#cpcPreset","7")
                     assert "7 beobachtete Tage" in page.locator("#cpcPeriodLabel").inner_text()
                     page.select_option("#cpcPreset","30")
