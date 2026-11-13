@@ -48,7 +48,7 @@ def selected_picture(page, choice):
                 "valid_label":page.locator("#satValid").inner_text()[:120]}
 
 
-def finished_overlay(page, name, timeout=20000):
+def finished_overlay(page, name, timeout=25000):
     if name=="radar":
         toggle="#satShowRadar";text="#satRadarStatus";layer="#satRadarOverlay"
     else:
@@ -58,12 +58,14 @@ def finished_overlay(page, name, timeout=20000):
         page.wait_for_function("""(selector)=>{
           const msg=document.querySelector(selector)?.textContent||'';
           return !/Prüfe|Wird geladen|Lade /i.test(msg)&&msg.length>8;
-        }""",text,timeout=timeout)
+        }""",arg=text,timeout=timeout)
     except Exception:
         pass
     message=page.locator(text).inner_text()
     visible=not page.locator(layer).is_hidden()
+    pending=bool(re.search(r"Prüfe|Wird geladen|Lade ",message,re.IGNORECASE))
     return {"displayed":visible, "status":message[:350],
+            "pending_after_timeout":pending,
             "status_has_utc":bool(UTC.search(message))}
 
 
@@ -131,12 +133,15 @@ def snapshot(page, viewport):
     result["overlay_reference"]=sample
     result["overlay_checks"]={}
     if sample.get("ok"):
-        result["overlay_checks"]["li"]=finished_overlay(page,"li",timeout=18000)
-        result["overlay_checks"]["radar"]=finished_overlay(page,"radar",timeout=23000)
+        result["overlay_checks"]["li"]=finished_overlay(page,"li",timeout=24000)
+        result["overlay_checks"]["radar"]=finished_overlay(page,"radar",timeout=38000)
         for key,check in result["overlay_checks"].items():
             if check["displayed"] and not check["status_has_utc"]:
                 check["warning"]="Layer is visible, but status lacks a verifiable UTC stamp."
-            check["temporal_consistency"]=temporal_assertion(key,check,sample["time"])
+            check["temporal_consistency"]=(
+                "ERROR: unfinished loading state after source timeout"
+                if check["pending_after_timeout"] else
+                temporal_assertion(key,check,sample["time"]))
     else:
         result["overlay_checks"]["warning"]="No confirmed GeoColour image: overlays not asserted."
     result["compare_opt_in"]=page.locator("#satCompareRun").count()==1
@@ -183,7 +188,16 @@ def main():
               "overlay":item.get("overlay_checks")}
         for name,item in results["tests"].items()
     },ensure_ascii=False,indent=2),flush=True)
-    return 1 if any("error" in item for item in results["tests"].values()) else 0
+    page_errors=any("error" in item for item in results["tests"].values())
+    pending=any(check.get("pending_after_timeout",False)
+                for item in results["tests"].values()
+                for check in item.get("overlay_checks",{}).values()
+                if isinstance(check,dict))
+    bad_alignment=any(str(check.get("temporal_consistency","")).startswith("ERROR")
+                for item in results["tests"].values()
+                for check in item.get("overlay_checks",{}).values()
+                if isinstance(check,dict))
+    return 1 if page_errors or pending or bad_alignment else 0
 
 
 if __name__=="__main__":
