@@ -14,6 +14,9 @@ const scripts={
 const browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
 try{
  for(const vp of [{name:"desktop",width:1440,height:900},{name:"mobile",width:390,height:844}]){
+  // Chromium may block automatic downloads after ~10 files from one page.
+  // Reset the browser context for each chart; the real user downloads one at a time.
+  for(const selectedKey of ["temp","rain","wind","pressure","sun","sunDaily","all"]){
   const context=await browser.newContext({viewport:vp,acceptDownloads:true});
   const page=await context.newPage();
   const errors=[];
@@ -90,7 +93,7 @@ try{
     }
   },code);
   // Every chart gets its own PNG, vector PDF and layered SVG, on both viewports.
-  for(const key of keys)for(const format of formats){
+  for(const key of selectedKey==="all"?[]:[selectedKey])for(const format of formats){
     const suffix="_"+key+"."+format;
     let download;
     try{
@@ -117,6 +120,7 @@ try{
     }else assert.deepEqual([...readFile(path).subarray(0,8)],[137,80,78,71,13,10,26,10]);
     console.log("MOSMIX SINGLE EXPORT",vp.name,key,format,statSync(path).size,"bytes");
   }
+  if(selectedKey==="all"){
   const [all]=await Promise.all([
     page.waitForEvent("download",{timeout:60000}),
     page.locator("#all-png").click()
@@ -125,8 +129,10 @@ try{
   const allPath="/tmp/mosmix-real-"+vp.name+"-all-meteograms.png";
   await all.saveAs(allPath);
   assert.ok(statSync(allPath).size>8000);
+  }
   assert.deepEqual(errors,[],"Browser JS errors "+errors.join(";"));
   await context.close();
+  }
  }
 }finally{await browser.close()}
 console.log("PASS: 6 charts × PNG, vector PDF, layered SVG on desktop and mobile");
