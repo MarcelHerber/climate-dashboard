@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import hashlib
 import json
 import time
 import tempfile
@@ -202,7 +203,10 @@ def retrieve_wind_chunk(client, year, month, days, levels=(10,30,50,100)):
     CACHE.mkdir(parents=True,exist_ok=True)
     days = tuple(sorted(days))
     levels = tuple(levels)
-    key = f"u60_{year}_{month:02d}_d{days[0]:02d}-{days[-1]:02d}_l{'-'.join(map(str,levels))}_v2.zip"
+    # A partially filled month can request nonconsecutive missing days.
+    # The cache key must distinguish the exact requested set (not just endpoints).
+    day_fingerprint = hashlib.sha256(",".join(map(str,days)).encode()).hexdigest()[:12]
+    key = f"u60_{year}_{month:02d}_d{days[0]:02d}-{days[-1]:02d}_{day_fingerprint}_l{'-'.join(map(str,levels))}_v3.zip"
     path = CACHE/key
     if not path.exists() or path.stat().st_size==0:
         request = {
@@ -280,11 +284,15 @@ def cds_day_unavailable(error):
 
 
 def daily_chunks(year, month, last_day, *, current=False, cutoff=None):
-    """Newest current-day candidates one by one, so D-5 cannot block D-6/7."""
+    """Full-month historical CDS requests; current candidates remain five-day chunks.
+
+    The CDS retrieval function recursively splits oversized real source requests,
+    so a month reduces queue overhead without risking substituted data.
+    """
+    if not current:
+        return [list(range(1,last_day+1))] if last_day else []
     chunks = [list(range(first, min(first+5,last_day+1)))
               for first in range(1,last_day+1,5)]
-    if not current:
-        return chunks
     chunks.reverse()
     if cutoff is not None and year == cutoff.year and month == cutoff.month and chunks:
         # The newest calendar chunk can include an unpublished daily product.
@@ -321,11 +329,20 @@ def update_year(client, year, *, current=False, max_chunks=3, max_minutes=None):
                       "preserving verified days for publication.", flush=True)
                 return len(by_date)
             stamp=[f"{year}-{month:02d}-{day:02d}" for day in days]
-            if all(all(isinstance(by_date.get(day,{}).get(f"u60_{lev}"), (int,float))
-                           and np.isfinite(by_date[day][f"u60_{lev}"])
+            missing_days = [
+                day for day,iso in zip(days,stamp)
+                if not all(isinstance(by_date.get(iso,{}).get(f"u60_{lev}"), (int,float))
+                           and np.isfinite(by_date[iso][f"u60_{lev}"])
                            for lev in (10,30,50,100))
-                   for day in stamp):
+            ]
+            if not missing_days:
                 continue
+            if not current:
+                # Request only genuinely missing historic days: a complete
+                # month is one job, while gaps in previously processed months
+                # do not trigger expensive re-downloads of verified winds.
+                days = missing_days
+                stamp = [f"{year}-{month:02d}-{day:02d}" for day in days]
             try:
                 rows=retrieve_wind_chunk(client,year,month,days)
             except Exception as error:
