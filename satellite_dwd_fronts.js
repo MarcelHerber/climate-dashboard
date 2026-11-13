@@ -78,7 +78,9 @@ function render(){
  status.textContent=(warning||"DWD-Originalkarte verifiziert. ")+
   "Bild wird direkt vom Deutschen Wetterdienst geladen …";
  if(activeURL!==selected.source_url){
-  image.hidden=true;activeURL=selected.source_url;const desired=activeURL;
+  // A hidden lazy-loaded <img> may never trigger onload. Make it eligible
+  // for viewport-based loading while the status still says "loading".
+  image.hidden=false;activeURL=selected.source_url;const desired=activeURL;
   image.onload=()=>{
    if(activeURL===desired){
     image.hidden=false;
