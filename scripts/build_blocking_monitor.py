@@ -193,6 +193,11 @@ def render_map(lats,lons,z500,day,blocking,output):
     plt.close(fig)
 
 
+def candidate_days(today: date) -> list[date]:
+    """Probe D-5 to D-10 instead of enforcing an artificial D-8 latency."""
+    return [today-timedelta(days=lag) for lag in range(5,11)]
+
+
 def build(output=DEST, today=None,client=None):
     import update_era5_stratosphere as era
     today=today or datetime.now(timezone.utc).date()
@@ -203,7 +208,7 @@ def build(output=DEST, today=None,client=None):
     if metadata.is_file() and png.is_file():
         try:
             prior=json.loads(metadata.read_text(encoding="utf-8"))
-            if (date.fromisoformat(prior["analysis_date"]) >= today-timedelta(days=8)
+            if (date.fromisoformat(prior["analysis_date"]) >= candidate_days(today)[0]
                     and prior.get("renderer_version")==RENDERER_VERSION):
                 print("Blocking ERA5 archive current:",prior["analysis_date"])
                 return prior
@@ -212,10 +217,15 @@ def build(output=DEST, today=None,client=None):
     if client is None:
         import cdsapi
         client=cdsapi.Client()
-    # Try latest reliable ERA5 days, fall back to older verified dates.
+    # Prefer recent complete UTC dates, but never downgrade a verified map.
     errors=[]
-    for ago in (8,9,10):
-        target=today-timedelta(days=ago)
+    for target in candidate_days(today):
+        if prior and prior.get("renderer_version")==RENDERER_VERSION:
+            try:
+                if target <= date.fromisoformat(prior["analysis_date"]):
+                    continue
+            except (KeyError,ValueError):
+                pass
         dates=[target-timedelta(days=i) for i in range(4,-1,-1)]
         fields={}
         try:
