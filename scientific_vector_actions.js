@@ -120,10 +120,16 @@ async function download(canvas,format,row){
 }
 function add(chart){
  const canvas=chart.canvas,target=TARGETS[canvas?.id];
- if(!target||!activeData(chart)||chart.config?.type!=="line"||
-   chart.scales?.x?.type!=="category" ||
-   chart.data.datasets.some((ds,i)=>
-     chart.isDatasetVisible?.(i)!==false && ds.type && ds.type!=="line"))return;
+ if(!target)return;
+ const eligible=activeData(chart)&&chart.config?.type==="line"&&
+   chart.scales?.x?.type==="category"&&
+   !chart.data.datasets.some((ds,i)=>
+     chart.isDatasetVisible?.(i)!==false && ds.type && ds.type!=="line");
+ if(!eligible){
+   const old=controls.get(canvas);
+   if(old){old.remove();controls.delete(canvas);}
+   return;
+ }
  if(controls.has(canvas))return;
  const wrapper=canvas.closest(".chart,.chart-container,.station-snow-chart,.strato-eps-chart,.sja-chartbox")||canvas.parentElement;
  if(!wrapper?.insertAdjacentElement)return;
