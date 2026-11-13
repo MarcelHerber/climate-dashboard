@@ -1,6 +1,7 @@
 "use strict";
 const test=require("node:test"),assert=require("node:assert/strict"),fs=require("node:fs"),vm=require("node:vm");
 const source=fs.readFileSync("satellite_hd.js","utf8"),html=fs.readFileSync("satelliten.html","utf8");
+const cacheSource=fs.readFileSync("satellite_tile_cache.js","utf8");
 const shell=fs.readFileSync("scripts/build_pages_site.sh","utf8");
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(ok,what,ms=3600){const end=Date.now()+ms;while(!ok()){if(Date.now()>end)throw Error("Timeout: "+what);await delay(15);}}
@@ -50,6 +51,7 @@ function setup(){
   renderPDF:async()=>({blob:{size:2000},name:"hd_isobaren.pdf"}),
   download(){alerts.pdf++}
  };
+ vm.runInNewContext(cacheSource,context,{timeout:2000});
  vm.runInNewContext(source,context,{timeout:2000});
  return {requests,els,context,view,alerts};
 }
@@ -156,4 +158,19 @@ test("Non-divisible edge tile geographic coordinates match exact pixel raster",a
   const rightRate=(north[i].b[2]-north[i].b[0])/north[i].w;
   assert.ok(Math.abs(leftRate-rightRate)<1e-10,"No geographic jump at seam");
  }
+});
+
+test("HD/PDF export uses the same verified cached pixels after leaving and returning to a frame",async()=>{
+ const a=setup(),q=a.els.get("satStillQuality");q.value="hd";
+ a.context.window.SatelliteHD.sync(live());
+ await until(()=>a.els.get("satHDTiles").children.length===6,"original HD ready");
+ assert.equal(a.requests.length,6);
+ a.context.window.SatelliteHD.cancel("Next UTC in film");
+ a.context.window.SatelliteHD.sync(live());
+ await until(()=>a.els.get("satHDTiles").children.length===6,"HD cache repainted");
+ assert.equal(a.requests.length,6,"HD refetch avoided");
+ await a.context.window.SatelliteHD.exportImage("png");
+ assert.equal(a.alerts.downloads,1);
+ assert.equal(a.requests.length,6,"export uses the original, UTC-checked tile pixels");
+ assert.equal(a.context.window.SatelliteHD.cacheStats().hits,6);
 });
