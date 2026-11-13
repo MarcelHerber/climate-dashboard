@@ -156,7 +156,7 @@ def add_external(items, remote):
         items.append(result("mosmix", "MOSMIX-L", "Vorhersagen",
             mos.get("issue_time"), mos.get("generated_at"),
             f"{count} Prognosepunkte · {len(steps)} Zeitschritte",
-            note, cadence="hourly", allowed_delay=18,
+            note, cadence="hourly", allowed_delay=12,
             incomplete=not (good and quality_ok)))
     else:
         items.append(result("mosmix", "MOSMIX-L", "Vorhersagen", None, None,
@@ -238,7 +238,7 @@ def add_external(items, remote):
             icon.get("run_utc"), icon.get("generated_utc"),
             f"{len(periods)}/5 Vorhersagefenster · 0 bis 120 Stunden",
             "Modellbasierter Gefahrenmonitor, keine amtliche Warnung",
-            cadence="hourly", allowed_delay=24, incomplete=not good))
+            cadence="hourly", allowed_delay=12, incomplete=not good))
     else:
         items.append(result("icon_hazards", "ICON-EU Wettergefahren", "Vorhersagen",
             None, None, "Laufmetadaten fehlen", "Datenzweig vorübergehend nicht prüfbar"))
