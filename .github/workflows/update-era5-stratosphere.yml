@@ -6,6 +6,7 @@ on:
     paths:
       - "scripts/update_era5_stratosphere.py"
       - "scripts/update_era5_stratosphere_stage2.py"
+      - "tests/test_era5_stratosphere_freshness.py"
       - "era5_stratosphere.js"
       - ".github/workflows/update-era5-stratosphere.yml"
   # Four scheduled starts/day; GitHub may delay cron jobs.
@@ -17,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: era5-stratosphere-daily
@@ -47,6 +49,7 @@ jobs:
           python scripts/update_era5_stratosphere.py --self-test
           python -m unittest discover -s tests -p test_era5_stratosphere_reference.py -v
           python -m unittest discover -s tests -p test_era5_stratosphere_backfill_budget.py -v
+          python -m unittest discover -s tests -p test_era5_stratosphere_freshness.py -v
       - name: Configure Copernicus Climate Data Store
         env:
           CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
@@ -70,17 +73,27 @@ jobs:
         id: stage1
         continue-on-error: true
         run: |
-          python scripts/update_era5_stratosphere.py \
-            --current --backfill-one --backfill-chunks 60 \
-            --backfill-budget-minutes 85
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            # Code changes should verify fresh real data, not start a
+            # multi-hour historical CDS backfill.
+            python scripts/update_era5_stratosphere.py --current
+          else
+            python scripts/update_era5_stratosphere.py \
+              --current --backfill-one --backfill-chunks 60 \
+              --backfill-budget-minutes 85
+          fi
       - name: Verify stage-2 polar-cap calculations
         run: python scripts/update_era5_stratosphere_stage2.py --self-test
       - name: Fetch current polar-cap diagnostics and priority SSW temperatures
         run: |
-          python scripts/update_era5_stratosphere_stage2.py \
-            --current --priority-backfill --priority-chunks 6 \
-            --climatology-backfill --climatology-chunks 90 \
-            --climatology-budget-minutes 160
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            python scripts/update_era5_stratosphere_stage2.py --current
+          else
+            python scripts/update_era5_stratosphere_stage2.py \
+              --current --priority-backfill --priority-chunks 6 \
+              --climatology-backfill --climatology-chunks 90 \
+              --climatology-budget-minutes 160
+          fi
       - name: Validate published data
         run: |
           python - <<'PY'
@@ -152,6 +165,8 @@ jobs:
           PY
       - name: Publish stratosphere data without changing existing ERA5 maps
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           cp -a era5_stratosphere /tmp/era5_stratosphere_publish
@@ -168,7 +183,10 @@ jobs:
               exit 0
             fi
             git commit -m "Publish verified ERA5 stratosphere daily values"
-            if git push origin HEAD:main; then exit 0; fi
+            if git push origin HEAD:main; then
+              gh workflow run deploy-pages-only.yml --repo "$GITHUB_REPOSITORY" --ref main || echo "Pages dispatch unavailable; next scheduled deploy will publish"
+              exit 0
+            fi
             echo "Push race detected, retry ${attempt}/3"
           done
           echo "Could not publish after three retries"
