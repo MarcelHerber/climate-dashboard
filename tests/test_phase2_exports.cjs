@@ -81,7 +81,7 @@ test("Pages includes cache-busted presentation assets and all mobile pages",()=>
  assert.match(builder,/version="20261113-t850-vectors-v1" if filename=="t850_ensembles.js"/);
  assert.match(builder,/filename\+"\?v="\+version/);
  assert.match(builder,/t850_vector_export\.js/);
- assert.match(builder,/mosmix\.js\?v=20261113-phase2-exports-v1/);
+ assert.match(builder,/mosmix\.js\?v=20261113-mosmix-mobile-exports-v2/);
  assert.match(builder,/test_mosmix_vector_exports\.mjs/);
  assert.match(mobileBuild,/CONTENT_VERSION="20261113-phase2-responsive-v2"/);
 });
