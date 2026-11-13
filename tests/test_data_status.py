@@ -147,6 +147,24 @@ class DataStatusTests(unittest.TestCase):
             self.assertIn("29–29/31", rows[mode]["coverage"])
             self.assertIn("Missing", rows[mode]["note"])
 
+    def test_opera_requires_real_verified_frames_not_advertised_timestamps(self):
+        now = datetime.now(timezone.utc)
+        recent = (now - timedelta(minutes=20)).isoformat().replace("+00:00", "Z")
+        old = (now - timedelta(hours=5)).isoformat().replace("+00:00", "Z")
+        remote = {"opera": {"updated_utc": now.isoformat(), "products": {
+            "dbzh": {"frames": [{"utc": recent}] * 4},
+            "rate": {"frames": [{"utc": old}] * 8},
+        }}}
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(status, "ROOT", Path(tmp)):
+                rows = {x["id"]: x for x in status.build(remote)["datasets"]}
+                missing = {x["id"]: x for x in status.build({})["datasets"]}
+        self.assertEqual(rows["opera_dbzh"]["status"], "current")
+        self.assertEqual(rows["opera_rate"]["status"], "delayed")
+        self.assertIn("4 überprüfte", rows["opera_dbzh"]["coverage"])
+        self.assertEqual(missing["opera_dbzh"]["status"], "unknown")
+        self.assertEqual(missing["opera_rate"]["status"], "unknown")
+
     def test_chart_future_validity_is_not_a_future_data_date(self):
         today = datetime.now(timezone.utc)
         with tempfile.TemporaryDirectory() as tmp:
