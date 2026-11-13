@@ -5,7 +5,7 @@ Only small HTTPS byte ranges are downloaded, never the whole monthly archive.
 Samples span CFSR 1991, CFSR March 2011, CFSv2 April 2011 and CFSv2 2020.
 """
 from __future__ import annotations
-import io
+import tempfile
 import collections
 import requests
 
@@ -31,7 +31,9 @@ def inspect(year:int,month:int)->dict:
     raw=resp.content
     if len(raw)!=BYTES_PER_SAMPLE or not raw.startswith(b"GRIB"):
         raise ValueError(f"Not an intact GRIB prefix: {u}, bytes={len(raw)}")
-    cursor=io.BytesIO(raw)
+    cursor=tempfile.TemporaryFile(mode='w+b')
+    cursor.write(raw)
+    cursor.seek(0)
     meta=[]
     while cursor.tell() < len(raw)-2_000_000 and len(meta)<32:
         pos=cursor.tell()
