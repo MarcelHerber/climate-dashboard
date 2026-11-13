@@ -113,6 +113,8 @@ function svgScene(scene,index){
  s+=svgText(65,62+dy,scene.title,31,"#152c43");
  s+=svgText(66,95+dy,scene.axis+" · Ensemble-Vektorexport",19,"#41566a");
  scene.metadata.slice(0,5).forEach((v,i)=>s+=svgText(66,127+dy+i*23,v,16,"#475569"));
+ const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
+ if(created)s+=svgText(P.x,863+dy,created,15);
  s+=svgText(P.x,887+dy,"Quelle: Open-Meteo Ensemble API / zugrunde liegende Modelle",15);
  s+=svgText(P.x,911+dy,"UTC (Z) · Mess- und Prognosewerte unverändert · Kurven als benannte Vektorebenen",15);
  s+="</g>";
@@ -155,6 +157,8 @@ function drawPdf(pdf,scene){
  text(scene.title,65,62,31,"#152c43");
  text(scene.axis+" · Vektor-PDF",66,95,19,"#41566a");
  scene.metadata.slice(0,5).forEach((m,i)=>text(m,66,127+i*23,16,"#475569"));
+ const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
+ if(created)text(created,P.x,863,15);
  text("Quelle: Open-Meteo Ensemble API / Modelle",P.x,887,15);
  text("UTC (Z) · einzelne Kurven als Vektorpfade · Daten unverändert",P.x,911,15);
  pdf.setLineWidth(.5);pdf.setDrawColor(196,208,219);pdf.rect(X(P.x),Y(P.y),P.w*s,P.h*s,"S");
