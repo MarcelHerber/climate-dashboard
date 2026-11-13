@@ -27,7 +27,9 @@ permissions:
 
 concurrency:
   group: snow-year-frontend-tests
-  cancel-in-progress: true
+  # Let a running real-browser audit finish even when Pages or source files
+  # are updated again. GitHub retains at most one pending run in the group.
+  cancel-in-progress: false
 
 jobs:
   unit-tests:
