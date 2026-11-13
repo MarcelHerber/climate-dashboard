@@ -1,0 +1,116 @@
+name: MTG Live Pages und Bildqualitätsprüfung
+
+on:
+  pull_request:
+    paths:
+      - "scripts/audit_satellite_live_quality.py"
+      - "scripts/test_satellite_published_browser.py"
+      - "tests/test_satellite_live_quality.py"
+      - ".github/workflows/satellite_live_quality_qa.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/audit_satellite_live_quality.py"
+      - "scripts/test_satellite_published_browser.py"
+      - "tests/test_satellite_live_quality.py"
+      - ".github/workflows/satellite_live_quality_qa.yml"
+  schedule:
+    # Unabhängiger Live-Check außerhalb des halbstündlichen WMS-Monitors.
+    - cron: "37 10,18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: satellite-live-quality-report
+  cancel-in-progress: true
+
+jobs:
+  offline:
+    name: QA · UTC, Bildausschnitt und Quellenkonsistenz
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Syntax und unabhängige Regressionstests
+        run: |
+          python -m py_compile scripts/audit_satellite_live_quality.py scripts/test_satellite_published_browser.py
+          python -m unittest discover -s tests -p "test_satellite_live_quality.py" -v
+
+  live:
+    name: Live-Quellen · echtes Pages, GeoColour, Cloud Type, IR, LI und Radar
+    needs: offline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Analyse- und Browserbibliotheken
+        run: |
+          python -m pip install --disable-pip-version-check pillow playwright
+          python -m playwright install chromium
+      - name: Drei Auflösungen mit echten WMS-PNGs prüfen und Vergleichsgrafik erzeugen
+        id: source
+        continue-on-error: true
+        run: python scripts/audit_satellite_live_quality.py
+      - name: Öffentlich ausgelieferte Satellitenseite im Chromium prüfen
+        id: browser
+        continue-on-error: true
+        run: python scripts/test_satellite_published_browser.py
+      - name: Evidenz immer bereitstellen (auch bei einem WMS-504)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtg-live-800-2k-4k
+          path: |
+            _satellite_quality_evidence/*.json
+            _satellite_quality_evidence/*.png
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Prüfergebnisse ohne Datenbehauptungen zusammenfassen
+        if: always()
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          print("## MTG · reale Live- und Detailprüfung")
+          report=Path("_satellite_quality_evidence/live_image_quality_report.json")
+          if report.is_file():
+              d=json.loads(report.read_text(encoding="utf-8"))
+              p=d.get("published_page",{})
+              print("- Öffentliche Seite und JS erreichbar:",p.get("html_ok"))
+              print("- Echte Pages-Statusdatei:",p.get("published_report",{}).get("generated_at"))
+              print("- Gemeinsamer, bestätigter WMS-Zeitpunkt:",d.get("utc_common"))
+              print("- LI-AFA zeitlich passend:",d.get("li_alignment",{}).get("aligned"))
+              print("- Radararchiv zuletzt:",d.get("radar",{}).get("latest_utc"))
+              print()
+              print("| Produkt | 800px-Dichte | 2048px-Dichte | 4096px-Dichte |")
+              print("|---|---|---|---|")
+              for name,images in d.get("samples",{}).items():
+                  print(f"| {name} | "+ " | ".join(
+                      "OK" if images.get(str(n),{}).get("ok") else "nicht verfügbar"
+                      for n in (800,2048,4096))+" |")
+              print()
+              print("Wichtig: Mehr WMS-Pixel beweisen **keine** höhere native FCI-Sensorauflösung.")
+          else:
+              print("Der Quellenbericht wurde nicht erzeugt; Live-Abbruch prüfen.")
+          browser=Path("_satellite_quality_evidence/live_browser_delivery.json")
+          if browser.is_file():
+              d=json.loads(browser.read_text(encoding="utf-8"))
+              for k,item in d.get("tests",{}).items():
+                  print(f"- {k}: "+("FEHLER "+item["error"] if "error" in item else
+                      "UTC/Produkt-/LI-/Radar-Ergebnisse im JSON"))
+          print()
+          print("Kontaktbogen, Screenshots und vollständige Fehlermeldungen: Workflow-Artefakt.")
+          PY
+      - name: Live-Prüffehler ausdrücklich melden
+        if: steps.source.outcome == 'failure' || steps.browser.outcome == 'failure'
+        run: |
+          echo "::error::MTG-Liveprüfung nicht vollständig; bitte JSON-/PNG-Belege aus dem Workflow-Artefakt ansehen."
+          exit 1
