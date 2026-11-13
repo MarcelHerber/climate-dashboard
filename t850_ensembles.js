@@ -94,7 +94,7 @@ function setStatus(text,type){
 function setBusy(busy){
   const b=el("t850LoadButton");
   if(b){b.disabled=busy;b.textContent=busy?"Lade …":"Ensembles laden";}
-  ["t850PngDownload","t850PdfDownload"].forEach(function(id){const x=el(id);if(x)x.disabled=busy||!lastPlace;});
+  ["t850PngDownload","t850PdfDownload","t850SvgDownload"].forEach(function(id){const x=el(id);if(x)x.disabled=busy||!lastPlace;});
 }
 function setMeta(model,text,type){
   const node=el(model.meta); if(!node)return;
@@ -616,22 +616,80 @@ async function exportCanvas(){
 }
 function saveBlob(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},1000);}
 async function png(){try{const c=await exportCanvas();c.toBlob(function(b){if(b)saveBlob(b,filename("png"));},"image/png");}catch(e){alert("PNG konnte nicht erstellt werden: "+e.message);}}
+let t850VectorPromise=null;
+function ensureT850Vectors(){
+  if(window.T850VectorExport)return Promise.resolve(window.T850VectorExport);
+  if(!t850VectorPromise)t850VectorPromise=new Promise(function(resolve,reject){
+    const script=document.createElement("script");
+    script.src="t850_vector_export.js?v=20261113-t850-vectors-v1";
+    script.async=true;
+    script.onload=function(){
+      if(window.T850VectorExport)resolve(window.T850VectorExport);
+      else reject(Error("Vektormodul nicht verfügbar."));
+    };
+    script.onerror=function(){reject(Error("T850-Vektormodul konnte nicht geladen werden."));};
+    document.head.appendChild(script);
+  }).catch(function(error){t850VectorPromise=null;throw error;});
+  return t850VectorPromise;
+}
+function vectorScenes(exporter){
+  const view=el("t850PanelSelect")?.value||"gefs";
+  const options=view==="four"?MODELS.map(function(m){return {key:m.key,title:m.label};}):
+    [{key:view,title:MODELS.find(function(m){return m.key===view;})?.label||view}];
+  if(view==="four")options.push({key:"comparison",title:"Ensemble-Mittel · Modellvergleich"});
+  const valid=new Set(lastResults.map(function(r){return r.model.key;}));
+  const metadata=exportMetadata();
+  const scenes=[];
+  options.forEach(function(item){
+    if(item.key!=="comparison"&&!valid.has(item.key))return;
+    const chart=item.key==="comparison"?comparison:charts[item.key];
+    if(!chart||!chart.data?.datasets?.length)return;
+    try{
+      scenes.push(exporter.buildScene(chart,{
+        title:item.title,model:item.key,axis:metricParam(getParam()).axis,metadata:metadata
+      }));
+    }catch(error){console.warn("T850-Vektorexport: ",item.key,error);}
+  });
+  if(!scenes.length)throw Error("Für die gewählte Ansicht sind noch keine gültigen Ensemblekurven geladen.");
+  return scenes;
+}
 async function pdf(){
   try{
-    const c=await exportCanvas(),J=window.jspdf&&window.jspdf.jsPDF;if(!J)throw new Error("jsPDF ist nicht geladen.");
-    const p=new J({orientation:"landscape",unit:"mm",format:"a4"}),pw=p.internal.pageSize.getWidth(),ph=p.internal.pageSize.getHeight(),m=7,s=Math.min((pw-2*m)/c.width,(ph-2*m)/c.height),w=c.width*s,h=c.height*s;
-    // This four-panel PDF is a raster snapshot. Do not imply editable vector curves.
-    p.addImage(c.toDataURL("image/jpeg",.93),"JPEG",(pw-w)/2,(ph-h)/2,w,h,undefined,"FAST");
-    p.setFontSize(8);p.setTextColor(85,95,110);
-    p.text("Raster-PDF (JPEG) · Kurven nicht einzeln als Vektoren bearbeitbar",m,ph-2);
-    p.save(filename("pdf"));
-  }catch(e){alert("PDF konnte nicht erstellt werden: "+e.message);}
+    const exporter=await ensureT850Vectors(),J=window.jspdf?.jsPDF;
+    if(!J)throw Error("jsPDF ist nicht geladen.");
+    const scenes=vectorScenes(exporter);
+    const doc=new J({orientation:"landscape",unit:"mm",format:"a3"});
+    scenes.forEach(function(scene,i){
+      if(i)doc.addPage("a3","landscape");
+      exporter.drawPdf(doc,scene);
+    });
+    doc.save(filename("pdf"));
+  }catch(error){alert("Vektor-PDF konnte nicht erstellt werden: "+error.message);}
+}
+async function svg(){
+  try{
+    const exporter=await ensureT850Vectors();
+    exporter.saveSvg(vectorScenes(exporter),filename("svg"));
+  }catch(error){alert("SVG konnte nicht erstellt werden: "+error.message);}
 }
 function mount(){
   if(mounted){applyPanelView();setTimeout(function(){Object.values(charts).forEach(function(c){c.resize();});if(comparison)comparison.resize();},40);return;}
   const form=el("t850SearchForm"),input=el("t850LocationInput"),view=el("t850PanelSelect"),paramSelect=el("t850ParamSelect");if(!form||!input)return;mounted=true;
   form.addEventListener("submit",function(e){e.preventDefault();load(input.value,{resetPanel:true});});
-  el("t850ResetZoom")?.addEventListener("click",resetZoom);el("t850PngDownload")?.addEventListener("click",png);el("t850PdfDownload")?.addEventListener("click",pdf);view?.addEventListener("change",applyPanelView);
+  // Offer independently editable vectors without changing the screenshot PNG.
+  const pdfButton=el("t850PdfDownload");
+  if(pdfButton){
+    pdfButton.textContent="PDF (Vektor)";
+    let svgButton=el("t850SvgDownload");
+    if(!svgButton){
+      svgButton=document.createElement("button");svgButton.id="t850SvgDownload";
+      svgButton.type="button";svgButton.textContent="SVG (Vektorebenen)";
+      svgButton.disabled=!lastPlace;
+      pdfButton.insertAdjacentElement("afterend",svgButton);
+    }
+    svgButton.addEventListener("click",svg);
+  }
+  el("t850ResetZoom")?.addEventListener("click",resetZoom);el("t850PngDownload")?.addEventListener("click",png);pdfButton?.addEventListener("click",pdf);view?.addEventListener("change",applyPanelView);
   // Achsenwahl ohne neue API-Abfrage: vorhandene Ensemble-Daten neu zeichnen.
   const viewGroup=view?.closest(".control-group");
   if(viewGroup&&!el("t850YAxisMode")){
