@@ -21,7 +21,7 @@ class StratosphereFreshnessTests(unittest.TestCase):
                                     current=True, cutoff=date(2026, 11, 8))
         self.assertEqual(chunks, [[8], [7], [6], [1, 2, 3, 4, 5]])
         self.assertEqual(wind.daily_chunks(1991, 1, 11), [
-            [1, 2, 3, 4, 5], [6, 7, 8, 9, 10], [11]])
+            list(range(1, 12))])
 
     def test_wind_unpublished_d5_does_not_block_d6_and_d7(self):
         requested = []
