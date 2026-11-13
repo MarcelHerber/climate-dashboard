@@ -151,5 +151,24 @@ class MTGStatusWatchdogTests(unittest.TestCase):
         self.assertTrue(any("Kein aktuelles" in x for x in result["errors"]))
 
 
+class MTGWorkflowWiringTests(unittest.TestCase):
+    def test_successful_satellite_monitor_triggers_pages_publish(self):
+        pages=(ROOT / ".github/workflows/deploy-pages-only.yml").read_text(encoding="utf-8")
+        self.assertIn('"MTG EUMETView live data check"',pages)
+        self.assertIn('types: [completed]',pages)
+        self.assertIn("conclusion == 'success'",pages)
+
+    def test_quick_cadence_independent_watchdog_and_daily_deep(self):
+        monitor=(ROOT / ".github/workflows/check-satellite-wms.yml").read_text(encoding="utf-8")
+        watchdog=(ROOT / ".github/workflows/check-satellite-freshness.yml").read_text(encoding="utf-8")
+        self.assertIn('cron: "23,53 * * * *"',monitor)
+        self.assertIn('cron: "31 3 * * *"',monitor)
+        self.assertIn('python scripts/check_satellite_wms.py --deep',monitor)
+        self.assertIn('git reset --hard origin/main',monitor)
+        self.assertIn('generated_at',monitor)
+        self.assertIn('cron: "12,42 * * * *"',watchdog)
+        self.assertIn('python scripts/check_satellite_status_freshness.py',watchdog)
+
+
 if __name__ == "__main__":
     unittest.main()
