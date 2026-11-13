@@ -1,137 +1,202 @@
-/* Official DWD manual surface FRONT ANALYSIS (not an ICON forecast).
- * Source PNGs remain unchanged on opendata.dwd.de. No fraudulent geographic
- * overlay: DWD's paper map projection is separate from the EPSG:4326 WMS.
+/* Georeferenced DWD manual front LINES directly on EUMETSAT EPSG:4326.
+ * The original DWD bitmap has NO trusted geotransform, and is NEVER placed
+ * over the satellite. Unverified/inaccessible NinJo GML => explicit no data.
+ * Existing ECMWF IFS isobars are independent and remain over the Satbild.
  */
 (() => {
 "use strict";
 const $=id=>document.getElementById(id);
-const region=$("satFrontRegion"),status=$("satFrontStatus"),image=$("satFrontImage");
-const open=$("satFrontOpen"),origin=$("satFrontSource"),valid=$("satFrontValid");
-const note=$("satFrontMeta"),refresh=$("satFrontRefresh");
-if(!region||!status||!image||!open||!origin||!valid||!note||!refresh)return;
-
-const INDEX="https://opendata.dwd.de/weather/charts/analysis/";
-const REPORT="data/synoptic_charts/dwd_fronts_satellite.json";
-const MAX_AGE_H=42,FRESH_H=18;
-let report=null,request=0,activeURL="";
-
-function formatUTC(value){
- const parsed=new Date(value);
- return Number.isFinite(parsed.getTime())?
-  new Intl.DateTimeFormat("de-DE",{timeZone:"UTC",hourCycle:"h23",
-   day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",
-   minute:"2-digit"}).format(parsed)+" UTC":"nicht verifiziert";
+const toggle=$("satShowDwdFronts"),svg=$("satDwdFrontSvg");
+const status=$("satDwdFrontStatus"),utcLabel=$("satDwdFrontUTC");
+const sourceLink=$("satDwdFrontSource"),refresh=$("satDwdFrontRefresh");
+const source=$("satSource"),region=$("satRegion");
+if(!toggle||!svg||!status||!utcLabel||!sourceLink||!refresh||!source||!region)return;
+const SOURCE="https://opendata.dwd.de/weather/charts/analysis/";
+const INDEX="./data/synoptic_charts/dwd_fronts_satellite.json";
+const GEO="./data/synoptic_charts/dwd_fronts_geo.json";
+const NS="http://www.w3.org/2000/svg";
+const BBOX={
+ europe:[-27,24,49,73],atlantic:[-70,15,35,75],
+ southwest:[-37,24,19,53],central:[-2,43,25,58],
+ germany:[5,47,16,56]
+};
+const COLOR={cold:"#47a5fa",warm:"#ff6464",occluded:"#cc74f4",stationary:"#ed719b"};
+let context={time:null,source:source.value,region:region.value};
+let frontData=null,official=null,seq=0,loading=false;
+function fmt(date){
+ const d=new Date(date);
+ return Number.isFinite(d.getTime())?new Intl.DateTimeFormat("de-DE",{
+  timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric",
+  hour:"2-digit",minute:"2-digit",hourCycle:"h23"
+ }).format(d)+" UTC":"Zeitpunkt unbekannt";
 }
-function asUTC(value){
- if(typeof value!=="string"||!/(?:Z|\+00:00)$/.test(value))return null;
- const parsed=new Date(value);
- return Number.isFinite(parsed.getTime())?parsed:null;
+function parseUTC(text){
+ if(typeof text!=="string"||!/\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?(?:\.\d+)?Z$/.test(text))return null;
+ const n=Date.parse(text);return Number.isFinite(n)?n:null;
 }
-function sourceIsOfficial(value,where){
+function dwdURL(value){
  try{
-  const url=new URL(value);
-  if(url.protocol!=="https:"||url.hostname!=="opendata.dwd.de"||
-   !url.pathname.startsWith("/weather/charts/analysis/")||url.search||url.hash)
-   return false;
-  const name=decodeURIComponent(url.pathname.split("/").pop());
-  const found=name.match(/^Z__C_EDZW_(\d{14})_tka01,ana_bwkman_(dwdna|dwdc)_O_000000_000000_(\d{12})_WV12SW\.png$/i);
-  if(!found)return false;
-  const which=where==="central"?"dwdc":"dwdna";
-  if(found[2].toLowerCase()!==which)return false;
-  const validName=found[3].replace(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/,"$1-$2-$3T$4:$5:00Z");
-  return Number.isFinite(Date.parse(validName))&&validName.slice(0,16)===String(report?.maps?.[where]?.valid_utc||"").slice(0,16);
+  const u=new URL(value);
+  return u.protocol==="https:"&&u.hostname==="opendata.dwd.de"&&
+   u.pathname.startsWith("/weather/charts/analysis/")&&!u.search&&!u.hash;
  }catch(_){return false;}
 }
-function empty(message){
- image.hidden=true;image.removeAttribute("src");open.removeAttribute("href");
- open.hidden=true;activeURL="";valid.textContent="Gültigkeit: unbekannt";
- note.textContent="";status.textContent=message;
+function verifiedGmlURL(value){
+ try{
+  const u=new URL(value);
+  return u.protocol==="https:"&&
+   (u.hostname==="opendata.dwd.de"||u.hostname==="maps.dwd.de")&&
+   /\.(?:gml|xml)$/i.test(u.pathname)&&!u.hash;
+ }catch(_){return false;}
 }
-function render(){
- const which=region.value==="central"?"central":"atlantic";
- const selected=report?.maps?.[which];
- if(!selected?.image_verified||selected.kind!=="analysis"||
-    !asUTC(selected.valid_utc)||!sourceIsOfficial(selected.source_url,which)){
-  empty("Keine verifizierte aktuelle DWD-Originalanalyse für "+(which==="central"?"Mitteleuropa":"Nordatlantik/Europa")+
-   ". Die amtliche Quelle kann jederzeit über den Link geöffnet werden.");
+function clean(){
+ svg.replaceChildren();
+ svg.setAttribute("hidden","");
+}
+function message(text){
+ status.textContent=text;
+}
+function geographic(){
+ return context.source==="mtgi1"&&Boolean(BBOX[context.region]);
+}
+function validate(json){
+ if(!json||json.schema_version!==1||json.status!=="verified"||
+    json.provider!=="DWD"||json.kind!=="analysis"||
+    json.coordinate_reference_system!=="EPSG:4326"||
+    json.georeferencing_verified!==true||
+    json.front_source_format!=="NinJo-GML"||
+    !verifiedGmlURL(json.source_url)||parseUTC(json.valid_utc)===null||
+    !Array.isArray(json.features)||json.features.length<1||json.features.length>700)return null;
+ const age=Date.now()-parseUTC(json.valid_utc);
+ if(age < -15*60000||age>30*3600000)return null;
+ let total=0,valid=[];
+ for(const f of json.features){
+  const p=f?.properties||{},g=f?.geometry;
+  if(f?.type!=="Feature"||g?.type!=="LineString"||
+     !(p.front_type in COLOR)||!Array.isArray(g.coordinates)||
+     g.coordinates.length<2||g.coordinates.length>3000)return null;
+  total+=g.coordinates.length;
+  if(total>60000)return null;
+  const coordinates=[];
+  for(const point of g.coordinates){
+   if(!Array.isArray(point)||point.length!==2||!point.every(Number.isFinite)||
+      point[0]<-180||point[0]>180||point[1]<-90||point[1]>90)return null;
+   coordinates.push(point);
+  }
+  valid.push({type:p.front_type,coordinates});
+ }
+ return {...json,features:valid};
+}
+function project(point,bbox){
+ return [(point[0]-bbox[0])*1000/(bbox[2]-bbox[0]),
+         (bbox[3]-point[1])*1000/(bbox[3]-bbox[1])];
+}
+function update(){
+ clean();
+ if(!geographic()){
+  toggle.disabled=true;
+  message("DWD-Analysefronten sind auf der Vollscheibe und bei MTG-I2 nicht geografisch darstellbar.");
   return;
  }
- const age=(Date.now()-asUTC(selected.valid_utc).getTime())/3600000;
- if(age < -1||age>MAX_AGE_H){
-  empty("Die letzte geprüfte DWD-Karte ist älter als 42 Stunden; sie wird nicht als aktuelle Frontenanalyse angezeigt.");
+ if(!frontData){
+  toggle.disabled=true;
+  message("DWD-Frontlinien: Noch keine öffentlich zugänglichen, geografisch verifizierten NinJo-/GML-Daten. "+
+   "Die ECMWF-Isobaren sind bereits direkt auf dem Satellitenbild verfügbar.");
+  utcLabel.textContent=official?.maps?.atlantic?.valid_utc?
+   "Letzte DWD-Originalanalyse: "+fmt(official.maps.atlantic.valid_utc):"";
   return;
  }
- const freshness=age<=FRESH_H&&selected.fresh===true&&selected.previously_verified!==true;
- const reportTime=asUTC(report.generated_at);
- const reportAge=reportTime?(Date.now()-reportTime.getTime())/3600000:Infinity;
- const warning=(!freshness?"Ältere Analyse – nicht als aktuelle Frontenlage verwenden. ":"")+
-  (reportAge>5?"Der Aktualisierungsbericht ist verzögert. ":"");
- valid.textContent="Gültig: "+formatUTC(selected.valid_utc);
- note.textContent="Analyse, keine Prognose · veröffentlicht "+formatUTC(selected.published_utc)+
-  " · Stand der Quellenprüfung "+formatUTC(report.generated_at)+
-  " · "+Math.max(0,age).toFixed(1).replace(".",",")+" Stunden seit Kartengültigkeit";
- open.href=selected.source_url;
- open.hidden=false;
- image.alt="Unveränderte amtliche DWD-Bodenanalyse mit Kalt-, Warm- und Okklusionsfronten für "+
-  (which==="central"?"Mitteleuropa":"Nordatlantik und Europa")+
-  ", Gültigkeit "+formatUTC(selected.valid_utc);
- status.textContent=(warning||"DWD-Originalkarte verifiziert. ")+
-  "Bild wird direkt vom Deutschen Wetterdienst geladen …";
- if(activeURL!==selected.source_url){
-  // A hidden lazy-loaded <img> may never trigger onload. Make it eligible
-  // for viewport-based loading while the status still says "loading".
-  image.hidden=false;activeURL=selected.source_url;const desired=activeURL;
-  image.onload=()=>{
-   if(activeURL===desired){
-    image.hidden=false;
-    status.textContent=warning||"DWD-Originalkarte geladen · Frontenanalyse, keine Prognose.";
-   }
-  };
-  image.onerror=()=>{
-   if(activeURL===desired){
-    image.hidden=true;
-    status.textContent="DWD-Bild momentan nicht erreichbar. Über „Original-PNG öffnen“ direkt beim DWD prüfen.";
-   }
-  };
-  image.src=selected.source_url;
- }else if(image.complete&&image.naturalWidth>0){
-  image.hidden=false;
-  status.textContent=warning||"DWD-Originalkarte geladen · Frontenanalyse, keine Prognose.";
+ toggle.disabled=false;
+ const frame=parseUTC(context.time),valid=parseUTC(frontData.valid_utc);
+ const lag=frame!==null?((frame-valid)/3600000):null;
+ const delay=lag===null?"Satelliten-UTC nicht bestätigt":
+  (lag>=0?"+":"")+lag.toFixed(1).replace(".",",")+" h gegenüber dem Satellitenbild";
+ utcLabel.textContent="DWD-Fronten "+fmt(frontData.valid_utc)+" · "+delay;
+ if(!toggle.checked){
+  message("DWD-Analysefronten ausgeschaltet. Die ECMWF-Isobaren bleiben unabhängig sichtbar.");
+  return;
+ }
+ if(frame===null){
+  message("Keine überprüfte Satelliten-UTC – DWD-Fronten werden nicht als synchron ausgegeben.");
+  return;
+ }
+ if(Math.abs(lag)>18){
+  message("DWD-Analyse und Satellitenbild liegen "+Math.abs(lag).toFixed(1)+
+   " Stunden auseinander. Fronten nicht eingeblendet.");
+  return;
+ }
+ const bbox=BBOX[context.region];
+ let count=0;
+ for(const f of frontData.features){
+  const arr=f.coordinates;
+  // Project all points from DWD's verified WGS84 coordinates into the exact
+  // EUMETSAT WMS 1.1.1 bbox; no screen/image-pixel alignment.
+  const d=arr.map((point,i)=>{
+   const [x,y]=project(point,bbox);
+   return (i?"L":"M")+x.toFixed(2)+" "+y.toFixed(2);
+  }).join(" ");
+  const path=document.createElementNS(NS,"path");
+  path.setAttribute("d",d);
+  path.setAttribute("fill","none");
+  path.setAttribute("stroke",COLOR[f.type]);
+  path.setAttribute("stroke-width","2.3");
+  path.setAttribute("vector-effect","non-scaling-stroke");
+  path.setAttribute("stroke-linejoin","round");
+  path.setAttribute("stroke-linecap","round");
+  svg.appendChild(path);count++;
+ }
+ if(count){
+  svg.removeAttribute("hidden");
+  message(count+" georeferenzierte DWD-Analysefronten direkt im Satellitenbild · "+
+   "Gültigkeit "+fmt(frontData.valid_utc)+". Isobaren: ECMWF IFS, eigene Zeitprüfung. "+
+   "Frontsymbole werden ohne nachgewiesene Ausrichtungsinformation nicht erfunden.");
  }
 }
 async function load(){
- const run=++request;
+ if(loading)return;
+ loading=true;seq++;const mine=seq;
  refresh.disabled=true;
- status.textContent="Prüfe amtliche DWD-Frontenanalyse und UTC-Gültigkeit …";
+ message("Prüfe amtliche DWD-Daten und geografische Frontlinien …");
  const controller=typeof AbortController==="function"?new AbortController():null;
- const timer=controller?setTimeout(()=>controller.abort(),10000):null;
+ const timer=controller?setTimeout(()=>controller.abort(),8500):null;
  try{
-  const response=await fetch(REPORT+"?t="+Date.now(),
-   controller?{cache:"no-store",signal:controller.signal}:{cache:"no-store"});
-  if(!response.ok)throw Error("HTTP "+response.status);
-  const data=await response.json();
-  if(run!==request)return;
-  if(data.schema_version!==1||data.kind!=="analysis"||!data.maps||
-     !String(data.source_page||"").startsWith(INDEX))
-    throw Error("unzulässige oder unvollständige Quellen-Metadaten");
-  report=data;
-  render();
+  const fetchJSON=async url=>{
+   const response=await fetch(url+"?t="+Date.now(),controller?{
+    cache:"no-store",signal:controller.signal}:{cache:"no-store"});
+   if(!response.ok)throw Error("HTTP "+response.status);
+   return response.json();
+  };
+  official=await fetchJSON(INDEX);
+  if(mine!==seq)return;
+  const dwdMap=official?.maps?.atlantic;
+  if(dwdMap?.source_url&&dwdURL(dwdMap.source_url))
+   sourceLink.href=dwdMap.source_url;
+  else sourceLink.href=SOURCE;
+  // A published PNG by itself is NEVER accepted as a georeferenced front.
+  // Only a verified NinJo GML conversion may populate this overlay.
+  try{frontData=validate(await fetchJSON(GEO));}
+  catch(_){frontData=null;}
+  if(mine===seq)update();
  }catch(err){
-  if(run!==request)return;
-  if(report){render();status.textContent="DWD-Aktualisierung fehlgeschlagen ("+
-    (err?.message||String(err))+"). Vorheriger geprüfter Stand; nicht als neu interpretieren.";}
-  else empty("DWD-Quellenstatus derzeit nicht erreichbar ("+(err?.message||String(err))+
-   "). Amtliches Analyseverzeichnis öffnen.");
+  if(mine!==seq)return;
+  frontData=null;clean();toggle.disabled=true;
+  sourceLink.href=SOURCE;
+  message("DWD-Frontendaten derzeit nicht verfügbar ("+(err?.message||String(err))+
+   "). Die korrekt positionierten ECMWF-Isobaren bleiben über dem Satellitenbild.");
  }finally{
   if(timer!==null)clearTimeout(timer);
-  if(run===request)refresh.disabled=false;
+  if(mine===seq){loading=false;refresh.disabled=false;}
  }
 }
-region.addEventListener("change",render);
-refresh.addEventListener("click",load);
-origin.href=INDEX;
-origin.rel="noopener noreferrer";
-origin.target="_blank";
-load();
-window.SatelliteFrontAnalysis={formatUTC,sourceIsOfficial};
+function sync(next){
+ context={time:next?.time||null,region:next?.region||region.value,
+          source:next?.source||source.value};
+ update();
+}
+toggle.addEventListener("change",update);
+refresh.addEventListener("click",()=>void load());
+region.addEventListener("change",()=>sync({time:context.time}));
+source.addEventListener("change",()=>sync({time:context.time}));
+window.SatelliteFrontAnalysis={sync,project,validate};
+void load();
 })();

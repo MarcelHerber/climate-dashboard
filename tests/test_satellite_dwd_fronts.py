@@ -113,12 +113,14 @@ class OfficialDWDFrontTests(unittest.TestCase):
         page=(ROOT/"satelliten.html").read_text(encoding="utf-8")
         js=(ROOT/"satellite_dwd_fronts.js").read_text(encoding="utf-8")
         build=(ROOT/"scripts/build_pages_site.sh").read_text(encoding="utf-8")
-        self.assertIn('id="satDwdFrontAnalysisSection"',page)
-        for item in ("satFrontImage","satFrontOpen","satFrontRegion","satFrontStatus","satFrontValid"):
+        self.assertNotIn('id="satDwdFrontAnalysisSection"',page)
+        for item in ("satShowDwdFronts","satDwdFrontSvg","satDwdFrontStatus","satDwdFrontUTC","satDwdFrontSource"):
             self.assertIn(f'id="{item}"',page)
         self.assertIn("  satellite_dwd_fronts.js\n",build)
-        self.assertIn('href="https://opendata.dwd.de/weather/charts/analysis/"',page)
-        self.assertNotIn("satIsobarSvg",js,"No DWD manual fronts on ECMWF WMS without proven geo coordinates")
+        self.assertIn('https://opendata.dwd.de/weather/charts/analysis/',page)
+        self.assertNotIn("satFrontImage",page,"No unrelated original PNG panel below the image")
+        self.assertNotIn("satIsobarSvg",js,"DWD fronts may not overwrite ECMWF Isobars")
+        self.assertIn("georeferencing_verified",js,"No false DWD front positioning")
 
 
 if __name__=="__main__":

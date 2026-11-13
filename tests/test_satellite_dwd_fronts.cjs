@@ -1,123 +1,123 @@
 "use strict";
 const test=require("node:test"),assert=require("node:assert/strict"),fs=require("node:fs"),vm=require("node:vm");
-const source=fs.readFileSync("satellite_dwd_fronts.js","utf8");
+const js=fs.readFileSync("satellite_dwd_fronts.js","utf8");
 const html=fs.readFileSync("satelliten.html","utf8");
-const now=new Date();
-const aligned=new Date(now);
-aligned.setUTCMinutes(0,0,0);aligned.setUTCHours(Math.max(0,aligned.getUTCHours()-3));
-const stamp=date=>date.toISOString().slice(0,16).replace("T","").replace(/[-:]/g,"");
-const issued=new Date(aligned.getTime()+60*60000);
-const format=date=>date.toISOString().slice(0,16)+"Z";
-const prefix="https://opendata.dwd.de/weather/charts/analysis/";
-function item(region="atlantic",args={}){
- const regionCode=region==="central"?"dwdc":"dwdna";
- const uri=prefix+"Z__C_EDZW_"+stamp(issued)+"00_tka01%2Cana_bwkman_"+
-   regionCode+"_O_000000_000000_"+stamp(aligned)+"_WV12SW.png";
- return {
-  kind:"analysis",valid_utc:format(aligned),published_utc:format(issued),source_url:uri,
-  image_verified:true,fresh:true,region,...args
- };
+const DWD="https://opendata.dwd.de/weather/charts/analysis/";
+const GML="https://opendata.dwd.de/weather/fronts/manual_20261113.gml";
+const UTC=new Date(Date.now()-2*3600000).toISOString().replace(/\.\d{3}Z$/,"Z");
+const MOMENT=new Date(Date.now()-3600000).toISOString().replace(/\.\d{3}Z$/,"Z");
+function validData(overrides={}){
+ return {schema_version:1,status:"verified",provider:"DWD",kind:"analysis",
+  coordinate_reference_system:"EPSG:4326",georeferencing_verified:true,
+  front_source_format:"NinJo-GML",source_url:GML,valid_utc:UTC,
+  features:[
+   {type:"Feature",properties:{front_type:"cold"},geometry:{type:"LineString",coordinates:[[8,50],[11,52]]}},
+   {type:"Feature",properties:{front_type:"warm"},geometry:{type:"LineString",coordinates:[[-9,38],[2,48]]}}
+  ],...overrides};
 }
-function fixture({maps={atlantic:item("atlantic"),central:item("central")},state="healthy",fail=false}={}){
+function harness(geodata={schema_version:1,status:"unavailable",features:[]}){
+ const nodes=new Map(),calls=[];
  class Element{
-  constructor(id){
-   this.id=id;this.hidden=false;this.disabled=false;this.href="";
-   this.src="";this.textContent="";this.value=id==="satFrontRegion"?"atlantic":"";
-   this.complete=false;this.naturalWidth=0;this.listeners={};
-  }
-  addEventListener(name,fn){this.listeners[name]=fn;}
-  fire(name){return this.listeners[name]?.();}
-  removeAttribute(name){this[name]=name==="src"?"":undefined;}
+  constructor(id){this.id=id;this.attrs={};this.disabled=false;this.checked=false;
+   this.value=id==="satSource"?"mtgi1":id==="satRegion"?"europe":"";
+   this.href="";this.textContent="";this.listeners={};this.children=[];}
+  addEventListener(kind,fn){this.listeners[kind]=fn;}
+  fire(kind){return this.listeners[kind]?.();}
+  setAttribute(key,value){this.attrs[key]=String(value);}
+  removeAttribute(key){delete this.attrs[key];}
+  appendChild(item){this.children.push(item);}
+  replaceChildren(){this.children=[];}
+  get hidden(){return "hidden" in this.attrs;}
  }
- const ids=["satFrontRegion","satFrontStatus","satFrontImage","satFrontOpen",
-  "satFrontSource","satFrontValid","satFrontMeta","satFrontRefresh"];
- const elements=Object.fromEntries(ids.map(id=>[id,new Element(id)]));
- const img=elements.satFrontImage;
- let requested=[];
- Object.defineProperty(img,"src",{get(){return this._src||""},set(v){
-  this._src=v;
-  if(v){this.naturalWidth=1000;this.complete=true;Promise.resolve().then(()=>this.onload?.());}
- }});
- const manifest={
-  schema_version:1,kind:"analysis",source_page:prefix,status:state,
-  generated_at:new Date().toISOString(),maps
- };
- const context={document:{getElementById:id=>elements[id]||null},window:{},
-  URL,Date,Intl,Promise,Number,String,RegExp,setTimeout,clearTimeout,
-  fetch:async url=>{
-   requested.push(url);
-   if(fail)return {ok:false,status:503};
-   return {ok:true,json:async()=>manifest};
+ for(const id of ["satShowDwdFronts","satDwdFrontSvg","satDwdFrontStatus",
+  "satDwdFrontUTC","satDwdFrontSource","satDwdFrontRefresh","satSource","satRegion"])
+  nodes.set(id,new Element(id));
+ nodes.get("satDwdFrontSvg").setAttribute("hidden","");
+ const makeGml=()=>geodata;
+ const official={schema_version:1,kind:"analysis",maps:{atlantic:{
+  source_url:DWD+"Z__C_EDZW_20261113153053_tka01%2Cana_bwkman_dwdna_O_000000_000000_202611131200_WV12SW.png",
+  valid_utc:UTC
+ }}};
+ const document={getElementById:id=>nodes.get(id),createElementNS(ns,tag){
+  return new Element(tag);
+ }};
+ const win={};
+ const context={window:win,document,URL,Date,Intl,Number,String,RegExp,
+  setTimeout,clearTimeout,fetch:async url=>{
+   calls.push(url);
+   return {ok:true,json:async()=>url.includes("fronts_geo.json")?makeGml():official};
   }};
- vm.runInNewContext(source,context);
- return {els:elements,requested,context,manifest};
+ vm.runInNewContext(js,context,{timeout:3000});
+ return {nodes,calls,api:win.SatelliteFrontAnalysis};
 }
-const flush=()=>new Promise(resolve=>setTimeout(resolve,0));
-test("Show separately verified original manual DWD analysis with accurate UTC and attribution",async()=>{
- const v=fixture();await flush();
- assert.equal(v.requested.length,1);
- assert.equal(v.els.satFrontOpen.href,v.manifest.maps.atlantic.source_url);
- assert.equal(v.els.satFrontImage.src,v.manifest.maps.atlantic.source_url);
- assert.equal(v.els.satFrontImage.hidden,false);
- assert.match(v.els.satFrontValid.textContent,/Gültig: .*UTC/);
- assert.match(v.els.satFrontMeta.textContent,/Analyse, keine Prognose/);
- assert.match(v.els.satFrontStatus.textContent,/Originalkarte geladen/);
- assert.equal(v.els.satFrontSource.href,prefix);
- assert.ok(html.includes('id="satDwdFrontAnalysisSection"'));
- assert.ok(html.includes('Originalkarte · Analyse'));
- assert.ok(html.includes('href="#satDwdFrontAnalysisSection"'));
- assert.ok(!source.includes("satIsobarSvg") && !source.includes("satHDTiles"),
-  "original chart is independent of satellite EPSG:4326 and model isobars");
+const settle=()=>new Promise(r=>setTimeout(r,5));
+test("No separately displayed original chart, isobars already on satellite, DWD source link remains",()=>{
+ assert.ok(!html.includes('id="satDwdFrontAnalysisSection"'));
+ assert.ok(!html.includes('id="satFrontImage"'));
+ assert.ok(!html.includes('id="satFrontRegion"'));
+ assert.ok(html.includes('id="satDwdFrontSvg"'));
+ assert.ok(html.includes('id="satShowDwdFronts"'));
+ assert.ok(html.includes('id="satShowIsobars" type="checkbox" checked'));
+ assert.ok(html.includes('id="satDwdFrontStatus"'));
 });
-test("Central Europe chart uses different original source and original UTC",async()=>{
- const v=fixture();await flush();
- const prev=v.els.satFrontImage.src;
- v.els.satFrontRegion.value="central";
- v.els.satFrontRegion.fire("change");
- await flush();
- assert.notEqual(v.els.satFrontImage.src,prev);
- assert.ok(v.els.satFrontImage.src.includes("dwdc"));
- assert.match(v.els.satFrontStatus.textContent,/Originalkarte geladen/);
- assert.equal(v.requested.length,1,"reselecting region never reloads entire manifest");
+test("Unverified DWD PNG must NEVER be painted as a georeferenced front",async()=>{
+ const a=harness();await settle();
+ assert.equal(a.nodes.get("satShowDwdFronts").disabled,true);
+ assert.equal(a.nodes.get("satDwdFrontSvg").children.length,0);
+ assert.equal(a.nodes.get("satDwdFrontSvg").hidden,true);
+ assert.match(a.nodes.get("satDwdFrontStatus").textContent,/Noch keine öffentlich zugänglichen/);
+ assert.match(a.nodes.get("satDwdFrontSource").href,/opendata\.dwd\.de/);
+ assert.equal(a.calls.length,2,"separate official PNG provenance and candidate vector feed");
 });
-test("Invalid origin, forecast filename and mismatched UTC are refused",async()=>{
- const bads=[
-  {source_url:"https://www.attacker.example/"+item().source_url.split("/").at(-1)},
-  {source_url:prefix+"ico_tkboden_na_036.png"},
-  {valid_utc:"2026-01-01T12:00Z"},
-  {image_verified:false},
-  {kind:"forecast"}
+test("Verified official DWD NinJo GML lines use same EPSG:4326 geographic transform as satellite",async()=>{
+ const a=harness(validData());await settle();
+ const toggle=a.nodes.get("satShowDwdFronts");
+ assert.equal(toggle.disabled,false);
+ toggle.checked=true;
+ a.api.sync({time:MOMENT,region:"europe",source:"mtgi1"});
+ const svg=a.nodes.get("satDwdFrontSvg");
+ assert.equal(svg.hidden,false);
+ assert.equal(svg.children.length,2);
+ const first=svg.children[0];
+ assert.equal(first.attrs.stroke,"#47a5fa");
+ const expectedX=(8-(-27))*1000/(49-(-27));
+ const expectedY=(73-50)*1000/(73-24);
+ assert.ok(first.attrs.d.startsWith("M"+expectedX.toFixed(2)+" "+expectedY.toFixed(2)));
+ assert.match(a.nodes.get("satDwdFrontStatus").textContent,/direkt im Satellitenbild/);
+ assert.match(a.nodes.get("satDwdFrontUTC").textContent,/gegenüber dem Satellitenbild/);
+ assert.equal(a.api.project([8,50],[-27,24,49,73])[0],expectedX);
+});
+test("Non-geographic full disk, time missing and time offset >18h strictly hide manual fronts",async()=>{
+ const a=harness(validData());await settle();
+ a.nodes.get("satShowDwdFronts").checked=true;
+ a.api.sync({time:MOMENT,region:"disk",source:"mtgi1"});
+ assert.equal(a.nodes.get("satDwdFrontSvg").hidden,true);
+ a.api.sync({time:null,region:"europe",source:"mtgi1"});
+ assert.equal(a.nodes.get("satDwdFrontSvg").hidden,true);
+ a.api.sync({time:new Date(Date.now()+24*3600000).toISOString(),region:"europe",source:"mtgi1"});
+ assert.equal(a.nodes.get("satDwdFrontSvg").hidden,true);
+ assert.match(a.nodes.get("satDwdFrontStatus").textContent,/auseinander/);
+});
+test("Refuse forged official maps, unverified sources, wrong CRS, broken coordinates and stale fronts",()=>{
+ const a=harness();
+ const rejected=[
+  {source_url:"https://untrusted.example/dwd.gml"},
+  {source_url:DWD+"20261113_fronts.png"},
+  {coordinate_reference_system:"EPSG:3857"},
+  {georeferencing_verified:false},
+  {kind:"forecast"},
+  {valid_utc:"2023-01-01T00:00:00Z"},
+  {features:[{type:"Feature",properties:{front_type:"warm"},geometry:{type:"LineString",coordinates:[[8,110],[9,48]]}}]},
+  {features:[]}
  ];
- for(const change of bads){
-  const v=fixture({maps:{atlantic:item("atlantic",change)}});
-  await flush();
-  assert.equal(v.els.satFrontImage.hidden,true);
-  assert.equal(v.els.satFrontOpen.hidden,true);
-  assert.match(v.els.satFrontStatus.textContent,/Keine verifizierte/);
- }
+ for(const change of rejected)assert.equal(a.api.validate(validData(change)),null);
 });
-test("Unavailable manifest and expired report fail visibly without claiming current fronts",async()=>{
- const p=fixture({fail:true});await flush();
- assert.match(p.els.satFrontStatus.textContent,/nicht erreichbar/);
- assert.equal(p.els.satFrontImage.hidden,true);
- const v=fixture({maps:{atlantic:item("atlantic",{valid_utc:"2024-11-13T06:00Z"})}});
- await flush();
- assert.equal(v.els.satFrontImage.hidden,true);
- assert.match(v.els.satFrontStatus.textContent,/Keine verifizierte|älter als/);
-});
-test("Historical verified image is labeled stale rather than currently analyzed",async()=>{
- const t=fixture({maps:{atlantic:item("atlantic",{previously_verified:true,fresh:false})}});
- await flush();
- assert.equal(t.els.satFrontImage.hidden,false);
- assert.match(t.els.satFrontStatus.textContent,/Ältere Analyse/);
-});
-test("DWD report reload safely handles external image failure",async()=>{
- const v=fixture();await flush();
- v.els.satFrontImage.onerror();
- assert.equal(v.els.satFrontImage.hidden,true);
- assert.match(v.els.satFrontStatus.textContent,/nicht erreichbar/);
- assert.equal(v.els.satFrontOpen.hidden,false,"official source stays available");
- v.els.satFrontRefresh.fire("click");
- await flush();
- assert.equal(v.requested.length,2);
+test("Date and SVG layer stay separate from ECMWF isobars; old source chart remains official link",async()=>{
+ const a=harness(validData());await settle();
+ a.nodes.get("satShowDwdFronts").checked=true;
+ a.api.sync({time:MOMENT,source:"mtgi1",region:"germany"});
+ assert.equal(a.nodes.get("satDwdFrontSvg").hidden,false);
+ assert.ok(a.nodes.get("satDwdFrontSvg").children.length>0);
+ assert.equal(a.nodes.get("satShowDwdFronts").disabled,false);
+ assert.ok(!js.includes("satIsobarSvg"),"manual DWD front layer must not overwrite ECMWF pressure contours");
 });
