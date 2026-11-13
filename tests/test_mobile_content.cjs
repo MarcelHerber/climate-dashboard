@@ -179,3 +179,30 @@ test("Phase 2: chart-specific month-year keyboard shortcuts are not rebound",()=
  const canvas={id:"monthlyChart",addEventListener(){throw Error("Double-binding would change existing navigation")}};
  plugin.afterUpdate({canvas,data:{labels:Array(15).fill("x"),datasets:[{data:Array(15).fill(1)}]},$climateKeyboardBound:true});
 });
+
+test("Phase 2: keyboard skips timestamped points with missing Y observations",()=>{
+ const h=harness(),events={};
+ const canvas={
+  id:"missingYChart",parentElement:{insertAdjacentElement(){}},
+  closest(){return null},
+  addEventListener(type,fn){events[type]=fn},
+  hasAttribute(){return false},
+  getAttribute(){return null},
+  setAttribute(){}
+ };
+ const chart={
+  canvas,config:{type:"line"},
+  data:{labels:Array.from({length:9},(_,i)=>"T"+i),datasets:[{
+   data:[{x:0,y:null},{x:1,y:4},...Array.from({length:7},(_,i)=>({x:i+2,y:undefined}))]
+  }]},
+  isDatasetVisible(){return true},
+  getDatasetMeta(){return {data:Array.from({length:9},(_,i)=>({tooltipPosition:()=>({x:i,y:0})}))}},
+  setActiveElements(points){this.selected=points},
+  tooltip:{setActiveElements(){}},update(){}
+ };
+ h.plugins[0].afterUpdate(chart);
+ let prevented=0;
+ events.keydown({key:"ArrowRight",preventDefault(){prevented++}});
+ assert.equal(chart.selected[0].index,1,"Timestamp-only points must not be selected");
+ assert.equal(prevented,1);
+});
