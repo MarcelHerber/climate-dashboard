@@ -263,8 +263,35 @@ def store_rows(year, rows):
         json.dumps(payload,ensure_ascii=False,separators=(",",":"),allow_nan=False)+"\n",encoding="utf-8")
 
 def last_available_date():
-    # CDS daily ERA5 has about a six-day delay; avoid incomplete most recent days.
-    return datetime.now(timezone.utc).date() - timedelta(days=8)
+    # ERA5 daily statistics usually lag ~6 days. D-5 is a *candidate*, never
+    # an assumption of availability: only valid real CDS fields are accepted.
+    return datetime.now(timezone.utc).date() - timedelta(days=5)
+
+
+def cds_day_unavailable(error):
+    """Recognize definitive unpublished-day errors; transient failures still fail."""
+    message = str(error).lower()
+    return any(fragment in message for fragment in (
+        "none of the data you have requested is available yet",
+        "latest date available for this dataset is",
+        "data not yet available",
+        "no data is available for the requested date",
+    ))
+
+
+def daily_chunks(year, month, last_day, *, current=False, cutoff=None):
+    """Newest current-day candidates one by one, so D-5 cannot block D-6/7."""
+    chunks = [list(range(first, min(first+5,last_day+1)))
+              for first in range(1,last_day+1,5)]
+    if not current:
+        return chunks
+    chunks.reverse()
+    if cutoff is not None and year == cutoff.year and month == cutoff.month and chunks:
+        # The newest calendar chunk can include an unpublished daily product.
+        # Split it to preserve each already-available older day.
+        newest = chunks.pop(0)
+        return [[day] for day in reversed(newest)] + chunks
+    return chunks
 
 def update_year(client, year, *, current=False, max_chunks=3, max_minutes=None):
     """Incrementally publish authentic Stage-1 zonal-wind data, newest first.
@@ -285,10 +312,7 @@ def update_year(client, year, *, current=False, max_chunks=3, max_minutes=None):
         day_count=calendar.monthrange(year,month)[1]
         if year==cutoff.year and month==cutoff.month:
             day_count=min(day_count,cutoff.day)
-        chunks=[list(range(start,min(start+5,day_count+1)))
-                for start in range(1,day_count+1,5)]
-        if current:
-            chunks.reverse()
+        chunks=daily_chunks(year,month,day_count,current=current,cutoff=cutoff)
         for days in chunks:
             if processed>=max_chunks:
                 break
@@ -306,7 +330,10 @@ def update_year(client, year, *, current=False, max_chunks=3, max_minutes=None):
                 rows=retrieve_wind_chunk(client,year,month,days)
             except Exception as error:
                 print(f"ERROR: real ERA5 wind could not be retrieved: {error}",flush=True)
-                # Keep verified earlier data. If no data exist, fail clearly at fetch.
+                if current and len(days)==1 and cds_day_unavailable(error):
+                    print(f"ERA5 {stamp[0]} not yet published; trying older real days",flush=True)
+                    continue
+                # Preserve prior verified data for transient/unknown API failures.
                 if not by_date:
                     raise
                 return len(by_date)
