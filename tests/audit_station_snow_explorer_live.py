@@ -116,9 +116,16 @@ def case(browser,width):
             else: summary.click(timeout=15000)
         page.wait_for_function("""()=>window.StationSnowExplorer?.getState()?.mapReady""",
                                timeout=30000)
-        page.wait_for_function("""()=>document.querySelector(
-          '#stationSnowMapStatus')?.textContent.includes('Marker/Cluster')""",
-                               timeout=20000)
+        # The map refresh is debounced after filter changes. A previous
+        # filtered view can still report 'Marker/Cluster' while showing only
+        # 223 stations. Wait for the *restored* full catalogue to render.
+        page.wait_for_function("""()=>{
+          const state=window.StationSnowExplorer?.getState();
+          const status=document.querySelector('#stationSnowMapStatus')?.textContent||'';
+          return state?.mapReady && state.shown>=5000 &&
+            status.includes('Marker/Cluster') &&
+            status.includes('5.642 Stationen');
+        }""",timeout=30000)
         mapstatus=page.locator("#stationSnowMapStatus").inner_text()
         result["mapStatus"]=mapstatus
         # Test a cluster that a human can actually touch. DOM order may
