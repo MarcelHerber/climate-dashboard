@@ -144,6 +144,11 @@ def plot_map(lats, lons, values, day, dest):
     plt.close(fig)
 
 
+def candidate_days(today: date) -> list[date]:
+    """Probe around the documented ~6-day CDS daily statistics delay."""
+    return [today-timedelta(days=lag) for lag in range(5,12)]
+
+
 def build(output=OUTPUT, today=None, client=None):
     import update_era5_stratosphere as era
     today = today or datetime.now(timezone.utc).date()
@@ -158,7 +163,7 @@ def build(output=OUTPUT, today=None, client=None):
     current_date=existing.get("analysis_date")
     if current_date and (output/"polar_vortex_10hpa_current.png").is_file():
         try:
-            if date.fromisoformat(current_date) >= today-timedelta(days=8):
+            if date.fromisoformat(current_date) >= candidate_days(today)[0]:
                 print("Polarvortex ERA5 already up to date:",current_date)
                 return existing
         except ValueError:
@@ -167,9 +172,9 @@ def build(output=OUTPUT, today=None, client=None):
         import cdsapi
         client=cdsapi.Client()
     last_error=None
-    # The daily derived product is usually delayed by about six days.
-    for ago in (8, 9, 10, 11):
-        day = today-timedelta(days=ago)
+    # Do not impose an artificial eight-day delay on a source that is
+    # commonly available at D-6. Failed CDS requests never publish a map.
+    for day in candidate_days(today):
         if current_date:
             try:
                 if day <= date.fromisoformat(current_date):
