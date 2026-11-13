@@ -152,8 +152,9 @@ def test_migrate_verified_80n_without_inventing_60n(tmp_path):
 def test_30_day_backfill_window_and_climatology_request():
     dates=m._candidate_days(date(2026,11,8))
     assert len(dates)==30
-    assert dates[0]==date(2026,11,1)
-    assert dates[-1]==date(2026,10,3)
+    assert m.EARLIEST_ERA5_AGE_DAYS==5  # Do not enforce a seven-day lag.
+    assert dates[0]==date(2026,11,3)
+    assert dates[-1]==date(2026,10,5)
     assert m.TARGET_ARCHIVE_DAYS==30
     assert m.REGIONS==(80,70,60)
     assert m.monthly_request(11)["area"]==[90,-180,60,180]
