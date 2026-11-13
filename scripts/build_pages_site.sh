@@ -661,6 +661,7 @@ node --check _site/mosmix.js
 node tests/test_current_station_daily_ui.mjs
 node --check _site/mosmix_vector_export.js
 node tests/test_mosmix_vector_exports.mjs
+node --test tests/test_phase2_exports.cjs
 node tests/test_mosmix_world.mjs
 node tests/test_mosmix_sun_daily.mjs
 node tests/test_mosmix_loader.mjs
