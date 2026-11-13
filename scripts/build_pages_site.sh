@@ -130,6 +130,7 @@ required_root_files=(
   sst_europe.css
   t850_ensembles.js
   t850_vector_export.js
+  scientific_vector_actions.js
   t850_ensembles.css
   era5_europe.js
   era5_europe.css
@@ -169,6 +170,27 @@ for file in "${required_root_files[@]}"; do
   fi
   cp "$file" _site/
 done
+
+# Phase 2: add source-specific vector downloads to existing scientific charts.
+# Keep source HTML and all existing PNG/CSV controls intact.
+python - <<'PY'
+from pathlib import Path
+for filename in ("index.html","stratosphaere.html"):
+    path=Path("_site")/filename
+    html=path.read_text(encoding="utf-8")
+    scripts=(
+        '<script defer src="t850_vector_export.js?v=20261113-vector-source-v2"></script>\n'
+        '<script defer src="scientific_vector_actions.js?v=20261113-science-vector-v1"></script>\n'
+    )
+    if html.count("</head>")!=1:
+        raise SystemExit("Missing/duplicate HTML head: "+filename)
+    if 'scientific_vector_actions.js' not in html:
+        html=html.replace("</head>",scripts+"</head>",1)
+    path.write_text(html,encoding="utf-8")
+    if html.count('scientific_vector_actions.js')!=1:
+        raise SystemExit("Duplicate scientific vector controls: "+filename)
+print("Phase 2: stratosphere and station-science SVG/PDF controls staged.")
+PY
 
 
 # NOAA CPC European observed-temperature anomalies. Publish only genuinely
@@ -366,6 +388,7 @@ node --check _site/dashboard_export_hq.js
 node --check _site/monthly_frequency.js
 node --check _site/t850_ensembles.js
 node --check _site/t850_vector_export.js
+node --check _site/scientific_vector_actions.js
 # Reuse the existing validated 1:50m Natural Earth geometry for satellite
 # coastlines and borders; local asset avoids a fragile third-party tile server.
 python - <<'PY'
@@ -736,6 +759,7 @@ node --check _site/mosmix_vector_export.js
 node tests/test_mosmix_vector_exports.mjs
 node --test tests/test_phase2_exports.cjs
 node --test tests/test_t850_vector_export.cjs
+node --test tests/test_scientific_vector_actions.cjs
 node tests/test_mosmix_world.mjs
 node tests/test_mosmix_sun_daily.mjs
 node tests/test_mosmix_loader.mjs
