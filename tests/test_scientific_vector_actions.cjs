@@ -101,7 +101,7 @@ test("missing observations do not create misleading vector buttons",()=>{
 test("the published build injects the assets on both pages",()=>{
  const build=fs.readFileSync("scripts/build_pages_site.sh","utf8");
  for(const name of ["index.html","stratosphaere.html","scientific_vector_actions.js"])
-   assert.match(build,new RegExp(name.replaceAll(".","\\\\.")));
+   assert.ok(build.includes(name),name+" not staged for Pages");
  assert.match(build,/t850_vector_export\.js\?v=20261113-vector-source-v2/);
  assert.match(build,/node --test tests\/test_scientific_vector_actions\.cjs/);
 });
