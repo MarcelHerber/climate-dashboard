@@ -87,3 +87,14 @@ def test_pages_publication_and_mobile_navigation_are_wired():
     assert "temperatur_anomalie_europa.html" in build
     assert "cpc_europe/index.json" in build
     assert "Aktuelle Temperaturabweichung · NOAA CPC" in mobile
+
+def test_soft_colors_change_only_the_presentation():
+    html=(ROOT/"temperatur_anomalie_europa.html").read_text(encoding="utf-8")
+    js=(ROOT/"cpc_europe.js").read_text(encoding="utf-8")
+    assert 'id="cpcSmooth"' in html and 'checked' in html
+    assert "SOFT_PALETTE" in js and "ctx.putImageData(image,0,0)" in js
+    assert "Number.isFinite(a)&&Number.isFinite(b)&&Number.isFinite(c)&&Number.isFinite(d)" in js
+    assert "const native=field[yNative*cw+nativeX]" in js
+    assert "const field=gridPeriod(s)" in js
+    assert "latestStats=countryStats(field)" in js
+    assert "0,5°" in html
