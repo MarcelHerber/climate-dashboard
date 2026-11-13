@@ -122,9 +122,12 @@ def case(browser,width):
         page.wait_for_function("""()=>{
           const state=window.StationSnowExplorer?.getState();
           const status=document.querySelector('#stationSnowMapStatus')?.textContent||'';
-          return state?.mapReady && state.shown>=5000 &&
-            status.includes('Marker/Cluster') &&
-            status.includes('5.642 Stationen');
+          const expected=filteredStationSnowStations()
+            .filter(window.StationSnowExplorer.validCoordinate).length;
+          const reported=Number((status.match(/^([0-9.]+) Stationen mit Koordinaten/)||[])[1]
+            ?.replace(/\\./g,''));
+          return state?.mapReady && state.shown>=5000 && expected>=5000 &&
+            status.includes('Marker/Cluster') && reported===expected;
         }""",timeout=30000)
         mapstatus=page.locator("#stationSnowMapStatus").inner_text()
         result["mapStatus"]=mapstatus
