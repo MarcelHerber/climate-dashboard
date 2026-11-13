@@ -1,0 +1,97 @@
+name: Phase 2 · Einheitliche Exporte und Mobile Live-QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - dashboard_export_hq.js
+      - monthly_frequency.js
+      - t850_ensembles.js
+      - mosmix.js
+      - mosmix_vector_export.js
+      - mobile_content.css
+      - mobile_content.js
+      - scripts/build_pages_site.sh
+      - scripts/inject_mobile_navigation.py
+      - tests/test_phase2_exports.cjs
+      - tests/audit_phase2_exports_live.py
+      - .github/workflows/audit-phase2-exports.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase2-scientific-exports-live
+  cancel-in-progress: true
+
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            index.html
+            mosmix.html
+            wettergefahren.html
+            wettergefahren_export.js
+            dashboard_export_hq.js
+            monthly_frequency.js
+            t850_ensembles.js
+            mosmix.js
+            mosmix_vector_export.js
+            mobile_content.css
+            mobile_content.js
+            scripts/build_pages_site.sh
+            scripts/inject_mobile_navigation.py
+            tests/test_phase2_exports.cjs
+            tests/test_mosmix_vector_exports.mjs
+            tests/test_dashboard_hq_export.cjs
+            tests/test_mobile_content.cjs
+      - name: JavaScript syntax for export and mobile modules
+        run: |
+          node --check dashboard_export_hq.js
+          node --check monthly_frequency.js
+          node --check t850_ensembles.js
+          node --check mosmix.js
+          node --check mosmix_vector_export.js
+          node --check mobile_content.js
+      - name: Data-preserving exports, true MOSMIX vectors and responsive regressions
+        run: |
+          node --test tests/test_phase2_exports.cjs
+          node tests/test_mosmix_vector_exports.mjs
+          node --test tests/test_dashboard_hq_export.cjs
+          node --test tests/test_mobile_content.cjs
+
+  real-data-browser:
+    needs: static
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/audit_phase2_exports_live.py
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install "playwright==1.57.0"
+          python -m playwright install --with-deps chromium
+      - name: Download genuine DWD frequency PNG/PDF at 320, 390, 430 and 1200 px
+        run: python -u tests/audit_phase2_exports_live.py
+      - name: Upload downloaded exports, live diagnostics and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-live-exports-mobile
+          path: phase2_export_live/
+          if-no-files-found: warn
+          retention-days: 14
