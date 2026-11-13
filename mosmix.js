@@ -174,6 +174,10 @@
       ".mosmix-chart-card>.mosmix-chart-wrap{order:3}",
       ".mosmix-chart-wrap{position:relative;height:280px}.mosmix-chart-wrap canvas{width:100%!important;height:100%!important}",
       "@media(max-width:900px){.mosmix-chart-grid{grid-template-columns:1fr}.mosmix-station-search{width:100%}.mosmix-station-search input{min-width:0;flex:1}}",
+      // The 11 mode buttons formed a max-content flex item (~1000px) on 390px phones.
+      // A bounded grid wraps every mode without widening the document.
+      "@media(max-width:900px){.mosmix-grid,.mosmix-card,.mosmix-meteogram-card,.mosmix-controls,.mosmix-chart-grid,.mosmix-chart-card,.mosmix-chart-toolbar,.mosmix-meteogram-head{min-width:0;max-width:100%;box-sizing:border-box}.mosmix-mode-group{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));flex:0 1 100%;width:100%;min-width:0;max-width:100%}.mosmix-mode-button{min-width:0;min-height:40px;padding:8px 5px;white-space:normal;overflow-wrap:anywhere}.mosmix-chart-toolbar label,.mosmix-meteogram-head>div{min-width:0;max-width:100%;flex-wrap:wrap}.mosmix-chart-toolbar select,.mosmix-chart-toolbar input,.mosmix-station-search input{min-width:0!important;max-width:100%}.mosmix-chart-export-actions{min-width:0;max-width:100%;flex-wrap:wrap}}",
+      "@media(max-width:350px){.mosmix-mode-group{grid-template-columns:repeat(2,minmax(0,1fr))}}",
       "@media(max-width:1050px){.mosmix-controls{grid-template-columns:1fr 1fr 1fr}.mosmix-mode-group,.mosmix-slider-wrap{grid-column:1/-1}}",
       "@media(max-width:800px){.mosmix-controls{grid-template-columns:1fr 1fr}.mosmix-mode-group,.mosmix-slider-wrap{grid-column:1/-1}.mosmix-map{height:540px}.mosmix-chart-wrap{height:250px}.mosmix-download-button{grid-column:1/-1}}" 
     ].join("");
