@@ -41,7 +41,11 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             scripts/check_satellite_wms.py
+            scripts/check_satellite_status_freshness.py
             tests/test_satellite_wms_monitor.py
+            .github/workflows/check-satellite-wms.yml
+            .github/workflows/check-satellite-freshness.yml
+            .github/workflows/deploy-pages-only.yml
             data/satellite_wms_times.json
       - name: Check monitor syntax and fast/deep behavior
         run: |
