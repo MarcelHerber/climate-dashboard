@@ -192,7 +192,7 @@ python - <<'PY'
 from pathlib import Path
 page=Path("_site/index.html")
 s=page.read_text(encoding="utf-8")
-target='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\\'era5Europe\\')">ERA5-Land Europa</button>'
+target="""<button class="tab-button" data-nav-group="europe" onclick="switchTab('era5Europe')">ERA5-Land Europa</button>"""
 link='<a class="tab-button" data-nav-group="europe" href="temperatur_anomalie_europa.html">Aktuelle Temperaturabweichung</a>'
 if link not in s:
     if s.count(target)!=1:
