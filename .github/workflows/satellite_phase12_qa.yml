@@ -8,6 +8,11 @@ on:
       - "satellite_*.js"
       - "tests/test_satellite_hd.cjs"
       - "scripts/check_satellite_wms.py"
+      - "scripts/check_satellite_status_freshness.py"
+      - "tests/test_satellite_wms_monitor.py"
+      - ".github/workflows/check-satellite-wms.yml"
+      - ".github/workflows/check-satellite-freshness.yml"
+      - ".github/workflows/deploy-pages-only.yml"
       - "scripts/audit_satellite_layers.py"
       - "scripts/build_pages_site.sh"
       - "tests/test_satellite_*.cjs"
@@ -19,6 +24,11 @@ on:
       - "satelliten.css"
       - "satellite_*.js"
       - "scripts/check_satellite_wms.py"
+      - "scripts/check_satellite_status_freshness.py"
+      - "tests/test_satellite_wms_monitor.py"
+      - ".github/workflows/check-satellite-wms.yml"
+      - ".github/workflows/check-satellite-freshness.yml"
+      - ".github/workflows/deploy-pages-only.yml"
       - "scripts/audit_satellite_layers.py"
       - "scripts/build_pages_site.sh"
       - "tests/test_satellite_*.cjs"
@@ -45,7 +55,9 @@ jobs:
           node --check satellite_isobars.js
           node --check satellite_film_export.js
       - name: Python syntax
-        run: python -m py_compile scripts/check_satellite_wms.py scripts/audit_satellite_layers.py scripts/test_satellite_ui_browser.py
+        run: python -m py_compile scripts/check_satellite_wms.py scripts/audit_satellite_layers.py scripts/test_satellite_ui_browser.py scripts/check_satellite_status_freshness.py tests/test_satellite_wms_monitor.py
+      - name: MTG monitor and freshness watchdog regression tests
+        run: python -m unittest discover -s tests -p "test_satellite_wms_monitor.py" -v
       - name: Satellite regression tests
         run: |
           node --test tests/test_satelliten_ui.cjs
