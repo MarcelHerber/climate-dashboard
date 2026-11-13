@@ -250,6 +250,13 @@ print("NOAA WPC fronts:",j["status"],"features:",len(j["features"]))
 PY
 fi
 
+# Public DWD WFS discovery audit: publish only metadata, no unverified
+# feature geometry. Manual DWD vectors are handled by dwd_fronts_geo.json.
+if [[ -s data/synoptic_charts/dwd_fronts_discovery.json ]]; then
+  mkdir -p _site/data/synoptic_charts
+  cp data/synoptic_charts/dwd_fronts_discovery.json _site/data/synoptic_charts/
+fi
+
 # Official DWD manual front analysis metadata: one tiny JSON manifest only.
 # The original image is served directly from the DWD Open Data URL.
 if [[ -s data/synoptic_charts/dwd_fronts_satellite.json ]]; then
@@ -714,6 +721,8 @@ node --test tests/test_satellite_dwd_fronts.cjs
 node --test tests/test_satellite_noaa_fronts.cjs
 python -m unittest discover -s tests -p "test_satellite_dwd_fronts.py" -v
 python -m unittest discover -s tests -p "test_satellite_noaa_wpc_fronts.py" -v
+python -m unittest discover -s tests -p "test_satellite_dwd_geo_fronts.py" -v
+python -m py_compile scripts/update_satellite_dwd_geo_fronts.py scripts/update_satellite_noaa_wpc_fronts.py
 node --test tests/test_satellite_progressive.cjs
 node --test tests/test_satellite_quality_comparison.cjs
 node --test tests/test_satellite_fullhd_film.cjs
