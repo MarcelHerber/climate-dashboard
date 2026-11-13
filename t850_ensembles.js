@@ -680,10 +680,12 @@ function mount(){
   const pdfButton=el("t850PdfDownload");
   if(pdfButton){
     pdfButton.textContent="PDF (Vektor)";
+    pdfButton.title="Echte Vektorpfade; in der 4er-Ansicht eine A3-Seite je verfügbarer Grafik";
     let svgButton=el("t850SvgDownload");
     if(!svgButton){
       svgButton=document.createElement("button");svgButton.id="t850SvgDownload";
       svgButton.type="button";svgButton.textContent="SVG (Vektorebenen)";
+      svgButton.title="Benannte Ebenen für jede Kurve; für Illustrator und After Effects geeignet";
       svgButton.disabled=!lastPlace;
       pdfButton.insertAdjacentElement("afterend",svgButton);
     }
