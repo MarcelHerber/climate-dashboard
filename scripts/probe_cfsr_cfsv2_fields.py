@@ -6,13 +6,14 @@ Samples span CFSR 1991, CFSR March 2011, CFSv2 April 2011 and CFSv2 2020.
 """
 from __future__ import annotations
 import tempfile
+import numpy as np
 import collections
 import requests
 
 try:
-    from scripts.import_cfsr_cfsv2_1991_2020 import source_url
+    from scripts.import_cfsr_cfsv2_1991_2020 import source_url, interpolate_europe
 except ModuleNotFoundError:
-    from import_cfsr_cfsv2_1991_2020 import source_url
+    from import_cfsr_cfsv2_1991_2020 import source_url, interpolate_europe
 
 MONTHS = [(1991,1),(2011,3),(2011,4),(2020,12)]
 BYTES_PER_SAMPLE=16*1024*1024
@@ -35,6 +36,7 @@ def inspect(year:int,month:int)->dict:
     cursor.write(raw)
     cursor.seek(0)
     meta=[]
+    real_field_checked=False
     while cursor.tell() < len(raw)-2_000_000 and len(meta)<32:
         pos=cursor.tell()
         try:
@@ -52,8 +54,23 @@ def inspect(year:int,month:int)->dict:
                 try: values[key]=ec.codes_get(gid,key)
                 except Exception: values[key]="unavailable"
             meta.append(values)
+            if (not real_field_checked and values["forecastTime"]==0 and
+                values["typeOfLevel"]=="heightAboveGround" and
+                values["level"]==2 and values["shortName"]=="2t"):
+                ni,nj=int(values["Ni"]),int(values["Nj"])
+                temp=np.asarray(ec.codes_get_values(gid),dtype=np.float32).reshape(nj,ni)
+                lats=np.asarray(ec.codes_get_array(gid,"latitudes")).reshape(nj,ni)
+                lons=np.asarray(ec.codes_get_array(gid,"longitudes")).reshape(nj,ni)
+                europe=interpolate_europe(temp,lats,lons)
+                assert europe.shape==(76,140) and np.isfinite(europe).all()
+                print(f"REAL 2m f000 Europe spatial interpolated {year}-{month:02d}: "
+                      f"min={europe.min():.1f} C max={europe.max():.1f} C "
+                      f"source={ni}x{nj}",flush=True)
+                real_field_checked=True
         finally:
             ec.codes_release(gid)
+    if not real_field_checked:
+        raise ValueError(f'No real f000 2m temperature remappable for {year}-{month:02d}')
     if not meta:
         raise ValueError(f"No readable GRIB messages at {u}")
     print(f"OFFICIAL {year}-{month:02d} fields={len(meta)} {u}")
