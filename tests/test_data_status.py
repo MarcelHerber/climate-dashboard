@@ -62,9 +62,10 @@ class DataStatusTests(unittest.TestCase):
             rows = {row["id"]: row for row in archive["datasets"]}
             self.assertEqual(rows["dwd_monthly"]["status"], "current")
             self.assertEqual(rows["era5_strat"]["status"], "incomplete")
+            self.assertEqual(rows["era5_strat_reference"]["status"], "incomplete")
             self.assertIn("Temperatur: 0/366 Klimatologietage",
-                          rows["era5_strat"]["coverage"])
-            self.assertIn("Zonalwind: 0/366", rows["era5_strat"]["coverage"])
+                          rows["era5_strat_reference"]["coverage"])
+            self.assertIn("Zonalwind: 0/366", rows["era5_strat_reference"]["coverage"])
 
 
     def test_sst_region_completeness_excludes_partial_days(self):
@@ -101,8 +102,38 @@ class DataStatusTests(unittest.TestCase):
                 entry = next(x for x in status.build()["datasets"]
                              if x["id"] == "era5_strat")
             self.assertEqual(entry["status"], "incomplete")
-            self.assertIn("Temperatur: 1/366", entry["coverage"])
-            self.assertIn("Zonalwind: 1/366", entry["coverage"])
+            with patch.object(status, "ROOT", root):
+                reference = next(x for x in status.build()["datasets"]
+                                 if x["id"] == "era5_strat_reference")
+            self.assertEqual(reference["status"], "incomplete")
+            self.assertIn("Temperatur: 1/366", reference["coverage"])
+            self.assertIn("Zonalwind: 1/366", reference["coverage"])
+
+    def test_current_stratosphere_day_stays_current_despite_missing_climatology(self):
+        today = datetime.now(timezone.utc).date()
+        latest = (today - timedelta(days=6)).isoformat()
+        day = {"date": latest}
+        day.update({f"u60_{hpa}": 12.0 for hpa in (10,30,50,100)})
+        day.update({f"tcap_{hpa}": -55.0 for hpa in (10,30,50,100)})
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            folder = root / "era5_stratosphere"
+            folder.mkdir()
+            (folder / "index.json").write_text(json.dumps({
+                "ready": True, "data_through": latest,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "reference_years_completed": 30,
+                "reference_wind_years_completed": 15,
+                "reference": {}, "series": [day]
+            }), encoding="utf-8")
+            with patch.object(status, "ROOT", root):
+                rows = {row["id"]: row for row in status.build()["datasets"]}
+        self.assertEqual(rows["era5_strat"]["status"], "current")
+        self.assertEqual(rows["era5_strat_reference"]["status"], "incomplete")
+        self.assertIn("4/4 Windhöhen", rows["era5_strat"]["coverage"])
+        self.assertIn("4/4 Temperaturhöhen", rows["era5_strat"]["coverage"])
+        self.assertIn("15/30", rows["era5_strat_reference"]["note"])
+
 
     def test_forecasts_do_not_use_valid_end_as_last_observation(self):
         now = datetime.now(timezone.utc)
