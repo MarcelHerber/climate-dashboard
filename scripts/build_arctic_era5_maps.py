@@ -30,7 +30,10 @@ RESOLUTION = 0.5
 LAT_SOUTH = 60.0
 REGIONS = (80, 70, 60)
 TARGET_ARCHIVE_DAYS = 30
-EARLIEST_ERA5_AGE_DAYS = 7
+# CDS post-processed daily statistics normally lag by about 6 days.
+# Probe D-5 as well: availability can change during the day, and all output
+# still requires validated genuine ERA5 grids (never assume source readiness).
+EARLIEST_ERA5_AGE_DAYS = 5
 ARCHIVE_LOOKBACK_DAYS = 38
 DOI_DAILY = "10.24381/cds.4991cf48"
 DOI_MONTHLY = "10.24381/cds.f17050d7"
@@ -480,7 +483,7 @@ def validate_manifest(data: dict, root: Path) -> None:
 
 
 def _candidate_days(today: date):
-    """Newest ERA5-available candidate first; then complete a 30-day window."""
+    """Try the newest plausible CDS day, then complete a 30-day window."""
     return [today - timedelta(days=age)
             for age in range(EARLIEST_ERA5_AGE_DAYS,
                              EARLIEST_ERA5_AGE_DAYS + TARGET_ARCHIVE_DAYS)]
