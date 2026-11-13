@@ -5,6 +5,7 @@ on:
     paths:
       - "scripts/update_cpc_europe.py"
       - "tests/test_cpc_europe.py"
+      - "tests/test_cpc_europe_browser.py"
       - "cpc_europe.js"
       - "cpc_europe.css"
       - "temperatur_anomalie_europa.html"
@@ -75,6 +76,22 @@ jobs:
           print("Live dataset QA:", data["data_through"], len(data["dates"]),
                 "days",len(data["countries"]),"countries",n,"cells")
           PY
+
+      - name: Test desktop and mobile interactions with live NOAA data
+        if: github.event_name != 'schedule'
+        run: |
+          python -m pip install playwright
+          python -m playwright install chromium --with-deps
+          python tests/test_cpc_europe_browser.py
+
+      - name: Save browser QA screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpc-europe-browser-qa-${{ github.run_id }}
+          path: cpc_europe_browser_qa/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Save QA evidence for review
         if: always()
