@@ -170,33 +170,27 @@ def case(browser,width):
             # A Playwright locator click waits for the icon to be stable
             # and avoids a drag-start on desktop Leaflet maps.
             cluster.nth(hit["index"]).click(timeout=15000)
-        try:
-            # Map marker layers are rebuilt asynchronously after Leaflet
-            # zoomend/moveend. On desktop that may advance the internal zoom
-            # before the first snapshot but still leave the old 20-cluster
-            # frame on screen. Verify the *actual drill-down*: either the
-            # zoom increases or a new higher-detail cluster layer appears.
-            page.wait_for_function("""args => {
-                const zoom=window.StationSnowExplorer?.getState()?.mapZoom;
-                const clusters=document.querySelectorAll(
-                  '#stationSnowMap .station-snow-cluster-icon').length;
-                return zoom>args.zoom || (
-                  zoom>=8 && clusters>args.clusters*2
-                );
-            }""",arg={"zoom":before_zoom,"clusters":before_clusters},
-                timeout=10000)
-        except Exception:
+        # A real desktop cluster click does move Leaflet from zoom 6 to 8,
+        # but Chromium's requestAnimationFrame-based wait_for_function can
+        # time out during costly redraws of 5,642 stations. Read the actual
+        # post-click map state instead of depending on RAF polling.
+        page.wait_for_timeout(750)
+        after_zoom=page.evaluate(
+            "() => window.StationSnowExplorer.getState().mapZoom")
+        after_clusters=cluster.count()
+        result["mapZoomAfter"]=after_zoom
+        result["mapClustersAfter"]=after_clusters
+        if not (after_zoom > before_zoom or
+                (after_zoom >= 8 and after_clusters > before_clusters * 2)):
             result["clusterDiagnostics"]=page.evaluate("""()=>({
               zoom:window.StationSnowExplorer?.getState()?.mapZoom,
               clusterCount:document.querySelectorAll(
                 '#stationSnowMap .station-snow-cluster-icon').length,
-              mapStatus:document.querySelector('#stationSnowMapStatus')?.textContent,
-              mapBounds:document.querySelector('#stationSnowMap')?.getBoundingClientRect().toJSON(),
-              clusterUnderClick:document.elementFromPoint(
-                window.__snowAuditClickX||0,window.__snowAuditClickY||0
-              )?.className
+              mapStatus:document.querySelector('#stationSnowMapStatus')?.textContent
             })""")
-            raise
+            raise AssertionError(
+                f"Cluster click did not drill down: {before_zoom}->{after_zoom}, "
+                f"{before_clusters}->{after_clusters} clusters")
         result["mapClickOk"]=True
         result["mapZoomBefore"]=before_zoom
         result["mapZoomAfter"]=page.evaluate(
