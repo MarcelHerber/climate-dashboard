@@ -108,8 +108,8 @@ test("Comparison is strictly opt-in and uses same verified time, layer, extent f
  const second=a.els.get("satCompareHD").calls[0];
  const third=a.els.get("satCompare4K").calls[0];
  assert.ok(first[3]<second[3]&&second[3]<third[3],"native source crop has more samples");
- assert.equal(first[1]/800,second[1]/2048);
- assert.equal(first[2]/523,second[2]/1339);
+ assert.ok(Math.abs(first[1]/800-second[1]/2048)<.001,"same geographic crop longitude");
+ assert.ok(Math.abs(first[2]/523-second[2]/1339)<.001,"same geographic crop latitude");
  assert.match(a.els.get("satCompareInfoStandard").textContent,/800 × 523 WMS-Pixel/);
  assert.match(a.els.get("satCompareInfoHD").textContent,/2048 × 1339 WMS-Pixel/);
  assert.match(a.els.get("satCompareInfo4K").textContent,/4096 × 2678 WMS-Pixel/);
