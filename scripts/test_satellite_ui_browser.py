@@ -129,6 +129,13 @@ def exercise(page, viewport_label, official_xml):
 
     evidence["hd_script_available"]=page.evaluate("() => typeof window.SatelliteHD?.sync === 'function'")
     evidence["hd_tiles_present"]=page.locator("#satHDTiles").count()==1
+    evidence["dwd_front_card"]=page.locator("#satDwdFrontAnalysisSection").count()==1
+    evidence["dwd_front_regions"]=page.locator("#satFrontRegion option").count()==2
+    evidence["dwd_front_official_source"]=page.locator("#satFrontSource").get_attribute("href")=="https://opendata.dwd.de/weather/charts/analysis/"
+    evidence["dwd_front_status"]=page.locator("#satFrontStatus").count()==1
+    assert (evidence["dwd_front_card"] and evidence["dwd_front_regions"]==2
+            and evidence["dwd_front_official_source"] and evidence["dwd_front_status"]), "Missing official original DWD front analysis module"
+
     evidence["tile_cache_ready"]=page.evaluate("() => typeof window.SatelliteTileCache?.create === 'function' && typeof window.SatelliteHD?.cacheStats === 'function'")
     evidence["tile_cache_clear_visible"]=page.locator("#satClearTileCache").count()==1
     evidence["tile_cache_start_empty"]=page.evaluate("() => window.SatelliteHD?.cacheStats()?.entries === 0")
