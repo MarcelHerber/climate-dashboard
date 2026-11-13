@@ -9,6 +9,7 @@ import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from threading import Lock
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -20,6 +21,28 @@ from shapely.ops import unary_union
 ENSEMBLE_API = "https://ensemble-api.open-meteo.com/v1/ensemble"
 STATES_URL = "https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json"
 USER_AGENT = "climate-dashboard-state-monthly-ensemble/1.0 (+GitHub Actions)"
+
+# Hourly sunshine ensemble queries are expensive and share a provider rate
+# limit. Keep their request budget process-wide; daily temperature and
+# precipitation paths preserve their previous performance.
+_SUNSHINE_API_LOCK = Lock()
+_SUNSHINE_NEXT_REQUEST = 0.0
+_SUNSHINE_REQUEST_GAP_SECONDS = 20.0
+
+
+def reserve_sunshine_request() -> None:
+    global _SUNSHINE_NEXT_REQUEST
+    with _SUNSHINE_API_LOCK:
+        remaining = _SUNSHINE_NEXT_REQUEST - time.monotonic()
+        if remaining > 0:
+            time.sleep(remaining)
+        _SUNSHINE_NEXT_REQUEST = time.monotonic() + _SUNSHINE_REQUEST_GAP_SECONDS
+
+
+def cooldown_sunshine_requests(seconds: float = 65.0) -> None:
+    global _SUNSHINE_NEXT_REQUEST
+    with _SUNSHINE_API_LOCK:
+        _SUNSHINE_NEXT_REQUEST = max(_SUNSHINE_NEXT_REQUEST, time.monotonic() + seconds)
 
 MODEL_CONFIG = {
     "gefs": {
@@ -59,8 +82,11 @@ REGION_ORDER = ["Deutschland", *EXPECTED_STATES]
 
 def fetch_json(url: str, *, params: dict[str, Any] | None = None, timeout: int = 120, retries: int = 4) -> Any:
     last: Exception | None = None
+    sunshine_request = url == ENSEMBLE_API and (params or {}).get("hourly") == "sunshine_duration"
     for attempt in range(retries):
         try:
+            if sunshine_request:
+                reserve_sunshine_request()
             r = requests.get(
                 url,
                 params=params,
@@ -68,6 +94,10 @@ def fetch_json(url: str, *, params: dict[str, Any] | None = None, timeout: int =
                 headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
             )
             if r.status_code in {429, 500, 502, 503, 504}:
+                if r.status_code == 429 and sunshine_request:
+                    # The provider explicitly asks for another attempt after a minute.
+                    # Do not recursively subdivide this rate-limit failure.
+                    cooldown_sunshine_requests()
                 raise RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
             r.raise_for_status()
             return r.json()
@@ -75,6 +105,9 @@ def fetch_json(url: str, *, params: dict[str, Any] | None = None, timeout: int =
             last = exc
             if attempt + 1 >= retries:
                 break
+            if sunshine_request and "HTTP 429" in str(exc):
+                # Next attempt is paced by the shared cooldown, not a short retry.
+                continue
             time.sleep(2.0 * (attempt + 1))
     raise RuntimeError(f"Download fehlgeschlagen: {url}: {last}")
 
@@ -376,8 +409,14 @@ def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str =
         # Große Multi-Location-Requests können besonders bei IFS/AIFS upstream
         # ins Read-Timeout laufen. Dann teilen wir den Batch rekursiv statt das
         # komplette Modell zu verlieren.
-        data = fetch_json(ENSEMBLE_API, params=params, timeout=90, retries=2)
+        data = fetch_json(
+            ENSEMBLE_API, params=params, timeout=90,
+            retries=4 if variable == "sunshine_duration" else 2,
+        )
     except Exception as exc:
+        if "HTTP 429" in str(exc):
+            # Smaller requests cost *more* API calls and worsen a minute cap.
+            raise
         if len(refs) <= 2:
             raise
         mid = len(refs) // 2
