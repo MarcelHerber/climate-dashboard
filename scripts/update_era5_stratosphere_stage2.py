@@ -122,8 +122,7 @@ def update_year_polar(client, year, *, current=False, max_chunks=2):
         n_days = calendar.monthrange(year,month)[1]
         if cutoff.year==year and cutoff.month==month:
             n_days=min(n_days,cutoff.day)
-        spans = [list(range(i,min(i+5,n_days+1))) for i in range(1,n_days+1,5)]
-        if current: spans.reverse()
+        spans = base.daily_chunks(year,month,n_days,current=current,cutoff=cutoff)
         for days in spans:
             if completed >= max_chunks: break
             dates = _dates(year,month,days)
@@ -136,10 +135,17 @@ def update_year_polar(client, year, *, current=False, max_chunks=2):
             ]
             if not needs: continue
             fetched = {day:{"date":day} for day in dates}
-            for group in needs:
-                result = retrieve_chunk(client,year,month,days,group)
-                for day,entry in result.items():
-                    fetched[day].update(entry)
+            try:
+                for group in needs:
+                    result = retrieve_chunk(client,year,month,days,group)
+                    for day,entry in result.items():
+                        fetched[day].update(entry)
+            except Exception as error:
+                if current and len(days)==1 and base.cds_day_unavailable(error):
+                    print(f"ERA5 polar cap {dates[0]} not published; probing older date",
+                          flush=True)
+                    continue
+                raise
             for day,values in fetched.items():
                 existing[day]={**existing.get(day,{"date":day}),**values}
             base.store_rows(year,list(existing.values()))
