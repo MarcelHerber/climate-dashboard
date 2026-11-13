@@ -312,7 +312,20 @@
       // Redraw chart labels for the white export surface before capturing it.
       chart?.update("none");
       await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-      return await html2canvas(node,{backgroundColor:"#ffffff",scale:2,useCORS:true,logging:false});
+      const captured=await html2canvas(node,{backgroundColor:"#ffffff",scale:2,useCORS:true,logging:false});
+      // Phase 2: both PNG and PDF use the identical white print sheet.
+      // The scientific curves and the original chart's axes/data are not modified.
+      const context=exportContext();
+      const config=parameterConfig(context.param);
+      const hq=window.DashboardExportHQ;
+      return hq?.composeCanvas
+        ?hq.composeCanvas(captured,{
+            title:"Häufigkeitsverteilung · "+config.label+" · "+context.area,
+            subtitle:context.period+" · "+context.rangeA.label+" gegenüber "+context.rangeB.label+
+              " · Einheit "+config.unit,
+            source:"Quelle: DWD · monatliche Gebietsmittel · Referenzzeiträume "+
+              context.rangeA.label+" / "+context.rangeB.label
+          }):captured;
     }finally{
       node.classList.remove("monthly-frequency-exporting");
       chart?.update("none");
