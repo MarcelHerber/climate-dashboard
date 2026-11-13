@@ -7,6 +7,7 @@ on:
     branches: [main]
     paths:
       - "scripts/update_era5_land_europe_running.py"
+      - "scripts/era5_running_freshness_guard.py"
       - "scripts/build_era5_land_running_reference_shard.py"
       - "tests/test_era5_running_probe.py"
       - "tests/test_era5_running_freshness_guard.py"
