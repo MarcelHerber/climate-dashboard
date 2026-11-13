@@ -96,3 +96,29 @@ test("ICON hazard map has PDF and PNG controls from same map renderer",()=>{
   assert.match(code,/async function makePDF/);
   assert.match(code,/async function makePNG/);
 });
+
+test("HQ export preserves Date-based UTC axes and typed scientific arrays",()=>{
+  const {api,exports}=setup();
+  const stamp=new Date("2026-11-13T12:00:00Z");
+  const values=new Float32Array([2.5,3.5,4.5]);
+  const source={
+    canvas:{width:320,height:230},
+    config:{type:"line",_config:{options:{
+      scales:{x:{type:"time",ticks:{maxTicksLimit:5,maxRotation:0}}},
+      plugins:{legend:{display:true}}
+    }}},
+    data:{labels:[stamp],datasets:[{label:"Wind",data:values}]},
+    isDatasetVisible(){return true}
+  };
+  api.renderChart(source,{title:"Stratosphäre",source:"ERA5"});
+  const exported=exports[0];
+  assert.ok(exported.data.labels[0] instanceof Date);
+  assert.equal(exported.data.labels[0].toISOString(),"2026-11-13T12:00:00.000Z");
+  assert.notEqual(exported.data.labels[0],stamp);
+  assert.equal(stamp.toISOString(),"2026-11-13T12:00:00.000Z");
+  assert.deepEqual(Array.from(exported.data.datasets[0].data),[2.5,3.5,4.5]);
+  assert.notEqual(exported.data.datasets[0].data,values);
+  assert.equal(exported.options.scales.x.type,"time");
+  assert.ok(exported.options.scales.x.ticks.maxTicksLimit>=17);
+  assert.equal(source.config._config.options.scales.x.ticks.maxTicksLimit,5);
+});
