@@ -234,6 +234,22 @@ node --check _site/cpc_europe.js
 if [[ -s data/synoptic_charts/dwd_fronts_satellite.json ]]; then
   mkdir -p _site/data/synoptic_charts
   cp data/synoptic_charts/dwd_fronts_satellite.json _site/data/synoptic_charts/
+  if [[ -s data/synoptic_charts/dwd_fronts_geo.json ]]; then
+    cp data/synoptic_charts/dwd_fronts_geo.json _site/data/synoptic_charts/
+    python - <<'PY'
+import json
+from pathlib import Path
+j=json.loads(Path("_site/data/synoptic_charts/dwd_fronts_geo.json").read_text(encoding="utf-8"))
+assert j["schema_version"]==1 and j["provider"]=="DWD" and j["kind"]=="analysis"
+assert j["coordinate_reference_system"]=="EPSG:4326"
+if j["status"]=="verified":
+    assert j["georeferencing_verified"] is True and j["front_source_format"]=="NinJo-GML"
+    assert j["features"] and j["source_url"].startswith("https://opendata.dwd.de/")
+else:
+    assert not j.get("features"),"Unverified DWD-front positions must never reach the satellite map"
+print("DWD direct satellite front overlay:",j["status"])
+PY
+  fi
   python - <<'PY'
 import json
 from pathlib import Path
