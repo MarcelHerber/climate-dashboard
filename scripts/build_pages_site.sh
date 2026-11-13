@@ -128,6 +128,7 @@ required_root_files=(
   sst_europe.js
   sst_europe.css
   t850_ensembles.js
+  t850_vector_export.js
   t850_ensembles.css
   era5_europe.js
   era5_europe.css
@@ -292,7 +293,8 @@ path=Path("_site/index.html")
 html=path.read_text(encoding="utf-8")
 for filename in ("monthly_frequency.js","t850_ensembles.js"):
     pattern=re.escape(filename)+r"(?:\?v=[A-Za-z0-9_.-]+)?"
-    html,count=re.subn(pattern,filename+"?v=20261113-phase2-exports-v1",html)
+    version="20261113-t850-vectors-v1" if filename=="t850_ensembles.js" else "20261113-phase2-exports-v1"
+    html,count=re.subn(pattern,filename+"?v="+version,html)
     if count!=1:
         raise SystemExit(f"Phase 2: missing/duplicate chart asset {filename}: {count}")
 path.write_text(html,encoding="utf-8")
@@ -343,6 +345,7 @@ node --check _site/dashboard_export_hq.js
 # Phase 2 exporters need to parse before the published site is updated.
 node --check _site/monthly_frequency.js
 node --check _site/t850_ensembles.js
+node --check _site/t850_vector_export.js
 # Reuse the existing validated 1:50m Natural Earth geometry for satellite
 # coastlines and borders; local asset avoids a fragile third-party tile server.
 python - <<'PY'
