@@ -50,7 +50,7 @@ function clear(reason){
  tiles.clear();busy=0;layout=null;
  stage.replaceChildren();stage.hidden=true;
  if(reason)setInfo(reason);
- download.disabled=!scene||quality.value==="standard"||downloadBusy||source.value!=="mtgi1"||region.value==="disk";
+ download.disabled=!scene||(quality.value==="standard"||quality.value==="economy")||downloadBusy||source.value!=="mtgi1"||region.value==="disk";
  if(pdfButton)pdfButton.disabled=download.disabled||!isobarChoice?.checked;
 }
 function ready(input){
@@ -196,7 +196,7 @@ function render(){
  let grid;
  try{grid=specs(quality.value,zoom,area);}
  catch(error){clear("HD nicht möglich: "+error.message);return;}
- download.disabled=quality.value==="standard"||downloadBusy;
+ download.disabled=(quality.value==="standard"||quality.value==="economy")||downloadBusy;
  if(pdfButton)pdfButton.disabled=download.disabled||!isobarChoice?.checked;
  if(!grid){clear("Nur die bestätigte Vorschau verfügbar.");return;}
  const key=[scene.time,scene.layer,scene.region,grid.width,grid.height].join("|");
@@ -282,7 +282,7 @@ async function compositeLayers(ctx,sceneData,grid,choice){
  return overlay;
 }
 async function exportImage(format="png"){
- if(downloadBusy||!scene||quality.value==="standard")return;
+ if(downloadBusy||!scene||quality.value==="standard"||quality.value==="economy")return;
  const gen=epoch,ctxScene={...scene},grid=layout;
  if(!grid||grid.width!==({hd:2048,"4k":4096}[quality.value])){
   setInfo("Für den Download bitte zunächst das gewählte HD-/4K-Bild laden.");return;
@@ -335,7 +335,7 @@ async function exportImage(format="png"){
 download.addEventListener("click",()=>exportImage("png"));
 if(pdfButton)pdfButton.addEventListener("click",()=>exportImage("pdf"));
 if(isobarChoice)isobarChoice.addEventListener("change",()=>{
- if(pdfButton)pdfButton.disabled=downloadBusy||quality.value==="standard"||!scene||!isobarChoice.checked;
+ if(pdfButton)pdfButton.disabled=downloadBusy||(quality.value==="standard"||quality.value==="economy")||!scene||!isobarChoice.checked;
 });
 /* Read-only verified scene plan for the opt-in, like-for-like comparison.
  * Uses the SAME pixel-aligned tileUrl and grid geometry as HD/4K download.
