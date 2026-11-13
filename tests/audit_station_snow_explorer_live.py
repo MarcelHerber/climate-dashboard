@@ -158,7 +158,9 @@ def case(browser,width):
           return candidates[0]||null;
         }""")
         assert hit,"No visible, unobstructed station cluster available for touch"
+        before_clusters=cluster.count()
         before_zoom=page.evaluate("() => window.StationSnowExplorer.getState().mapZoom")
+        result["mapClustersBefore"]=before_clusters
         result["mapZoomBefore"]=before_zoom
         result["clickedCluster"]=hit
         assert before_zoom is not None,"Map zoom state not available"
@@ -169,9 +171,20 @@ def case(browser,width):
             # and avoids a drag-start on desktop Leaflet maps.
             cluster.nth(hit["index"]).click(timeout=15000)
         try:
-            page.wait_for_function("""zoom =>
-                window.StationSnowExplorer?.getState()?.mapZoom>zoom""",
-                arg=before_zoom,timeout=10000)
+            # Map marker layers are rebuilt asynchronously after Leaflet
+            # zoomend/moveend. On desktop that may advance the internal zoom
+            # before the first snapshot but still leave the old 20-cluster
+            # frame on screen. Verify the *actual drill-down*: either the
+            # zoom increases or a new higher-detail cluster layer appears.
+            page.wait_for_function("""args => {
+                const zoom=window.StationSnowExplorer?.getState()?.mapZoom;
+                const clusters=document.querySelectorAll(
+                  '#stationSnowMap .station-snow-cluster-icon').length;
+                return zoom>args.zoom || (
+                  zoom>=8 && clusters>args.clusters*2
+                );
+            }""",arg={"zoom":before_zoom,"clusters":before_clusters},
+                timeout=10000)
         except Exception:
             result["clusterDiagnostics"]=page.evaluate("""()=>({
               zoom:window.StationSnowExplorer?.getState()?.mapZoom,
