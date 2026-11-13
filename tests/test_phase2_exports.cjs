@@ -80,3 +80,26 @@ test("Pages includes cache-busted presentation assets and all mobile pages",()=>
  assert.match(builder,/test_mosmix_vector_exports\.mjs/);
  assert.match(mobileBuild,/CONTENT_VERSION="20261113-phase2-responsive-v2"/);
 });
+
+test("MOSMIX single PNG exports preserve fuller axes independently of mobile ticks",()=>{
+ const start=mosmix.indexOf("function highResolutionMeteogramSource(");
+ const end=mosmix.indexOf("function meteogramExportSections(",start);
+ const source=mosmix.slice(start,end);
+ assert.ok(start>0&&end>start);
+ assert.match(source,/chart\.config\._config\?\.options/);
+ assert.match(source,/climateMobileLegibilityV1:false/);
+ assert.match(source,/key === "x" \? 14 : 8/);
+ assert.match(source,/maxRotation:key === "x" \? 35/);
+ assert.match(source,/responsive:false/);
+ assert.match(source,/copyChart\.destroy\(\)/);
+});
+
+test("T850 ensemble PDF is explicitly labeled as raster, not vector",()=>{
+ const start=ensemble.indexOf("async function pdf()");
+ const end=ensemble.indexOf("function mount()",start);
+ const source=ensemble.slice(start,end);
+ assert.ok(start>0&&end>start);
+ assert.match(source,/addImage\(c\.toDataURL\("image\/jpeg"/);
+ assert.match(source,/Raster-PDF \(JPEG\)/);
+ assert.match(source,/nicht einzeln als Vektoren bearbeitbar/);
+});
