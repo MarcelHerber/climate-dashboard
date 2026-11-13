@@ -125,7 +125,7 @@ def case(browser,width):
           const expected=filteredStationSnowStations()
             .filter(window.StationSnowExplorer.validCoordinate).length;
           const reported=Number((status.match(/^([0-9.]+) Stationen mit Koordinaten/)||[])[1]
-            ?.replace(/\\./g,''));
+            ?.replace(/\./g,''));
           return state?.mapReady && state.shown>=5000 && expected>=5000 &&
             status.includes('Marker/Cluster') && reported===expected;
         }""",timeout=30000)
