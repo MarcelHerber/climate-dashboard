@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  actions: write  # Publish validated maps without waiting for the hourly Pages cycle
 
 concurrency:
   group: era5-blocking-monitor
@@ -83,6 +84,8 @@ jobs:
 
       - name: Verifizierte Blocking-Karte und Metadaten veröffentlichen
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           cp -a data/blocking /tmp/blocking-publish
@@ -102,10 +105,16 @@ jobs:
             git add data/blocking/current.json data/blocking/blocking_z500_current.png
             if git diff --cached --quiet; then
               echo "Keine neuen Blocking-Daten"
+              if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+                gh workflow run deploy-pages-only.yml --ref main --repo "$GITHUB_REPOSITORY"
+              fi
               exit 0
             fi
             git commit -m "Publish verified ERA5 Atlantic-Europe blocking analysis"
-            if git push origin HEAD:main; then exit 0; fi
+            if git push origin HEAD:main; then
+              gh workflow run deploy-pages-only.yml --ref main --repo "$GITHUB_REPOSITORY"
+              exit 0
+            fi
             echo "GitHub-Race, neuer Versuch $attempt"
           done
           exit 1
