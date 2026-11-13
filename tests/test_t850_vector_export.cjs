@@ -109,3 +109,26 @@ test("percentile envelope edges have distinct named vector layers",()=>{
  for(const name of ["10.","90.","25.","75."])
   assert.ok(svg.includes(name+" Perzentil"),name);
 });
+
+test("one renderer keeps DWD / ECMWF data sources and units in scientific vector exports",()=>{
+ const {a,chart,info}=harness();
+ const input={...info,title:"DWD Schneehöhe",axis:"Schneehöhe [cm]",
+  subtitle:"Stationsmessungen und Klimareferenz",source:"Quelle: DWD Climate Data Center"};
+ const original=JSON.stringify(chart.data);
+ const scene=a.buildScene(chart,input);
+ const svg=a.toSvg([scene]);
+ assert.match(svg,/DWD Climate Data Center/);
+ assert.match(svg,/Schneehöhe \[cm\]/);
+ assert.match(svg,/Stationsmessungen und Klimareferenz/);
+ assert.doesNotMatch(svg,/Quelle: Open-Meteo/);
+ assert.equal(JSON.stringify(chart.data),original);
+ const words=[];
+ const doc={internal:{pageSize:{getWidth(){return 420},getHeight(){return 297}}},
+  setFillColor(){},rect(){},setFont(){},setFontSize(){},setTextColor(){},
+  text(t){words.push(String(t))},setLineWidth(){},setDrawColor(){},line(){},
+  setLineDashPattern(){},lines(){},addImage(){throw Error("Raster PDF")}
+ };
+ a.drawPdf(doc,scene);
+ assert.ok(words.some(t=>t.includes("DWD Climate Data Center")));
+ assert.ok(words.some(t=>t.includes("Schneehöhe [cm]")));
+});
