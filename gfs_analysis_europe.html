@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#153752">
+  <title>GFS-Analyse Europa · CFSR 1991–2020 | Climate Dashboard</title>
+  <meta name="description" content="GFS 0,5°-Analysen der 2-m-Temperatur; Anomalien nur mit geprüfter CFSR/CFSv2-Referenz 1991–2020.">
+  <link rel="stylesheet" href="cpc_europe.css?v=2">
+  <link rel="stylesheet" href="gfs_analysis_europe.css?v=1">
+  <link rel="stylesheet" href="mobile_navigation.css">
+  <link rel="stylesheet" href="dashboard_theme.css">
+  <script src="dashboard_theme.js" defer></script>
+  <script src="mobile_navigation.js" defer></script>
+  <script src="gfs_analysis_europe.js?v=1" defer></script>
+</head>
+<body>
+  <header class="cpc-header"><div class="cpc-header-inner">
+    <a class="cpc-back" href="./index.html">← Climate Dashboard</a>
+    <div class="cpc-eyebrow">Europa · Modellanalyse, keine Prognose</div>
+    <h1>GFS-Analyse · Temperatur Europa</h1>
+    <p>NOAA/NCEP GFS 0,5° · nur Analysefelder f000 · Klimareferenz CFSR/CFSv2 1991–2020, sobald unabhängig geprüft</p>
+  </div></header>
+  <main>
+    <section class="cpc-panel">
+      <div class="cpc-section-head"><div>
+        <h2>Temperaturkarte</h2>
+        <p id="gfsStatus">Prüfe Analysefelder und Referenz …</p>
+      </div><span class="cpc-status" id="gfsDatasetDate">Noch keine geprüften Analysen</span></div>
+      <div class="gfs-explanation" id="gfsReferenceStatus" role="status">Referenzstatus wird geladen …</div>
+      <div class="cpc-fields">
+        <label>Darstellung
+          <select id="gfsMetric">
+            <option value="anomaly">Abweichung 1991–2020 (K)</option>
+            <option value="absolute">Temperatur (°C)</option>
+          </select>
+        </label>
+        <label>Zeitraum
+          <select id="gfsPreset">
+            <option value="month">Monat bisher</option>
+            <option value="today">Letzter vollständiger Tag</option>
+            <option value="7">Letzte 7 Tage</option>
+            <option value="14">Letzte 14 Tage</option>
+            <option value="30">Letzte 30 Tage</option>
+            <option value="season">Saison bisher</option>
+            <option value="custom">Benutzerdefiniert</option>
+          </select>
+        </label>
+        <label>Von <input id="gfsStart" type="date"></label>
+        <label>Bis <input id="gfsEnd" type="date"></label>
+      </div>
+      <div class="cpc-export">
+        <button id="gfsPng" type="button" disabled>PNG herunterladen</button>
+        <button id="gfsPdf" type="button" disabled>PDF / Drucken</button>
+        <button id="gfsCsv" type="button" disabled>Ländermittel CSV</button>
+      </div>
+      <div class="cpc-map-container">
+        <canvas id="gfsMap" width="1400" height="760" role="img"
+                aria-label="GFS-Temperaturkarte. Land anklicken für Ländermittel"></canvas>
+        <img id="gfsBorders" src="cpc_europe/boundaries.png?v=1" width="1400" height="760" alt="" aria-hidden="true">
+      </div>
+      <div class="cpc-legend" id="gfsLegend"></div>
+      <p id="gfsWarn" class="cpc-warning" role="alert" hidden></p>
+    </section>
+    <section class="cpc-panel">
+      <div class="cpc-section-head"><div>
+        <h2>Flächengewichtete Ländermittel</h2>
+        <p>Mit unveränderten 0,5°-Werten berechnet. Beim Anklicken erscheinen Tageswerte.</p>
+      </div><span class="cpc-selected" id="gfsSelected">Land auswählen</span></div>
+      <div class="cpc-country-grid">
+        <div class="cpc-country-table-wrap">
+          <table><thead><tr><th>Land</th><th id="gfsMeanHeader">Mittel</th><th>Rasterabdeckung</th></tr></thead>
+            <tbody id="gfsCountries"><tr><td colspan="3">Lade GFS-Daten …</td></tr></tbody></table>
+        </div>
+        <div class="cpc-chart-box">
+          <h3>Verlauf der Ländermittel</h3>
+          <canvas id="gfsChart" width="690" height="160" aria-label="Zeitreihe des gewählten Landes"></canvas>
+          <p>Originaler Flächenmittelwert der 0,5°-Analyse; Linienglättung verändert keine Werte.</p>
+        </div>
+      </div>
+    </section>
+    <section class="cpc-method">
+      <h2>Datenbasis und wissenschaftliche Einordnung</h2>
+      <p><strong>Aktuelle Daten:</strong> GFS-Felder der NOAA NOMADS, jeweils 00, 06, 12 und 18 UTC, Vorhersagestunde f000 (Analyse). Tageswert ist das Mittel dieser vier 2-m-Temperaturen. Fehlende Zyklen werden nicht durch Vorhersagen ergänzt. Das 0,5°-Raster wird nur um eine halbe Rasterzelle auf die bestehende Europakarte verschoben, nicht höher aufgelöst.</p>
+      <p><strong>Referenz:</strong> 1991–2020, aus CFSR 1991–2010 und der anschließenden CFSv2-Analyse 2011–2020. Erst nach vollständigem Nachweis aller 30 Jahre und der dazugehörigen 6-Stunden-Werte erscheinen Anomalien. Ohne Referenz zeigt die Seite ausschließlich absolute 2-m-Temperaturen.</p>
+      <p><strong>Achtung:</strong> Eine GFS-Analyse ist eine modellgestützte atmosphärische Analyse, keine reine Beobachtung. Die bestehenden <a href="temperatur_anomalie_europa.html">NOAA-CPC-Beobachtungskarten</a> bleiben davon getrennt. Die Anomaliekarten verwenden nach Verfügbarkeit exakt dieselben diskreten ERA5-Farbwerte wie das Climate Dashboard.</p>
+      <p><a href="https://www.nco.ncep.noaa.gov/pmb/products/gfs/" target="_blank" rel="noopener noreferrer">NOAA GFS-Analyse</a> · <a href="https://www.ncei.noaa.gov/products/weather-climate-models/climate-forecast-system" target="_blank" rel="noopener noreferrer">NOAA CFSR/CFSv2-Archiv</a></p>
+    </section>
+  </main>
+</body>
+</html>
