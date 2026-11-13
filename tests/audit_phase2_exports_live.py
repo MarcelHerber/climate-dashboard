@@ -69,15 +69,22 @@ def verify(browser,width):
           const node=document.getElementById('monthlyFrequencyView');
           const chart=window.Chart?.getChart?.('monthlyFrequencyChart');
           return node && !node.hidden && chart?.data?.datasets?.some(
-             ds=>ds.data?.some(value=>typeof value==='number'&&Number.isFinite(value))
+             ds=>ds.data?.some(value=>
+               (typeof value==='number'&&Number.isFinite(value))||
+               (value && typeof value==='object' &&
+                 Number.isFinite(value.x) && Number.isFinite(value.y))
+             )
           );
-        }""",timeout=110000)
+        }""",timeout=70000)
         initial=page.evaluate("""() => {
           const chart=Chart.getChart('monthlyFrequencyChart');
           const area=document.querySelector('.monthly-frequency-export-bar').getBoundingClientRect();
           return {
             count:chart.data.datasets.length,
-            nonNull:chart.data.datasets.flatMap(d=>d.data||[]).filter(v=>typeof v==='number'&&Number.isFinite(v)).length,
+            nonNull:chart.data.datasets.flatMap(d=>d.data||[]).filter(v=>
+              (typeof v==='number'&&Number.isFinite(v)) ||
+              (v && typeof v==='object' && Number.isFinite(v.x) && Number.isFinite(v.y))
+            ).length,
             viewport:innerWidth,docWidth:document.documentElement.scrollWidth,
             exportLeft:area.left,exportRight:area.right,
             display:getComputedStyle(document.querySelector('.monthly-frequency-export-bar')).display,
@@ -112,7 +119,7 @@ def verify(browser,width):
             after=page.evaluate("""() => JSON.stringify(
                 Chart.getChart('monthlyFrequencyChart').data.datasets.map(d=>d.data))""")
             assert before==after,"Source DWD values changed by export"
-        page.screenshot(path=str(REPORT/f"climate_frequency_{width}.png"),full_page=False,timeout=30000)
+        page.screenshot(path=str(REPORT/f"screen_climate_frequency_{width}.png"),full_page=False,timeout=30000)
         problem=[x for x in errors if "monthlyFrequency" in x or "Häufigkeitsverteilung" in x or "dialog:" in x]
         assert not problem,problem
         result["passed"]=True
