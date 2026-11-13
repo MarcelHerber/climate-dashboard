@@ -6,6 +6,7 @@ described as a timestamp-verified image. Failures never become fabricated data.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sys
@@ -145,10 +146,26 @@ def test_png(layer, timestamp, full_disk=False, atlantic=False, southwest=False,
             "cors_allow_origin": cors}
 
 
-def main():
+REGIONAL_KEYS = ("full_disk_ok", "full_disk_bytes", "full_disk_error",
+                 "atlantic_ok", "atlantic_bytes", "atlantic_error",
+                 "southwest_ok", "southwest_bytes", "southwest_error",
+                 "film_preview_ok", "film_preview_bytes", "film_preview_error")
+
+
+def last_report():
+    try:
+        previous = json.loads(OUT.read_text(encoding="utf-8"))
+        return previous if previous.get("schema") == 1 else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def main(deep=False):
+    previous = last_report()
     result = {
         "schema": 1, "generated_at": NOW.isoformat(timespec="seconds").replace("+00:00", "Z"),
         "provider": "EUMETSAT", "service": SERVICE, "capabilities_ok": False,
+        "check_mode": "deep" if deep else "fast",
         "products": {}, "errors": [],
     }
     root = None
@@ -171,37 +188,65 @@ def main():
             "latest_advertised_time": available[-1] if available else None,
             "latest_verified_time": None, "map_ok": False, "error": None,
         }
-        try:
-            check = test_png(layer, available[-1] if available else None)
-            entry.update(check)
-            entry["map_ok"] = bool(check.get("ok"))
-            if available:
-                entry["latest_verified_time"] = available[-1]
-                age = (NOW - parse_date(available[-1])).total_seconds() / 60
-                entry["age_minutes"] = round(age, 1)
-                entry["fresh"] = 0 <= age <= 90
-        except Exception as error:
-            entry["error"] = str(error)[:350]
+        # Verify WMS images with exact advertised UTC. A latest-frame 500/504
+        # need not invalidate an older, still available and working frame.
+        # Never mark a default-time, unverified GetMap as an observed image.
+        if not available:
+            entry["error"] = "Kein vom WMS bestätigter UTC-Zeitpunkt vorhanden."
+        else:
+            problems = []
+            for moment in reversed(available[-3:]):
+                try:
+                    check = test_png(layer, moment)
+                    entry.update(check)
+                    entry["map_ok"] = True
+                    entry["latest_verified_time"] = moment
+                    age = (NOW - parse_date(moment)).total_seconds() / 60
+                    entry["age_minutes"] = round(age, 1)
+                    entry["fresh"] = 0 <= age <= 90
+                    entry["verified_attempts"] = len(problems) + 1
+                    if problems:
+                        entry["latest_frame_warning"] = " | ".join(problems)[:350]
+                    break
+                except Exception as error:
+                    problems.append(moment + ": " + str(error)[:130])
+            if not entry["map_ok"]:
+                entry["error"] = " | ".join(problems)[:350]
+        if not deep:
+            # Preserve optional regional tests as dated *historical*
+            # diagnostics, never as measurements from the quick run.
+            old = previous.get("products", {}).get(key, {})
+            checked_at = old.get("diagnostics_checked_at")
+            if checked_at:
+                entry["diagnostics_checked_at"] = checked_at
+                for name in REGIONAL_KEYS:
+                    if name in old:
+                        entry[name] = old[name]
+            return key, entry
+        if not entry["map_ok"]:
+            entry["diagnostics_checked_at"] = result["generated_at"]
+            return key, entry
+        entry["diagnostics_checked_at"] = result["generated_at"]
         # Lightning AFA is only an EPSG:4326 overlay. Skip unrelated RGB
         # full-disk, regional and film probes to protect the upstream WMS.
         if key == "lightning":
             return key, entry
         try:
-            native = test_png(layer, available[-1] if available else None, full_disk=True)
+            native = test_png(layer, entry["latest_verified_time"], full_disk=True)
             entry["full_disk_ok"] = bool(native.get("ok"))
             entry["full_disk_bytes"] = native["bytes"]
         except Exception as error:
             entry["full_disk_ok"] = False
             entry["full_disk_error"] = str(error)[:350]
         try:
-            atlantic_image = test_png(layer, available[-1] if available else None, atlantic=True)
+            atlantic_image = test_png(layer, entry["latest_verified_time"], atlantic=True)
             entry["atlantic_ok"] = bool(atlantic_image.get("ok"))
             entry["atlantic_bytes"] = atlantic_image["bytes"]
         except Exception as error:
             entry["atlantic_ok"] = False
             entry["atlantic_error"] = str(error)[:350]
         try:
-            southwest_image = test_png(layer, available[-1] if available else None, southwest=True)
+            southwest_image = test_png(layer, entry["latest_verified_time"], southwest=True)
             entry["southwest_ok"] = bool(southwest_image.get("ok"))
             entry["southwest_bytes"] = southwest_image["bytes"]
         except Exception as error:
@@ -210,10 +255,11 @@ def main():
         # Small 480px frames use the same official WMS and timestamp values
         # as the film. Check two consecutive frames, not only one static image.
         entry["film_preview_ok"] = False
-        if len(available) >= 2:
+        verified = [t for t in available if t <= entry["latest_verified_time"]]
+        if len(verified) >= 2:
             try:
                 sizes=[]
-                for moment in available[-2:]:
+                for moment in verified[-2:]:
                     try:
                         film_check=test_png(layer,moment,film_preview=True,preview_width=480)
                         sizes.append({"width":480,"bytes":film_check["bytes"]})
@@ -228,11 +274,19 @@ def main():
         else:
             entry["film_preview_error"] = "Weniger als zwei verifizierte UTC-Zeitpunkte"
         return key, entry
-    # Keep the publisher responsive even when EUMETSAT is returning 500/504.
+    # Fast status: at most three small verified-time candidates per layer,
+    # not 30+ full-disk/region/movie probes each half hour.
+    # Deep diagnostics run once a day or by explicit dispatch only.
     # Never exceed two simultaneous checks against the upstream WMS.
     with ThreadPoolExecutor(max_workers=2) as pool:
         for key, entry in pool.map(check_product, LAYERS.items()):
             result["products"][key] = entry
+    fresh = sum(bool(v.get("map_ok") and v.get("fresh"))
+                for k, v in result["products"].items() if k != "lightning")
+    result["healthy_products"] = fresh
+    result["monitor_status"] = ("healthy" if fresh >= 3 else
+                                "degraded" if any(v["map_ok"] for v in result["products"].values())
+                                else "unavailable")
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"generated_at": result["generated_at"], "capabilities_ok": result["capabilities_ok"],
@@ -245,4 +299,8 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    parser = argparse.ArgumentParser(description="EUMETSAT live WMS monitor")
+    parser.add_argument("--deep", action="store_true",
+                        help="Also probe full disk, region maps and film frames; slower")
+    args = parser.parse_args()
+    sys.exit(main(deep=args.deep))
