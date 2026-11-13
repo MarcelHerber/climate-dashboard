@@ -123,3 +123,16 @@ test("mixed line and bar charts are not offered an incorrect vector-line export"
  h.plugin[0].afterUpdate(h.chart);
  assert.equal(h.actions.length,0);
 });
+
+test("previous line-vector buttons disappear after chart becomes a bar diagram",()=>{
+ const h=fixture("sjaChart");
+ h.plugin[0].afterUpdate(h.chart);
+ assert.equal(h.actions.length,1);
+ const row=h.actions[0];
+ h.chart.data.datasets[0].type="bar";
+ h.plugin[0].afterUpdate(h.chart);
+ assert.equal(row.removed,true);
+ h.chart.data.datasets[0].type="line";
+ h.plugin[0].afterUpdate(h.chart);
+ assert.equal(h.actions.length,2,"Line mode restores the vector controls");
+});
