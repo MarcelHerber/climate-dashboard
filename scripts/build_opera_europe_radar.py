@@ -27,6 +27,12 @@ from rasterio.warp import reproject, Resampling
 LOG=logging.getLogger("opera")
 API="https://api.meteogate.eu/eu-eumetnet-weather-radar/collections/observations/locations/0-20010-0-OPERA"
 S3="https://s3.waw3-1.cloudferro.com/openradar-24h"
+# EUMETNET's documented temporary service endpoints during provider outages.
+# Keep the original URLs as primary and use only official backup mirrors.
+API_ENDPOINTS=(API,
+    "https://radar-backup.meteogate.eu/api/collections/observations/locations/0-20010-0-OPERA")
+S3_ENDPOINTS=(S3,
+    "https://object-store.os-api.cci1.ecmwf.int/openradar-24h-backup")
 WEST,EAST,SOUTH,NORTH=-27.,47.,29.,73.
 WIDTH,HEIGHT=1480,880
 MAX_AGE={"dbzh":45,"rate":55}
@@ -43,24 +49,37 @@ def iso(ts:datetime)->str:
 
 def discover(session:requests.Session,kind:str,now:datetime,count:int) -> list[datetime]:
     start=now-timedelta(minutes=200)
-    resp=session.get(API,params={
+    params={
         "datetime":f"{iso(start)}/{iso(now)}","f":"CoverageJSON",
-        "standard_name":kind.upper(),"format":"ODIM"},timeout=45)
-    resp.raise_for_status()
-    d=resp.json()
-    times=d.get("domain",{}).get("axes",{}).get("t",{}).get("values",[])
-    stamps=set()
-    for item in times:
+        "standard_name":kind.upper(),"format":"ODIM"}
+    errors=[]
+    ordered=[]
+    for endpoint in API_ENDPOINTS:
         try:
-            time=datetime.fromisoformat(item.replace("Z","+00:00")).astimezone(timezone.utc)
-        except (ValueError,TypeError):continue
-        time=time.replace(second=0,microsecond=0)
-        if start<=time<=now+timedelta(minutes=3):stamps.add(time)
-    ordered=sorted(stamps)
-    if len(ordered)<4:
-        raise ValueError(f"OPERA ORD returned only {len(ordered)} {kind.upper()} timestamps")
-    if (now-ordered[-1]).total_seconds()>MAX_AGE[kind]*60:
-        raise ValueError(f"Stale OPERA {kind} latest UTC {iso(ordered[-1])}")
+            resp=session.get(endpoint,params=params,timeout=45)
+            resp.raise_for_status()
+            d=resp.json()
+            times=d.get("domain",{}).get("axes",{}).get("t",{}).get("values",[])
+            stamps=set()
+            for item in times:
+                try:
+                    timestamp=datetime.fromisoformat(item.replace("Z","+00:00")).astimezone(timezone.utc)
+                except (ValueError,TypeError,AttributeError):continue
+                timestamp=timestamp.replace(second=0,microsecond=0)
+                if start<=timestamp<=now+timedelta(minutes=3):stamps.add(timestamp)
+            ordered=sorted(stamps)
+            if len(ordered)<4:
+                raise ValueError(f"Only {len(ordered)} {kind.upper()} timestamps")
+            if (now-ordered[-1]).total_seconds()>MAX_AGE[kind]*60:
+                raise ValueError(f"Stale {kind} latest UTC {iso(ordered[-1])}")
+            if endpoint != API:
+                LOG.warning("OPERA %s: official backup API in use (%s)",kind,endpoint)
+            break
+        except (requests.RequestException,ValueError,KeyError,TypeError) as exc:
+            errors.append(f"{endpoint}: {exc}")
+            ordered=[]
+    if not ordered:
+        raise RuntimeError(f"OPERA {kind.upper()} unavailable on primary and backup API: {'; '.join(errors)}")
     # MeteoGate may advertise the newest COGs before S3 actually hosts them.
     # Search a modest older candidate pool; only successfully decoded files
     # become frames, and the last verified timestamp is checked separately.
@@ -72,8 +91,29 @@ def discover(session:requests.Session,kind:str,now:datetime,count:int) -> list[d
         LOG.warning("OPERA %s has time gaps of up to %.0f min",kind,max(gaps))
     return selected
 
-def s3url(stamp:datetime,kind:str)->str:
-    return f"{S3}/{stamp:%Y/%m/%d}/OPERA/COMP/OPERA@{stamp:%Y%m%dT%H%M}@0@{kind.upper()}.tiff"
+def s3url(stamp:datetime,kind:str,base:str=S3)->str:
+    return f"{base}/{stamp:%Y/%m/%d}/OPERA/COMP/OPERA@{stamp:%Y%m%dT%H%M}@0@{kind.upper()}.tiff"
+
+
+def load_verified_cog(session:requests.Session,stamp:datetime,kind:str):
+    """Only verified real COG imagery qualifies; fail over between official stores."""
+    for base in S3_ENDPOINTS:
+        url=s3url(stamp,kind,base)
+        try:
+            response=session.get(url,timeout=85)
+            if response.status_code==404:
+                LOG.info("OPERA %s %s COG not found at %s",kind,iso(stamp),base)
+                continue
+            response.raise_for_status()
+            pixels,stats=decode_geotiff(response.content,kind,stamp)
+            if base != S3:
+                LOG.warning("OPERA %s %s: retrieved from EUMETNET backup S3",kind,iso(stamp))
+            return pixels,stats
+        except requests.RequestException as exc:
+            LOG.warning("OPERA %s %s source %s unavailable: %s",kind,iso(stamp),base,exc)
+        except (ValueError,rasterio.errors.RasterioIOError) as exc:
+            LOG.warning("OPERA %s %s invalid COG from %s: %s",kind,iso(stamp),base,exc)
+    return None
 
 def decode_geotiff(blob:bytes,kind:str,instant:datetime) -> tuple[np.ndarray,dict]:
     with MemoryFile(blob) as mem,mem.open() as ds:
@@ -166,21 +206,12 @@ def build(out:Path, counts:dict[str,int]|None=None)->dict:
                 rows.append(prior)
                 if len(rows)>=counts[kind]:break
                 continue
-            url=s3url(stamp,kind)
-            try:
-                response=session.get(url,timeout=85)
-                # MeteoGate ORD may advertise a timestamp before the COG is
-                # present on S3. A 404 is missing data, never a zero-rain frame.
-                if response.status_code==404:
-                    LOG.warning("OPERA %s %s announced but COG not published (404)",
-                                kind,iso(stamp))
-                    continue
-                response.raise_for_status()
-                pixels,stats=decode_geotiff(response.content,kind,stamp)
-            except requests.RequestException as exc:
-                LOG.warning("OPERA %s %s temporarily unavailable: %s",
-                            kind,iso(stamp),exc)
+            verified=load_verified_cog(session,stamp,kind)
+            if verified is None:
+                LOG.warning("OPERA %s %s: no verified COG from primary/backup",
+                            kind,iso(stamp))
                 continue
+            pixels,stats=verified
             Image.fromarray(pixels,mode="L").save(target,optimize=True)
             rows.append({"utc":iso(stamp),"image":relative,"stats":stats})
             LOG.info("OPERA %s %s coverage=%.3f min/max=%s/%s",kind,iso(stamp),
