@@ -92,3 +92,20 @@ test("source view stays untouched and missing charts do not produce misleading P
  assert.throws(()=>a.buildScene({data:{datasets:[]},scales:{}},info),/Diagramm/);
  assert.throws(()=>a.toSvg([]),/Keine Diagramme/);
 });
+
+test("percentile envelope edges have distinct named vector layers",()=>{
+ const {a,chart,info}=harness();
+ chart.data.datasets=[
+  {label:"10.–90. Perzentil",data:[0,1,1,2,3],borderColor:"transparent"},
+  {label:"10.–90. Perzentil",data:[2,2,3,4,5],borderColor:"transparent"},
+  {label:"25.–75. Perzentil",data:[1,1,2,2,3],borderColor:"transparent"},
+  {label:"25.–75. Perzentil",data:[2,3,3,4,4],borderColor:"transparent"}
+ ];
+ chart.isDatasetVisible=()=>true;
+ const scene=a.buildScene(chart,info);
+ assert.deepEqual(Array.from(scene.series,s=>s.label),
+  ["10. Perzentil","90. Perzentil","25. Perzentil","75. Perzentil"]);
+ const svg=a.toSvg([scene]);
+ for(const name of ["10.","90.","25.","75."])
+  assert.ok(svg.includes(name+" Perzentil"),name);
+});
