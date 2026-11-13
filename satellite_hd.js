@@ -328,7 +328,7 @@ async function exportImage(format="png"){
   setInfo("HD-/4K-"+format.toUpperCase()+" nicht möglich: "+(error?.message||String(error)));
  }finally{
   downloadBusy=false;
-  download.disabled=!scene||quality.value==="standard";
+  download.disabled=!scene||quality.value==="standard"||quality.value==="economy";
   if(pdfButton)pdfButton.disabled=download.disabled||!isobarChoice?.checked;
  }
 }
