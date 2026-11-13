@@ -649,6 +649,7 @@ node --test tests/test_satellite_phase12.cjs
 node --test tests/test_satellite_source_alignment.cjs
 node --test tests/test_satellite_tile_cache.cjs
 node --test tests/test_satellite_hd.cjs
+node --test tests/test_satellite_dwd_fronts.cjs
 python -m unittest discover -s tests -p "test_satellite_dwd_fronts.py" -v
 node --test tests/test_satellite_progressive.cjs
 node --test tests/test_satellite_quality_comparison.cjs
