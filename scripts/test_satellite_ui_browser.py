@@ -123,6 +123,14 @@ def exercise(page, viewport_label, official_xml):
     evidence["standard_quality_selected"]=page.locator("#satStillQuality").input_value()=="standard"
     evidence["hd_script_available"]=page.evaluate("() => typeof window.SatelliteHD?.sync === 'function'")
     evidence["hd_tiles_present"]=page.locator("#satHDTiles").count()==1
+    evidence["quality_compare_script"]=page.evaluate("() => typeof window.SatelliteQualityCompare?.compare === 'function'")
+    evidence["quality_compare_grid_present"]=page.locator("#satCompareGrid").count()==1
+    evidence["quality_compare_initially_hidden"]=page.locator("#satCompareGrid").is_hidden()
+    evidence["quality_compare_crop_options"]=page.locator("#satCompareCrop option").count()
+    assert (evidence["quality_compare_script"] and evidence["quality_compare_grid_present"]
+            and evidence["quality_compare_initially_hidden"]
+            and evidence["quality_compare_crop_options"]==5), "Quality comparison controls unavailable or unexpectedly loading"
+
     assert evidence["standard_quality_selected"] and evidence["hd_script_available"] and evidence["hd_tiles_present"], "HD source controls not active"
     evidence["default_still_width_requested"]=page.locator("#satImage").evaluate(
         "(img)=>img.src.startsWith('https://view.eumetsat.int/')?new URL(img.src).searchParams.get('width'):''"
