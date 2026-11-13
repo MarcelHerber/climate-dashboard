@@ -18,6 +18,14 @@ const regions={
  germany:[5,47,16,56,1140,950]
 };
 let scene=null,zoom=1,epoch=0,timer=0,queue=[],busy=0,tiles=new Map(),layout=null,downloadBusy=false;
+const lowerMemory=Boolean((typeof navigator!=="undefined"&&navigator.deviceMemory&&navigator.deviceMemory<=4)||
+ window.matchMedia?.("(max-width: 700px)")?.matches);
+const tileCache=window.SatelliteTileCache?.create({
+ maxBytes:(lowerMemory?40:96)*1024*1024,
+ ttlMs:45*60*1000
+});
+const clearCacheButton=byId("satClearTileCache");
+let reusedInView=0;
 const AUTO_HD_WIDTH=2048,AUTO_4K_ZOOM=3;
 // A verified small still is always shown first; the background WMS upgrade
 // must never delay it or masquerade as extra native satellite detail.
@@ -47,7 +55,9 @@ function clear(reason){
   const img=tile.img;
   if(img){img.onload=null;img.onerror=null;if(!tile.ok)img.removeAttribute("src");}
  }
- tiles.clear();busy=0;layout=null;
+ tiles.clear();busy=0;layout=null;reusedInView=0;
+ // Only detach current DOM nodes. The bounded in-memory cache retains
+ // successfully decoded images for exact UTC/geography revisit.
  stage.replaceChildren();stage.hidden=true;
  if(reason)setInfo(reason);
  download.disabled=!scene||(quality.value==="standard"||quality.value==="economy")||downloadBusy||source.value!=="mtgi1"||region.value==="disk";
@@ -122,7 +132,8 @@ function stats(){
   " · "+ok+"/"+(layout.cols*layout.rows)+" echte WMS-Kacheln"+(complete?" vollständig":" geladen")+
   (errors?" · "+errors+" nicht erreichbar (Vorschau bleibt sichtbar)":"")+
   " · Zielraster "+size+(zoom>1?" · Zoom "+Math.round(zoom*100)+" %":"")+
-  (auto&&layout.width===2048&&!complete?" · Vorschau bleibt bis zum vollständigen HD-Bild sichtbar":""));
+  (auto&&layout.width===2048&&!complete?" · Vorschau bleibt bis zum vollständigen HD-Bild sichtbar":"")+
+  (reusedInView?" · "+reusedInView+" Kacheln aus Bildcache":""));
 }
 function pump(){
  if(!scene||!layout)return;
@@ -130,6 +141,18 @@ function pump(){
  while(busy<2&&queue.length){
   const tile=queue.shift();
   if(tile.ok||tile.failed||tile.loading)continue;
+  const url=tileUrl(tile,regions[scene.region],layout);
+  const cached=tileCache?.get(url);
+  if(cached){
+   tile.img=cached;tile.ok=true;tile.failed=false;tile.loading=false;
+   reusedInView++;
+   if(quality.value==="standard"&&zoom<AUTO_4K_ZOOM){
+    if(Array.from(tiles.values()).every(t=>t.ok))
+     for(const done of tiles.values())display(done);
+   }else display(tile);
+   stats();
+   continue; // Cache reuse must not consume the two WMS network slots.
+  }
   busy++;tile.loading=true;
   const img=new Image();img.crossOrigin="anonymous";img.decoding="async";
   tile.img=img;
@@ -142,6 +165,7 @@ function pump(){
    const expectedH=Math.min(layout.th,layout.height-tile.row*layout.th);
    if(valid&&img.naturalWidth===expectedW&&img.naturalHeight===expectedH){
     tile.ok=true;
+    tileCache?.put(url,img,{width:expectedW,height:expectedH});
     if(quality.value==="standard"&&zoom<AUTO_4K_ZOOM){
      if(Array.from(tiles.values()).every(item=>item.ok))
       for(const completeTile of tiles.values())display(completeTile);
@@ -151,7 +175,7 @@ function pump(){
   };
   const timeout=setTimeout(()=>complete(false),12000);
   img.onload=()=>complete(true);img.onerror=()=>complete(false);
-  img.src=tileUrl(tile,regions[scene.region],layout);
+  img.src=url;
  }
 }
 function ensureTiles(all=false){
@@ -350,16 +374,25 @@ function comparisonPlan(mode){
  const images=Array.from({length:grid.cols*grid.rows},(_,i)=>{
   const col=i%grid.cols,row=Math.floor(i/grid.cols),key=col+"_"+row;
   const native=layout?.key===gridKey?tiles.get(key):null;
+  const url=tileUrl({col,row},regions[scene.region],grid,selectedScene);
   return {
    col,row,x:col*grid.tw,y:row*grid.th,
    width:Math.min(grid.tw,grid.width-col*grid.tw),
    height:Math.min(grid.th,grid.height-row*grid.th),
-   url:tileUrl({col,row},regions[scene.region],grid,selectedScene),
-   cached:native?.ok?native.img:null
+   url,
+   // The comparison reuses real decoded pixels without changing cache keys
+   // or lying about the frame's UTC / spatial resolution.
+   cached:native?.ok?native.img:(tileCache?.get(url)||null)
   };
  });
  return {scene:selectedScene,width:grid.width,height:grid.height,bbox:regions[selectedScene.region].slice(0,4),tiles:images};
 }
-window.SatelliteHD={sync:ready,cancel,viewChanged,boundsForTile,exportImage,comparisonPlan};
+if(clearCacheButton)clearCacheButton.addEventListener("click",()=>{
+ const count=tileCache?.stats().entries||0;
+ tileCache?.clear();
+ setInfo("Bildcache geleert ("+count+" Kacheln). Sichtbares Bild bleibt; künftige Abrufe laden wieder direkt von EUMETSAT.");
+});
+window.SatelliteHD={sync:ready,cancel,viewChanged,boundsForTile,exportImage,comparisonPlan,
+ cacheStats:()=>tileCache?.stats()||null,clearTileCache:()=>tileCache?.clear()};
 setInfo("Automatisch · erst 800 px Vorschau, danach 2048 px im Hintergrund · 4K ab 300 % Zoom.");
 })();
