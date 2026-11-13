@@ -359,7 +359,7 @@
     normalize,rank,suggestions,clusters,validCoordinate,isLong,detailsFor,
     getState:()=>({
       initialized,mapReady,shown:matched.length,
-      selectedId:activeId,clusterCount:mapReady?clusters(matched,
+      selectedId:activeId,mapZoom:mapReady?map.getZoom():null,clusterCount:mapReady?clusters(matched,
         (lat,lon)=>map.latLngToLayerPoint([lat,lon])).length:0
     })
   };
