@@ -87,7 +87,7 @@ def external_archives():
         "europe_tmin": "europe-tmin-lab-data/data/europe-tmin-lab/current.json",
         "icon": "icon-hazards-data/data/icon-hazards/current.json",
         "sst": "sst-archive/manifest.json",
-        "opera": "opera-data/data/opera/current.json",
+        "opera": "opera-radar-data/data/opera/current.json",
         "ssw": "stratosphere-data/data/stratosphere/ssw_catalog.json",
     }
     result = {}
