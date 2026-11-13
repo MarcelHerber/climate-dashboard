@@ -46,7 +46,8 @@ test("ensemble PNG/PDF use the identical metadata-bearing screenshot",()=>{
 
 test("MOSMIX PNG/SVG/PDF preserve vector layers and the same UTC and provenance",()=>{
  const scene=vectors.slice(vectors.indexOf("const footer=["),vectors.indexOf("function svgEl("));
- assert.match(scene,/Zeitachse: UTC \(Z\)/);
+ assert.match(scene,/Rohzeiten UTC \(Z\)/);
+ assert.match(scene,/MEZ\/MESZ/);
  assert.match(scene,/Erstellt:/);
  assert.match(scene,/Deutscher Wetterdienst/);
  assert.match(vectors,/inkscape:groupmode="layer"/);
