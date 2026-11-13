@@ -1216,7 +1216,7 @@
     let y = header;
     sections.forEach(function(section){ ctx.drawImage(section,0,y);y+=section.height+gap; });
     ctx.fillStyle = "#64748b";ctx.font = "16px Arial";
-    ctx.fillText("Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L · UTC (Z) · Originalwerte",pad,height-49);
+    ctx.fillText("Quelle: DWD MOSMIX-L · Rohzeiten UTC (Z), 00-Uhr-Marken MEZ/MESZ",pad,height-49);
     ctx.fillText("Erstellt: "+new Date().toLocaleString("de-DE")+
       " · Climate Dashboard Deutschland",pad,height-25);
     const link = document.createElement("a");
@@ -1293,7 +1293,7 @@
     ctx.fillText("Diagrammzeitraum: "+singleMeteogramLabel(),pad,113,out.width-2*pad);
     ctx.drawImage(section,0,top);
     ctx.fillStyle = "#64748b";ctx.font = "18px Arial";
-    ctx.fillText("Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L · Zeitachse UTC (Z)",pad,out.height-54,out.width-2*pad);
+    ctx.fillText("Quelle: DWD MOSMIX-L · Rohzeiten UTC (Z), 00-Uhr-Marken MEZ/MESZ",pad,out.height-54,out.width-2*pad);
     ctx.fillText("Erstellt: "+new Date().toLocaleString("de-DE")+
       " · Climate Dashboard Deutschland",pad,out.height-28,out.width-2*pad);
     const link = document.createElement("a");
