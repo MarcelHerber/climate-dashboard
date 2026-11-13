@@ -100,6 +100,25 @@ function buildScene(chart,info){
   return {title:String(info?.title||"Ensemblevorhersage"),metadata,
     axis:String(info?.axis||""),series,ticks,dates,plot:P,model:String(info?.model||"")};
 }
+function legend(scene){
+ const out=[],seen=new Set();
+ const members=scene.series.filter(s=>s.label.startsWith("Member "));
+ if(members.length)out.push({label:"Member ("+members.length+")",hex:"#64748b"});
+ for(const series of scene.series){
+   const label=series.label;
+   const key=label.includes("Perzentil")?"Perzentile":
+      label.startsWith("Kontrolllauf")?"Kontrolllauf":
+      label.startsWith("Hauptlauf")?"Hauptlauf":
+      label.startsWith("Ensemble-Mittel")?"Ensemble-Mittel":
+      label.includes("1991–2020")?"ERA5 1991–2020":
+      label.startsWith("Member ")?"Member":
+      label;
+   if(key==="Member"||seen.has(key))continue;
+   seen.add(key);
+   out.push({label:key,hex:series.hex});
+ }
+ return out.slice(0,8);
+}
 function pt(p){return p.map(n=>Number(n.toFixed(3)));}
 function path(points){return points.map((p,i)=>(i?"L":"M")+pt(p).join(" ")).join(" ");}
 function svgText(x,y,t,size=17,fill="#334155",anchor="start"){
@@ -117,6 +136,16 @@ function svgScene(scene,index){
  if(created)s+=svgText(P.x,863+dy,created,15);
  s+=svgText(P.x,887+dy,"Quelle: Open-Meteo Ensemble API / zugrunde liegende Modelle",15);
  s+=svgText(P.x,911+dy,"UTC (Z) · Mess- und Prognosewerte unverändert · Kurven als benannte Vektorebenen",15);
+ s+="</g>";
+ s+='<g id="'+prefix+'legend" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Legende')+'">';
+ let lx=585;
+ for(const item of legend(scene)){
+   const width=Math.max(115,Math.min(205,item.label.length*9+33));
+   if(lx+width>W-75)break;
+   s+='<path d="M'+lx+" "+(242+dy)+" h22"+'" stroke="'+item.hex+'" stroke-width="3" fill="none"/>';
+   s+=svgText(lx+28,248+dy,item.label,13);
+   lx+=width;
+ }
  s+="</g>";
  s+='<g id="'+prefix+'axes" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Achsen und Gitter')+'">';
  s+='<rect x="'+P.x+'" y="'+(P.y+dy)+'" width="'+P.w+'" height="'+P.h+'" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>';
@@ -157,6 +186,15 @@ function drawPdf(pdf,scene){
  text(scene.title,65,62,31,"#152c43");
  text(scene.axis+" · Vektor-PDF",66,95,19,"#41566a");
  scene.metadata.slice(0,5).forEach((m,i)=>text(m,66,127+i*23,16,"#475569"));
+ let lx=585;
+ for(const item of legend(scene)){
+   const width=Math.max(115,Math.min(205,item.label.length*9+33));
+   if(lx+width>W-75)break;
+   pdf.setDrawColor(...ink(item.hex));pdf.setLineWidth(3*s);
+   pdf.line(X(lx),Y(242),X(lx+22),Y(242));
+   text(item.label,lx+28,248,13);
+   lx+=width;
+ }
  const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
  if(created)text(created,P.x,863,15);
  text("Quelle: Open-Meteo Ensemble API / Modelle",P.x,887,15);
