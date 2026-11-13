@@ -156,7 +156,8 @@ def add_external(items, remote):
         items.append(result("mosmix", "MOSMIX-L", "Vorhersagen",
             mos.get("issue_time"), mos.get("generated_at"),
             f"{count} Prognosepunkte · {len(steps)} Zeitschritte",
-            note, allowed_delay=2, incomplete=not (good and quality_ok)))
+            note, cadence="hourly", allowed_delay=18,
+            incomplete=not (good and quality_ok)))
     else:
         items.append(result("mosmix", "MOSMIX-L", "Vorhersagen", None, None,
             "Laufmetadaten fehlen", "Datenzweig vorübergehend nicht prüfbar"))
@@ -189,7 +190,8 @@ def add_external(items, remote):
                 and raster_ok and archive.get("stations_catalog_count", 0) >= 1000)
         cycle = archive.get("icon_cycle")
         try:
-            cycle_date = datetime.strptime(cycle, "%Y%m%d%H").date().isoformat()
+            cycle_date = datetime.strptime(cycle, "%Y%m%d%H").replace(
+                tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
         except (TypeError, ValueError):
             cycle_date = None
         missing = sorted({
@@ -207,7 +209,7 @@ def add_external(items, remote):
             f"Raster mindestens {min((round(day.get('coverage', 0)*100) for day in days if isinstance(day, dict)), default=0)} %",
             f"ICON-Modelllauf {cycle or '–'} · Prognosen {first} bis {last}{missing_note} · "
             "Datenbranch-Manifest, kein Browser-Bildtest",
-            allowed_delay=2, incomplete=not good))
+            cadence="hourly", allowed_delay=24, incomplete=not good))
 
     fast = remote.get("fast_live")
     if isinstance(fast, dict) and fast.get("station_count", 0) > 0:
@@ -236,7 +238,7 @@ def add_external(items, remote):
             icon.get("run_utc"), icon.get("generated_utc"),
             f"{len(periods)}/5 Vorhersagefenster · 0 bis 120 Stunden",
             "Modellbasierter Gefahrenmonitor, keine amtliche Warnung",
-            allowed_delay=2, incomplete=not good))
+            cadence="hourly", allowed_delay=24, incomplete=not good))
     else:
         items.append(result("icon_hazards", "ICON-EU Wettergefahren", "Vorhersagen",
             None, None, "Laufmetadaten fehlen", "Datenzweig vorübergehend nicht prüfbar"))
@@ -389,11 +391,20 @@ def build(remote=None):
     if snow:
         observed = snow.get("stations_with_current_season_values")
         possible = snow.get("profile_station_count")
+        # An active station can be missing measurements in the young snow
+        # season without invalidating verified data from the other stations.
+        # Keep partial coverage visible and reserve "incomplete" for systemic gaps.
+        coverage_ratio = (observed / possible if isinstance(observed, int)
+                          and isinstance(possible, int) and possible > 0 else 0)
+        missing_stations = max(0, possible - observed) if (
+            isinstance(observed, int) and isinstance(possible, int)) else None
         items.append(result("snow", "Stationsschneehöhe", "Stationen",
             snow.get("data_through"), snow.get("generated_at"),
-            f'{observed}/{possible} Stationen mit Saisonwerten',
-            "Fehlende Stationsmeldungen werden nicht als 0 cm gewertet", allowed_delay=5,
-            incomplete=bool(possible and observed is not None and observed < possible)))
+            f'{observed}/{possible} Stationen mit Saisonwerten'
+            + (f' · {missing_stations} ohne Saisonmessung' if missing_stations is not None else ''),
+            "Fehlende Stationsmeldungen werden nicht als 0 cm gewertet",
+            allowed_delay=5,
+            incomplete=not (snow.get("ready") is True and coverage_ratio >= .8)))
 
     era = read_json("era5_europe/index.json")
     if era:
@@ -571,11 +582,18 @@ def build(remote=None):
         latest=max(x.get("valid_utc","") for x in charts)
         # Forecast valid times may be in the future; freshness belongs to the
         # published chart index, not the last forecast's target date.
+        source_checks = original.get("source_status") or {}
+        reported = [v for v in source_checks.values() if isinstance(v, dict)] if isinstance(source_checks, dict) else []
+        working = sum(v.get("state") == "available" for v in reported)
+        unavailable = [key for key,v in source_checks.items()
+                       if isinstance(v, dict) and v.get("state") != "available"] if isinstance(source_checks, dict) else []
         items.append(result("synoptic_original", "Isobaren & Fronten · Originalkarten", "Europa",
             original.get("generated_utc"), original.get("generated_utc"),
-            f"{len(charts)} Originalkarten · {len(set(x.get('publisher_id') or x['source_id'] for x in charts))} unabhängige Wetterdienste",
-            f"Letzte Prognosegültigkeit {latest} · Erstellungszeit statt Zukunftsdatum für Aktualitätsprüfung",
-            allowed_delay=3))
+            f"{len(charts)} Originalkarten · {len(set(x.get('publisher_id') or x['source_id'] for x in charts))} unabhängige Wetterdienste"
+            + (f" · {working}/{len(reported)} geprüfte Quellen erreichbar" if reported else ""),
+            f"Letzte Prognosegültigkeit {latest} · Erstellungszeit statt Zukunftsdatum"
+            + (f" · Nicht verfügbar: {', '.join(unavailable[:4])}" if unavailable else ""),
+            allowed_delay=3, incomplete=bool(unavailable)))
     else:
         items.append(result("synoptic_original", "Isobaren & Fronten · Originalkarten", "Europa",
             None, None, "Erster bestätigter Bildabruf steht aus",
