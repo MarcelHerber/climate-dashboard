@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  actions: write  # Dispatch Pages only after validated maps are available
 
 concurrency:
   group: polar-vortex-map-era5
@@ -80,6 +81,8 @@ jobs:
 
       - name: Kartenstand nur nach erfolgreicher Prüfung veröffentlichen
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           cp -a data/polar_vortex /tmp/polar-vortex-publish
@@ -99,10 +102,17 @@ jobs:
             git add data/polar_vortex/current.json data/polar_vortex/polar_vortex_10hpa_current.png
             if git diff --cached --quiet; then
               echo "Karte bereits unverändert veröffentlicht"
+              # On a code fix, also publish the current verified archive once.
+              if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+                gh workflow run deploy-pages-only.yml --ref main --repo "$GITHUB_REPOSITORY"
+              fi
               exit 0
             fi
             git commit -m "Publish verified ERA5 polar vortex 10 hPa daily map"
-            if git push origin HEAD:main; then exit 0; fi
+            if git push origin HEAD:main; then
+              gh workflow run deploy-pages-only.yml --ref main --repo "$GITHUB_REPOSITORY"
+              exit 0
+            fi
           done
           echo "Karte konnte nach Konflikten nicht veröffentlicht werden"
           exit 1
