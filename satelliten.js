@@ -652,7 +652,7 @@ async function downloadComposite(format){
  try{
   setStatus("Erzeuge "+format.toUpperCase()+" mit pinken Isobaren und UTC-Kennzeichnung …","info");
   const overlay=await window.SatelliteIsobars.exportAt(t,place,Number(id("satIsobarSpacing").value)||5);
-  const fronts=await window.SatelliteNOAAFronts?.exportAt?.(t,place)||null;
+  const fronts=window.SatelliteFrontsPaused===true?null:(await window.SatelliteNOAAFronts?.exportAt?.(t,place)||null);
   const img=await exportPixels(t);
   const arg={image:img,overlay,fronts,region:place,regionName:REGIONS[place].name,product:product.value,
    productName:description().name,credit:description().credit};
@@ -660,8 +660,7 @@ async function downloadComposite(format){
   const bytes=composite.download(result);
   setStatus(format.toUpperCase()+" mit pinken Isobaren gespeichert ("+(bytes/1048576).toFixed(1)+
    " MB). ECMWF gültig "+formatUTC(overlay.validUTC)+" · "+overlay.method+
-   (fronts?" · "+fronts.features.length+" amtliche NOAA-WPC-Fronten, Analyse "+formatUTC(fronts.valid_utc):
-    " · keine NOAA-Fronten für diese Region/UTC oder Ebene ausgeschaltet")+".","info");
+   (fronts?" · "+fronts.features.length+" amtliche NOAA-WPC-Fronten, Analyse "+formatUTC(fronts.valid_utc):"")+".","info");
  }catch(err){
   setStatus("Kein "+format.toUpperCase()+" mit Isobaren erstellt: "+(err?.message||err)+
    ". Bei CORS-Sperre ist ein serverseitiger Satellitenbildcache erforderlich.","warning");
@@ -677,7 +676,7 @@ async function downloadGIFIsobars(){
    setStatus("Lade 10-Minuten-Isobaren für GIF: "+(i+1)+"/"+selected.length,"info");
    overlays.push(await window.SatelliteIsobars.exportAt(
     selected[i].time,place,Number(id("satIsobarSpacing").value)||5,{strictTenMinute:true}));
-   frontOverlays.push(await window.SatelliteNOAAFronts?.exportAt?.(selected[i].time,place)||null);
+   frontOverlays.push(window.SatelliteFrontsPaused===true?null:(await window.SatelliteNOAAFronts?.exportAt?.(selected[i].time,place)||null));
   }
   const result=await exporters.exportGIF({
    frames:selected,isobarOverlays:overlays,frontOverlays,region:place,product:product.value,
@@ -685,11 +684,10 @@ async function downloadGIFIsobars(){
    width:Math.min(480,Number(filmQuality.value)||320),delayMs:Number(filmSpeed.value)||750,
    progress:(n,total)=>setStatus("GIF mit pinken Isobaren: "+n+"/"+total,"info")
   });
-  const withFronts=frontOverlays.some(Boolean);
+  const withFronts=window.SatelliteFrontsPaused!==true&&frontOverlays.some(Boolean);
   result.name=result.name.replace(/\.gif$/,withFronts?"_isobaren_noaa_fronten.gif":"_isobaren.gif");
   const size=exporters.download(result);
-  setStatus("GIF mit echten zeitlich zugeordneten pinken Isobaren"+(withFronts?
-   " und NOAA-WPC-Frontlinien":" (keine zeitlich passenden NOAA-Frontlinien)")+
+  setStatus("GIF mit echten zeitlich zugeordneten Isobaren"+(withFronts?" und NOAA-WPC-Frontlinien":"")+
    " gespeichert ("+selected.length+" Bilder · "+(size/1048576).toFixed(1)+" MB).","info");
  }catch(err){
   setStatus("GIF mit Isobaren nicht erstellt: "+(err?.message||err)+
