@@ -1,0 +1,59 @@
+name: Phase 3 · Rekordlabor Live-DWD Desktop und Handy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - stations_rekordlabor.html
+      - stations_rekordlabor.js
+      - stations_rekordlabor_core.js
+      - stations_rekordlabor.css
+      - scripts/build_pages_site.sh
+      - data/rekordlabor/weather_turns/**
+      - tests/audit_phase3_rekordlabor_live.py
+      - .github/workflows/audit-phase3-rekordlabor-live.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rekordlabor-live-acceptance
+  cancel-in-progress: true
+
+jobs:
+  real-dwd-records:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            stations_rekordlabor_core.js
+            stations_rekordlabor.js
+            tests/test_stations_rekordlabor.cjs
+            tests/audit_phase3_rekordlabor_live.py
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Syntax and leap-day/coverage unit regressions
+        run: |
+          node --check stations_rekordlabor.js
+          node --check stations_rekordlabor_core.js
+          node --test tests/test_stations_rekordlabor.cjs
+      - name: Playwright and vector PDF inspector
+        run: |
+          python -m pip install "playwright==1.57.0" "pypdf>=5,<8"
+          python -m playwright install --with-deps chromium
+      - name: Live original DWD station calendar, seasonal records and observed hourly changes
+        run: python -u tests/audit_phase3_rekordlabor_live.py
+      - name: Preserve original-data exports, screenshots and findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-rekordlabor-real-dwd-live
+          path: rekordlabor_live_reports/
+          if-no-files-found: warn
+          retention-days: 14
