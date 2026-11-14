@@ -7,6 +7,7 @@ on:
       - "gfs_analysis_europe/weekly_f003_extended.json"
       - "gfs_weekly_europe.js"
       - "scripts/build_pages_site.sh"
+      - "tests/test_gfs_weekly_extended_browser.py"
   workflow_dispatch:
 permissions:
   contents: read
