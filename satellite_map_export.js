@@ -157,10 +157,10 @@ function pressureCenters(overlay,region){
 function paintPressureCenters(ctx,overlay,region,{x=0,y=0,width,height}){
  if(!width||!height)return [];
  const markers=pressureCenters(overlay,region);
- const size=Math.max(17,Math.min(35,Math.round(width*.022)));
+ const size=1.5*Math.max(17,Math.min(35,Math.round(width*.022)));
  ctx.save();ctx.textAlign="center";ctx.textBaseline="middle";
  ctx.font="750 "+size+"px Arial,Helvetica,sans-serif";
- ctx.lineJoin="round";ctx.lineWidth=Math.max(1.6,size*.085);
+ ctx.lineJoin="round";ctx.lineWidth=Math.max(1.6,(size/1.5)*.085);
  for(const m of markers){
   const p=project([m.lon,m.lat],region,x,y,width,height);
   ctx.strokeStyle="#102438";ctx.globalAlpha=.86;
@@ -292,11 +292,11 @@ function drawPDFVectors(overlay,region,w,h,bottom){
  // Keep H/T as editable text within the vector layer, not raster pixels.
  for(const m of pressureCenters(overlay,region)){
   const [cx,cy]=pt([m.lon,m.lat]);
-  const fs=Math.max(18,Math.min(34,w*.022));
+  const fs=1.5*Math.max(18,Math.min(34,w*.022));
   out.push("q",
    pdfRGB("#102438")+" RG",
    pdfRGB(m.type==="T"?"#ba859f":"#a599bc")+" rg",
-   fmt(Math.max(1.6,fs*.085))+" w",
+   fmt(Math.max(1.6,(fs/1.5)*.085))+" w",
    "BT /F1 "+fmt(fs)+" Tf 2 Tr "+
     fmt(cx-fs*.35)+" "+fmt(cy-fs*.34)+" Td ("+m.type+") Tj ET",
    "Q");
