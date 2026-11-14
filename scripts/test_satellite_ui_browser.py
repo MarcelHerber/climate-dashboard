@@ -101,6 +101,31 @@ def exercise(page, viewport_label, official_xml):
         "() => document.getElementById('satTime').options.length > 1 || document.getElementById('satStatus').textContent.includes('nicht')",
         timeout=25000
     )
+    # Explanations may no longer push the satellite image far down the screen.
+    # A real browser verifies the closed-by-default panels on desktop AND mobile.
+    evidence["map_details_follow_image"] = page.evaluate("""() => {
+      const picture=document.getElementById('satPictureFrame');
+      const info=document.getElementById('satImageDetails');
+      return !!picture && !!info && picture.compareDocumentPosition(info) & Node.DOCUMENT_POSITION_FOLLOWING
+    }""")
+    assert evidence["map_details_follow_image"], "Info panels are not below the satellite raster"
+    evidence["collapsed_info_count"]=page.locator("#satImageDetails details:not([open])").count()
+    assert evidence["collapsed_info_count"]==3, "All three long-text panels must start collapsed"
+    assert not page.locator("#satProductGuide").is_visible(), "Product explanation obstructs map"
+    assert not page.locator(".sat-film-hint").first.is_visible(), "Film explanation obstructs map"
+    page.locator("#satProductDetails summary").click()
+    assert page.locator("#satProductGuide").is_visible(), "Product disclosure cannot be expanded"
+    page.locator("#satProductDetails summary").click()
+    page.locator("#satDataDetails summary").click()
+    assert page.locator("#satAdditionalStatus").is_visible(), "Dynamic source status hidden even after opening"
+    page.locator("#satDataDetails summary").click()
+    page.locator("#satTechDetails summary").click()
+    assert page.locator("#satTechDetails .sat-film-hint").is_visible(), "Technical notes disclosure cannot be expanded"
+    page.locator("#satTechDetails summary").click()
+    evidence["collapsed_info_after_interaction"]=page.locator("#satImageDetails details:not([open])").count()
+    assert evidence["collapsed_info_after_interaction"]==3
+    assert page.locator("#satIsobarBrief").is_visible(), "Compact isobar status disappeared"
+
     # Reproduce the reported screenshot: GeoColour/Europe with unverified
     # observation UTC must still allow independent, real ECMWF contours.
     page.evaluate("() => window.SatelliteIsobars?.sync({time:null,region:'europe',source:'mtgi1'})")
