@@ -1,0 +1,45 @@
+name: MOSMIX-L · Echtstations-Daten und 36 wissenschaftliche Exporte
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tests/audit_mosmix_real_dwd_exports_live.py
+      - .github/workflows/audit-mosmix-real-dwd-exports-live.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mosmix-real-dwd-exports-live
+  cancel-in-progress: true
+
+jobs:
+  chromium-real-dwd:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/audit_mosmix_real_dwd_exports_live.py
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install browser and PDF vector inspector
+        run: |
+          python -m pip install "playwright==1.57.0" "pypdf>=5,<8"
+          python -m playwright install --with-deps chromium
+      - name: Live DWD MOSMIX-L Frankfurt – 6 charts × PNG, true PDF and SVG × phone and desktop
+        run: python -u tests/audit_mosmix_real_dwd_exports_live.py
+      - name: Save original-data audit report, vector files, downloads, screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mosmix-real-dwd-station-36-exports
+          path: mosmix_live_dwd_export_audit/
+          if-no-files-found: warn
+          retention-days: 14
