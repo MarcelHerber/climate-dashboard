@@ -2,6 +2,11 @@ name: Phase 3 · DWD-Stundenrekorde aus amtlichen Originalarchiven
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/build_rekordlabor_hourly.py
+      - tests/test_rekordlabor_hourly.py
+      - .github/workflows/update-rekordlabor-hourly.yml
   push:
     branches: [main]
     paths:
@@ -26,6 +31,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/build_rekordlabor_hourly.py
+            tests/test_rekordlabor_hourly.py
+            data/rekordlabor/weather_turns
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -59,6 +69,7 @@ jobs:
           print("VERIFIED DWD HOURLY RECORDS",len(idx["stations"]))
           PY
       - name: Publish only the validated DWD hourly snapshots on main
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
