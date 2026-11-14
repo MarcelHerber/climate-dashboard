@@ -184,7 +184,7 @@ function draw(frame,bbox,gap){
    batch.appendChild(label);
   }
  }
- // H/T only for significant, fully closed nested IFS isobars.
+ // H/T only for validated closed IFS pressure systems: nested levels, or conservative single-ring extrema.
  const limits={atlantic:8,europe:6,southwest:5,central:3,germany:2};
  const systems=geometry.detectVisiblePressureSystems?.(frame.contours,bbox,{
   maxSystems:limits[context.region]||5,minRings:Number(gap)===2?6:3,minSeparation:94
