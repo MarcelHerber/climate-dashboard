@@ -19,7 +19,7 @@ def await_published():
         try:
             with urllib.request.urlopen(BASE+"stations_rekordlabor.html?qa="+str(time.time()),timeout=16) as response:
                 txt=response.read().decode("utf8")
-            if ('id="rlChanges"' in txt and 'id="rlMap"' in txt and 'stations_rekordlabor.js?v=20261114-p3-map-v2' in txt):return
+            if ('id="rlChanges"' in txt and 'id="rlMap"' in txt and 'stations_rekordlabor.js?v=20261114-p3-expanded-kl-v3' in txt):return
         except Exception as error:
             print("Phase3 release probe:",str(error)[:140],flush=True)
         time.sleep(15)
@@ -98,6 +98,15 @@ def test(browser,width):
         assert "Stationsstandorte" in result["map_debug"]["status"],"DWD map initialisation failed: "+repr(result["map_debug"])
         assert page.locator("#rlMap.leaflet-container").count()==1,"Original DWD station map absent"
         result["map"]=page.locator("#rlMapStatus").inner_text()
+        kl_note=page.locator("#rlKlCount").inner_text()
+        kl_count=int(kl_note.split(" ")[0].replace(".",""))
+        assert kl_count>=60,"Historical DWD KL archive has not reached expanded coverage: "+kl_note
+        page.locator("#rlOnlyKL").check()
+        kl_buttons=page.locator("#rlSuggestions button")
+        assert kl_buttons.count()>=1
+        assert all("Niederschlag/Sonne (KL)" in x for x in kl_buttons.all_inner_texts()),"KL filter offered unsupported stations"
+        page.locator("#rlOnlyKL").uncheck()
+        result["kl_coverage"]=kl_note
         page.wait_for_function("""()=>document.getElementById("rlCalendarTable")?.querySelectorAll("tr").length>=5""",
                                timeout=45000)
         cover=page.locator("#rlCalendarMeta").inner_text()
@@ -120,6 +129,17 @@ def test(browser,width):
         page.wait_for_function("""()=>document.getElementById('rlCalendarMeta')?.textContent?.includes('Schneehöhe SHK_TAG')""",
                                timeout=40000)
         result["cases"].append("real_snow_day_calendar_leap")
+        # Test real, separately validated DWD KL daily rain and sunshine on
+        # the expanded national archive (never monthly precipitation surrogates).
+        page.locator("#rlDay").select_option("11-14")
+        for metric,needle in (("rain","Tagesniederschläge RSK"),("sun","Sonnenscheindauer SDK")):
+            page.locator("#rlCalMetric").select_option(metric)
+            page.wait_for_function(
+                "(needle)=>document.getElementById('rlCalendarMeta')?.textContent.includes(needle)",
+                arg=needle,timeout=25000)
+            assert page.locator("#rlCalendarTable tr").count()==10, "Original KL calendar rankings missing"
+            assert page.locator("#rlCalendar [data-rl-export='pdf']").is_enabled()
+        result["cases"].append("expanded_real_dwd_kl_daily_rain_sun")
         result["phase"]="season module"
         page.locator("#rlTabSeasons").click()
         page.wait_for_function("""()=>document.getElementById('rlSeasonMeta')?.textContent?.includes('DWD CDC')""",
@@ -167,6 +187,19 @@ def test(browser,width):
             assert "kein" in change_status.lower() or "noch" in change_status.lower(),change_status
             result["cases"].append("hourly_archive_not_yet_published")
 
+        # Verify that a separate long historical KL station can be selected,
+        # including with the station-ID search (works with mobile touch input).
+        page.locator("#rlTabCalendar").click()
+        page.locator("#rlSearch").fill("05792")
+        page.wait_for_function("""()=>document.querySelector('#rlSuggestions button strong')?.textContent""",timeout=12000)
+        match=page.locator("#rlSuggestions button").filter(has_text="05792")
+        assert match.count()>0,"Zugspitze (DWD 05792) unavailable from original station catalogue"
+        match.first.click()
+        page.wait_for_function("""()=>/DWD-ID 05792/.test(document.getElementById('rlStation')?.textContent||'')""",timeout=40000)
+        page.locator("#rlCalMetric").select_option("rain")
+        page.wait_for_function("""()=>/Tagesniederschläge RSK/.test(document.getElementById('rlCalendarMeta')?.textContent||'')""",timeout=40000)
+        assert page.locator("#rlCalendarTable tr").count()==10
+        result["cases"].append("real_second_station_zugspitze_rain")
         result["layout"]=validate_layout(page,width)
         assert not errors,f"Browser errors: {errors}"
         result["ok"]=True
