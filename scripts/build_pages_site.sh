@@ -25,6 +25,10 @@ required_root_files=(
   station_jahresanalyse.html
   station_jahresanalyse.js
   station_jahresanalyse.css
+  stations_rekordlabor.html
+  stations_rekordlabor.css
+  stations_rekordlabor_core.js
+  stations_rekordlabor.js
   monthly_layout.js
   monthly_climate_bars.js
   stratosphaere.html
@@ -1622,6 +1626,52 @@ echo "Schneehöhenprofile: $(find _site/station_snow_height_profiles -type f -na
 echo "Aktuelle Schneehöhen: $(find _site/station_snow_height_current -type f -name '*.json' | wc -l) Dateien"
 echo "Europa-Stationsdaten: $(find _site/europe_stations -type f | wc -l) Dateien"
 echo "ERA5-Atmosphäre: $(find _site/era5_europe -type f | wc -l) Dateien"
+
+# Phase 3: original DWD daily-calendar and seasonal records,
+# plus hourly weather-change archive only when verified on main.
+node --check _site/stations_rekordlabor_core.js
+node --check _site/stations_rekordlabor.js
+node --test tests/test_stations_rekordlabor.cjs
+python -m unittest discover -s tests -p test_rekordlabor_hourly.py -v
+python - <<'PY'
+from pathlib import Path
+root=Path("_site")
+page=root/"index.html"
+html=page.read_text(encoding="utf-8")
+anchor='<a class="tab-button" data-nav-group="stations" href="station_jahresanalyse.html">Stations-Jahresdiagramme</a>'
+addition='<a class="tab-button" data-nav-group="stations" href="stations_rekordlabor.html">Stationsrekorde &amp; Wetterumschwünge</a>'
+if html.count(anchor)!=1:
+    raise SystemExit("Phase 3: Station Jahresanalyse nav anchor missing")
+html=html.replace(anchor,anchor+"\n          "+addition,1)
+page.write_text(html,encoding="utf-8")
+mobile=(root/"mobile_navigation.js").read_text(encoding="utf-8")
+assert '["stations_rekordlabor.html","Stationsrekorde & Wetterumschwünge"]' in mobile
+lab=(root/"stations_rekordlabor.html").read_text(encoding="utf-8")
+for key in ("rlCalendar","rlSeasons","rlChanges","rlStation","rlChart","rlChangeChart"):
+    assert 'id="'+key+'"' in lab,key
+assert (root/"station_jahresanalyse_catalog.json").stat().st_size>1500
+print("Phase 3: Rekordlabor in Desktop und Handy, Quellkatalog, alle drei Module validiert.")
+PY
+if [ -s data/rekordlabor/weather_turns/index.json ]; then
+  mkdir -p _site/data/rekordlabor/weather_turns
+  cp data/rekordlabor/weather_turns/*.json _site/data/rekordlabor/weather_turns/
+  python - <<'PY'
+from pathlib import Path
+import json
+folder=Path("_site/data/rekordlabor/weather_turns")
+index=json.loads((folder/"index.json").read_text(encoding="utf-8"))
+assert index.get("ready") and index.get("schema")==1
+for st in index["stations"]:
+    path=folder/(st["id"]+".json")
+    assert path.is_file() and path.stat().st_size>500,st
+    data=json.loads(path.read_text(encoding="utf-8"))
+    assert data["station_id"]==st["id"] and data["metrics"]
+print("Phase 3: Original-DWD-Stundenarchiv veröffentlicht:",len(index["stations"]),"Stationen.")
+PY
+else
+  echo "Phase 3: Stundenarchiv noch nicht verifiziert – Wetterumschwünge bleiben ausdrücklich ohne erfundene Ranglisten."
+fi
+
 echo "Dateien gesamt: $(find _site -type f | wc -l)"
 du -sh _site
 
