@@ -225,6 +225,6 @@ test("Real single-ring 1000-hPa low appears identically in PNG, vector PDF and G
   width:180,delayMs:350,credit:"EUMETSAT"
  });
  assert.equal(gif.blob.type,"image/gif");
- assert.ok(textCalls.filter(x=>x==="T").length>=4,
-  "GIF frames have the same pressure-center letter as PNG and PDF");
+ assert.ok(textCalls.filter(x=>x==="T").length>=3,
+  "PNG and both GIF frames render T; PDF writes its own independent vector text");
 });
