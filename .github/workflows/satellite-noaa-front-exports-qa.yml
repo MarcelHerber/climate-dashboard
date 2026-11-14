@@ -6,10 +6,12 @@ on:
       - "satelliten.js"
       - "satelliten.css"
       - "satellite_noaa_fronts.js"
+      - "satellite_front_style.js"
       - "satellite_map_export.js"
       - "satellite_film_export.js"
       - "satellite_hd.js"
       - "tests/test_satellite_noaa_export.cjs"
+      - "tests/test_satellite_front_style.cjs"
       - "tests/fixtures/noaa_wpc_verified_20261114.json"
       - "scripts/test_satellite_noaa_export_browser.py"
       - ".github/workflows/satellite-noaa-front-exports-qa.yml"
@@ -20,10 +22,12 @@ on:
       - "satelliten.js"
       - "satelliten.css"
       - "satellite_noaa_fronts.js"
+      - "satellite_front_style.js"
       - "satellite_map_export.js"
       - "satellite_film_export.js"
       - "satellite_hd.js"
       - "tests/test_satellite_noaa_export.cjs"
+      - "tests/test_satellite_front_style.cjs"
       - "scripts/test_satellite_noaa_export_browser.py"
   workflow_dispatch:
 permissions:
@@ -40,6 +44,7 @@ jobs:
       - name: Check syntax of changed export engines
         run: |
           node --check satellite_noaa_fronts.js
+          node --check satellite_front_style.js
           node --check satellite_map_export.js
           node --check satellite_film_export.js
           node --check satellite_hd.js
@@ -47,6 +52,7 @@ jobs:
       - name: Real historical NOAA vector geometry and PNG/PDF/GIF regression tests
         run: |
           node --test tests/test_satellite_noaa_fronts.cjs
+          node --test tests/test_satellite_front_style.cjs
           node --test tests/test_satellite_noaa_export.cjs
           node --test tests/test_satellite_map_export.cjs
           node --test tests/test_satellite_hd.cjs
