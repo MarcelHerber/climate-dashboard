@@ -1,6 +1,7 @@
 "use strict";
 const test=require("node:test"),assert=require("node:assert/strict"),fs=require("node:fs"),vm=require("node:vm");
 const source=fs.readFileSync("satellite_noaa_fronts.js","utf8");
+const styleSource=fs.readFileSync("satellite_front_style.js","utf8");
 const url="https://tgftp.nws.noaa.gov/data/raw/as/asus02.kwbc.cod.sus.txt";
 const utc=new Date(Date.now()-2*3600000).toISOString().slice(0,16)+"Z";
 const sat=new Date(Date.now()-1*3600000).toISOString().slice(0,16)+"Z";
@@ -33,6 +34,7 @@ function fixture(data=report()){
  const window={};
  const ctx={document,window,URL,Date,Intl,Number,String,Math,RegExp,Object,
    setTimeout,clearTimeout,fetch:async()=>({ok:true,json:async()=>data})};
+ vm.runInNewContext(styleSource,ctx);
  vm.runInNewContext(source,ctx);
  return {nodes,api:window.SatelliteNOAAFronts};
 }
@@ -51,12 +53,14 @@ test("Confirmed NOAA coordinates are projected by identical geographic bbox",asy
  a.api.sync({time:sat,source:"mtgi1",region:"atlantic"});
  const svg=a.nodes.get("satWpcFrontSvg");
  assert.equal(svg.hidden,false);
- assert.equal(svg.children.length,6,"halo plus colored line for each NOAA front");
+ assert.ok(svg.children.length>6,"New NOAA styles add classic SVG symbols to separate vector paths");
  const first=svg.children[1];
  const expectedX=(-45+70)*1000/(35+70),expectedY=(75-56.3)*1000/(75-15);
- assert.equal(first.attrs.stroke,"#48a8ff");
+ assert.equal(first.attrs.stroke,"#5998c9");
  assert.ok(first.attrs.d.startsWith("M"+expectedX.toFixed(2)+" "+expectedY.toFixed(2)));
  assert.match(a.nodes.get("satWpcFrontStatus").textContent,/NOAA-WPC-Frontlinien/);
+ assert.ok(svg.children.some(e=>e.attrs.class==="sat-front-symbol"));
+ assert.match(a.nodes.get("satWpcFrontStatus").textContent,/schematisch/);
  assert.equal(a.nodes.get("satWpcFrontSource").href,url);
 });
 test("Expired, forged, invalid or mixed-provider frames cannot create a false map",async()=>{
