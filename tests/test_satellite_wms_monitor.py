@@ -104,9 +104,9 @@ class MTGMonitorTests(unittest.TestCase):
                     "recent": False, "latest_verified_time": stamp(-30)}],
             },
         }), encoding="utf-8")
-        with patch.object(mtg, "LAYERS", {"geocolour": "mtg_fd:rgb_geocolour"}), \\
+        with patch.object(mtg, "LAYERS", {"geocolour": "mtg_fd:rgb_geocolour"}), \
              patch.object(mtg, "fetch", self.fake_capabilities(
-                 "mtg_fd:rgb_geocolour", "mtg_fd:rgb_cloudphase")), \\
+                 "mtg_fd:rgb_geocolour", "mtg_fd:rgb_cloudphase")), \
              patch.object(mtg, "test_png", side_effect=png):
             self.assertEqual(mtg.main(), 0)
         result = json.loads(self.out.read_text(encoding="utf-8"))
