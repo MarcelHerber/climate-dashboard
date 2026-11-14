@@ -28,8 +28,10 @@ PATTERNS={
     "ash": re.compile(r"rgb_ash|ash.?rgb",re.I),
     "cloud_phase": re.compile(r"rgb_cloudphase|cloud.?phase",re.I),
     "water_vapour": re.compile(r"water.?vapou?r|(^|[^a-z])wv[_ ]?[67]",re.I),
+    "true_colour": re.compile(r"rgb_truecolou?r|true.?colou?r",re.I),
+    "visible_06": re.compile(r"vis.?0[._]?6|vis06|visible.?0[.,]6",re.I),
 }
-MAX_PROBES=7
+MAX_PROBES=12
 
 def direct(node,name):
     for child in node:
@@ -79,6 +81,8 @@ def main():
                            "available_times":len(times),
                            "latest_time":times[-1] if times else None})
         report["mtg_layer_count"]=len(layers)
+        # Auditable catalogue of MTG names only; never treat MSG RGBs as FCI.
+        report["available_mtg_layers"]=[{"name":item["name"],"title":item["title"]} for item in layers]
         remaining=MAX_PROBES
         for kind,pattern in PATTERNS.items():
             found=[l for l in layers if pattern.search(l["name"]+" "+l["title"])]
