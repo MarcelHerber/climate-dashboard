@@ -621,7 +621,7 @@ function ensureT850Vectors(){
   if(window.T850VectorExport)return Promise.resolve(window.T850VectorExport);
   if(!t850VectorPromise)t850VectorPromise=new Promise(function(resolve,reject){
     const script=document.createElement("script");
-    script.src="t850_vector_export.js?v=20261113-t850-vectors-v1";
+    script.src="t850_vector_export.js?v=20261114-vector-areas-v1";
     script.async=true;
     script.onload=function(){
       if(window.T850VectorExport)resolve(window.T850VectorExport);
