@@ -311,7 +311,7 @@ async function compositeLayers(ctx,sceneData,grid,choice){
   if(choice.format==="png")
    window.SatelliteMapExport.paintIsobars(ctx,overlay,sceneData.region,area);
  }
- const fronts=await window.SatelliteNOAAFronts?.exportAt?.(sceneData.time,sceneData.region)||null;
+ const fronts=window.SatelliteFrontsPaused===true?null:(await window.SatelliteNOAAFronts?.exportAt?.(sceneData.time,sceneData.region)||null);
  if(fronts&&choice.format==="png"){
   if(!window.SatelliteMapExport?.paintFronts)
    throw Error("NOAA-Frontenzeichner für den HD-Export fehlt.");
