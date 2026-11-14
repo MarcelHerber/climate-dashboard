@@ -110,7 +110,7 @@ def exercise(page, viewport_label, official_xml):
         timeout=15000
     )
     evidence["europe_independent_ecmwf_paths"]=page.locator("#satIsobarSvg path").count()
-    evidence["europe_isobar_status"]=page.locator("#satIsobarStatus").inner_text()
+    evidence["europe_isobar_status"]=page.locator("#satIsobarStatus").text_content()
     page.screenshot(path=str(SHOTS/(viewport_label+"-europe-independent-isobars.png")))
     # Explanations may no longer push the satellite image far down the screen.
     # A real browser verifies the closed-by-default panels on desktop AND mobile.
@@ -254,7 +254,7 @@ def exercise(page, viewport_label, official_xml):
         timeout=25000
     )
     evidence["ecmwf_isobars_real_visible"]=page.locator("#satIsobarSvg").is_visible()
-    evidence["ecmwf_isobar_metadata"]=page.locator("#satIsobarStatus").inner_text()
+    evidence["ecmwf_isobar_metadata"]=page.locator("#satIsobarStatus").text_content()
     assert evidence["ecmwf_isobars_real_visible"]
     # Real 10-minute interpolated ECMWF MSLP, matched to satellite UTC.
     # Skip cleanly if this is the first run before the new GRIB job finishes.
@@ -270,7 +270,7 @@ def exercise(page, viewport_label, official_xml):
             timeout=20000
         )
         evidence["ecmwf_ten_minute_utc"]=target
-        evidence["ecmwf_ten_minute_status"]=page.locator("#satIsobarStatus").inner_text()
+        evidence["ecmwf_ten_minute_status"]=page.locator("#satIsobarStatus").text_content()
         evidence["ecmwf_ten_minute_pink"]=page.locator("#satIsobarSvg path[stroke='#c6a2bb']").count()
         evidence["ecmwf_ten_minute_not_amber"]=page.locator("#satIsobarSvg path[stroke='#ffb447']").count()
         evidence["ecmwf_ten_minute_halo"]=page.locator("#satIsobarSvg path[stroke='#18283a']").count()
@@ -312,7 +312,7 @@ def exercise(page, viewport_label, official_xml):
             evidence["two_hpa_lines"]=page.locator(
                 "#satIsobarSvg path[stroke='#c6a2bb']").count()
             evidence["two_hpa_widths"]=fine_widths
-            evidence["two_hpa_status"]=page.locator("#satIsobarStatus").inner_text()
+            evidence["two_hpa_status"]=page.locator("#satIsobarStatus").text_content()
             assert evidence["two_hpa_lines"]>0 and fine_widths==[0.58], (
                 "Fine ECMWF pressure contours did not use separate 2-hPa geometry")
             page.locator("#satIsobarSpacing").select_option("5")
