@@ -20,8 +20,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: rekordlabor-hourly-publication
-  cancel-in-progress: false
+  group: rekordlabor-hourly-publication-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   historical-hourly:
@@ -44,15 +44,19 @@ jobs:
           python -m unittest discover -s tests -p test_rekordlabor_hourly.py -v
       - name: Fetch and validate actual DWD CDC hourly history
         run: |
-          python -u scripts/build_rekordlabor_hourly.py --out data/rekordlabor/weather_turns --target-stations 48 --min-stations 20
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            python -u scripts/build_rekordlabor_hourly.py --out data/rekordlabor/weather_turns --target-stations 9 --min-stations 8
+          else
+            python -u scripts/build_rekordlabor_hourly.py --out data/rekordlabor/weather_turns --target-stations 48 --min-stations 20
+          fi
       - name: Verify no synthetic or unsupported hourly ranks are published
         run: |
           python - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
           p=Path("data/rekordlabor/weather_turns")
           idx=json.loads((p/"index.json").read_text(encoding="utf8"))
-          assert idx["ready"] and len(idx["stations"]) >= 20
+          assert idx["ready"] and len(idx["stations"]) >= (8 if os.environ.get("GITHUB_EVENT_NAME")=="pull_request" else 20)
           for station in idx["stations"]:
               d=json.loads((p/(station["id"]+".json")).read_text(encoding="utf8"))
               assert d["station_id"]==station["id"]
