@@ -282,3 +282,30 @@ test("Fast start selects the last successfully verified WMS UTC, never a newer u
  assert.ok(!fetches.some(u=>String(u).includes("GetCapabilities")));
  assert.match(nodes.get("satStatus").textContent,/Schärfere Vorschau|bestätigte/);
 });
+
+test("Restarting a previously loaded film reuses exact-UTC preview frames; region changes miss the cache",async()=>{
+ const {nodes,requests,slots}=fixture();
+ await waitUntil(()=>nodes.get("satTime").options.length===slots.length,"verified UTC times");
+ await waitUntil(()=>nodes.get("satImage").naturalWidth===800,"first still loaded");
+ const end=nodes.get("satTime").value;
+ nodes.get("satPlay").dispatch("click");
+ await waitUntil(()=>!nodes.get("satFilmStage").hidden,"first movie ready");
+ const original=requests.filter(x=>new URL(x.url).searchParams.get("width")==="480");
+ assert.equal(original.length,6,"six source previews downloaded on first playback");
+ nodes.get("satTime").value=end;
+ nodes.get("satTime").dispatch("change"); // stops film; same end UTC
+ nodes.get("satPlay").dispatch("click");
+ await waitUntil(()=>!nodes.get("satFilmStage").hidden,"second movie from preview cache");
+ assert.equal(requests.filter(x=>new URL(x.url).searchParams.get("width")==="480").length,6,
+  "same exact layer, BBOX, UTC and pixel size must not issue new WMS requests");
+ assert.match(nodes.get("satFilmProgressLabel").textContent,/6 aus Vorschaucache/);
+ nodes.get("satTime").value=end;
+ nodes.get("satTime").dispatch("change");
+ nodes.get("satRegion").value="germany";
+ nodes.get("satRegion").dispatch("change");
+ nodes.get("satPlay").dispatch("click");
+ await waitUntil(()=>!nodes.get("satFilmStage").hidden,"new region film");
+ assert.equal(requests.filter(x=>new URL(x.url).searchParams.get("width")==="480").length,12,
+  "changed geographic BBOX must never reuse unrelated film pixels");
+ nodes.get("satPlay").dispatch("click");
+});
