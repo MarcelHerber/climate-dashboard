@@ -77,16 +77,49 @@ def main():
                         assert dims["full"]<=dims["viewport"]+3,dims
                         page.screenshot(path=str(OUT/"mobile.png"),full_page=True)
                     else:
+                        # Capture representative pixels directly from the exported image.
+                        # The legend must be inside PNG, not merely underneath the live canvas.
+                        page.evaluate("""() => {
+                            const original = HTMLCanvasElement.prototype.toBlob;
+                            HTMLCanvasElement.prototype.toBlob = function(cb, type, quality) {
+                                if(this.width === 1400 && this.height === 950) {
+                                    const context = this.getContext("2d");
+                                    const pixel = x => Array.from(
+                                        context.getImageData(x, 795, 1, 1).data).slice(0, 3);
+                                    window.__exportLegendPixels = [pixel(226), pixel(700), pixel(1174)];
+                                }
+                                return original.call(this, cb, type, quality);
+                            };
+                        }""")
                         with page.expect_download(timeout=30000) as dl:
                             page.locator("#weekPng").click()
                         dl.value.save_as(str(OUT/"week_map.png"))
                         assert (OUT/"week_map.png").stat().st_size>12000
+                        cold,neutral,warm=page.evaluate("window.__exportLegendPixels")
+                        assert cold[2]>cold[0],(cold,neutral,warm)
+                        assert all(channel>230 for channel in neutral),(cold,neutral,warm)
+                        assert warm[0]>warm[1] and warm[2]>130,(cold,neutral,warm)
+                        page.locator("#weekMetric").select_option("absolute")
+                        with page.expect_download(timeout=30000) as dl:
+                            page.locator("#weekPng").click()
+                        dl.value.save_as(str(OUT/"week_absolute.png"))
+                        cold,_,warm=page.evaluate("window.__exportLegendPixels")
+                        assert cold[2]>cold[0] and warm[0]>warm[2],(cold,warm)
+                        page.locator("#weekMetric").select_option("anomaly")
                         with page.expect_download(timeout=30000) as dl:
                             page.locator("#weekCsv").click()
                         dl.value.save_as(str(OUT/"countries.csv"))
                         rows=(OUT/"countries.csv").read_text(encoding="utf-8-sig")
                         assert "CFSR/CFSv2 1991-2020 f003" in rows
                         assert rows.count("\n")>=15
+                        # The PDF button must print the same annotated canvas.
+                        page.evaluate("window.print = () => { window.__printWasCalled = true; }")
+                        page.locator("#weekPdf").click()
+                        page.wait_for_function("() => window.__printWasCalled === true")
+                        assert page.locator("#weekPrintPage img").evaluate(
+                            "img => img.complete && img.naturalWidth===1400 && img.naturalHeight===950")
+                        assert page.locator("body").evaluate(
+                            "el => el.classList.contains('weekly-export-print')")
                         page.pdf(path=str(OUT/"week_map.pdf"),print_background=True,landscape=True)
                         assert (OUT/"week_map.pdf").stat().st_size>12000
                         page.screenshot(path=str(OUT/"desktop.png"),full_page=True)
