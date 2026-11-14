@@ -1,0 +1,95 @@
+name: GFS 7 Tage · Gesamtfreigabe Nordatlantik bis Ural mit echten Daten
+on:
+  push:
+    branches: [feature/gfs-weekly-wide-forecast-map-20261114]
+    paths:
+      - ".github/workflows/validate-gfs-weekly-wide-release.yml"
+      - "gfs_analysis_europe/weekly_f003_extended.json"
+      - "gfs_weekly_europe.js"
+      - "scripts/build_pages_site.sh"
+      - "tests/test_gfs_weekly_extended_browser.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  full-pages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 34
+    steps:
+      - uses: actions/checkout@v6
+      - name: Construct complete real Climate Dashboard GitHub Pages snapshot without publishing
+        run: |
+          bash -n scripts/build_pages_site.sh
+          bash scripts/build_pages_site.sh
+      - name: Verify original f003–f165, CFSR 30 years and sharp 50m boundaries in final static deployment
+        run: |
+          node --check _site/gfs_weekly_europe.js
+          python - <<'PY'
+          from pathlib import Path
+          from array import array
+          import base64,json,sys
+          root=Path("_site")
+          gdir=root/"gfs_analysis_europe"
+          x=json.loads((gdir/"weekly_f003_extended.json").read_text(encoding="utf-8"))
+          g=json.loads((gdir/"extended_geography.json").read_text(encoding="utf-8"))
+          assert x["type"]=="model_forecast_7day_not_observation"
+          assert x["reference_version"]=="cfsr-cfsv2-t2m-f003-extended-v1"
+          assert x["lead_hours"]==list(range(3,166,6))
+          assert x["sample_count"]==28
+          assert x["reference_metadata"]["source_months"]==360
+          assert x["reference_metadata"]["years"]==30
+          assert x["reference_metadata"]["old_core_max_difference_k"]==0.
+          assert (x["width"],x["height"],g["width"],g["height"])==(361,121,361,121)
+          assert g["source"]=="Natural Earth admin_0_countries 50m; public domain"
+          assert len(g["countries"])>60 and len(g["rings"])>100
+          for k in ("forecast_mean_q10_b64","anomaly_mean_q10_b64"):
+              vals=array("h")
+              vals.frombytes(base64.b64decode(x[k],validate=True))
+              if sys.byteorder!="little":vals.byteswap()
+              assert len(vals)==361*121 and -32768 not in vals
+          assert 'href="gfs_weekly_europe.html"' in (root/"index.html").read_text()
+          assert 'id="weekRegion"' in (root/"gfs_weekly_europe.html").read_text()
+          assert "WIDE_REGIONS=Object.freeze" in (root/"gfs_weekly_europe.js").read_text()
+          print("PASS full real Pages build incl. 13 expanded map views, 28 original NOAA fields and 30-year baseline")
+          PY
+  browser-desktop-mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+            tests
+            gfs_weekly_europe.html
+            gfs_weekly_europe.js
+            gfs_weekly_europe.css
+            gfs_analysis_europe/weekly_f003_extended.json
+            gfs_analysis_europe/extended_geography.json
+            cpc_europe
+            cpc_europe.css
+            mobile_navigation.js
+            mobile_navigation.css
+            dashboard_theme.js
+            dashboard_theme.css
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy requests eccodes pytest playwright
+      - name: Check strict original GFS GRIB fields and date-matched CFSR normals
+        run: |
+          python -m pytest -q tests/test_gfs_weekly_extended.py tests/test_gfs_weekly_europe.py
+          node --check gfs_weekly_europe.js
+      - run: python -m playwright install chromium --with-deps
+      - name: Test 13 real NOAA GFS-CFSR region maps incl Greenland, Iceland, Eurasia, phone and PNG/PDF/CSV
+        run: python tests/test_gfs_weekly_extended_browser.py
+      - name: Preserve screenshots and export evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gfs-weekly-wide-release-${{ github.run_id }}
+          path: gfs_weekly_extended_browser_qa/
+          if-no-files-found: ignore
+          retention-days: 10

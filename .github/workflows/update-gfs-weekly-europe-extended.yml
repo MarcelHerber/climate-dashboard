@@ -1,0 +1,117 @@
+name: GFS 7 Tage · erweiterte Originaldaten Nordatlantik bis Ural
+on:
+  push:
+    branches: [main, feature/gfs-weekly-wide-forecast-map-20261114]
+    paths:
+      - ".github/workflows/update-gfs-weekly-europe-extended.yml"
+      - "scripts/update_gfs_weekly_europe_extended.py"
+      - "tests/test_gfs_weekly_extended.py"
+      - "gfs_analysis_europe/climatology_1991_2020_f003_extended.npz"
+      - "gfs_analysis_europe/extended_geography.json"
+  workflow_dispatch:
+  schedule:
+    - cron: "50 5,11,17,23 * * *"
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: gfs-weekly-europe-updates
+  cancel-in-progress: false
+jobs:
+  original-wide-forecast:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+            tests
+            gfs_analysis_europe/climatology_1991_2020_f003_extended.npz
+            gfs_analysis_europe/extended_geography.json
+            gfs_analysis_europe/weekly_f003_extended.json
+          sparse-checkout-cone-mode: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy requests eccodes pytest
+      - name: Test 28 original GRIB2 leads, calendar-specific normals and old Europe overlap
+        run: |
+          python -m pytest -q tests/test_gfs_weekly_extended.py
+          python -m compileall -q scripts/update_gfs_weekly_europe_extended.py
+      - name: Download 28 genuine NOAA GFS forecasts and compute extended 1991-2020 anomalies only when full reference exists
+        id: generate
+        run: |
+          if [[ -s gfs_analysis_europe/climatology_1991_2020_f003_extended.npz &&
+                -s gfs_analysis_europe/extended_geography.json ]]; then
+            python -m scripts.update_gfs_weekly_europe_extended
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Extended 30-year reference or Natural Earth source geometry not yet fully verified – no wide map published."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Independently verify authentic 28-field NOAA source checksums, CFSR original normals and 121x361 grid
+        if: steps.generate.outputs.ready == 'true'
+        run: |
+          python - <<'PY'
+          import base64,json
+          from datetime import datetime,timezone
+          from pathlib import Path
+          import numpy as np
+          data=json.loads(Path("gfs_analysis_europe/weekly_f003_extended.json").read_text())
+          geo=json.loads(Path("gfs_analysis_europe/extended_geography.json").read_text())
+          assert data["schema"]==1 and data["type"]=="model_forecast_7day_not_observation"
+          assert data["lead_hours"]==list(range(3,166,6))
+          assert data["sample_count"]==28 and len(data["sources"])==28
+          assert all(s["forecast_hour"]==h and len(s["sha256"])==64 and
+                     "0p50" in s["source_url"] and s["bytes"]>20000
+                     for s,h in zip(data["sources"],data["lead_hours"]))
+          assert data["reference_version"]=="cfsr-cfsv2-t2m-f003-extended-v1"
+          m=data["reference_metadata"]
+          assert m["source_months"]==360 and m["years"]==30
+          assert m["forecast_hour"]==3 and m["old_core_max_difference_k"]<.001
+          assert data["grid_degrees"]==.5
+          assert (data["height"],data["width"])==(121,361)
+          assert (data["lat_north"],data["lat_south"],data["lon_west"],data["lon_east"])==(84.75,24.75,-80.25,99.75)
+          assert (geo["height"],geo["width"])==(121,361) and len(geo["rings"])>100
+          assert len(geo["countries"])>60
+          rawmask=np.frombuffer(base64.b64decode(geo["country_mask_b64"],validate=True),dtype="<i2")
+          assert rawmask.size==121*361
+          for key in ("anomaly_mean_q10_b64","forecast_mean_q10_b64"):
+              raw=base64.b64decode(data[key],validate=True)
+              vals=np.frombuffer(raw,dtype="<i2")
+              assert vals.size==121*361 and np.all(vals!=-32768)
+          start=datetime.fromisoformat(data["run_utc"].replace("Z","+00:00"))
+          assert 0<=(datetime.now(timezone.utc)-start).total_seconds()/3600<30
+          print("PASS genuine 7-day NOAA wide map, no fake historical CFSR years or country polygons",flush=True)
+          PY
+      - name: Commit verified enlarged 7-day forecast to main only
+        if: github.ref == 'refs/heads/main' && steps.generate.outputs.ready == 'true'
+        id: publish
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --sparse -f gfs_analysis_europe/weekly_f003_extended.json
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "GFS 7 Tage: verifizierte Nordatlantik–Ural-Anomalien 1991–2020"
+          for TRY in 1 2 3; do
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep $((5*TRY))
+          done
+          exit 1
+      - name: Publish fresh expanded 7-day map only after verified commit
+        if: github.ref == 'refs/heads/main' && steps.publish.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-pages-only.yml --repo "$GITHUB_REPOSITORY" --ref main

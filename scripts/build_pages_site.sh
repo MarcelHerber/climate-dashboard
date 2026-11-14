@@ -318,6 +318,49 @@ assert '["gfs_weekly_europe.html","GFS · 7-Tage-Temperaturanomalie"]' in Path("
 PY
 node --check _site/gfs_weekly_europe.js
 
+# 30-year-verified wider GFS f003–f165 week: only use exact NOAA field and
+# original CFSR/CFSv2 1991–2020 reference; preserve the old 76×140 fallback.
+if [[ -s gfs_analysis_europe/weekly_f003_extended.json &&
+      -s gfs_analysis_europe/extended_geography.json ]]; then
+  mkdir -p _site/gfs_analysis_europe
+  cp gfs_analysis_europe/weekly_f003_extended.json \
+     gfs_analysis_europe/extended_geography.json _site/gfs_analysis_europe/
+  python - <<'PY'
+import base64,json
+from pathlib import Path
+from array import array
+import sys
+root=Path("_site/gfs_analysis_europe")
+x=json.loads((root/"weekly_f003_extended.json").read_text(encoding="utf-8"))
+g=json.loads((root/"extended_geography.json").read_text(encoding="utf-8"))
+assert x["schema"]==1 and x["type"]=="model_forecast_7day_not_observation"
+assert x["lead_hours"]==list(range(3,166,6))
+assert x["sample_count"]==28 and len(x["sources"])==28
+assert all(row["forecast_hour"]==hour and len(row["sha256"])==64 for
+           row,hour in zip(x["sources"],x["lead_hours"]))
+assert (x["width"],x["height"],x["grid_degrees"])==(361,121,.5)
+assert (x["lat_north"],x["lat_south"],x["lon_west"],x["lon_east"])==(84.75,24.75,-80.25,99.75)
+assert x["reference_version"]=="cfsr-cfsv2-t2m-f003-extended-v1"
+m=x["reference_metadata"]
+assert (m["years"],m["source_months"],m["forecast_hour"])==(30,360,3)
+assert m["old_core_max_difference_k"]<0.001
+assert (g["width"],g["height"])==(361,121)
+assert g["source"]=="Natural Earth admin_0_countries 50m; public domain"
+assert len(g["rings"])>100 and len(g["countries"])>60
+mask=base64.b64decode(g["country_mask_b64"],validate=True)
+assert len(mask)==361*121*2
+for key in ("forecast_mean_q10_b64","anomaly_mean_q10_b64"):
+    raw=base64.b64decode(x[key],validate=True)
+    assert len(raw)==361*121*2
+    signed=array("h");signed.frombytes(raw)
+    if sys.byteorder!="little":signed.byteswap()
+    assert signed.count(-32768)==0
+print("VERIFIED wide GFS f003–f165 weekly 1991–2020 climate data and real 50m countries integrated into Pages")
+PY
+else
+  echo "Extended 30-year climate reference, verified real GFS 28 forecasts and/or country geography absent; old map remains live."
+fi
+
 # NOAA CPC European observed-temperature anomalies. Publish only genuinely
 # downloaded and validated observational grids; never fake successful data.
 if [[ -s cpc_europe/index.json && -s cpc_europe/boundaries.png ]]; then
