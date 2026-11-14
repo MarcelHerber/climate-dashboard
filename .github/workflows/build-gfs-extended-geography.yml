@@ -1,0 +1,67 @@
+name: GFS 7 Tage · verifizierte Natural-Earth-Geografie Nordatlantik bis Ural
+on:
+  push:
+    branches: [feature/gfs-weekly-wide-forecast-map-20261114]
+    paths:
+      - ".github/workflows/build-gfs-extended-geography.yml"
+      - "scripts/build_gfs_extended_geography.py"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: gfs-extended-geography
+  cancel-in-progress: false
+jobs:
+  countries-and-borders:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts/build_gfs_extended_geography.py
+            gfs_analysis_europe/extended_geography.json
+          sparse-checkout-cone-mode: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy shapely cartopy
+      - name: Fetch original Natural Earth 50m admin-0 boundaries and compute 121×361 real country mask
+        run: python scripts/build_gfs_extended_geography.py
+      - name: Verify Greenland, Iceland, Germany, Russia and geographic-grid provenance
+        run: |
+          python - <<'PY'
+          import base64,json
+          import numpy as np
+          from pathlib import Path
+          x=json.loads(Path("gfs_analysis_europe/extended_geography.json").read_text(encoding="utf-8"))
+          assert x["source"]=="Natural Earth admin_0_countries 50m; public domain"
+          assert x["type"]=="geographic_country_boundaries_not_temperature"
+          assert (x["width"],x["height"])==(361,121)
+          assert (x["lon_west"],x["lon_east"],x["lat_north"],x["lat_south"])==(-80.25,99.75,84.75,24.75)
+          assert len(x["countries"])>60 and len(x["rings"])>100
+          mask=np.frombuffer(base64.b64decode(x["country_mask_b64"],validate=True),dtype="<i2")
+          assert mask.size==121*361 and (mask>=0).sum()>5000
+          assert mask.max()<len(x["countries"])
+          assert all(country["id"]==i and country["cells"]>0 for i,country in enumerate(x["countries"]))
+          for country in ("Deutschland","Grönland","Island","Russland"):
+              assert any(c["name"]==country for c in x["countries"])
+          print("PASS expanded Natural Earth 50m country mask, transparent country overlay polygons and important countries",flush=True)
+          PY
+      - name: Commit ONLY verified vector boundaries and country mask to development branch
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --sparse -f gfs_analysis_europe/extended_geography.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "GFS Nordatlantik: verifizierte 50m-Ländergrenzen und 0,5°-Ländermaske"
+          for TRY in 1 2 3; do
+            git fetch origin feature/gfs-weekly-wide-forecast-map-20261114
+            git rebase origin/feature/gfs-weekly-wide-forecast-map-20261114
+            if git push origin HEAD:feature/gfs-weekly-wide-forecast-map-20261114; then exit 0; fi
+            sleep $((TRY*5))
+          done
+          exit 1
