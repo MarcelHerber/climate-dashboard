@@ -678,13 +678,13 @@ async function downloadGIFIsobars(){
     selected[i].time,place,Number(id("satIsobarSpacing").value)||5,{strictTenMinute:true}));
    frontOverlays.push(window.SatelliteFrontsPaused===true?null:(await window.SatelliteNOAAFronts?.exportAt?.(selected[i].time,place)||null));
   }
+  const withFronts=window.SatelliteFrontsPaused!==true&&frontOverlays.some(Boolean);
   const result=await exporters.exportGIF({
-   frames:selected,isobarOverlays:overlays,frontOverlays,region:place,product:product.value,
+   frames:selected,isobarOverlays:overlays,frontOverlays:withFronts?frontOverlays:null,region:place,product:product.value,
    productName:description().name,credit:description().credit,
    width:Math.min(480,Number(filmQuality.value)||320),delayMs:Number(filmSpeed.value)||750,
    progress:(n,total)=>setStatus("GIF mit pinken Isobaren: "+n+"/"+total,"info")
   });
-  const withFronts=window.SatelliteFrontsPaused!==true&&frontOverlays.some(Boolean);
   result.name=result.name.replace(/\.gif$/,withFronts?"_isobaren_noaa_fronten.gif":"_isobaren.gif");
   const size=exporters.download(result);
   setStatus("GIF mit echten zeitlich zugeordneten Isobaren"+(withFronts?" und NOAA-WPC-Frontlinien":"")+
