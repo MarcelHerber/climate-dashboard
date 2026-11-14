@@ -5,75 +5,121 @@ on:
   pull_request:
     paths:
       - scripts/build_rekordlabor_hourly.py
+      - scripts/merge_rekordlabor_hourly.py
       - tests/test_rekordlabor_hourly.py
+      - tests/test_rekordlabor_hourly_merge.py
       - .github/workflows/update-rekordlabor-hourly.yml
   push:
     branches: [main]
     paths:
       - scripts/build_rekordlabor_hourly.py
+      - scripts/merge_rekordlabor_hourly.py
       - tests/test_rekordlabor_hourly.py
+      - tests/test_rekordlabor_hourly_merge.py
       - .github/workflows/update-rekordlabor-hourly.yml
   schedule:
     - cron: "25 5 1 * *"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: rekordlabor-hourly-publication-${{ github.ref }}
-  cancel-in-progress: true
+  group: rekordlabor-hourly-all-eligible-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  historical-hourly:
+  preview:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/build_rekordlabor_hourly.py
+            scripts/merge_rekordlabor_hourly.py
+            tests/test_rekordlabor_hourly.py
+            tests/test_rekordlabor_hourly_merge.py
+            data/rekordlabor/weather_turns
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Regression tests for DWD exact hourly records and shard integrity
+        run: |
+          python -m unittest discover -s tests -p test_rekordlabor_hourly.py -v
+          python -m unittest discover -s tests -p test_rekordlabor_hourly_merge.py -v
+      - name: Test official historical DWD archives with additional stations
+        run: |
+          python -u scripts/build_rekordlabor_hourly.py --out data/rekordlabor/weather_turns --target-stations 54 --min-stations 52 --workers 3
+
+  shards:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0,1,2,3,4,5,6,7]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/build_rekordlabor_hourly.py
+            data/rekordlabor/weather_turns
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Retrieve and validate original DWD hourly records (all candidates)
+        run: |
+          python -u scripts/build_rekordlabor_hourly.py \
+            --target-stations 0 --workers 2 \
+            --out _hourly_shard \
+            --cache-dir data/rekordlabor/weather_turns \
+            --shard-index "${{ matrix.shard }}" --shard-count 8
+      - name: Upload DWD hourly records and completeness manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: hourly-shard-${{ matrix.shard }}
+          path: _hourly_shard/
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 6
+
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: [shards]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 1
           sparse-checkout-cone-mode: false
           sparse-checkout: |
+            scripts/merge_rekordlabor_hourly.py
             scripts/build_rekordlabor_hourly.py
             tests/test_rekordlabor_hourly.py
+            tests/test_rekordlabor_hourly_merge.py
             data/rekordlabor/weather_turns
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Test exact DWD hourly timestamps and gaps
+      - name: Retrieve all successful DWD hourly station shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: hourly-shard-*
+          merge-multiple: false
+          path: _hourly_parts
+      - name: Validate all station shards and keep every previously verified station
         run: |
-          python -m unittest discover -s tests -p test_rekordlabor_hourly.py -v
-      - name: Fetch and validate actual DWD CDC hourly history
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            python -u scripts/build_rekordlabor_hourly.py --out data/rekordlabor/weather_turns --target-stations 54 --min-stations 52 --workers 3
-          else
-            python -u scripts/build_rekordlabor_hourly.py --out data/rekordlabor/weather_turns --target-stations 240 --min-stations 200 --workers 3
-          fi
-      - name: Verify no synthetic or unsupported hourly ranks are published
-        run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          p=Path("data/rekordlabor/weather_turns")
-          idx=json.loads((p/"index.json").read_text(encoding="utf8"))
-          assert idx["ready"] and len(idx["stations"]) >= (52 if os.environ.get("GITHUB_EVENT_NAME")=="pull_request" else 200)
-          for station in idx["stations"]:
-              d=json.loads((p/(station["id"]+".json")).read_text(encoding="utf8"))
-              assert d["station_id"]==station["id"]
-              assert all(x in ("temperature","pressure","wind_direction") for x in d["metrics"])
-              for name,source in d["metrics"].items():
-                  assert "opendata.dwd.de" in source["source_url"]
-                  assert source["period"]["start"]<=source["period"]["end"]
-                  for width,period in source["windows"].items():
-                      assert period["coverage"]["pairs"]>=1
-                      for side in ("up","down"):
-                          for x in period[side]:
-                              assert x["start"]<x["end"]
-                              assert x["trace"]
-          print("VERIFIED DWD HOURLY RECORDS",len(idx["stations"]))
-          PY
-      - name: Publish only the validated DWD hourly snapshots on main
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+          python -m unittest discover -s tests -p test_rekordlabor_hourly_merge.py -v
+          python -u scripts/merge_rekordlabor_hourly.py \
+            --parts _hourly_parts --archive data/rekordlabor/weather_turns --expected-shards 8
+      - name: Publish new validated station records to main
         shell: bash
         run: |
           set -euo pipefail
@@ -81,21 +127,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/rekordlabor/weather_turns
           if git diff --cached --quiet; then
-            echo "Verified DWD hourly snapshot unchanged."
+            echo "No new original hourly station records."
             exit 0
           fi
-          git commit -m "data: verified DWD CDC original hourly weather-change record archive"
+          git commit -m "data: publish all validated DWD historical hourly station records"
           for attempt in 1 2 3 4; do
             git pull --rebase origin main
             if git push origin HEAD:main; then exit 0; fi
             sleep $((attempt * 4))
           done
-          echo "Verified data built but could not be pushed to main." >&2
+          echo "Validated archives built but GitHub push failed." >&2
           exit 1
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: rekordlabor-dwd-original-hourly-archive
-          path: data/rekordlabor/weather_turns/
-          retention-days: 14
-          if-no-files-found: warn
