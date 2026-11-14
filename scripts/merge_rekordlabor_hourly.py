@@ -26,6 +26,10 @@ def validate_station(doc,station_id):
         raise ValueError(f"Missing station metadata: {station_id}")
     for metric,entry in doc["metrics"].items():
         if metric not in METRICS:raise ValueError(f"Unknown DWD metric: {metric}")
+        if metric=="pressure" and (entry.get("source_column")!="P" or
+            entry.get("pressure_reference")!="sea_level" or
+            not entry.get("source","").endswith(" · P")):
+            raise ValueError(f"Legacy station-altitude P0 pressure rejected: {station_id}")
         if not entry.get("source_url","").startswith("https://opendata.dwd.de/"):
             raise ValueError(f"Non-DWD archive: {station_id}/{metric}")
         period=entry.get("period") or {}
@@ -93,11 +97,28 @@ def merge(parts:Path,archive:Path,expected_shards:int):
         entry=validate_station(doc,sid)
         shutil.copyfile(path,archive/(sid+".json"))
         records[sid]=entry
-    # A previously verified station is never lost if a fresh DWD download
-    # fails, but it remains recognizable as part of the older archive.
+    # Previously published P0 station-height ranks are scientifically
+    # incompatible with sea-level P. Keep already validated other metrics,
+    # but never carry legacy P0 pressure forward when a new build fails.
+    accepted_ids={sid for sid,_ in accepted}
     for sid in set(row["id"] for row in old.get("stations",[])):
-        if not (archive/(sid+".json")).is_file():
+        path=archive/(sid+".json")
+        if not path.is_file():
             raise ValueError(f"Previously verified DWD station vanished: {sid}")
+        if sid in accepted_ids:continue
+        doc=read_json(path)
+        pressure=doc.get("metrics",{}).get("pressure")
+        if pressure and (pressure.get("source_column")!="P" or
+                         pressure.get("pressure_reference")!="sea_level"):
+            doc["metrics"].pop("pressure")
+            doc.setdefault("unavailable_sources",{})["pressure"]=(
+                "Legacy DWD P0 is station-level pressure; MSL P not verified")
+            path.write_text(json.dumps(doc,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
+            if doc["metrics"]:
+                records[sid]=validate_station(doc,sid)
+            else:
+                records.pop(sid,None)
+                print("DWD LEGACY PRESSURE-ONLY STATION QUARANTINED",sid,flush=True)
     sorted_records=sorted(records.values(),key=lambda x:(x["state"],x["name"],x["id"]))
     now=dt.datetime.now(dt.timezone.utc).isoformat()
     result={"schema":1,"ready":True,"publisher":"Deutscher Wetterdienst (DWD) CDC",

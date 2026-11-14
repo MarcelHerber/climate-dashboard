@@ -92,6 +92,41 @@ class HourlyShardedTests(unittest.TestCase):
             self.assertEqual(len(result["stations"]),6)
             self.assertEqual(coverage["excluded_count"],0)
 
+    def test_legacy_station_height_pressure_is_rejected(self):
+        old=station("00001")
+        value=old["metrics"].pop("temperature")
+        value["source"]="DWD CDC · pressure · P0"
+        value["source_column"]="P0"
+        value["pressure_reference"]="station_height"
+        old["metrics"]["pressure"]=value
+        with self.assertRaisesRegex(ValueError,"Legacy station-altitude P0"):
+            validate_station(old,"00001")
+
+    def test_merger_quarantines_legacy_p0_only_station_if_unavailable(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base=Path(temp);archive=base/"archive";parts=base/"parts"
+            old=station("00001")
+            old_pressure=old["metrics"].pop("temperature")
+            old_pressure["source"]="DWD CDC · pressure · P0"
+            old_pressure["source_column"]="P0"
+            old_pressure["pressure_reference"]="station_height"
+            old["metrics"]["pressure"]=old_pressure
+            dump(archive/"00001.json",old)
+            dump(archive/"index.json",{"schema":1,"ready":True,"stations":[{
+                "id":"00001","name":old["name"],"state":old["state"],
+                "lat":old["lat"],"lon":old["lon"],
+                "metrics":["pressure"],"periods":{"pressure":old_pressure["period"]}
+            }]})
+            folder=parts/"hourly-shard-0"
+            dump(folder/"_manifest.json",{"schema":1,"shard_index":0,
+                "shard_count":1,"candidate_hash":"stable","candidate_count":1,
+                "attempted":["00002"],"accepted":["00002"],"excluded":{}})
+            dump(folder/"00002.json",station("00002"))
+            final,_=merge(parts,archive,1)
+            self.assertEqual([x["id"] for x in final["stations"]],["00002"])
+            self.assertTrue((archive/"00001.json").is_file())
+            self.assertEqual(json.loads((archive/"00001.json").read_text())["metrics"],{})
+
     def test_fabricated_source_rejected(self):
         doc=station("00002")
         doc["metrics"]["temperature"]["source_url"]="https://example.com/fiction.zip"

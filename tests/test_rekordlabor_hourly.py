@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import io,zipfile,unittest
 from scripts.build_rekordlabor_hourly import (
-    rows_from_zip, top_events, record_events, delta, step, iso, STATIONS, HOURS
+    rows_from_zip, top_events, record_events, delta, step, iso, STATIONS, HOURS, SOURCES
 )
 
 def pack(name,lines):
@@ -26,22 +26,45 @@ class RecordLaborHourlyTests(unittest.TestCase):
             "STATIONS_ID;MESS_DATUM;QN_8;P;P0;eor",
             "00164;2020010100;3;980.5;1003.7;eor",
             "00164;2020010101;3;979.8;1002.9;eor",
-            "00164;2020010102;3;999;2000;eor"])
+            "00164;2020010102;3;2000;999;eor"])
         row=rows_from_zip(blob,"pressure")
         self.assertEqual(len(row),2)
-        self.assertAlmostEqual(row["2020010101"],1002.9)
+        self.assertAlmostEqual(row["2020010101"],979.8)
+        self.assertEqual(SOURCES["pressure"][2],"P")
         self.assertEqual(top_events(row,"pressure",1,"down")[0],1)
     def test_invalid_high_pressure_hours_never_become_records(self):
         blob=pack("p0",[
             "STATIONS_ID;MESS_DATUM;QN_8;P;P0;eor",
             "00164;2020010100;3;980;989.7;eor",
-            "00164;2020010101;3;981;1090.6;eor",
+            "00164;2020010101;3;1090.6;981;eor",
             "00164;2020010102;3;982;990.2;eor",
             "00164;2020010103;3;983;991.2;eor"])
         data=rows_from_zip(blob,"pressure")
         self.assertNotIn("2020010101",data)
         self.assertEqual(top_events(data,"pressure",2,"up")[0],0)
         self.assertEqual(top_events(data,"pressure",1,"up")[0],1)
+    def test_pressure_sea_level_not_station_height_2011(self):
+        # DWD P = sea-level (NN); P0 = station-height. The historic
+        # 933.7 hPa screenshot must never be compared to Bremen's
+        # sea-level record or appear in a P ranking.
+        blob=pack("p0",[
+            "STATIONS_ID;MESS_DATUM;QN_8;P;P0;eor",
+            "00164;2011121613;10;972.0;933.7;eor",
+            "00164;2011121713;10;990.2;969.3;eor"])
+        values=rows_from_zip(blob,"pressure")
+        self.assertEqual(values,{"2011121613":972.0,"2011121713":990.2})
+        self.assertEqual(top_events(values,"pressure",24,"up")[0],0)
+        self.assertNotIn(933.7,values.values())
+
+    def test_physically_implausible_sea_level_pressure_is_excluded(self):
+        blob=pack("p0",[
+            "STATIONS_ID;MESS_DATUM;QN_8;P;P0;eor",
+            "00164;2011121613;10;933.7;933.7;eor",
+            "00164;2011121614;10;963.8;940.0;eor"])
+        values=rows_from_zip(blob,"pressure")
+        self.assertNotIn("2011121613",values)
+        self.assertEqual(values["2011121614"],963.8)
+
     def test_dwd_wind_direction_threshold(self):
         blob=pack("ff",[
            "STATIONS_ID;MESS_DATUM;QN_3;F;D;eor",

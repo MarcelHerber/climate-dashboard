@@ -345,10 +345,12 @@ function weatherRender(){
  const metric=$("rlChangeMetric").value,hours=$("rlChangeHours").value;
  const dir=metric==="wind_direction"?"up":$("rlChangeDirection").value;
  const group=doc.metrics?.[metric],rank=group?.windows?.[hours]?.[dir];
- // Historical P0 contains sparse implausible 109x hPa spikes; the revised
- // CDC audit certifies contiguous hourly differences and source QC.
- if(metric==="pressure"&&!group?.quality_notes?.includes("930")){
-   message("rlChangeMeta","Historische Luftdruckrekorde dieser Station werden erneut geprüft. Ältere, unvalidierte P0-Ausreißer werden nicht als Messrekorde ausgegeben.");
+ // DWD pressure P0 is STATION-HEIGHT pressure, not mean-sea-level
+ // pressure (P). Block every legacy P0 dataset before displaying/exporting
+ // misleading historical pressure comparisons.
+ if(metric==="pressure"&&!(group?.source_column==="P"&&
+    group?.pressure_reference==="sea_level"&&group?.source?.endsWith(" · P"))){
+   message("rlChangeMeta",doc.name+" · Luftdruckdaten werden auf den korrekten DWD-Parameter P (auf Meereshöhe reduzierter Druck) umgestellt. Historische P0-Werte auf Stationshöhe werden ausdrücklich nicht mehr als Luftdruckrekorde gezeigt.");
    tableRows("rlChangeTable",[]);kpis("rlChangeKpis",[]);destroyChart();setExportState(false);return;
  }
  if(metric==="wind_direction"){
@@ -360,7 +362,7 @@ function weatherRender(){
   tableRows("rlChangeTable",[]);kpis("rlChangeKpis",[]);destroyChart();setExportState(false);return;
  }
  const src=group.source,dates=group.period||{},cover=group.windows?.[hours]?.coverage||{};
- message("rlChangeMeta",doc.name+" · "+src+" · Beobachtungen: "+(dates.start||"—")+" bis "+(dates.end||"—")+
+ message("rlChangeMeta",doc.name+" · "+(metric==="pressure"?"auf Meereshöhe reduzierter Luftdruck (NN) · ":"")+src+" · Beobachtungen: "+(dates.start||"—")+" bis "+(dates.end||"—")+
   " UTC · "+num(cover.pairs||0,0)+" geprüfte Messwertpaare im "+hours+"-h-Fenster"+
   " · UTC-Zeitstempel, keine Lückeninterpolation · Archivdaten: "+(doc.generated_at||"—"));
  const scale=metric==="wind_direction"?"°":metric==="pressure"?"hPa":"°C";
