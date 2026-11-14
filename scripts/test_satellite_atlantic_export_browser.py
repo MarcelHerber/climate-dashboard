@@ -227,7 +227,7 @@ def exercise(browser,device,base,tmp):
                 }""")
                 raise AssertionError("Missing grid center labels: "+json.dumps(diagnostic,ensure_ascii=False))
 
-            assert page.locator("#satIsobarStatus").inner_text().find("H/T: IFS-Gitterextrema")>=0
+            assert page.locator("#satIsobarStatus").text_content().find("H/T: IFS-Gitterextrema")>=0
             page.locator("#satIsobarSpacing").select_option("5")
             page.wait_for_function("()=>document.querySelector('#satIsobarStatus')?.textContent.includes('5 hPa')",timeout=15000)
             regular_center_ids=page.locator("#satIsobarSvg .sat-pressure-center").evaluate_all(

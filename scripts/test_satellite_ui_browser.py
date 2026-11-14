@@ -110,8 +110,33 @@ def exercise(page, viewport_label, official_xml):
         timeout=15000
     )
     evidence["europe_independent_ecmwf_paths"]=page.locator("#satIsobarSvg path").count()
-    evidence["europe_isobar_status"]=page.locator("#satIsobarStatus").inner_text()
+    evidence["europe_isobar_status"]=page.locator("#satIsobarStatus").text_content()
     page.screenshot(path=str(SHOTS/(viewport_label+"-europe-independent-isobars.png")))
+    # Explanations may no longer push the satellite image far down the screen.
+    # A real browser verifies the closed-by-default panels on desktop AND mobile.
+    evidence["map_details_follow_image"] = page.evaluate("""() => {
+      const picture=document.getElementById('satPictureFrame');
+      const info=document.getElementById('satImageDetails');
+      return Boolean(picture && info && (picture.compareDocumentPosition(info) & Node.DOCUMENT_POSITION_FOLLOWING))
+    }""")
+    assert evidence["map_details_follow_image"], "Info panels are not below the satellite raster"
+    evidence["collapsed_info_count"]=page.locator("#satImageDetails details:not([open])").count()
+    assert evidence["collapsed_info_count"]==3, "All three long-text panels must start collapsed"
+    assert not page.locator("#satProductGuide").is_visible(), "Product explanation obstructs map"
+    assert not page.locator(".sat-film-hint").first.is_visible(), "Film explanation obstructs map"
+    page.locator("#satProductDetails summary").click()
+    assert page.locator("#satProductGuide").is_visible(), "Product disclosure cannot be expanded"
+    page.locator("#satProductDetails summary").click()
+    page.locator("#satDataDetails summary").click()
+    assert page.locator("#satAdditionalStatus").is_visible(), "Dynamic source status hidden even after opening"
+    page.locator("#satDataDetails summary").click()
+    page.locator("#satTechDetails summary").click()
+    assert page.locator("#satTechDetails .sat-film-hint").is_visible(), "Technical notes disclosure cannot be expanded"
+    page.locator("#satTechDetails summary").click()
+    evidence["collapsed_info_after_interaction"]=page.locator("#satImageDetails details:not([open])").count()
+    assert evidence["collapsed_info_after_interaction"]==3
+    assert page.locator("#satIsobarBrief").is_visible(), "Compact isobar status disappeared"
+
     assert evidence["europe_independent_ecmwf_paths"]>=1, "ECMWF Europe overlay absent"
     evidence["initial_product"]="geocolour"
     evidence["times"]=page.locator("#satTime option").count()
@@ -229,7 +254,7 @@ def exercise(page, viewport_label, official_xml):
         timeout=25000
     )
     evidence["ecmwf_isobars_real_visible"]=page.locator("#satIsobarSvg").is_visible()
-    evidence["ecmwf_isobar_metadata"]=page.locator("#satIsobarStatus").inner_text()
+    evidence["ecmwf_isobar_metadata"]=page.locator("#satIsobarStatus").text_content()
     assert evidence["ecmwf_isobars_real_visible"]
     # Real 10-minute interpolated ECMWF MSLP, matched to satellite UTC.
     # Skip cleanly if this is the first run before the new GRIB job finishes.
@@ -245,7 +270,7 @@ def exercise(page, viewport_label, official_xml):
             timeout=20000
         )
         evidence["ecmwf_ten_minute_utc"]=target
-        evidence["ecmwf_ten_minute_status"]=page.locator("#satIsobarStatus").inner_text()
+        evidence["ecmwf_ten_minute_status"]=page.locator("#satIsobarStatus").text_content()
         evidence["ecmwf_ten_minute_pink"]=page.locator("#satIsobarSvg path[stroke='#c6a2bb']").count()
         evidence["ecmwf_ten_minute_not_amber"]=page.locator("#satIsobarSvg path[stroke='#ffb447']").count()
         evidence["ecmwf_ten_minute_halo"]=page.locator("#satIsobarSvg path[stroke='#18283a']").count()
@@ -287,7 +312,7 @@ def exercise(page, viewport_label, official_xml):
             evidence["two_hpa_lines"]=page.locator(
                 "#satIsobarSvg path[stroke='#c6a2bb']").count()
             evidence["two_hpa_widths"]=fine_widths
-            evidence["two_hpa_status"]=page.locator("#satIsobarStatus").inner_text()
+            evidence["two_hpa_status"]=page.locator("#satIsobarStatus").text_content()
             assert evidence["two_hpa_lines"]>0 and fine_widths==[0.58], (
                 "Fine ECMWF pressure contours did not use separate 2-hPa geometry")
             page.locator("#satIsobarSpacing").select_option("5")
