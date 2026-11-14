@@ -236,7 +236,7 @@ test("Only H/T font sizes are exactly +50% on desktop/mobile, Canvas, GIF and ed
  assert.match(css,/sat-pressure-center\{\s*font-family:[^}]*font-size:40\.5px;font-weight:750/);
  assert.match(css,/@media\(max-width:650px\)\{\.sat-pressure-center\{font-size:37\.5px\}/);
  assert.match(css,/font-size:40\.5px;font-weight:750;\s*stroke:#15283b;stroke-width:2\.1px/);
- assert.match(html,/satelliten\.css\?v=20261114-pressure-150/);
+ assert.match(html,/satelliten\.css\?v=20261114-info-accordions1/);
  assert.match(html,/satellite_map_export\.js\?v=20261114-grid-centers1/);
  const {api,ctx,pressurePaint}=loaded();
  const fixture=JSON.parse(fs.readFileSync(
