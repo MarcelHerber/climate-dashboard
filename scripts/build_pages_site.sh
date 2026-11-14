@@ -141,6 +141,9 @@ required_root_files=(
   cpc_europe.css
   gfs_f003_europe.html
   gfs_f003_europe.js
+  gfs_weekly_europe.html
+  gfs_weekly_europe.js
+  gfs_weekly_europe.css
   gfs_analysis_europe.css
   era5_synoptic.js
   era5_synoptic.css
@@ -260,6 +263,56 @@ assert 'href="gfs_f003_europe.html"' in s
 assert '["gfs_f003_europe.html","GFS +3 h · CFSR 1991–2020"]' in Path("_site/mobile_navigation.js").read_text(encoding="utf-8")
 PY
 node --check _site/gfs_f003_europe.js
+
+# Seven-day Europe GFS original 0.5 degree +3..+165h forecast anomaly map.
+# The 1991–2020 f003 reference and complete 28 original forecast fields are mandatory.
+if [[ -s gfs_analysis_europe/weekly_f003.json ]]; then
+  mkdir -p _site/gfs_analysis_europe
+  cp gfs_analysis_europe/weekly_f003.json _site/gfs_analysis_europe/
+  python - <<'PY'
+import base64, json
+from pathlib import Path
+p=Path("_site/gfs_analysis_europe/weekly_f003.json")
+x=json.loads(p.read_text(encoding="utf-8"))
+assert x["schema"]==1 and x["type"]=="model_forecast_7day_not_observation"
+assert x["grid_degrees"]==0.5 and (x["width"],x["height"])==(140,76)
+assert x["period_days"]==7 and x["sample_count"]==28
+assert x["lead_hours"]==list(range(3,166,6))
+assert len(x["sources"])==28 and all(
+    s["forecast_hour"]==lead and len(s["sha256"])==64
+    for s,lead in zip(x["sources"],x["lead_hours"])
+)
+assert x["reference_version"]=="cfsr-cfsv2-t2m-f003-v1"
+m=x["reference_metadata"]
+assert m["forecast_hour"]==3 and m["source_months"]==360 and m["years"]==30
+for k in ("forecast_mean_q10_b64","anomaly_mean_q10_b64"):
+    raw=base64.b64decode(x[k],validate=True)
+    assert len(raw)==140*76*2
+print("GFS real seven-day mean f003–f165 and 1991–2020 reference verified for Pages")
+PY
+else
+  echo "GFS weekly original forecast not yet available; do not publish substitute data"
+fi
+python - <<'PY'
+from pathlib import Path
+import re
+page=Path("_site/index.html")
+s=page.read_text(encoding="utf-8")
+new='<a class="tab-button" data-nav-group="europe" href="gfs_weekly_europe.html">GFS · 7-Tage-Abweichung</a>'
+if new not in s:
+    old=list(re.finditer(r'<a\b[^>]*href=[^>]*gfs_f003_europe[.]html[^>]*>[^<]*</a>',s))
+    if old:
+        pos=old[0].end()
+        s=s[:pos]+"\n          "+new+s[pos:]
+    elif "</header>" in s:
+        s=s.replace("</header>","</header>\\n"+new,1)
+    else:
+        raise SystemExit("Weekly GFS: no safe desktop-navigation anchor")
+    page.write_text(s,encoding="utf-8")
+assert 'href="gfs_weekly_europe.html"' in s
+assert '["gfs_weekly_europe.html","GFS · 7-Tage-Temperaturanomalie"]' in Path("_site/mobile_navigation.js").read_text(encoding="utf-8")
+PY
+node --check _site/gfs_weekly_europe.js
 
 # NOAA CPC European observed-temperature anomalies. Publish only genuinely
 # downloaded and validated observational grids; never fake successful data.
