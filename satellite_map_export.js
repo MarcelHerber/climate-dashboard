@@ -211,7 +211,9 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
   ctx.strokeStyle=PINK;ctx.globalAlpha=.93;ctx.lineWidth=stroke(group.heavy);draw();
  }
  for(const group of groups){
-  if(!group.label)continue;
+  // Tiny GIF previews have no room for pressure-number boxes alongside H/T.
+  // Preserve the complete isobar geometry and the meteorologically useful centers.
+  if(!group.label||width<260)continue;
   const p=project(group.label,region,x,y,width,height);
   const label=String(group.hpa),size=Math.max(8,Math.round(11*unit));
   ctx.font="bold "+size+"px Arial,sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
@@ -221,7 +223,7 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
   ctx.strokeRect(p[0]-tw/2,p[1]-th/2,tw,th);
   ctx.fillStyle="#ffffff";ctx.fillText(label,p[0],p[1]);
  }
- paintPressureCenters(ctx,overlay,region,{x,y,width,height},groups);
+ paintPressureCenters(ctx,overlay,region,{x,y,width,height},width<260?[]:groups);
  ctx.restore();
  return groups;
 }
