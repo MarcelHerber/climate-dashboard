@@ -233,11 +233,11 @@ test("Only H/T font sizes are exactly +50% on desktop/mobile, Canvas, GIF and ed
  const css=fs.readFileSync("satelliten.css","utf8");
  const html=fs.readFileSync("satelliten.html","utf8");
  // Final overriding CSS rule is responsible for both desktop and touch sizes.
- assert.match(css,/sat-pressure-center\\{\\s*font-family:[^}]*font-size:40\\.5px;font-weight:750/);
- assert.match(css,/@media\\(max-width:650px\\)\\{\\.sat-pressure-center\\{font-size:37\\.5px\\}/);
- assert.match(css,/font-size:40\\.5px;font-weight:750;\\s*stroke:#15283b;stroke-width:2\\.1px/);
- assert.match(html,/satelliten\\.css\\?v=20261114-pressure-150/);
- assert.match(html,/satellite_map_export\\.js\\?v=20261114-pressure-150/);
+ assert.match(css,/sat-pressure-center\{\s*font-family:[^}]*font-size:40\.5px;font-weight:750/);
+ assert.match(css,/@media\(max-width:650px\)\{\.sat-pressure-center\{font-size:37\.5px\}/);
+ assert.match(css,/font-size:40\.5px;font-weight:750;\s*stroke:#15283b;stroke-width:2\.1px/);
+ assert.match(html,/satelliten\.css\?v=20261114-pressure-150/);
+ assert.match(html,/satellite_map_export\.js\?v=20261114-pressure-150/);
  const {api,ctx,pressurePaint}=loaded();
  const fixture=JSON.parse(fs.readFileSync(
   "tests/fixtures/satellite_mslp_20261114_1040_missing_low.json","utf8"));
@@ -250,7 +250,7 @@ test("Only H/T font sizes are exactly +50% on desktop/mobile, Canvas, GIF and ed
   const observed=pressurePaint.at(-1);
   const previous=Math.max(17,Math.min(35,Math.round(width*.022)));
   assert.equal(observed.letter,"T");
-  assert.equal(Number(observed.font.match(/(\\d+(?:\\.\\d+)?)px/)[1]),previous*1.5);
+  assert.equal(Number(observed.font.match(/(\d+(?:\.\d+)?)px/)[1]),previous*1.5);
   assert.equal(observed.lineWidth,Math.max(1.6,previous*.085),
    "Outline width must stay exactly as before despite larger font");
  }
@@ -258,7 +258,7 @@ test("Only H/T font sizes are exactly +50% on desktop/mobile, Canvas, GIF and ed
   const result=await api.renderPDF({...options,region:"europe",regionName:"Europa",
    overlay,image:{naturalWidth:width,naturalHeight:500}});
   const pdf=Buffer.from(await result.blob.arrayBuffer()).toString("latin1");
-  const actual=pdf.match(/BT \/F1 (\\d+(?:\\.\\d+)?) Tf 2 Tr [^\\n]*\\(T\\) Tj ET/);
+  const actual=pdf.match(/BT \/F1 (\d+(?:\.\d+)?) Tf 2 Tr [^\n]*\(T\) Tj ET/);
   assert.ok(actual,"PDF must preserve editable T text");
   assert.equal(Number(actual[1]),1.5*Math.max(18,Math.min(34,width*.022)));
  }
