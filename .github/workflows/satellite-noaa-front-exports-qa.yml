@@ -1,0 +1,79 @@
+name: NOAA WPC Fronten · echter Geometrie- und Browser-Exporttest
+on:
+  pull_request:
+    paths:
+      - "satelliten.html"
+      - "satelliten.js"
+      - "satelliten.css"
+      - "satellite_noaa_fronts.js"
+      - "satellite_map_export.js"
+      - "satellite_film_export.js"
+      - "satellite_hd.js"
+      - "tests/test_satellite_noaa_export.cjs"
+      - "tests/fixtures/noaa_wpc_verified_20261114.json"
+      - "scripts/test_satellite_noaa_export_browser.py"
+      - ".github/workflows/satellite-noaa-front-exports-qa.yml"
+  push:
+    branches: [main]
+    paths:
+      - "satelliten.html"
+      - "satelliten.js"
+      - "satelliten.css"
+      - "satellite_noaa_fronts.js"
+      - "satellite_map_export.js"
+      - "satellite_film_export.js"
+      - "satellite_hd.js"
+      - "tests/test_satellite_noaa_export.cjs"
+      - "scripts/test_satellite_noaa_export_browser.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-noaa-vector-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check syntax of changed export engines
+        run: |
+          node --check satellite_noaa_fronts.js
+          node --check satellite_map_export.js
+          node --check satellite_film_export.js
+          node --check satellite_hd.js
+          node --check satelliten.js
+      - name: Real historical NOAA vector geometry and PNG/PDF/GIF regression tests
+        run: |
+          node --test tests/test_satellite_noaa_fronts.cjs
+          node --test tests/test_satellite_noaa_export.cjs
+          node --test tests/test_satellite_map_export.cjs
+          node --test tests/test_satellite_hd.cjs
+          node --test tests/test_satellite_film_export.cjs
+  browser-noaa-desktop-mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install chromium
+      - name: Verify test harness
+        run: |
+          python -m py_compile scripts/test_satellite_noaa_export_browser.py scripts/test_satellite_atlantic_export_browser.py
+      - name: Download true-coordinate NOAA-front PNG/PDF/GIF on desktop and mobile
+        run: python scripts/test_satellite_noaa_export_browser.py
+      - name: Retain screenshot and download checks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: noaa-real-coordinates-browser-export-qa
+          path: |
+            data/satellite_noaa_export_browser_latest.json
+            _satellite_test_screenshots/*-noaa-real-lines-synthetic-satellite.png
+          if-no-files-found: ignore
