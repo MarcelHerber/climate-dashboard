@@ -60,3 +60,15 @@ test("Max angular wind change 180° and direction threshold ≥3 m/s",()=>{
  assert.equal(C.stationWindDifference({speed:4,direction:0},{speed:4,direction:180}),180);
  assert.equal(C.stationWindDifference({speed:2.9,direction:355},{speed:3,direction:5}),null);
 });
+
+test("seasonal rank sorts calendar date rather than raw 365/366 day index",()=>{
+ const y2023=Array.from({length:365},()=>[20,3,10]);
+ const y2024=Array.from({length:366},()=>[20,3,10]);
+ y2023[C.dayIndex(2023,"03-01")]=[10,-2,4];
+ y2024[C.dayIndex(2024,"03-01")]=[10,-2,4];
+ const ranked=C.tempSeason(new Map([[2024,y2024],[2023,y2023]]),"frostSpring");
+ assert.equal(ranked.records.length,2);
+ assert.equal(ranked.records[0].md,"03-01");
+ assert.equal(ranked.records[1].md,"03-01");
+ assert.equal(ranked.records[0].dayOfYear,ranked.records[1].dayOfYear);
+});
