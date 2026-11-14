@@ -14,6 +14,7 @@ import datetime as dt
 import heapq
 import io
 import json
+import hashlib
 from pathlib import Path
 import re
 import time
@@ -229,27 +230,39 @@ def parse_stations_description(body):
             "first":first,"last":last}
     return stations
 
-def discover_stations(listing,target=240,pinned=None):
+def discover_stations(listing,target=0,pinned=None):
     """Deterministic regional expansion; index records are never inferred."""
-    body=read_url(URL+"air_temperature/historical/TU_Stundenwerte_Beschreibung_Stationen.txt")
-    catalogue=parse_stations_description(body.decode("latin1","replace"))
-    if len(catalogue)<100:
-        for sample in body.decode("latin1","replace").splitlines()[:25]:
-            print("DWD STATION DESCRIPTION SAMPLE",repr(sample[:220]),flush=True)
+    catalogue={}
+    for parameter,(category,prefix,_,_) in SOURCES.items():
+        description=URL+category+"/historical/"+prefix+"_Stundenwerte_Beschreibung_Stationen.txt"
+        try:
+            body=read_url(description)
+            parsed=parse_stations_description(body.decode("latin1","replace"))
+            # TU takes precedence for overlapping station IDs.
+            for sid,row in parsed.items():
+                catalogue.setdefault(sid,row)
+            print("DWD STATION METADATA",parameter,len(parsed),"total",len(catalogue),flush=True)
+        except Exception as error:
+            print("DWD STATION METADATA UNAVAILABLE",parameter,str(error)[:200],flush=True)
+    if not catalogue:
+        raise RuntimeError("No official DWD hourly station descriptions available")
     inv={name:historical_inventory(html,name) for name,html in listing.items()}
     print("DWD PARAMETER INDEX COUNTS", {name:len(entries) for name,entries in inv.items()},flush=True)
     candidates=[]
-    for sid,station in catalogue.items():
+    all_ids=set().union(*(set(item) for item in inv.values()))
+    for sid in sorted(all_ids):
         if sid in STATIONS:continue
-        temp=inv["temperature"].get(sid)
-        if not temp:continue
-        first,last=temp
-        # Historical stations may have closed: a 10+ year original
-        # archive remains useful, even without present-day observations.
-        if int(last[:4])-int(first[:4])<10:continue
-        if last<"19900101":continue
-        measured=sum(sid in inv[name] for name in SOURCES)
+        station=catalogue.get(sid)
+        if station is None:continue
+        archives=[inv[p][sid] for p in SOURCES if sid in inv[p]]
+        if not archives:continue
+        first=min(x[0] for x in archives)
+        last=max(x[1] for x in archives)
+        measured=len(archives)
         recent=sum(sid in inv[name] and inv[name][sid][1]>="20241231" for name in SOURCES)
+        # Eligibility is decided from genuinely measured hourly pairs after
+        # download. Do not exclude closed, short-lived, or single-variable
+        # stations at the directory-discovery stage.
         candidates.append((sid,station,measured,int(first[:4]),recent,int(last[:4])))
     selected=dict(STATIONS)
     for sid,row in (pinned or {}).items():
@@ -257,6 +270,13 @@ def discover_stations(listing,target=240,pinned=None):
         if sid not in selected and sid in catalogue:
             st=catalogue[sid]
             selected[sid]=(st["name"],st["state"],st["lat"],st["lon"])
+    if target<=0:
+        for sid,station,_,_,_,_ in candidates:
+            selected.setdefault(sid,(station["name"],station["state"],station["lat"],station["lon"]))
+        print("DWD HOURLY STATION DISCOVERY",len(catalogue),"geolocated,",
+              len(candidates),"archive candidates, all selected",len(selected),
+              "pinned",len(pinned or {}),flush=True)
+        return selected
     counts=defaultdict(int)
     for _,land,_,_ in selected.values():counts[land]+=1
     def distance(station):
@@ -339,54 +359,76 @@ def build_station(sid,listing,stations=None,cache_dir=None):
         "generated_at":now.isoformat(),"metrics":metrics,
         "unavailable_sources":failures}
 
-def build(out:Path,target:int=240,min_stations:int=160,workers:int=3):
+def build(out:Path,target:int=0,min_stations:int=0,workers:int=3,
+          shard_index:int|None=None,shard_count:int=1,cache_dir:Path|None=None):
     out.mkdir(parents=True,exist_ok=True)
+    if shard_count<1 or (shard_index is not None and not 0<=shard_index<shard_count):
+        raise ValueError("Invalid DWD shard configuration")
     listing={}
     for name,(category,_,_,_) in SOURCES.items():
         listing[name]=read_url(URL+category+"/historical/").decode("utf-8","replace")
+    archive=Path(cache_dir) if cache_dir is not None else out
     pinned={}
-    previous=out/"index.json"
+    previous=archive/"index.json"
     if previous.is_file():
         try:
             idx=json.loads(previous.read_text(encoding="utf-8"))
             pinned={str(s["id"]):s for s in idx.get("stations",[])}
         except (ValueError,KeyError,TypeError):pass
     stations=discover_stations(listing,target,pinned)
-    if len(stations)<min_stations:
-        raise RuntimeError(f"Only {len(stations)} eligible DWD stations discovered, minimum {min_stations}")
-    records=[]
-    # Parallel worker *processes* allow decoding multi-decade CSV files on
-    # separate cores; each station remains deterministic and isolated.
+    all_ids=sorted(stations)
+    if shard_index is not None:
+        selected=[sid for n,sid in enumerate(all_ids) if n%shard_count==shard_index]
+    else:selected=all_ids
+    if shard_index is None and len(selected)<min_stations:
+        raise RuntimeError(f"Only {len(selected)} eligible DWD stations discovered, minimum {min_stations}")
+    records=[];failures={}
     with ProcessPoolExecutor(max_workers=max(1,min(workers,4))) as pool:
-        jobs={pool.submit(build_station,sid,listing,stations,out):sid for sid in sorted(stations)}
+        jobs={pool.submit(build_station,sid,listing,stations,archive):sid for sid in selected}
         for task in as_completed(jobs):
             sid=jobs[task]
             try:row=task.result()
             except Exception as error:
+                failures[sid]="Processing error: "+str(error)[:300]
                 print("DWD STATION FAILED",sid,repr(error),flush=True)
                 continue
-            if row["metrics"]:
+            if row.get("metrics"):
                 (out/f"{sid}.json").write_text(json.dumps(row,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
                 records.append({"id":sid,"name":row["name"],"state":row["state"],
                     "lat":row["lat"],"lon":row["lon"],
                     "metrics":list(row["metrics"]),
                     "periods":{key:value["period"] for key,value in row["metrics"].items()}})
-            print("DWD VERIFIED STATION PROGRESS",len(records),"/",len(stations),flush=True)
+            else:
+                failures[sid]=row.get("unavailable_sources",{})
+            print("DWD VERIFIED STATION PROGRESS",len(records),"/",len(selected),flush=True)
+    records.sort(key=lambda x:(x["state"],x["name"],x["id"]))
+    if shard_index is not None:
+        manifest={"schema":1,"shard_index":shard_index,"shard_count":shard_count,
+             "candidate_hash":hashlib.sha256(",".join(all_ids).encode()).hexdigest(),
+             "candidate_count":len(all_ids),"attempted":selected,
+             "accepted":[r["id"] for r in records],"excluded":failures}
+        (out/"_manifest.json").write_text(json.dumps(manifest,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
+        print("DWD HOURLY SHARD VERIFIED",shard_index,len(records),"of",len(selected),flush=True)
+        return manifest
     if len(records)<min_stations or not set(pinned).issubset({x["id"] for x in records}):
         raise RuntimeError(f"Only {len(records)} verified DWD hourly stations or prior validated stations lost; publication blocked")
-    records.sort(key=lambda x:(x["state"],x["name"],x["id"]))
     result={"schema":1,"ready":True,"publisher":"Deutscher Wetterdienst (DWD) CDC",
        "method":"Exact original hourly time pairs, nonoverlapping top events, gap-safe",
        "generated_at":now.isoformat(),"stations":records,
-       "note":"Selected 10+ year DWD historical stations; some inactive stations and single-parameter archives. Exact periods and gaps shown per station, not nationwide records."}
+       "note":"Every eligible DWD hourly station with original measured pairs: archived, active and variable-specific. Station-specific coverage and missing data apply; no nationwide-record claim."}
     (out/"index.json").write_text(json.dumps(result,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
     print("DWD HOURLY RECORDS",len(records),"verified stations",flush=True)
+    return result
 
 if __name__=="__main__":
     ap=argparse.ArgumentParser()
     ap.add_argument("--out",type=Path,default=Path("data/rekordlabor/weather_turns"))
-    ap.add_argument("--target-stations",type=int,default=240)
-    ap.add_argument("--min-stations",type=int,default=160)
+    ap.add_argument("--target-stations",type=int,default=0,help="0 = every archived DWD station")
+    ap.add_argument("--min-stations",type=int,default=0)
     ap.add_argument("--workers",type=int,default=3)
+    ap.add_argument("--shard-index",type=int)
+    ap.add_argument("--shard-count",type=int,default=1)
+    ap.add_argument("--cache-dir",type=Path)
     args=ap.parse_args()
-    build(args.out,args.target_stations,args.min_stations,args.workers)
+    build(args.out,args.target_stations,args.min_stations,args.workers,
+          args.shard_index,args.shard_count,args.cache_dir)
