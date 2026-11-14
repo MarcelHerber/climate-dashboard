@@ -185,7 +185,9 @@ def test(browser,width):
             pvalues=page.locator("#rlChangeTable tr[data-rl-event]").all_inner_texts()
             assert pvalues and "hPa" in pvalues[0],"Validated DWD hourly pressure records missing"
             doc=page.evaluate("""async()=>await (await fetch('data/rekordlabor/weather_turns/00164.json',{cache:'no-store'})).json()""")
-            assert "930" in doc["metrics"]["pressure"]["quality_notes"],"Unverified historical P0 data present"
+            assert doc["metrics"]["pressure"].get("source_column")=="P","Wrong DWD pressure field: must use sea-level P, not station-height P0"
+            assert doc["metrics"]["pressure"].get("pressure_reference")=="sea_level","Pressure reference must be sea level"
+            assert "DWD P: sea-level" in doc["metrics"]["pressure"]["quality_notes"],"Sea-level pressure source QC missing"
             hourly=doc["metrics"]["pressure"]["windows"]["1"]
             assert abs(hourly["up"][0]["delta"])<=8 and abs(hourly["down"][0]["delta"])<=8
             result["pressure_qc"]={"up":hourly["up"][0]["delta"],"down":hourly["down"][0]["delta"]}
