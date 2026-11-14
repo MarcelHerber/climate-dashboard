@@ -76,28 +76,31 @@ def exercise(browser,device,url,tmp):
     page.goto(url+"/satelliten.html",wait_until="domcontentloaded",timeout=20000)
     page.wait_for_function("()=>document.querySelector('#satTime')?.options.length>=8",timeout=16000)
     page.locator("#satRegion").select_option("atlantic")
-    page.wait_for_function("()=>!document.querySelector('#satWpcFrontSvg').hasAttribute('hidden') && document.querySelectorAll('#satWpcFrontSvg path').length>0",
-                           timeout=18000)
-    actual=page.locator("#satWpcFrontSvg path").count()
-    assert actual>=2,("NOAA over image",actual)
-    symbols=page.locator("#satWpcFrontSvg path.sat-front-symbol").count()
-    assert symbols>0, "No classic frontal pips on the Atlantic overlay"
-    details["front_symbols"]=symbols
-    details["noaa_satellite_svg_paths"]=actual
-    details["noaa_atlantic_lines"]=int(page.locator("#satWpcFrontStatus").inner_text().split()[0])
-    details["noaa_status"]=page.locator("#satWpcFrontStatus").inner_text()
-    details["date_label"]=page.locator("#satWpcFrontUTC").inner_text()
-    assert "NOAA WPC" in details["date_label"],details
-    assert page.locator("#satShowWpcFronts").is_checked()
+    # Front overlays are deliberately paused while pressure maps stay active.
+    assert page.evaluate("window.SatelliteFrontsPaused === true")
+    for ident in ("satShowWpcFronts","satShowDwdFronts"):
+        assert page.locator("#"+ident).is_disabled(),ident
+        assert not page.locator("#"+ident).is_checked(),ident
+        assert page.locator("#"+ident).locator("xpath=..").is_hidden(),ident
+    assert page.locator("#satSynopticOverlaySection").is_hidden()
+    assert page.locator(".sat-front-legend").is_hidden()
+    assert page.locator(".sat-front-note").is_hidden()
+    for ident in ("satWpcFrontSvg","satDwdFrontSvg"):
+        assert page.locator("#"+ident).is_hidden(),ident
+        assert page.locator("#"+ident+" path").count()==0,ident
+    assert page.evaluate("""() => window.SatelliteNOAAFronts.exportAt(
+        new Date(Date.now()-3600000).toISOString(),"atlantic") === null""")
+    details["no_front_overlays"]=True
     assert not page.evaluate("()=>document.documentElement.scrollWidth>innerWidth+3"),"Mobile viewport overflows"
-    page.screenshot(path=str(SHOTS/(device+"-noaa-real-lines-synthetic-satellite.png")))
+    page.screenshot(path=str(SHOTS/(device+"-noaa-paused-synthetic-satellite.png")))
     page.wait_for_function("()=>!document.querySelector('#satPngIsobars').disabled && !document.querySelector('#satPdfIsobars').disabled",
                            timeout=17000)
     for ident,ext in [("satPngIsobars","png"),("satPdfIsobars","pdf")]:
         with page.expect_download(timeout=35000) as download:
             page.locator("#"+ident).click()
         item=download.value
-        assert "_noaa_fronten."+ext in item.suggested_filename,item.suggested_filename
+        assert "_noaa_fronten" not in item.suggested_filename,item.suggested_filename
+        assert "_isobaren."+ext in item.suggested_filename,item.suggested_filename
         target=Path(tmp)/(device+"_"+ident+"."+ext)
         item.save_as(target)
         raw=target.read_bytes()
@@ -105,10 +108,9 @@ def exercise(browser,device,url,tmp):
             assert raw.startswith(bytes([137,80,78,71,13,10,26,10])),"Wrong PNG header"
         else:
             assert raw.startswith(b"%PDF-1.4")
-            assert b"NOAA WPC analyzed frontal vectors" in raw
             assert b"/Subtype /Image" in raw
-            assert raw.count(bytes([10])+b"S"+bytes([10])+b"Q")>=details["noaa_atlantic_lines"],"Front vector strokes are missing"
-            assert b" Pips schematic:" in raw and bytes([10])+b"B"+bytes([10])+b"Q" in raw, "PDF front symbols are not editable"
+            assert b"NOAA WPC analyzed frontal vectors" not in raw
+            assert b"Satellit:" in raw, "PDF must retain ECMWF provenance"
         details[ident]={"filename":item.suggested_filename,"bytes":len(raw)}
     page.locator("#satFilmLength").select_option("6")
     page.locator("#satFilmQuality").select_option("320")
@@ -117,19 +119,12 @@ def exercise(browser,device,url,tmp):
     with page.expect_download(timeout=30000) as download:
         page.locator("#satGifIsobars").click()
     item=download.value
-    target=Path(tmp)/(device+"_noaa.gif")
+    target=Path(tmp)/(device+"_no_fronts.gif")
     item.save_as(target)
     raw=target.read_bytes()
     assert raw.startswith(b"GIF89a") and len(raw)>1500
-    assert "_noaa_fronten.gif" in item.suggested_filename,item.suggested_filename
+    assert "_isobaren.gif" in item.suggested_filename and "_noaa_fronten" not in item.suggested_filename
     details["gif"]={"filename":item.suggested_filename,"bytes":len(raw)}
-    # The switch is shared: screen and exports must both suppress NOAA lines.
-    page.locator("#satShowWpcFronts").uncheck()
-    assert page.locator("#satWpcFrontSvg").is_hidden()
-    details["toggle_hides_noaa"]=True
-    with page.expect_download(timeout=30000) as download:
-        page.locator("#satPngIsobars").click()
-    assert "_noaa_fronten" not in download.value.suggested_filename
     page.locator("#satRegion").select_option("germany")
     page.wait_for_function("()=>document.querySelector('#satWpcFrontSvg').hasAttribute('hidden')",timeout=12000)
     details["germany_no_fake_noaa_fronts"]=True
@@ -140,13 +135,13 @@ def exercise(browser,device,url,tmp):
 def main():
     results={"geometry_source_url":GEO.get("source_url"),"valid_utc":GEO["valid_utc"],
              "tested_at":base.iso(datetime.now(timezone.utc)),
-             "mode":"real NOAA WPC geographic polylines; deterministic satellite pixels and ECMWF contours"}
+             "mode":"NOAA/DWD front overlays paused; deterministic EUMETSAT pixels and ECMWF contours"}
     assert GEO["status"]=="verified" and len(GEO["features"])==46
     server=http.server.ThreadingHTTPServer(("127.0.0.1",0),base.Server)
     thread=threading.Thread(target=server.serve_forever,daemon=True)
     thread.start()
     try:
-        with tempfile.TemporaryDirectory(prefix="noaa-front-export-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="noaa-paused-export-") as tmp:
             with sync_playwright() as p:
                 browser=p.chromium.launch(headless=True,args=["--no-sandbox"])
                 try:

@@ -840,6 +840,7 @@ node --test tests/test_satellite_tile_cache.cjs
 node --test tests/test_satellite_hd.cjs
 node --test tests/test_satellite_dwd_fronts.cjs
 node --test tests/test_satellite_noaa_fronts.cjs
+node --test tests/test_satellite_front_pause.cjs
 node --test tests/test_satellite_front_style.cjs
 node --test tests/test_satellite_noaa_export.cjs
 python -m unittest discover -s tests -p "test_satellite_dwd_fronts.py" -v

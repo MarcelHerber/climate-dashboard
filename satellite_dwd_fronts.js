@@ -93,6 +93,11 @@ function project(point,bbox){
 }
 function update(){
  clean();
+ if(window.SatelliteFrontsPaused===true){
+  toggle.checked=false;toggle.disabled=true;
+  message("DWD-Fronten vorerst deaktiviert.");utcLabel.textContent="";
+  return;
+ }
  if(!geographic()){
   toggle.disabled=true;
   message("DWD-Analysefronten sind auf der Vollscheibe und bei MTG-I2 nicht geografisch darstellbar.");
@@ -153,6 +158,7 @@ function update(){
  }
 }
 async function load(){
+ if(window.SatelliteFrontsPaused===true){update();return;}
  if(loading)return;
  loading=true;seq++;const mine=seq;
  refresh.disabled=true;
@@ -198,5 +204,6 @@ refresh.addEventListener("click",()=>void load());
 region.addEventListener("change",()=>sync({time:context.time}));
 source.addEventListener("change",()=>sync({time:context.time}));
 window.SatelliteFrontAnalysis={sync,project,validate};
-void load();
+if(window.SatelliteFrontsPaused===true)update();
+else void load();
 })();

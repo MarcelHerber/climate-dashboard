@@ -79,6 +79,7 @@ function visibleFor(time,place){
  return info.features.filter(f=>intersect(f.coords,BBOX[place]));
 }
 function exportAt(time,place){
+ if(window.SatelliteFrontsPaused===true)return null;
  // Export exactly the front layer the user enabled, with the same spatial,
  // source and temporal constraints as the visible EPSG:4326 satellite map.
  if(!toggle.checked||!current())return null;
@@ -100,6 +101,11 @@ function sync(next){
 }
 function render(){
  reset();
+ if(window.SatelliteFrontsPaused===true){
+  toggle.checked=false;toggle.disabled=true;
+  msg.textContent="Fronten auf dieser Satellitenseite vorerst deaktiviert.";
+  timeLabel.textContent="";return;
+ }
  const bbox=BBOX[context.region];
  if(!bbox||context.source!=="mtgi1"){
   toggle.disabled=true;msg.textContent="NOAA-Fronten auf dieser Satellitenprojektion nicht darstellbar.";
@@ -172,6 +178,7 @@ function render(){
   " Analysezeit und Herkunft siehe unten.";
 }
 async function refresh(){
+ if(window.SatelliteFrontsPaused===true){info=null;render();return;}
  lastStatus="";msg.textContent="Lade aktuelle NOAA-WPC-Frontpositionen …";
  const ctrl=typeof AbortController==="function"?new AbortController():null;
  const timer=ctrl?setTimeout(()=>ctrl.abort(),10000):null;
@@ -197,5 +204,6 @@ toggle.addEventListener("change",render);
 link.href=TRUSTED;
 link.rel="noopener noreferrer";link.target="_blank";
 window.SatelliteNOAAFronts={sync,validate,project,exportAt,visibleFor,COLORS};
-void refresh();
+if(window.SatelliteFrontsPaused===true)render();
+else void refresh();
 })();
