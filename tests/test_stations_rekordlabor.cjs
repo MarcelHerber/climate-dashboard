@@ -37,6 +37,46 @@ test("seasonal date zoom includes the fractional predicted trend line",()=>{
  assert.ok(axis.max>=150.2);
  assert.equal(axis.format(142),"21.5.");
 });
+test("SVG and PDF season trend exports preserve dashed separate vector layer and date ticks",()=>{
+ const fs=require("node:fs"),vm=require("node:vm"),path=require("node:path");
+ const sandbox={window:{}};
+ vm.runInNewContext(fs.readFileSync(path.join(__dirname,"..","t850_vector_export.js"),"utf8"),sandbox);
+ const exporter=sandbox.window.T850VectorExport;
+ const series=[
+  {label:"Messwerte",data:[133,145,140],borderColor:"#b44e46",borderWidth:2},
+  {label:"Trendlinie",data:[135,138,141],borderColor:"#64748b",
+   borderWidth:2.6,borderDash:[9,6],pointRadius:0}
+ ];
+ const chart={
+  data:{labels:["1990","2005","2020"],datasets:series},
+  scales:{x:{min:0,max:2},y:{min:125,max:150}},
+  isDatasetVisible:i=>true
+ };
+ const info={title:"Jahreszeitenrekord",axis:"Datum",
+   yTicks:[{value:130},{value:145}],
+   yTickFormatter:v=>v===130?"10.5.":"25.5."};
+ const scene=exporter.buildScene(chart,info);
+ assert.equal(scene.series.length,2);
+ assert.equal(scene.series[1].label,"Trendlinie");
+ assert.deepEqual(Array.from(scene.series[1].dash),[9,6]);
+ assert.deepEqual(Array.from(scene.ticks.map(t=>t.label)),["10.5.","25.5."]);
+ const svg=exporter.toSvg([scene]);
+ assert.match(svg,/stroke-dasharray="9,6"/);
+ assert.match(svg,/Trendlinie/);
+ assert.match(svg,/10\\.5\\./);
+ const patterns=[];
+ const pdf={internal:{pageSize:{getWidth:()=>420,getHeight:()=>297}},
+  setFont(){},setFontSize(){},setTextColor(){},text(){},setFillColor(){},
+  rect(){},setDrawColor(){},setLineWidth(){},line(){},lines(){},
+  setLineDashPattern:pattern=>patterns.push(Array.from(pattern))
+ };
+ exporter.drawPdf(pdf,scene);
+ assert.ok(patterns.some(pattern=>pattern.length===2&&pattern[0]>0));
+ // The unchecked switch supplies only the measurement dataset.
+ const plain=exporter.buildScene({...chart,data:{...chart.data,datasets:[series[0]]}},info);
+ assert.equal(plain.series.length,1);
+ assert.doesNotMatch(exporter.toSvg([plain]),/stroke-dasharray="9,6"/);
+});
 test("February 29 is never invented for non-leap years",()=>{
  assert.equal(C.dayIndex(2023,"02-29"),-1);
  assert.equal(C.dayIndex(2024,"02-29"),59);
