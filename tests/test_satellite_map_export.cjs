@@ -52,12 +52,12 @@ test("Only 1015 hPa is bold; all visible isobars remain pink with a dark halo",(
   stroke(){calls.push({width:this.lineWidth,color:this.strokeStyle});},
   measureText(){return {width:27}},fillRect(){},strokeRect(){},fillText(){}};
  api.paintIsobars(ctx,sourceOverlay,"southwest",{width:900,height:400});
- const pink=calls.filter(x=>x.color==="#ff4fcf"),halo=calls.filter(x=>x.color==="#061522");
+ const pink=calls.filter(x=>x.color==="#c6a2bb"),halo=calls.filter(x=>x.color==="#18283a");
  assert.equal(pink.length,3);assert.equal(halo.length,3);
- assert.deepEqual(pink.map(s=>s.width),[0.9,0.9,1.55],
-  "Pink: normal 0.9px, 1015 hPa 1.55px at reference scale");
- assert.deepEqual(halo.map(s=>s.width),[2.3,2.3,2.95],
-  "Dark halo: normal 2.3px, 1015 hPa 2.95px at reference scale");
+ assert.deepEqual(pink.map(s=>s.width),[0.75,0.75,1.10],
+  "Pink: normal 0.75px, 1015 hPa 1.10px at reference scale");
+ assert.deepEqual(halo.map(s=>s.width),[1.8,1.8,2.25],
+  "Dark halo: normal 1.8px, 1015 hPa 2.25px at reference scale");
  assert.ok(pink[2].width>pink[1].width);
  assert.equal(pink[0].width,pink[1].width);
  assert.ok(!calls.some(x=>["#ffb447","#3bdeff"].includes(x.color)));
@@ -180,11 +180,11 @@ test("2-hPa European PNG and vector PDF retain even-pressure contours and 1015 i
   stroke(){calls.push({width:this.lineWidth,color:this.strokeStyle});},
   measureText(){return {width:27}},fillRect(){},strokeRect(){},fillText(){}};
  api.paintIsobars(ctx,fine,"southwest",{width:900,height:400});
- const pink=calls.filter(x=>x.color==="#ff4fcf");
- const halo=calls.filter(x=>x.color==="#061522");
+ const pink=calls.filter(x=>x.color==="#c6a2bb");
+ const halo=calls.filter(x=>x.color==="#18283a");
  assert.ok(pink.length===4&&halo.length===4);
- assert.ok(pink.every(x=>x.width===.75));
- assert.ok(halo.every(x=>x.width===1.85));
+ assert.ok(pink.every(x=>x.width===.58));
+ assert.ok(halo.every(x=>x.width===1.45));
  const opts={...options,overlay:fine};
  const png=await api.renderPNG(opts);
  assert.equal(png.blob.type,"image/png");
