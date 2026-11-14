@@ -8,6 +8,7 @@ Only available station/parameter combinations are published.
 from __future__ import annotations
 import argparse
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import csv
 import datetime as dt
 import heapq
@@ -228,7 +229,7 @@ def parse_stations_description(body):
             "first":first,"last":last}
     return stations
 
-def discover_stations(listing,target=48):
+def discover_stations(listing,target=240,pinned=None):
     """Deterministic regional expansion; index records are never inferred."""
     body=read_url(URL+"air_temperature/historical/TU_Stundenwerte_Beschreibung_Stationen.txt")
     catalogue=parse_stations_description(body.decode("latin1","replace"))
@@ -241,34 +242,67 @@ def discover_stations(listing,target=48):
     for sid,station in catalogue.items():
         if sid in STATIONS:continue
         temp=inv["temperature"].get(sid)
-        if not temp or temp[1]<"20241231" or temp[0]>"20000101":continue
-        measured=sum(sid in inv[name] and inv[name][sid][1]>="20241231" for name in SOURCES)
-        if measured<2:continue
-        candidates.append((sid,station,measured,int(temp[0][:4])))
+        if not temp:continue
+        first,last=temp
+        # Historical stations may have closed: a 10+ year original
+        # archive remains useful, even without present-day observations.
+        if int(last[:4])-int(first[:4])<10:continue
+        if last<"19900101":continue
+        measured=sum(sid in inv[name] for name in SOURCES)
+        recent=sum(sid in inv[name] and inv[name][sid][1]>="20241231" for name in SOURCES)
+        candidates.append((sid,station,measured,int(first[:4]),recent,int(last[:4])))
     selected=dict(STATIONS)
-    # At most three per Bundesland in the first pass, then fill remaining slots.
-    # Prefer all three hourly parameters, longer archives, and distinct locations.
+    for sid,row in (pinned or {}).items():
+        # Never silently remove previously validated locations.
+        if sid not in selected and sid in catalogue:
+            st=catalogue[sid]
+            selected[sid]=(st["name"],st["state"],st["lat"],st["lon"])
     counts=defaultdict(int)
-    for sid,(_,land,_,_) in STATIONS.items():counts[land]+=1
+    for _,land,_,_ in selected.values():counts[land]+=1
     def distance(station):
         return min((((station["lat"]-row[2])*1.1)**2+
                      ((station["lon"]-row[3])*.65)**2)**.5 for row in selected.values())
-    for quota in (1,2,3,4,5,10,48):
+    # Balanced across all 16 Länder before filling larger states densely.
+    for quota in (3,5,8,12,16,22,30,40,60,120,240):
         if len(selected)>=target:break
         for land in sorted(LANDS):
             while counts[land]<quota and len(selected)<target:
                 pool=[c for c in candidates if c[1]["state"]==land and c[0] not in selected]
                 if not pool:break
-                sid,st,measured,first=max(pool,key=lambda c:(
-                    c[2]==3, round(distance(c[1]),2), -c[3],c[0]))
+                sid,st,measured,first,recent,last=max(pool,key=lambda c:(
+                    c[4]>=2,c[2]>=2,c[4]>0,round(distance(c[1]),2),c[5],-c[3],c[0]))
                 selected[sid]=(st["name"],land,st["lat"],st["lon"])
                 counts[land]+=1
     print("DWD HOURLY STATION DISCOVERY",len(catalogue),"catalogue locations,",
-          len(candidates),"eligible additional, selected",len(selected),flush=True)
+          len(candidates),"10+ year candidates, selected",len(selected),
+          "previously verified",len(pinned or {}),flush=True)
     return selected
 
-def build_station(sid,listing,stations=None):
+def build_station(sid,listing,stations=None,cache_dir=None):
     name,state,lat,lon=(stations or STATIONS)[sid]
+    # Reuse audited output only while the official historical ZIP names
+    # remain unchanged and the snapshot is recent. Avoid redownloading
+    # identical 50-year hourly archives on every branch or retry.
+    if cache_dir:
+        cached_path=Path(cache_dir)/(sid+".json")
+        if cached_path.is_file():
+            try:
+                old=json.loads(cached_path.read_text(encoding="utf-8"))
+                checked=dt.datetime.fromisoformat(old["generated_at"].replace("Z","+00:00"))
+                fresh=(now-checked).total_seconds()<14*86400
+                complete=all(
+                    (old.get("metrics",{}).get(param,{}).get("source_url")==archive_url(param,sid,listing.get(param)))
+                    if param in old.get("metrics",{})
+                    else (param in old.get("unavailable_sources",{}) and
+                          ("No official historical hourly archive" not in old["unavailable_sources"][param] or
+                           archive_url(param,sid,listing.get(param)) is None))
+                    for param in SOURCES
+                )
+                if fresh and complete and old.get("station_id")==sid and old.get("metrics"):
+                    print("DWD HOURLY CACHE VALID",sid,flush=True)
+                    return old
+            except (OSError,ValueError,KeyError,TypeError):
+                pass
     metrics={};failures={}
     for parameter in SOURCES:
         url=archive_url(parameter,sid,listing.get(parameter))
@@ -305,37 +339,54 @@ def build_station(sid,listing,stations=None):
         "generated_at":now.isoformat(),"metrics":metrics,
         "unavailable_sources":failures}
 
-def build(out:Path,target:int=48,min_stations:int=20):
+def build(out:Path,target:int=240,min_stations:int=160,workers:int=3):
     out.mkdir(parents=True,exist_ok=True)
     listing={}
     for name,(category,_,_,_) in SOURCES.items():
         listing[name]=read_url(URL+category+"/historical/").decode("utf-8","replace")
-    stations=discover_stations(listing,target)
+    pinned={}
+    previous=out/"index.json"
+    if previous.is_file():
+        try:
+            idx=json.loads(previous.read_text(encoding="utf-8"))
+            pinned={str(s["id"]):s for s in idx.get("stations",[])}
+        except (ValueError,KeyError,TypeError):pass
+    stations=discover_stations(listing,target,pinned)
     if len(stations)<min_stations:
         raise RuntimeError(f"Only {len(stations)} eligible DWD stations discovered, minimum {min_stations}")
     records=[]
-    for sid in sorted(stations):
-        row=build_station(sid,listing,stations)
-        if row["metrics"]:
-            (out/f"{sid}.json").write_text(json.dumps(row,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
-            records.append({"id":sid,"name":row["name"],"state":row["state"],
-                "lat":row["lat"],"lon":row["lon"],
-                "metrics":list(row["metrics"]),
-                "periods":{key:value["period"] for key,value in row["metrics"].items()}})
-    if len(records)<min_stations:
-        raise RuntimeError(f"Only {len(records)} verified DWD hourly stations, minimum {min_stations}; prior index remains untouched")
+    # Parallel worker *processes* allow decoding multi-decade CSV files on
+    # separate cores; each station remains deterministic and isolated.
+    with ProcessPoolExecutor(max_workers=max(1,min(workers,4))) as pool:
+        jobs={pool.submit(build_station,sid,listing,stations,out):sid for sid in sorted(stations)}
+        for task in as_completed(jobs):
+            sid=jobs[task]
+            try:row=task.result()
+            except Exception as error:
+                print("DWD STATION FAILED",sid,repr(error),flush=True)
+                continue
+            if row["metrics"]:
+                (out/f"{sid}.json").write_text(json.dumps(row,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
+                records.append({"id":sid,"name":row["name"],"state":row["state"],
+                    "lat":row["lat"],"lon":row["lon"],
+                    "metrics":list(row["metrics"]),
+                    "periods":{key:value["period"] for key,value in row["metrics"].items()}})
+            print("DWD VERIFIED STATION PROGRESS",len(records),"/",len(stations),flush=True)
+    if len(records)<min_stations or not set(pinned).issubset({x["id"] for x in records}):
+        raise RuntimeError(f"Only {len(records)} verified DWD hourly stations or prior validated stations lost; publication blocked")
     records.sort(key=lambda x:(x["state"],x["name"],x["id"]))
     result={"schema":1,"ready":True,"publisher":"Deutscher Wetterdienst (DWD) CDC",
        "method":"Exact original hourly time pairs, nonoverlapping top events, gap-safe",
        "generated_at":now.isoformat(),"stations":records,
-       "note":"Regionally distributed selected stations, not a Germany-wide maximum. Official historical hourly files; station- and variable-specific periods."}
+       "note":"Selected 10+ year DWD historical stations; some inactive stations and single-parameter archives. Exact periods and gaps shown per station, not nationwide records."}
     (out/"index.json").write_text(json.dumps(result,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
     print("DWD HOURLY RECORDS",len(records),"verified stations",flush=True)
 
 if __name__=="__main__":
     ap=argparse.ArgumentParser()
     ap.add_argument("--out",type=Path,default=Path("data/rekordlabor/weather_turns"))
-    ap.add_argument("--target-stations",type=int,default=48)
-    ap.add_argument("--min-stations",type=int,default=20)
+    ap.add_argument("--target-stations",type=int,default=240)
+    ap.add_argument("--min-stations",type=int,default=160)
+    ap.add_argument("--workers",type=int,default=3)
     args=ap.parse_args()
-    build(args.out,args.target_stations,args.min_stations)
+    build(args.out,args.target_stations,args.min_stations,args.workers)
