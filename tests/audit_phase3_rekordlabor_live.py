@@ -19,7 +19,7 @@ def await_published():
         try:
             with urllib.request.urlopen(BASE+"stations_rekordlabor.html?qa="+str(time.time()),timeout=16) as response:
                 txt=response.read().decode("utf8")
-            if ('id="rlChanges"' in txt and 'id="rlMap"' in txt and 'stations_rekordlabor.js?v=20261114-p3' in txt):return
+            if ('id="rlChanges"' in txt and 'id="rlMap"' in txt and 'stations_rekordlabor.js?v=20261114-p3-map-v2' in txt):return
         except Exception as error:
             print("Phase3 release probe:",str(error)[:140],flush=True)
         time.sleep(15)
@@ -78,7 +78,24 @@ def test(browser,width):
                                timeout=100000)
         station=page.locator("#rlStation").inner_text()
         assert "01420" in station,f"Frankfurt initial station missing: {station}"
-        page.wait_for_function("""()=>document.getElementById('rlMapStatus')?.textContent.includes('Stationsstandorte')""",timeout=35000)
+        page.wait_for_timeout(2000)
+        result["map_debug"] = page.evaluate("""async()=>({
+          leaflet_loaded:!!window.L,
+          status:document.getElementById('rlMapStatus')?.textContent,
+          className:document.getElementById('rlMap')?.className,
+          catalogue_positions:(()=>{return 0})()
+        })""")
+        if "Stationsstandorte" not in result["map_debug"]["status"]:
+            catalog=page.evaluate("""async()=>{
+              const r=await fetch('station_jahresanalyse_catalog.json',{cache:'no-store'});
+              const d=await r.json();return {
+                rows:d.stations?.length,
+                with_coords:d.stations?.filter(s=>Number.isFinite(s.lat)&&Number.isFinite(s.lon)).length,
+                first:d.stations?.filter(s=>Number.isFinite(s.lat)&&Number.isFinite(s.lon)).slice(0,3)
+              };
+            }""")
+            result["map_debug"]["catalog"]=catalog
+        assert "Stationsstandorte" in result["map_debug"]["status"],"DWD map initialisation failed: "+repr(result["map_debug"])
         assert page.locator("#rlMap.leaflet-container").count()==1,"Original DWD station map absent"
         result["map"]=page.locator("#rlMapStatus").inner_text()
         page.wait_for_function("""()=>document.getElementById("rlCalendarTable")?.querySelectorAll("tr").length>=5""",
