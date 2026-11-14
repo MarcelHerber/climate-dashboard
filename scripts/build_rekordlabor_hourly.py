@@ -229,7 +229,11 @@ def discover_stations(listing,target=48):
     """Deterministic regional expansion; index records are never inferred."""
     body=read_url(URL+"air_temperature/historical/TU_Stundenwerte_Beschreibung_Stationen.txt")
     catalogue=parse_stations_description(body.decode("latin1","replace"))
+    if len(catalogue)<100:
+        for sample in body.decode("latin1","replace").splitlines()[:25]:
+            print("DWD STATION DESCRIPTION SAMPLE",repr(sample[:220]),flush=True)
     inv={name:historical_inventory(html,name) for name,html in listing.items()}
+    print("DWD PARAMETER INDEX COUNTS", {name:len(entries) for name,entries in inv.items()},flush=True)
     candidates=[]
     for sid,station in catalogue.items():
         if sid in STATIONS:continue
@@ -304,6 +308,8 @@ def build(out:Path,target:int=48,min_stations:int=20):
     for name,(category,_,_,_) in SOURCES.items():
         listing[name]=read_url(URL+category+"/historical/").decode("utf-8","replace")
     stations=discover_stations(listing,target)
+    if len(stations)<min_stations:
+        raise RuntimeError(f"Only {len(stations)} eligible DWD stations discovered, minimum {min_stations}")
     records=[]
     for sid in sorted(stations):
         row=build_station(sid,listing,stations)
