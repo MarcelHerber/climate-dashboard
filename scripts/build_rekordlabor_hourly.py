@@ -126,58 +126,142 @@ def physically_continuous_pressure(data,start,end,hours):
         previous=current
     return True
 
-def top_events(data:dict,parameter:str,hours:int,direction:str):
+# Integer hour keys avoid repeatedly parsing millions of DWD timestamps. They
+# preserve exact UTC distances across midnight and leap days.
+def hour_key(stamp:str)->int:
+    return dt.date(int(stamp[:4]),int(stamp[4:6]),int(stamp[6:8])).toordinal()*24+int(stamp[8:10])
+
+def hour_stamp(hour:int)->str:
+    return dt.date.fromordinal(hour//24).strftime("%Y%m%d")+f"{hour%24:02d}"
+
+def hourly_data(data:dict):
+    if not data:return {}
+    return {hour_key(k):v for k,v in data.items()} if isinstance(next(iter(data)),str) else data
+
+def pressure_runs(data:dict[int,float])->dict[int,int]:
+    """Number of consecutive, present, <=8 hPa hourly steps ending at t."""
+    runs={}
+    for t in sorted(data):
+        previous=data.get(t-1)
+        runs[t]=(runs.get(t-1,0)+1) if previous is not None and abs(data[t]-previous)<=8 else 0
+    return runs
+
+def top_events(data:dict,parameter:str,hours:int,direction:str,validated_pressure=None):
+    index=hourly_data(data)
+    runs=(validated_pressure if validated_pressure is not None else pressure_runs(index)) if parameter=="pressure" else None
     counters=0;queue=[]
-    for end,after in data.items():
-        before=data.get(step(end,-hours))
+    for end,after in index.items():
+        before=index.get(end-hours)
         if before is None:continue
         change=delta(parameter,before,after)
         if parameter=="pressure":
-            # DWD historical P0 has sparse spurious 109x hPa hours in early years.
-            # No real-world 100 hPa jumps are admitted to the record ranking.
-            if abs(change)>55 or not physically_continuous_pressure(data,step(end,-hours),end,hours):
-                continue
+            # A change is valid only with every intermediate hour measured,
+            # no hourly jump >8 hPa, and a plausible total difference.
+            if abs(change)>55 or runs.get(end,0)<hours:continue
         if not is_significant(parameter,direction,change):continue
         counters+=1
         score=change if direction=="up" else -change
-        # Keep 120 strongest, then drop overlapping, effectively identical episodes.
         item=(score,end,change,before,after)
-        if len(queue)<120:heapq.heappush(queue,item)
+        if len(queue)<300:heapq.heappush(queue,item)
         elif score>queue[0][0]:heapq.heapreplace(queue,item)
-    sorted_list=sorted(queue,key=lambda x:(-x[0],x[1]))
+    ordered=sorted(queue,key=lambda x:(-x[0],x[1]))
     selected=[]
-    for _,end,change,before,after in sorted_list:
-        td=dt.datetime.strptime(end,"%Y%m%d%H")
-        if any(abs((td-dt.datetime.strptime(x[1],"%Y%m%d%H")).total_seconds())<
-               max(3,hours)*3600 for x in selected):continue
+    for _,end,change,before,after in ordered:
+        if any(abs(end-item[1])<max(3,hours) for item in selected):continue
         selected.append((change,end,before,after))
         if len(selected)==LIMIT:break
     return counters,selected
 
-def make_trace(data,parameter,start,end):
-    t0=dt.datetime.strptime(start,"%Y%m%d%H")-dt.timedelta(hours=12)
-    t1=dt.datetime.strptime(end,"%Y%m%d%H")+dt.timedelta(hours=12)
-    t=t0;trace=[]
-    while t<=t1:
-        stamp=t.strftime("%Y%m%d%H");v=data.get(stamp)
-        trace.append([iso(stamp),None if v is None else round(plot_value(parameter,v),2)])
-        t+=dt.timedelta(hours=1)
+def make_trace(data,parameter,start:int,end:int):
+    index=hourly_data(data)
+    trace=[]
+    for t in range(start-12,end+13):
+        v=index.get(t)
+        trace.append([iso(hour_stamp(t)),None if v is None else round(plot_value(parameter,v),2)])
     return trace
 
-def record_events(data,parameter,hours,direction):
-    count,records=top_events(data,parameter,hours,direction)
+def record_events(data,parameter,hours,direction,validated_pressure=None):
+    count,records=top_events(data,parameter,hours,direction,validated_pressure)
     output=[]
     for change,end,before,after in records:
-        start=step(end,-hours)
-        output.append({"start":iso(start),"end":iso(end),
+        start=end-hours
+        output.append({"start":iso(hour_stamp(start)),"end":iso(hour_stamp(end)),
             "delta":round(change,2),
             "before":round(plot_value(parameter,before),2),
             "after":round(plot_value(parameter,after),2),
             "trace":make_trace(data,parameter,start,end)})
     return {"coverage":{"pairs":count},"events":output}
 
-def build_station(sid,listing):
-    name,state,lat,lon=STATIONS[sid]
+LANDS=tuple(sorted((
+    "Baden-Württemberg","Bayern","Berlin","Brandenburg","Bremen","Hamburg",
+    "Hessen","Mecklenburg-Vorpommern","Niedersachsen","Nordrhein-Westfalen",
+    "Rheinland-Pfalz","Saarland","Sachsen","Sachsen-Anhalt",
+    "Schleswig-Holstein","Thüringen"
+),key=len,reverse=True))
+
+def historical_inventory(listing,parameter):
+    prefix=SOURCES[parameter][1]
+    rx=re.compile(r"stundenwerte_"+prefix+r"_(\d{5})_(\d{8})_(\d{8})_hist\.zip")
+    inventory={}
+    for sid,first,last in rx.findall(listing):
+        if sid not in inventory or last>inventory[sid][1]:
+            inventory[sid]=(first,last)
+    return inventory
+
+def parse_stations_description(body):
+    """Official DWD fixed-width station catalogue, with original geo coordinates."""
+    stations={}
+    rx=re.compile(r"^\s*(\d{5})\s+(\d{8})\s+(\d{8})\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(.+?)\s*$")
+    for line in body.splitlines():
+        match=rx.match(line)
+        if not match:continue
+        sid,first,last,height,latitude,longitude,tail=match.groups()
+        state=next((land for land in LANDS if tail.endswith(land)),None)
+        if state is None:continue
+        name=tail[:-len(state)].strip()
+        lat,lon=float(latitude),float(longitude)
+        if not name or not (47<=lat<=56 and 5<=lon<=16):continue
+        stations[sid]={"name":name,"state":state,"lat":lat,"lon":lon,
+            "first":first,"last":last}
+    return stations
+
+def discover_stations(listing,target=48):
+    """Deterministic regional expansion; index records are never inferred."""
+    body=read_url(URL+"air_temperature/historical/TU_Stundenwerte_Beschreibung_Stationen.txt")
+    catalogue=parse_stations_description(body.decode("latin1","replace"))
+    inv={name:historical_inventory(html,name) for name,html in listing.items()}
+    candidates=[]
+    for sid,station in catalogue.items():
+        if sid in STATIONS:continue
+        temp=inv["temperature"].get(sid)
+        if not temp or temp[1]<"20241231" or temp[0]>"20000101":continue
+        measured=sum(sid in inv[name] and inv[name][sid][1]>="20241231" for name in SOURCES)
+        if measured<2:continue
+        candidates.append((sid,station,measured,int(temp[0][:4])))
+    selected=dict(STATIONS)
+    # At most three per Bundesland in the first pass, then fill remaining slots.
+    # Prefer all three hourly parameters, longer archives, and distinct locations.
+    counts=defaultdict(int)
+    for sid,(_,land,_,_) in STATIONS.items():counts[land]+=1
+    def distance(station):
+        return min((((station["lat"]-row[2])*1.1)**2+
+                     ((station["lon"]-row[3])*.65)**2)**.5 for row in selected.values())
+    for quota in (1,2,3,4,5,10,48):
+        if len(selected)>=target:break
+        for land in sorted(LANDS):
+            while counts[land]<quota and len(selected)<target:
+                pool=[c for c in candidates if c[1]["state"]==land and c[0] not in selected]
+                if not pool:break
+                sid,st,measured,first=max(pool,key=lambda c:(
+                    c[2]==3, round(distance(c[1]),2), -c[3],c[0]))
+                selected[sid]=(st["name"],land,st["lat"],st["lon"])
+                counts[land]+=1
+    print("DWD HOURLY STATION DISCOVERY",len(catalogue),"catalogue locations,",
+          len(candidates),"eligible additional, selected",len(selected),flush=True)
+    return selected
+
+def build_station(sid,listing,stations=None):
+    name,state,lat,lon=(stations or STATIONS)[sid]
     metrics={};failures={}
     for parameter in SOURCES:
         url=archive_url(parameter,sid,listing.get(parameter))
@@ -189,6 +273,8 @@ def build_station(sid,listing):
             if len(data)<24*30:raise ValueError("Too few valid hourly values")
             dates=sorted(data)
             years={"start":iso(dates[0]),"end":iso(dates[-1])}
+            indexed=hourly_data(data)
+            pressure_valid=pressure_runs(indexed) if parameter=="pressure" else None
             d={"source":"DWD CDC · "+SOURCES[parameter][0]+" · "+SOURCES[parameter][2],
                 "source_url":url,"unit":SOURCES[parameter][3],"period":years,
                 "observed_hours":len(data),"windows":{},
@@ -196,8 +282,8 @@ def build_station(sid,listing):
                    "Wind directions require both hourly mean speeds >=3 m/s; no gusts" if parameter=="wind_direction" else
                    "Temperature valid only at measured UTC hours; no filled gaps")}
             for hours in HOURS:
-                up=record_events(data,parameter,hours,"up")
-                down=record_events(data,parameter,hours,"down") if parameter!="wind_direction" else {"coverage":{"pairs":up["coverage"]["pairs"]},"events":[]}
+                up=record_events(indexed,parameter,hours,"up",pressure_valid)
+                down=record_events(indexed,parameter,hours,"down",pressure_valid) if parameter!="wind_direction" else {"coverage":{"pairs":up["coverage"]["pairs"]},"events":[]}
                 if up["coverage"]["pairs"]>0:
                     d["windows"][str(hours)]={
                       "coverage":{"pairs":up["coverage"]["pairs"]},
@@ -212,31 +298,35 @@ def build_station(sid,listing):
         "generated_at":now.isoformat(),"metrics":metrics,
         "unavailable_sources":failures}
 
-def build(out:Path):
+def build(out:Path,target:int=48,min_stations:int=20):
     out.mkdir(parents=True,exist_ok=True)
     listing={}
     for name,(category,_,_,_) in SOURCES.items():
-        try:listing[name]=read_url(URL+category+"/historical/").decode("utf-8","replace")
-        except Exception as e:listing[name]="";print("DWD INDEX ERROR",name,e,flush=True)
+        listing[name]=read_url(URL+category+"/historical/").decode("utf-8","replace")
+    stations=discover_stations(listing,target)
     records=[]
-    for sid in STATIONS:
-        row=build_station(sid,listing)
+    for sid in sorted(stations):
+        row=build_station(sid,listing,stations)
         if row["metrics"]:
             (out/f"{sid}.json").write_text(json.dumps(row,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
             records.append({"id":sid,"name":row["name"],"state":row["state"],
                 "lat":row["lat"],"lon":row["lon"],
                 "metrics":list(row["metrics"]),
                 "periods":{key:value["period"] for key,value in row["metrics"].items()}})
-    if not records:raise RuntimeError("Zero verified DWD hourly stations; do not publish empty archive")
+    if len(records)<min_stations:
+        raise RuntimeError(f"Only {len(records)} verified DWD hourly stations, minimum {min_stations}; prior index remains untouched")
+    records.sort(key=lambda x:(x["state"],x["name"],x["id"]))
     result={"schema":1,"ready":True,"publisher":"Deutscher Wetterdienst (DWD) CDC",
        "method":"Exact original hourly time pairs, nonoverlapping top events, gap-safe",
        "generated_at":now.isoformat(),"stations":records,
-       "note":"Pilot stations only, not a Germany-wide maximum. Official historical, QC-complete files."}
+       "note":"Regionally distributed selected stations, not a Germany-wide maximum. Official historical hourly files; station- and variable-specific periods."}
     (out/"index.json").write_text(json.dumps(result,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
-    print("DWD HOURLY RECORDS",json.dumps(result,ensure_ascii=False),flush=True)
+    print("DWD HOURLY RECORDS",len(records),"verified stations",flush=True)
 
 if __name__=="__main__":
     ap=argparse.ArgumentParser()
     ap.add_argument("--out",type=Path,default=Path("data/rekordlabor/weather_turns"))
+    ap.add_argument("--target-stations",type=int,default=48)
+    ap.add_argument("--min-stations",type=int,default=20)
     args=ap.parse_args()
-    build(args.out)
+    build(args.out,args.target_stations,args.min_stations)
