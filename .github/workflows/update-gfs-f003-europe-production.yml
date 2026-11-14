@@ -31,6 +31,13 @@ jobs:
             gfs_analysis_europe
             gfs_f003_europe.html
             gfs_f003_europe.js
+            gfs_analysis_europe.css
+            cpc_europe
+            cpc_europe.css
+            mobile_navigation.js
+            mobile_navigation.css
+            dashboard_theme.js
+            dashboard_theme.css
           sparse-checkout-cone-mode: false
           fetch-depth: 0
           persist-credentials: true
@@ -68,6 +75,25 @@ jobs:
           assert len(payload)==len(x["dates"])*140*76*2
           print("GFS f003 anomalies validated:",x["data_through"])
           PY
+      - name: Syntax-check the complete website builder before publication
+        if: github.ref != 'refs/heads/main'
+        run: bash -n scripts/build_pages_site.sh
+      - name: Install headless Chromium for release-only desktop and phone QA
+        if: github.ref != 'refs/heads/main'
+        run: |
+          python -m pip install playwright
+          python -m playwright install chromium --with-deps
+      - name: Verify genuine f003 anomaly rendering and PNG, PDF, CSV with real country grid
+        if: github.ref != 'refs/heads/main'
+        run: python tests/test_gfs_f003_europe_browser.py
+      - name: Preserve release branch screenshots and exports
+        uses: actions/upload-artifact@v4
+        if: github.ref != 'refs/heads/main' && always()
+        with:
+          name: gfs-f003-release-browser-qa-${{ github.run_id }}
+          path: gfs_f003_europe_qa/
+          retention-days: 10
+          if-no-files-found: ignore
       - name: Commit genuine new f003 data only on production main
         if: github.ref == 'refs/heads/main'
         id: publish
