@@ -34,6 +34,44 @@ test("hydrological snow Y axis uses real Nov-to-Oct month dates",()=>{
  assert.equal(axis.format(366),"31.10.");
 });
 
+test("season dates zoom to observed values instead of wasting most of the chart height",()=>{
+ const values=[279,281,284,277,286,282,280];
+ const axis=C.seasonDateAxis(null,values);
+ assert.ok(axis.min<=Math.min(...values));
+ assert.ok(axis.max>=Math.max(...values));
+ assert.ok(axis.max-axis.min<40,"An autumn event range must not show the full year");
+ assert.ok(axis.ticks.length>=3,"Narrow date scale needs several real date labels");
+ assert.ok(axis.ticks.every(t=>t.label===axis.format(t.value)));
+ assert.ok(axis.ticks.every(t=>t.value>=axis.min&&t.value<=axis.max));
+ assert.equal(axis.format(60),"29.2.","Tooltip uses unchanged leap-year coordinates");
+});
+test("snow date axis zoom respects hydrological years and boundary observations",()=>{
+ const days=Array.from({length:366},(_,i)=>
+   new Date(Date.UTC(2023,10,1+i)).toISOString().slice(5,10));
+ const values=[days.indexOf("01-11")+1,days.indexOf("01-14")+1,
+   days.indexOf("01-17")+1];
+ const axis=C.seasonDateAxis(days,values);
+ assert.ok(axis.min>=1&&axis.max<=366);
+ assert.ok(axis.max-axis.min<40);
+ assert.equal(axis.format(values[0]),"11.1.");
+ assert.equal(axis.format(values[2]),"17.1.");
+ const boundary=C.seasonDateAxis(days,[1,2,3]);
+ assert.equal(boundary.min,1);
+ assert.ok(boundary.max<30,"The first days of November must zoom near November");
+});
+test("season axis handles absent and degenerate observations without clipping",()=>{
+ const empty=C.seasonDateAxis(null,[]);
+ assert.equal(empty.min,1);
+ assert.equal(empty.max,366);
+ const single=C.seasonDateAxis(null,[170,170,null,NaN,0,400]);
+ assert.ok(single.min<170&&single.max>170);
+ assert.ok(single.max-single.min<=30);
+ assert.ok(single.ticks.length>=3);
+ const last=C.seasonDateAxis(null,[365,366]);
+ assert.equal(last.max,366);
+ assert.ok(last.min<365);
+});
+
 test("DWD daily zlib16 decoded into original 366-day records",()=>{
  const doc={format:"dwd-tx-tn-tm-zlib16-v1",years:[2023,2024]};
  const bytes=new ArrayBuffer(2*366*3*2);const view=new DataView(bytes);
