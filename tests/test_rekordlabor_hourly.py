@@ -100,11 +100,13 @@ class RecordLaborHourlyTests(unittest.TestCase):
             )
         self.assertIn("00071",historical_inventory(listing["temperature"],"temperature"))
         with patch("scripts.build_rekordlabor_hourly.read_url",return_value=body.encode("latin1")):
-            selected=discover_stations(listing,5)
-        self.assertEqual(len(selected),5)
-        self.assertIn("00071",selected)
-        self.assertIn("00073",selected)
-        self.assertNotIn("00078",selected)
-        self.assertNotIn("00091",selected)
+            selected=discover_stations(listing,7)
+        self.assertEqual(len(selected),7)
+        # Former stations and temperature-only stations are eligible if the
+        # authentic archive spans at least 10 years.
+        self.assertTrue({"00071","00073","00078","00091"}.issubset(selected))
+        with patch("scripts.build_rekordlabor_hourly.read_url",return_value=body.encode("latin1")):
+            retained=discover_stations(listing,6,pinned={"00078":{"id":"00078"}})
+        self.assertIn("00078",retained)
 
 if __name__=="__main__":unittest.main()

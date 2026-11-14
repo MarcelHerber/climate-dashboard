@@ -275,8 +275,12 @@ function updateWeatherStationOptions(){
  const index=state.weatherIndex;
  if(!index)return;
  const region=$("rlChangeState").value;
+ const query=$("rlChangeSearch").value.trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
  const options=$("rlChangeStation"),previous=options.value;
- const selected=index.stations.filter(s=>!region||s.state===region);
+ const selected=index.stations.filter(s=>(!region||s.state===region)&&
+  (!query||(s.name+" "+s.id+" "+s.state).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().includes(query)));
+ $("rlChangeCount").textContent=selected.length.toLocaleString("de-DE")+
+  " von "+index.stations.length.toLocaleString("de-DE")+" geprüften Stundenstationen";
  options.replaceChildren();
  let group=null,last="";
  for(const s of selected){
@@ -318,7 +322,11 @@ async function initWeather(){
 async function loadWeather(){
  if(!state.weatherIndex)return;
  const station=state.weatherIndex.stations.find(x=>x.id===$("rlChangeStation").value);
- if(!station)return;
+ if(!station){
+  state.weather=null;message("rlChangeMeta","Keine passende Stundenstation gefunden – Suchbegriff oder Bundesland ändern.");
+  kpis("rlChangeKpis",[]);tableRows("rlChangeTable",[]);destroyChart();setExportState(false);
+  return;
+ }
  for(const option of $("rlChangeMetric").options)
   option.disabled=!station.metrics.includes(option.value);
  if(!station.metrics.includes($("rlChangeMetric").value))
@@ -429,6 +437,7 @@ async function init(){
   $(id).addEventListener("change",()=>{state.selectedEvent=null;weatherRender();});
  $("rlChangeStation").addEventListener("change",()=>{state.selectedEvent=null;loadWeather();});
  $("rlChangeState").addEventListener("change",()=>{state.selectedEvent=null;updateWeatherStationOptions();loadWeather();});
+ $("rlChangeSearch").addEventListener("input",()=>{state.selectedEvent=null;updateWeatherStationOptions();loadWeather();});
  $("rlSearch").addEventListener("input",renderSuggestions);
  $("rlState").addEventListener("change",renderSuggestions);
  $("rlOnlyKL").addEventListener("change",renderSuggestions);
