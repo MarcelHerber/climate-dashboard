@@ -1,0 +1,124 @@
+name: GFS f003 Europa · tägliche Referenzanomalien
+on:
+  push:
+    branches: [main, release/gfs-f003-europa-1991-2020-20261114]
+    paths:
+      - ".github/workflows/update-gfs-f003-europe-production.yml"
+      - "scripts/update_gfs_f003_europe.py"
+      - "gfs_f003_europe.html"
+      - "gfs_f003_europe.js"
+      - "tests/test_gfs_f003_europe.py"
+  workflow_dispatch:
+  schedule:
+    - cron: "17 8,20 * * *"
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: gfs-f003-europe-production
+  cancel-in-progress: false
+jobs:
+  verify-and-update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+            tests
+            gfs_analysis_europe
+            gfs_f003_europe.html
+            gfs_f003_europe.js
+            gfs_analysis_europe.css
+            cpc_europe
+            cpc_europe.css
+            mobile_navigation.js
+            mobile_navigation.css
+            dashboard_theme.js
+            dashboard_theme.css
+          sparse-checkout-cone-mode: false
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy requests eccodes pytest
+      - name: Strict 30-year f003 source, timing and anomaly contract
+        run: |
+          python -m pytest -q tests/test_cfsr_cfsv2_f003.py tests/test_gfs_f003_europe.py
+          node --check gfs_f003_europe.js
+      - name: Download latest original NOAA GFS f003 fields and compute genuine anomalies
+        run: python scripts/update_gfs_f003_europe.py --days-back 3
+      - name: Stop publication on any missing baseline or invalid f003 data
+        run: |
+          python - <<'PY'
+          import base64,json
+          from datetime import date
+          from pathlib import Path
+          from array import array
+          root=Path("gfs_analysis_europe")
+          x=json.loads((root/"index_f003.json").read_text(encoding="utf-8"))
+          assert x["provider"]=="NOAA NCEP GFS 0.5° forecast f003"
+          assert x["type"]=="model_forecast_not_observation"
+          assert x["reference_ready"] and x["anomaly_q10_b64"]
+          meta=x["reference_metadata"]
+          assert meta["reference_version"]=="cfsr-cfsv2-t2m-f003-v1"
+          assert meta["forecast_hour"]==3 and meta["years"]==30 and meta["source_months"]==360
+          assert (date.today()-date.fromisoformat(x["data_through"])).days<=5
+          for day in x["dates"][-3:]:
+              src=json.loads((root/"f003_daily"/(day+".json")).read_text())
+              assert src["cycles_utc"]==[0,6,12,18]
+              assert len(src["sources"])==4 and all(c["forecast_hour"]==3 for c in src["sources"])
+          payload=base64.b64decode(x["anomaly_q10_b64"],validate=True)
+          assert len(payload)==len(x["dates"])*140*76*2
+          print("GFS f003 anomalies validated:",x["data_through"])
+          PY
+      - name: Syntax-check the complete website builder before publication
+        if: github.ref != 'refs/heads/main'
+        run: bash -n scripts/build_pages_site.sh
+      - name: Install headless Chromium for release-only desktop and phone QA
+        if: github.ref != 'refs/heads/main'
+        run: |
+          python -m pip install playwright
+          python -m playwright install chromium --with-deps
+      - name: Verify genuine f003 anomaly rendering and PNG, PDF, CSV with real country grid
+        if: github.ref != 'refs/heads/main'
+        run: python tests/test_gfs_f003_europe_browser.py
+      - name: Preserve release branch screenshots and exports
+        uses: actions/upload-artifact@v4
+        if: github.ref != 'refs/heads/main' && always()
+        with:
+          name: gfs-f003-release-browser-qa-${{ github.run_id }}
+          path: gfs_f003_europe_qa/
+          retention-days: 10
+          if-no-files-found: ignore
+      - name: Commit genuine new f003 data only on production main
+        if: github.ref == 'refs/heads/main'
+        id: publish
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --sparse -f gfs_analysis_europe/index_f003.json gfs_analysis_europe/f003_daily/
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "GFS +3 h: verifizierte Tages- und Anomaliekarten aktualisiert"
+          for TRY in 1 2 3; do
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep $((5*TRY))
+          done
+          exit 1
+      - name: Deploy newly verified daily GFS map
+        if: github.ref == 'refs/heads/main' && steps.publish.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-pages-only.yml --repo "$GITHUB_REPOSITORY" --ref main

@@ -1,0 +1,18 @@
+/* Same cartographic frame as NOAA CPC, no change to scientific resolution. */
+.gfs-explanation{border-left:3px solid #c58825;background:#fff6e7;color:#533b14;padding:12px 14px;margin:0 0 15px;border-radius:7px;font-size:.91rem}
+.gfs-explanation.ready{border-color:#2d8153;background:#ecf7ee;color:#265c3c}
+#volumeLegend{display:block}
+#gfsMap,#gfsBorders{position:absolute;top:0;left:0;width:100%;height:100%}
+#gfsBorders{pointer-events:none}
+#gfsMap{cursor:crosshair}
+.gfs-small{font-size:.78rem;color:var(--cpc-muted)}
+@media(prefers-color-scheme:dark){
+ .gfs-explanation{background:#31281c;color:#f0d3a9}
+ .gfs-explanation.ready{background:#1b362b;color:#c7e9d3}
+}
+@media print{
+ .cpc-export,.cpc-back,.cpc-fields{display:none!important}
+ body{background:#fff!important}
+ .cpc-panel,.cpc-method{box-shadow:none!important;break-inside:avoid}
+ .cpc-country-table-wrap{max-height:none!important}
+}

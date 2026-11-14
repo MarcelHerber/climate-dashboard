@@ -1,0 +1,48 @@
+# Verify robust desktop menu insertion against current main markup.
+name: GFS f003 Release · complete Pages build without deployment
+on:
+  push:
+    branches: [release/gfs-f003-europa-1991-2020-20261114]
+    paths: [".github/workflows/gfs-f003-release-pages-build.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: release/gfs-f003-europa-1991-2020-20261114
+      - name: Run exactly the GitHub Pages production builder but do not publish
+        run: bash scripts/build_pages_site.sh
+      - name: Confirm only authentic CFSR 30-year f003 anomaly index is staged for publication
+        run: |
+          test -s _site/gfs_f003_europe.html
+          test -s _site/gfs_f003_europe.js
+          test -s _site/gfs_analysis_europe/index_f003.json
+          node --check _site/gfs_f003_europe.js
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path("_site/gfs_analysis_europe/index_f003.json").read_text())
+          assert x["reference_ready"] and x["anomaly_q10_b64"]
+          assert x["reference_metadata"]["source_months"]==360
+          assert x["reference_metadata"]["forecast_hour"]==3
+          page=Path("_site/index.html").read_text()
+          assert 'href="gfs_f003_europe.html"' in page
+          assert '["gfs_f003_europe.html","GFS +3 h · CFSR 1991–2020"]' in Path("_site/mobile_navigation.js").read_text()
+          print("PASS: production Pages build contains verified GFS f003 anomalies, navigation, and HTML+JS")
+          PY
+      - name: Preserve build evidence (without deploying)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gfs-f003-production-pages-build-${{ github.run_id }}
+          path: |
+            _site/gfs_f003_europe.html
+            _site/gfs_f003_europe.js
+            _site/gfs_analysis_europe/index_f003.json
+          retention-days: 7
+          if-no-files-found: ignore

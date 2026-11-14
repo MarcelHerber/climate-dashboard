@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#153752">
+  <title>GFS +3h Europa · Temperaturanomalien 1991–2020 | Climate Dashboard</title>
+  <meta name="description" content="GFS 0,5° +3-Stunden-Temperaturprognosen und Anomalien zur vollständig geprüften CFSR/CFSv2-Referenz 1991–2020.">
+  <link rel="stylesheet" href="cpc_europe.css?v=2">
+  <link rel="stylesheet" href="gfs_analysis_europe.css?v=1">
+  <link rel="stylesheet" href="mobile_navigation.css">
+  <link rel="stylesheet" href="dashboard_theme.css">
+  <script src="dashboard_theme.js" defer></script>
+  <script src="mobile_navigation.js" defer></script>
+  <script src="gfs_f003_europe.js?v=1" defer></script>
+</head>
+<body>
+  <header class="cpc-header"><div class="cpc-header-inner">
+    <a class="cpc-back" href="./index.html">← Climate Dashboard</a>
+    <div class="cpc-eyebrow">Europa · Kurzfristige Modellprognose (+3 h), keine Beobachtungen</div>
+    <h1>GFS +3 h · Temperaturanomalien Europa</h1>
+    <p>NOAA/NCEP GFS 0,5° · +3-h-Felder aus 00/06/12/18 UTC, gültig 03/09/15/21 UTC · konsistente Referenz CFSR/CFSv2 1991–2020</p><p>Die +3h-Prognose wird unabhängig von der f000-Analyse geführt; keine Vermischung beider Datenreihen.</p>
+  </div></header>
+  <main>
+    <section class="cpc-panel">
+      <div class="cpc-section-head"><div>
+        <h2>Temperaturkarte</h2>
+        <p id="gfsStatus">Prüfe +3-h-Felder und Referenz …</p>
+      </div><span class="cpc-status" id="gfsDatasetDate">Noch keine geprüften Prognosen</span></div>
+      <div class="gfs-explanation" id="gfsReferenceStatus" role="status">Referenzstatus wird geladen …</div>
+      <div class="cpc-fields">
+        <label>Darstellung
+          <select id="gfsMetric">
+            <option value="anomaly">Abweichung 1991–2020 (K)</option>
+            <option value="absolute">Temperatur (°C)</option>
+          </select>
+        </label>
+        <label>Zeitraum
+          <select id="gfsPreset">
+            <option value="month">Monat bisher</option>
+            <option value="today">Letzter vollständiger Tag</option>
+            <option value="7">Letzte 7 Tage</option>
+            <option value="14">Letzte 14 Tage</option>
+            <option value="30">Letzte 30 Tage</option>
+            <option value="season">Saison bisher</option>
+            <option value="custom">Benutzerdefiniert</option>
+          </select>
+        </label>
+        <label>Von <input id="gfsStart" type="date"></label>
+        <label>Bis <input id="gfsEnd" type="date"></label>
+      </div>
+      <div class="cpc-export">
+        <button id="gfsPng" type="button" disabled>PNG herunterladen</button>
+        <button id="gfsPdf" type="button" disabled>PDF / Drucken</button>
+        <button id="gfsCsv" type="button" disabled>Ländermittel CSV</button>
+      </div>
+      <div class="cpc-map-container">
+        <canvas id="gfsMap" width="1400" height="760" role="img"
+                aria-label="GFS-Temperaturkarte. Land anklicken für Ländermittel"></canvas>
+        <img id="gfsBorders" src="cpc_europe/boundaries.png?v=1" width="1400" height="760" alt="" aria-hidden="true">
+      </div>
+      <div class="cpc-legend" id="gfsLegend"></div>
+      <p id="gfsWarn" class="cpc-warning" role="alert" hidden></p>
+    </section>
+    <section class="cpc-panel">
+      <div class="cpc-section-head"><div>
+        <h2>Flächengewichtete Ländermittel</h2>
+        <p>Mit unveränderten 0,5°-Werten berechnet. Beim Anklicken erscheinen Tageswerte.</p>
+      </div><span class="cpc-selected" id="gfsSelected">Land auswählen</span></div>
+      <div class="cpc-country-grid">
+        <div class="cpc-country-table-wrap">
+          <table><thead><tr><th>Land</th><th id="gfsMeanHeader">Mittel</th><th>Rasterabdeckung</th></tr></thead>
+            <tbody id="gfsCountries"><tr><td colspan="3">Lade GFS-Daten …</td></tr></tbody></table>
+        </div>
+        <div class="cpc-chart-box">
+          <h3>Verlauf der Ländermittel</h3>
+          <canvas id="gfsChart" width="690" height="160" aria-label="Zeitreihe des gewählten Landes"></canvas>
+          <p>Originaler Flächenmittelwert der 0,5°-Prognose; die Linienglättung verändert keine zugrunde liegenden Werte.</p>
+        </div>
+      </div>
+    </section>
+    <section class="cpc-method">
+      <h2>Datenbasis und wissenschaftliche Einordnung</h2>
+      <p><strong>Aktuelle Daten:</strong> NOAA/NCEP GFS 0,5° 2-m-Temperatur, immer <strong>Prognosestunde +3 h</strong> aus den vier Initialisierungen 00, 06, 12 und 18 UTC, gültig um 03, 09, 15 und 21 UTC. Tageswert ist das Mittel dieser vier Prognosefelder; kein Beobachtungsmittel oder f000-Analysewert. Fehlende Zyklen werden nicht ergänzt. Die räumliche Umrechnung auf das bestehende 0,5°-Europagitter erhöht die Originalauflösung nicht.</p>
+      <p><strong>Referenz:</strong> CFSR Januar 1991 bis März 2011 und CFSv2 April 2011 bis Dezember 2020, für <strong>alle 360 Quellmonate ausschließlich +3-h-2-m-Temperaturfelder</strong> (gültig 03/09/15/21 UTC). Die tägliche Referenz 1991–2020 hat 30 vollständige Jahrgänge auf dem gleichen Europa-Gitter und eine dokumentierte 5-Tages-Glättung. Ohne vollständig überprüfte Referenzdatei werden Anomalien ausdrücklich gesperrt.</p>
+      <p><strong>Einordnung:</strong> Die +3-h-GFS-Temperaturen sind kurze Modellprognosen, keine Messungen und keine f000-Analysen. Die CFSR/CFSv2-Referenz ist ebenfalls modellbasiert und kann durch Modellversionen beeinflusst sein. Auch eine einheitliche Vorlaufzeit macht sie nicht identisch mit einer Beobachtungsklimatologie. Die <a href="temperatur_anomalie_europa.html">NOAA-CPC-Beobachtungskarten</a> und die eigenständige GFS-f000-Analyse bleiben getrennt. Die Farbstufen der Anomalien folgen der bestehenden Europa-Anomaliepalette.</p>
+      <p><a href="https://www.nco.ncep.noaa.gov/pmb/products/gfs/" target="_blank" rel="noopener noreferrer">NOAA GFS-Modellprodukte</a> · <a href="https://www.ncei.noaa.gov/products/weather-climate-models/climate-forecast-system" target="_blank" rel="noopener noreferrer">NOAA CFSR/CFSv2-Archiv</a></p>
+    </section>
+  </main>
+</body>
+</html>
