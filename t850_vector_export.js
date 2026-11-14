@@ -63,6 +63,92 @@ function segments(ds,xa,ya){
   if(current.length)grouped.push(current);
   return grouped;
 }
+// Chart.js filler geometry: retain the original series/target values.
+// Explicit polygons preserve gaps, clip at plot boundaries, and split where
+// a daily value crosses a reference curve (red/blue anomaly areas).
+function clipPolygon(points){
+ const edges=[
+  {inside:p=>p[0]>=P.x,intersection:(a,b)=>interpolate(a,b,(P.x-a[0])/(b[0]-a[0]))},
+  {inside:p=>p[0]<=P.x+P.w,intersection:(a,b)=>interpolate(a,b,(P.x+P.w-a[0])/(b[0]-a[0]))},
+  {inside:p=>p[1]>=P.y,intersection:(a,b)=>interpolate(a,b,(P.y-a[1])/(b[1]-a[1]))},
+  {inside:p=>p[1]<=P.y+P.h,intersection:(a,b)=>interpolate(a,b,(P.y+P.h-a[1])/(b[1]-a[1]))}
+ ];
+ let current=points;
+ for(const edge of edges){
+  if(!current.length)break;
+  const next=[];
+  for(let i=0;i<current.length;i++){
+   const a=current[i],b=current[(i+1)%current.length];
+   const ain=edge.inside(a),bin=edge.inside(b);
+   if(ain&&bin)next.push(b);
+   else if(ain&&!bin)next.push(edge.intersection(a,b));
+   else if(!ain&&bin)next.push(edge.intersection(a,b),b);
+  }
+  current=next;
+ }
+ const area=current.reduce((acc,p,i)=>{
+  const q=current[(i+1)%current.length];return acc+p[0]*q[1]-q[0]*p[1];
+ },0);
+ return current.length>=3&&Math.abs(area)>1e-5?current:[];
+}
+function interpolate(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];}
+function resolveFillTarget(fill,index,total){
+ if(!fill||typeof fill!=="object"||fill.target===undefined)return null;
+ let dest;
+ if(typeof fill.target==="number")dest=fill.target;
+ else if(typeof fill.target==="string"&&/^[+-]\d+$/.test(fill.target))
+  dest=index+Number(fill.target);
+ else if(typeof fill.target==="string"&&/^\d+$/.test(fill.target))
+  dest=Number(fill.target);
+ else return null;
+ return Number.isInteger(dest)&&dest>=0&&dest<total&&dest!==index?dest:null;
+}
+function fillAreas(chart,xAt,yAt,xmin,xmax){
+ const datasets=chart.data.datasets||[],fills=[];
+ datasets.forEach((ds,index)=>{
+  const visible=i=>typeof chart.isDatasetVisible==="function"?
+     chart.isDatasetVisible(i):!datasets[i].hidden;
+  if(!visible(index)||!ds.fill||typeof ds.fill!=="object")return;
+  const targetIndex=resolveFillTarget(ds.fill,index,datasets.length);
+  if(targetIndex===null||!visible(targetIndex))return;
+  const target=datasets[targetIndex];
+  if((ds.yAxisID||"y")!==(target.yAxisID||"y"))return;
+  const above=color(ds.fill.above||ds.backgroundColor||"#6e9cc5");
+  const below=color(ds.fill.below||ds.backgroundColor||"#6e9cc5");
+  const areas=[];
+  const low=Math.max(0,Math.floor(xmin)),high=Math.min(Math.ceil(xmax),Math.max((ds.data||[]).length,(target.data||[]).length)-1);
+  const plotPoint=(index,val)=>[xAt(index),yAt(val)];
+  for(let i=low;i<high;i++){
+   const a0=value(ds.data?.[i]),a1=value(ds.data?.[i+1]);
+   const b0=value(target.data?.[i]),b1=value(target.data?.[i+1]);
+   // Do not interpolate over missing source or target data.
+   if([a0,a1,b0,b1].some(v=>v===null))continue;
+   const d0=a0-b0,d1=a1-b1,ts=[0];
+   if(d0*d1<0)ts.push(d0/(d0-d1));
+   ts.push(1);
+   for(let k=0;k<ts.length-1;k++){
+    const t0=ts[k],t1=ts[k+1],mid=(t0+t1)/2;
+    const gap=(a0+(a1-a0)*mid)-(b0+(b1-b0)*mid);
+    if(Math.abs(gap)<1e-10)continue;
+    const paint=gap>0?above:below;
+    if(paint.opacity<=0)continue;
+    const x0=i+t0,x1=i+t1;
+    const s0=a0+(a1-a0)*t0,s1=a0+(a1-a0)*t1;
+    const v0=b0+(b1-b0)*t0,v1=b0+(b1-b0)*t1;
+    const polygon=clipPolygon([plotPoint(x0,s0),plotPoint(x1,s1),
+      plotPoint(x1,v1),plotPoint(x0,v0)]);
+    if(polygon.length)areas.push({points:polygon,hex:paint.hex,
+      opacity:paint.opacity,side:gap>0?"above":"below"});
+   }
+  }
+  if(areas.length)fills.push({
+   label:String(ds.label||"Reihe "+(index+1))+" → "+String(target.label||"Referenz"),
+   areas
+  });
+ });
+ return fills;
+}
+
 function buildScene(chart,info){
   if(!chart?.data?.datasets?.length||!chart.scales?.x||!chart.scales?.y)
     throw Error("Bitte zuerst ein gültiges Ensemble-Diagramm laden.");
@@ -72,6 +158,7 @@ function buildScene(chart,info){
   if(!finite(ymin)||!finite(ymax)||ymax<=ymin||xmax<=xmin)throw Error("Ungültige Diagrammachsen.");
   const xa=i=>P.x+(i-xmin)/(xmax-xmin)*P.w;
   const ya=v=>P.y+P.h-(v-ymin)/(ymax-ymin)*P.h;
+  const fills=fillAreas(chart,xa,ya,xmin,xmax);
   const series=[];
   chart.data.datasets.forEach((ds,i)=>{
     const visible=typeof chart.isDatasetVisible==="function"?chart.isDatasetVisible(i):!ds.hidden;
@@ -102,7 +189,7 @@ function buildScene(chart,info){
     dates.push({text:String(labels[i]||""),px:xa(i)});
   const metadata=(info?.metadata||[]).map(String);
   return {title:String(info?.title||"Ensemblevorhersage"),metadata,
-    axis:String(info?.axis||""),series,ticks,dates,plot:P,model:String(info?.model||""),
+    axis:String(info?.axis||""),series,fills,ticks,dates,plot:P,model:String(info?.model||""),
     subtitle:String(info?.subtitle||"Ensemble-Vektorexport"),
     source:String(info?.source||"Quelle: Open-Meteo Ensemble API / zugrunde liegende Modelle")};
 }
@@ -165,6 +252,14 @@ function svgScene(scene,index){
   s+=svgText(d.px,P.y+P.h+32+dy,d.text,15,"#51667a","middle");
  }
  s+="</g>";
+ (scene.fills||[]).forEach((fill,i)=>{
+   s+='<g id="'+prefix+'area_'+i+'_'+clean(fill.label)+'" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+" – Fläche: "+fill.label)+'" clip-path="url(#'+clipid+')">';
+   for(const area of fill.areas){
+     const shifted=area.points.map(p=>[p[0],p[1]+dy]);
+     s+='<path d="'+path(shifted)+' Z" fill="'+area.hex+'" fill-opacity="'+area.opacity+'" stroke="none" data-side="'+area.side+'"/>';
+   }
+   s+="</g>";
+ });
  scene.series.forEach((c,i)=>{
    s+='<g id="'+prefix+"series_"+i+"_"+clean(c.label)+'" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+" – "+c.label)+'" clip-path="url(#'+clipid+')">';
    for(const seg of c.points){
@@ -213,6 +308,24 @@ function drawPdf(pdf,scene){
    text(t.v.toLocaleString("de-DE",{maximumFractionDigits:2}),P.x-12,t.py+5,16,"#51667a","right");
  }
  for(const d of scene.dates)text(d.text,d.px,P.y+P.h+32,15,"#51667a","center");
+ // Independent PDF polygons precede the member strokes and preserve overlays.
+ // Use PDF transparency graphics states where jsPDF supports them; otherwise
+ // the polygon is correctly clipped and alpha-blended on white paper.
+ const pdfAlpha=typeof pdf.GState==="function"&&typeof pdf.setGState==="function"&&
+   typeof pdf.saveGraphicsState==="function"&&typeof pdf.restoreGraphicsState==="function";
+ for(const band of scene.fills||[])for(const area of band.areas){
+   const orig=ink(area.hex);
+   const blended=orig.map(v=>Math.round(255*(1-area.opacity)+v*area.opacity));
+   if(pdfAlpha)pdf.saveGraphicsState();
+   pdf.setFillColor(...(pdfAlpha?orig:blended));
+   if(pdfAlpha)pdf.setGState(new pdf.GState({opacity:area.opacity}));
+   const first=area.points[0];
+   const commands=[{op:"m",c:[X(first[0]),Y(first[1])]}];
+   for(const p of area.points.slice(1))commands.push({op:"l",c:[X(p[0]),Y(p[1])]});
+   commands.push({op:"h",c:[]});
+   pdf.path(commands,"F");
+   if(pdfAlpha)pdf.restoreGraphicsState();
+ }
  for(const c of scene.series){
    const base=ink(c.hex);
    // jsPDF core has no alpha stroke guarantee: blend light member curves on white.
