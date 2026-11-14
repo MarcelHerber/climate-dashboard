@@ -150,11 +150,11 @@ function draw(frame,bbox,gap){
    count++;
    return points.map((p,i)=>(i?"L":"M")+px(p[0])+" "+py(p[1])).join(" ");
   }).join(" ");
-  const inner=Number(gap)===2?"0.75":group.heavy?"1.55":"0.9";
-  const outer=Number(gap)===2?"1.85":group.heavy?"2.95":"2.3";
+  const inner=Number(gap)===2?"0.58":group.heavy?"1.10":"0.75";
+  const outer=Number(gap)===2?"1.45":group.heavy?"2.25":"1.8";
   const halo=document.createElementNS(ns,"path");
   halo.setAttribute("d",d);halo.setAttribute("fill","none");
-  halo.setAttribute("stroke","#061522");halo.setAttribute("stroke-opacity","0.93");
+  halo.setAttribute("stroke","#18283a");halo.setAttribute("stroke-opacity","0.79");
   halo.setAttribute("stroke-width",outer);
   halo.setAttribute("stroke-linecap","round");
   halo.setAttribute("stroke-linejoin","round");
@@ -162,7 +162,7 @@ function draw(frame,bbox,gap){
   batch.appendChild(halo);
   const line=document.createElementNS(ns,"path");
   line.setAttribute("d",d);line.setAttribute("fill","none");
-  line.setAttribute("stroke","#ff4fcf");
+  line.setAttribute("stroke","#c6a2bb");
   line.setAttribute("stroke-width",inner);
   line.setAttribute("stroke-linecap","round");
   line.setAttribute("stroke-linejoin","round");
@@ -171,11 +171,11 @@ function draw(frame,bbox,gap){
   if(group.label){
    const x=Number(px(group.label[0])),y=Number(py(group.label[1]));
    const rect=document.createElementNS(ns,"rect");
-   rect.setAttribute("x",String(x-21));rect.setAttribute("y",String(y-10));
-   rect.setAttribute("width","42");rect.setAttribute("height","20");
-   rect.setAttribute("rx","5");rect.setAttribute("fill","#07182a");
-   rect.setAttribute("fill-opacity","0.92");
-   rect.setAttribute("stroke","#ff4fcf");rect.setAttribute("stroke-width","0.65");
+   rect.setAttribute("x",String(x-18));rect.setAttribute("y",String(y-8.5));
+   rect.setAttribute("width","36");rect.setAttribute("height","17");
+   rect.setAttribute("rx","4");rect.setAttribute("fill","#10253a");
+   rect.setAttribute("fill-opacity","0.78");
+   rect.setAttribute("stroke","#a98b9f");rect.setAttribute("stroke-width","0.45");
    batch.appendChild(rect);
    const label=document.createElementNS(ns,"text");
    label.setAttribute("x",String(x));label.setAttribute("y",String(y));
@@ -199,7 +199,7 @@ function draw(frame,bbox,gap){
   glyph.setAttribute("data-pressure-type",center.type);
   glyph.setAttribute("aria-label",(center.type==="T"?"Tief":"Hoch")+
    "druckzentrum "+center.hpa+" hPa");
-  glyph.setAttribute("fill",center.type==="T"?"#cf4baf":"#9750c4");
+  glyph.setAttribute("fill",center.type==="T"?"#ba859f":"#a599bc");
   glyph.textContent=center.type;
   batch.appendChild(glyph);
  }
