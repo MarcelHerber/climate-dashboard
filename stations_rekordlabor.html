@@ -6,7 +6,7 @@
 <title>Stationsrekorde & Wetterumschwünge · Climate Dashboard Deutschland</title>
 <meta name="description" content="DWD-Messdaten: historischer Rekordkalender, Jahreszeitenrekorde und Wetterumschwünge aus echten Stationszeitreihen.">
 <link rel="stylesheet" href="dashboard_theme.css">
-<link rel="stylesheet" href="stations_rekordlabor.css?v=20261114-p3-map-v2">
+<link rel="stylesheet" href="stations_rekordlabor.css?v=20261114-p3-expanded-kl-v3">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
@@ -14,7 +14,7 @@
 <script defer src="t850_vector_export.js?v=20261114-vector-areas-v1"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script defer src="stations_rekordlabor_core.js?v=20261114-p3"></script>
-<script defer src="stations_rekordlabor.js?v=20261114-p3-map-v2"></script>
+<script defer src="stations_rekordlabor.js?v=20261114-p3-expanded-kl-v3"></script>
 </head>
 <body class="rl-body">
 <header class="rl-top">
@@ -35,6 +35,7 @@
 </div>
 <div><label for="rlState">Bundesland</label><select id="rlState"><option value="">Alle Bundesländer</option></select></div>
 </div>
+<div class="rl-filterbar"><label class="rl-filter"><input id="rlOnlyKL" type="checkbox"> Nur Stationen mit historischen Niederschlags- oder Sonnenscheindaten</label><span id="rlKlCount" aria-live="polite">Archivabdeckung wird geladen …</span></div>
 <div id="rlSuggestions" class="rl-suggest" role="listbox" aria-label="Stationen"></div>
 <div id="rlMap" role="region" aria-label="Interaktive DWD-Stationskarte" class="rl-station-map"></div>
 <div id="rlMapStatus" class="rl-mapstatus">DWD-Stationspositionen aus dem Stationskatalog werden geprüft …</div>
