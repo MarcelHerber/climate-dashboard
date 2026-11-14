@@ -6,6 +6,7 @@ on:
     paths:
       - scripts/build_rekordlabor_hourly.py
       - scripts/merge_rekordlabor_hourly.py
+      - scripts/publish_rekordlabor_hourly.sh
       - tests/test_rekordlabor_hourly.py
       - tests/test_rekordlabor_hourly_merge.py
       - .github/workflows/update-rekordlabor-hourly.yml
@@ -14,6 +15,7 @@ on:
     paths:
       - scripts/build_rekordlabor_hourly.py
       - scripts/merge_rekordlabor_hourly.py
+      - scripts/publish_rekordlabor_hourly.sh
       - tests/test_rekordlabor_hourly.py
       - tests/test_rekordlabor_hourly_merge.py
       - .github/workflows/update-rekordlabor-hourly.yml
@@ -39,6 +41,7 @@ jobs:
           sparse-checkout: |
             scripts/build_rekordlabor_hourly.py
             scripts/merge_rekordlabor_hourly.py
+            scripts/publish_rekordlabor_hourly.sh
             tests/test_rekordlabor_hourly.py
             tests/test_rekordlabor_hourly_merge.py
             data/rekordlabor/weather_turns
@@ -101,6 +104,7 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             scripts/merge_rekordlabor_hourly.py
+            scripts/publish_rekordlabor_hourly.sh
             scripts/build_rekordlabor_hourly.py
             tests/test_rekordlabor_hourly.py
             tests/test_rekordlabor_hourly_merge.py
@@ -114,27 +118,7 @@ jobs:
           pattern: hourly-shard-*
           merge-multiple: false
           path: _hourly_parts
-      - name: Validate all station shards and keep every previously verified station
+      - name: Validate merger and publish against the newest main branch
         run: |
           python -m unittest discover -s tests -p test_rekordlabor_hourly_merge.py -v
-          python -u scripts/merge_rekordlabor_hourly.py \
-            --parts _hourly_parts --archive data/rekordlabor/weather_turns --expected-shards 8
-      - name: Publish new validated station records to main
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/rekordlabor/weather_turns
-          if git diff --cached --quiet; then
-            echo "No new original hourly station records."
-            exit 0
-          fi
-          git commit -m "data: publish all validated DWD historical hourly station records"
-          for attempt in 1 2 3 4; do
-            git pull --rebase origin main
-            if git push origin HEAD:main; then exit 0; fi
-            sleep $((attempt * 4))
-          done
-          echo "Validated archives built but GitHub push failed." >&2
-          exit 1
+          bash scripts/publish_rekordlabor_hourly.sh _hourly_parts 8
