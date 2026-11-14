@@ -51,11 +51,11 @@ def exercise(browser,device,url,tmp):
         if path.endswith("/data/synoptic_charts/noaa_wpc_fronts_geo.json"):
             route.fulfill(status=200,body=json.dumps(GEO),content_type="application/json")
         elif path.endswith("/data/satellite_wms_times.json"):
-            route.fulfill(status=200,body=json.dumps(base.manifest()),content_type="application/json")
+            route.fulfill(status=200,body=json.dumps({**base.manifest(),"generated_at":base.iso(VALID+timedelta(hours=4))}),content_type="application/json")
         elif path.endswith("/data/satellite_mslp/preview.json") or path.endswith("/data/satellite_mslp/latest.json"):
-            route.fulfill(status=200,body=json.dumps(base.full_model()),content_type="application/json")
+            route.fulfill(status=200,body=json.dumps({**base.full_model(),"generated_at":base.iso(VALID+timedelta(hours=4))}),content_type="application/json")
         elif path.endswith("/data/satellite_mslp/ten_minute/index.json"):
-            route.fulfill(status=200,body=json.dumps(base.model_index()),content_type="application/json")
+            route.fulfill(status=200,body=json.dumps({**base.model_index(),"generated_at":base.iso(VALID+timedelta(hours=4))}),content_type="application/json")
         elif "/data/satellite_mslp/ten_minute/" in path and path.endswith(".json"):
             stem=Path(path).stem
             hour=int(stem[1:3])
