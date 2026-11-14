@@ -277,7 +277,7 @@ async function prepareFullRaster(gen,ctxScene,grid){
  }
  throw Error("HD-Bildabruf nicht rechtzeitig abgeschlossen");
 }
-function stamp(ctx,sceneData,grid,options){
+function stamp(ctx,sceneData,grid,options,fronts){
  const size=Math.max(13,Math.round(grid.width/145));
  const h=Math.max(32,Math.round(size*2.25));
  ctx.save();
@@ -285,7 +285,8 @@ function stamp(ctx,sceneData,grid,options){
  ctx.fillRect(0,grid.height-h,grid.width,h);
  ctx.fillStyle="#ffffff";ctx.font="700 "+size+"px Arial,sans-serif";
  const title="MTG · "+sceneData.product+" · "+fmt(sceneData.time)+
-   " · "+grid.width+" × "+grid.height+" px · © EUMETSAT";
+   " · "+grid.width+" × "+grid.height+" px · © EUMETSAT"+
+   (fronts?" · NOAA WPC Analyse "+fmt(fronts.valid_utc):"");
  ctx.fillText(title,Math.round(h*.32),grid.height-Math.round(h*.40),grid.width-h*.64);
  ctx.restore();
 }
@@ -310,7 +311,13 @@ async function compositeLayers(ctx,sceneData,grid,choice){
   if(choice.format==="png")
    window.SatelliteMapExport.paintIsobars(ctx,overlay,sceneData.region,area);
  }
- return overlay;
+ const fronts=await window.SatelliteNOAAFronts?.exportAt?.(sceneData.time,sceneData.region)||null;
+ if(fronts&&choice.format==="png"){
+  if(!window.SatelliteMapExport?.paintFronts)
+   throw Error("NOAA-Frontenzeichner für den HD-Export fehlt.");
+  window.SatelliteMapExport.paintFronts(ctx,fronts,sceneData.region,area,sceneData.time);
+ }
+ return {overlay,fronts};
 }
 async function exportImage(format="png"){
  if(downloadBusy||!scene||quality.value==="standard"||quality.value==="economy")return;
@@ -326,7 +333,7 @@ async function exportImage(format="png"){
  downloadBusy=true;download.disabled=true;if(pdfButton)pdfButton.disabled=true;
  try{
   const {canvas,ctx}=await prepareFullRaster(gen,ctxScene,grid);
-  const overlay=await compositeLayers(ctx,ctxScene,grid,choice);
+  const {overlay,fronts}=await compositeLayers(ctx,ctxScene,grid,choice);
   if(gen!==epoch||!scene||scene.time!==ctxScene.time)
    throw Error("Aufnahme wurde während der Beschriftung gewechselt");
   if(format==="pdf"){
@@ -337,22 +344,23 @@ async function exportImage(format="png"){
    const productName=byId("satProduct")?.selectedOptions?.[0]?.textContent||ctxScene.product;
    const regionName=byId("satRegion")?.selectedOptions?.[0]?.textContent||ctxScene.region;
    const exported=await window.SatelliteMapExport.renderPDF({
-    image:canvas,overlay,region:ctxScene.region,regionName,product:ctxScene.product,productName});
+    image:canvas,overlay,fronts,region:ctxScene.region,regionName,product:ctxScene.product,productName});
    window.SatelliteMapExport.download({
-    blob:exported.blob,name:exported.name.replace("_isobaren.pdf","_"+grid.width+"px_hd_vektoren.pdf")});
-   setInfo("HD-/4K-PDF aus vollständigen WMS-Kacheln · ECMWF-Isobaren bleiben als Vektoren bearbeitbar · "+fmt(ctxScene.time));
+    blob:exported.blob,name:exported.name.replace(/_isobaren(?:_noaa_fronten)?\.pdf$/,"_"+grid.width+"px_hd_vektoren"+(fronts?"_noaa_fronten":"")+".pdf")});
+   setInfo("HD-/4K-PDF aus vollständigen WMS-Kacheln · ECMWF-Isobaren"+
+     (fronts?" und NOAA-WPC-Fronten":"")+" als bearbeitbare Vektorpfade · "+fmt(ctxScene.time));
   }else{
-   stamp(ctx,ctxScene,grid,choice);
+   stamp(ctx,ctxScene,grid,choice,fronts);
    const blob=await new Promise((resolve,reject)=>{
     try{canvas.toBlob(b=>b?resolve(b):reject(Error("Canvas nicht exportierbar")),"image/png");}
     catch(err){reject(err);}
    });
    const url=URL.createObjectURL(blob),a=document.createElement("a");
    a.href=url;a.download="mtg_"+ctxScene.product+"_"+ctxScene.region+"_"+grid.width+"px_"+
-    ctxScene.time.replace(/[:.]/g,"-")+(choice.isobars?"_isobaren":"")+".png";
+    ctxScene.time.replace(/[:.]/g,"-")+(choice.isobars?"_isobaren":"")+(fronts?"_noaa_fronten":"")+".png";
    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
    setInfo("Echte "+grid.width+" × "+grid.height+" px WMS-Kacheln exportiert · "+
-    (choice.isobars?"ECMWF-Isobaren · ":"")+(choice.borders?"Grenzen · ":"")+
+    (choice.isobars?"ECMWF-Isobaren · ":"")+(fronts?"NOAA-WPC-Fronten · ":"")+(choice.borders?"Grenzen · ":"")+
     (choice.cities?"Städte · ":"")+fmt(ctxScene.time));
   }
  }catch(error){
