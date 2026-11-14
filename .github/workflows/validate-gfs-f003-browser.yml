@@ -1,0 +1,111 @@
+name: GFS Europa f003 · full reference browser QA and staging
+
+on:
+  push:
+    branches: [feature/gfs-cfsr-1991-2020-europe-20261113]
+    paths:
+      - ".github/workflows/validate-gfs-f003-browser.yml"
+      - "tests/test_gfs_f003_europe_browser.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gfs-f003-europe-staging
+  cancel-in-progress: false
+
+jobs:
+  full-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+            tests
+            gfs_analysis_europe
+            gfs_f003_europe.html
+            gfs_f003_europe.js
+            gfs_analysis_europe.css
+            cpc_europe
+            cpc_europe.css
+            mobile_navigation.js
+            mobile_navigation.css
+            dashboard_theme.js
+            dashboard_theme.css
+          sparse-checkout-cone-mode: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install original GRIB2 decoder and browser QA requirements
+        run: python -m pip install numpy requests eccodes pytest playwright
+      - name: Source, browser, +3h consistency and export test suite
+        run: |
+          python -m pytest -q tests/test_cfsr_cfsv2_f003.py tests/test_gfs_f003_europe.py
+          python -m compileall -q scripts/update_gfs_f003_europe.py
+          node --check gfs_f003_europe.js
+          bash -n scripts/build_pages_site.sh
+      - name: Produce genuine latest GFS f003 anomaly index with committed reference
+        run: |
+          python scripts/update_gfs_f003_europe.py --days-back 3
+          python - <<'PY'
+          from pathlib import Path
+          import base64, json
+          import numpy as np
+          ref=Path("gfs_analysis_europe/climatology_1991_2020_f003.npz")
+          assert ref.is_file(), "Cannot compute anomalies without historical normal"
+          x=json.loads(Path("gfs_analysis_europe/index_f003.json").read_text())
+          assert x["schema"]==1 and x["type"]=="model_forecast_not_observation"
+          assert x["provider"]=="NOAA NCEP GFS 0.5° forecast f003"
+          assert x["reference_ready"] is True and x["anomaly_q10_b64"]
+          m=x["reference_metadata"]
+          assert m["reference_version"]=="cfsr-cfsv2-t2m-f003-v1"
+          assert m["forecast_hour"]==3 and m["source_months"]==360 and m["years"]==30
+          assert m["sample_hours_utc"]==[3,9,15,21]
+          assert len(x["dates"])>=1 and x["data_through"]==x["dates"][-1]
+          v=np.frombuffer(base64.b64decode(x["anomaly_q10_b64"]),dtype="<i2")
+          assert v.size==len(x["dates"])*140*76
+          assert int(np.count_nonzero(v==-32768))<v.size//100
+          assert np.isfinite(v.astype(float)).all()
+          print("PASS: real GFS +3h temperatures and 1991–2020 anomalies",x["dates"])
+          PY
+      - name: Install Chromium for Desktop and Touch tests
+        run: python -m playwright install chromium --with-deps
+      - name: Test genuine anomaly raster, countries and downloads on desktop and mobile
+        run: python tests/test_gfs_f003_europe_browser.py
+      - name: Save visual review evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gfs-f003-europe-reference-and-browser-qa-${{ github.run_id }}
+          path: |
+            gfs_f003_europe_qa/
+            gfs_analysis_europe/index_f003.json
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: Commit independently tested f003 daily and anomaly index ONLY to feature branch
+        if: github.ref == 'refs/heads/feature/gfs-cfsr-1991-2020-europe-20261113'
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --sparse -f gfs_analysis_europe/index_f003.json gfs_analysis_europe/f003_daily/
+          if git diff --cached --quiet; then
+            echo "No changes to stage"
+            exit 0
+          fi
+          git commit -m "GFS Europa: geprüfte echte f003-Anomalien und Tagesfelder im Feature-Branch"
+          for TRY in 1 2 3; do
+            git fetch origin feature/gfs-cfsr-1991-2020-europe-20261113
+            git rebase origin/feature/gfs-cfsr-1991-2020-europe-20261113
+            if git push origin HEAD:feature/gfs-cfsr-1991-2020-europe-20261113; then
+              echo "Staged verified f003 anomaly data in feature branch"
+              exit 0
+            fi
+            sleep $((TRY*5))
+          done
+          exit 1
