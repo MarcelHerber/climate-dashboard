@@ -1,6 +1,42 @@
 "use strict";
 const test=require("node:test"),assert=require("node:assert/strict");
 const C=require("../stations_rekordlabor_core.js");
+test("linear trend fits actual observed years, not point positions",()=>{
+ const trend=C.seasonLinearTrend([
+  {year:1990,value:20},{year:2000,value:30},{year:2020,value:50}
+ ]);
+ assert.ok(trend);
+ assert.equal(trend.count,3);
+ assert.equal(trend.slopePerYear,1);
+ assert.deepEqual(trend.values,[20,30,50]);
+ assert.equal(trend.firstYear,1990);
+ assert.equal(trend.lastYear,2020);
+});
+test("linear trend ignores missing years and does not fill unobserved data",()=>{
+ const trend=C.seasonLinearTrend([
+  {year:2000,value:70},{year:2005,value:null},
+  {year:2010,value:50},{year:2020,value:40}
+ ]);
+ assert.ok(trend);
+ assert.equal(trend.count,3);
+ assert.equal(trend.values[1],null);
+ assert.ok(trend.slopePerYear<0);
+ assert.equal(trend.values.length,4);
+});
+test("linear trend remains optional without two distinct measured years",()=>{
+ assert.equal(C.seasonLinearTrend([]),null);
+ assert.equal(C.seasonLinearTrend([{year:2020,value:12}]),null);
+ assert.equal(C.seasonLinearTrend([{year:2020,value:12},{year:2020,value:14}]),null);
+ const flat=C.seasonLinearTrend([{year:2001,value:12},{year:2010,value:12}]);
+ assert.equal(flat.slopePerYear,0);
+ assert.deepEqual(flat.values,[12,12]);
+});
+test("seasonal date zoom includes the fractional predicted trend line",()=>{
+ const axis=C.seasonDateAxis(null,[130,140,142.9,150.2]);
+ assert.ok(axis.min<=130);
+ assert.ok(axis.max>=150.2);
+ assert.equal(axis.format(142),"21.5.");
+});
 test("February 29 is never invented for non-leap years",()=>{
  assert.equal(C.dayIndex(2023,"02-29"),-1);
  assert.equal(C.dayIndex(2024,"02-29"),59);
