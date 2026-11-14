@@ -21,6 +21,7 @@ jobs:
           fetch-depth: 1
           sparse-checkout-cone-mode: false
           sparse-checkout: |
+            scripts/build_rekordlabor_hourly.py
             scripts/merge_rekordlabor_hourly.py
             scripts/publish_rekordlabor_hourly.sh
             tests/test_rekordlabor_hourly_merge.py
@@ -40,4 +41,4 @@ jobs:
       - name: Verify complete recovered archive and station validation
         run: |
           python -m unittest discover -s tests -p test_rekordlabor_hourly_merge.py -v
-          python -u scripts/publish_rekordlabor_hourly.sh _hourly_parts 8
+          bash scripts/publish_rekordlabor_hourly.sh _hourly_parts 8
