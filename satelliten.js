@@ -786,8 +786,12 @@ document.addEventListener("visibilitychange",()=>{if(document.hidden)stop();});
 // Keep a concise, live overview near the controls while the detailed ECMWF
 // message remains in the three disclosures below the satellite image.
 function initIsobarBrief(){
- const brief=id("satIsobarBrief"),full=id("satIsobarStatus"),toggle=id("satShowIsobars");
- if(!brief||!full||typeof MutationObserver==="undefined")return;
+ // Film-only test DOMs deliberately have no status badge or MutationObserver.
+ if(typeof MutationObserver==="undefined")return;
+ const brief=document.getElementById("satIsobarBrief");
+ const full=document.getElementById("satIsobarStatus");
+ const toggle=document.getElementById("satShowIsobars");
+ if(!brief||!full)return;
  function update(){
   const message=(full.textContent||"").replace(/\s+/g," ").trim();
   brief.title=message;
