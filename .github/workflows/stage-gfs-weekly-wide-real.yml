@@ -1,0 +1,69 @@
+name: GFS 7 Tage · geprüfte erweiterte NOAA-Daten übernehmen
+on:
+  push:
+    branches: [feature/gfs-weekly-wide-forecast-map-20261114]
+    paths: [".github/workflows/stage-gfs-weekly-wide-real.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  stage-genuine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            gfs_analysis_europe/weekly_f003_extended.json
+            gfs_analysis_europe/extended_geography.json
+          sparse-checkout-cone-mode: false
+          fetch-depth: 0
+      - name: Retrieve authentic 28-field NOAA GFS data from passed browser + original meteorological QA
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 43610833485
+          name: gfs-wide-original-real-QA-43610833485
+          path: verified
+      - name: Validate original meteorological metadata and copy exact proven forecast without rewriting values
+        run: |
+          python - <<'PY'
+          import base64,json,shutil
+          from pathlib import Path
+          paths=list(Path("verified").rglob("weekly_f003_extended.json"))
+          assert len(paths)==1,paths
+          p=paths[0]
+          x=json.loads(p.read_text(encoding="utf-8"))
+          geo=json.loads(Path("gfs_analysis_europe/extended_geography.json").read_text(encoding="utf-8"))
+          assert x["type"]=="model_forecast_7day_not_observation"
+          assert x["sample_count"]==28 and x["lead_hours"]==list(range(3,166,6))
+          assert len(x["sources"])==28 and all(len(s["sha256"])==64 for s in x["sources"])
+          assert x["reference_version"]=="cfsr-cfsv2-t2m-f003-extended-v1"
+          assert x["reference_metadata"]["source_months"]==360
+          assert x["reference_metadata"]["years"]==30
+          assert x["reference_metadata"]["old_core_max_difference_k"]<.001
+          assert (x["width"],x["height"],geo["width"],geo["height"])==(361,121,361,121)
+          for k in ("anomaly_mean_q10_b64","forecast_mean_q10_b64"):
+              assert len(base64.b64decode(x[k],validate=True))==361*121*2
+          dest=Path("gfs_analysis_europe/weekly_f003_extended.json")
+          dest.parent.mkdir(parents=True,exist_ok=True)
+          shutil.copy2(p,dest)
+          print("Staged exactly verified original GFS extended 7-day forecast",x["run_utc"])
+          PY
+      - name: Commit only approved 121×361 NOAA GFS original forecast to development branch
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --sparse -f gfs_analysis_europe/weekly_f003_extended.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "GFS 7 Tage: geprüfte Nordatlantik–Ural-Anomalie aus 28 NOAA-Originalfeldern"
+          for TRY in 1 2 3; do
+            git fetch origin feature/gfs-weekly-wide-forecast-map-20261114
+            git rebase origin/feature/gfs-weekly-wide-forecast-map-20261114
+            if git push origin HEAD:feature/gfs-weekly-wide-forecast-map-20261114; then exit 0; fi
+            sleep $((TRY*5))
+          done
+          exit 1
