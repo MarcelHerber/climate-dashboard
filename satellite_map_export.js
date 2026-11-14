@@ -27,6 +27,82 @@ function project(point,region,x,y,w,h){
  const [minX,minY,maxX,maxY]=BBOX[region];
  return [x+(point[0]-minX)/(maxX-minX)*w,y+(maxY-point[1])/(maxY-minY)*h];
 }
+
+/* Exact NOAA WPC EPSG:4326 analysis polylines, independent of ECMWF contours.
+ * Reject unverified sources or mixed UTC. No invented front-side triangles.
+ */
+const NOAA_SOURCE="https://tgftp.nws.noaa.gov/data/raw/as/asus02.kwbc.cod.sus.txt";
+const FRONT_COLORS={cold:"#48a8ff",warm:"#ff6262",occluded:"#ce77f9",stationary:"#ec73b6"};
+function frontFeatures(fronts,region,satelliteUTC){
+ if(!fronts)return [];
+ if(!BBOX[region]||fronts.provider!=="NOAA WPC"||fronts.source_url!==NOAA_SOURCE||
+   fronts.coordinate_reference_system!=="EPSG:4326"||
+   fronts.front_source_format!=="CODSUS-HIRES"||fronts.region!==region||
+   fronts.satelliteUTC!==satelliteUTC||!Array.isArray(fronts.features)||
+   fronts.features.length>600)throw Error("NOAA-Fronten: Herkunft, Projektion oder Satelliten-UTC nicht verifiziert.");
+ const sat=Date.parse(satelliteUTC),valid=Date.parse(fronts.valid_utc);
+ if(!Number.isFinite(sat)||!Number.isFinite(valid)||(sat-valid)/3600000 < -1||
+   (sat-valid)/3600000 > 12)throw Error("NOAA-Fronten passen zeitlich nicht zur Satellitenaufnahme.");
+ const box=BBOX[region],found=[];
+ for(const f of fronts.features){
+  if(!Object.prototype.hasOwnProperty.call(FRONT_COLORS,f?.type)||!Array.isArray(f?.coords)||
+     f.coords.length<2||f.coords.length>3000)throw Error("NOAA-Frontgeometrie ungültig.");
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  for(const p of f.coords){
+   if(!Array.isArray(p)||p.length!==2||!p.every(Number.isFinite)||
+      p[0]<-180||p[0]>180||p[1]<0||p[1]>90)
+    throw Error("NOAA-Frontkoordinate außerhalb des gültigen Bereichs.");
+   minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0]);
+   minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);
+  }
+  if(maxX>=box[0]&&minX<=box[2]&&maxY>=box[1]&&minY<=box[3])found.push(f);
+ }
+ return found;
+}
+function paintFronts(ctx,fronts,region,{x=0,y=0,width,height},satelliteUTC=fronts?.satelliteUTC){
+ const features=frontFeatures(fronts,region,satelliteUTC);
+ if(!features.length)return 0;
+ if(!width||!height)throw Error("Fronten: Kartenmaße fehlen.");
+ const unit=Math.max(.8,Math.min(1.75,width/900));
+ ctx.save();ctx.beginPath();ctx.rect(x,y,width,height);ctx.clip();
+ ctx.lineJoin="round";ctx.lineCap="round";
+ for(const f of features){
+  ctx.beginPath();
+  for(let i=0;i<f.coords.length;i++){
+   const p=project(f.coords[i],region,x,y,width,height);
+   if(i===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);
+  }
+  ctx.setLineDash?.([]);
+  ctx.strokeStyle="#061826";ctx.lineWidth=3.4*unit;ctx.stroke();
+  ctx.strokeStyle=FRONT_COLORS[f.type];ctx.lineWidth=1.8*unit;
+  if(f.type==="stationary")ctx.setLineDash?.([6*unit,5*unit]);
+  ctx.stroke();ctx.setLineDash?.([]);
+ }
+ ctx.restore();
+ return features.length;
+}
+function drawPDFFronts(fronts,region,w,h,bottom,satelliteUTC){
+ const features=frontFeatures(fronts,region,satelliteUTC);
+ if(!features.length)return "";
+ const out=["% NOAA WPC analyzed frontal vectors (individual editable paths)",
+  "q 0 "+fmt(bottom)+" "+fmt(w)+" "+fmt(h)+" re W n","1 J 1 j"];
+ const unit=Math.max(.8,Math.min(1.75,w/900));
+ for(const f of features){
+  const p=f.coords.map((coord,i)=>{
+   const [x,y]=project(coord,region,0,0,w,h);
+   return fmt(x)+" "+fmt(bottom+h-y)+(i?" l":" m");
+  }).join("\n");
+  out.push("q",pdfRGB("#061826")+" RG",fmt(3.4*unit)+" w",
+    "[] 0 d",p,"S","Q");
+  out.push("q",pdfRGB(FRONT_COLORS[f.type])+" RG",
+    fmt(1.8*unit)+" w",
+    f.type==="stationary"?"["+fmt(6*unit)+" "+fmt(5*unit)+"] 0 d":"[] 0 d",
+    p,"S","Q");
+ }
+ out.push("Q");
+ return out.join("\n");
+}
+
 function pressureCenters(overlay,region){
  const b=BBOX[region],geo=window.SatelliteIsobarGeometry;
  if(!b||!geo?.detectVisiblePressureSystems||!Array.isArray(overlay?.contours))return [];
@@ -92,7 +168,8 @@ function utc(t){return new Date(t).toISOString().slice(0,16).replace("T"," ")+" 
 function titleLine(options){return "MTG "+options.productName+" | "+options.regionName;}
 function provenance(options){const o=options.overlay;
  return "Satellit: "+utc(o.satelliteUTC)+" | ECMWF IFS "+utc(o.runUTC)+
-  " | Isobaren: "+utc(o.validUTC)+" | Abstand "+o.spacing+" hPa | "+o.method;}
+  " | Isobaren: "+utc(o.validUTC)+" | Abstand "+o.spacing+" hPa | "+o.method+
+  (options.fronts?" | NOAA WPC Analyse "+utc(options.fronts.valid_utc):"");}
 function footerLine(o){return "Bild: EUMETSAT | Druckprognose: ECMWF CC BY 4.0 | Interpolierte Modellwerte, keine Messung";}
 function rasterCanvas(image){
  const w=image.naturalWidth||image.width,h=image.naturalHeight||image.height;
@@ -116,6 +193,7 @@ async function renderPNG(options){
  ctx.fillText(provenance(options),18,Math.round(header*.78),w-32);
  ctx.drawImage(image,0,header,w,h);
  paintIsobars(ctx,options.overlay,options.region,{x:0,y:header,width:w,height:h});
+ paintFronts(ctx,options.fronts,options.region,{x:0,y:header,width:w,height:h},options.overlay.satelliteUTC);
  ctx.fillStyle="#10263f";ctx.font=Math.max(11,Math.round(w*.014))+"px Arial";
  ctx.fillText(footerLine(options),18,header+h+Math.round(footer*.5),w-32);
  const blob=await new Promise((resolve,reject)=>{
@@ -125,7 +203,7 @@ async function renderPNG(options){
  return {blob,name:filename(options,"png")};
 }
 function filename(o,type){
- return "mtg_"+o.product+"_"+o.region+"_"+o.overlay.satelliteUTC.replace(/[-:]/g,"").replace("T","_").replace(".000Z","Z")+"_isobaren."+type;
+ return "mtg_"+o.product+"_"+o.region+"_"+o.overlay.satelliteUTC.replace(/[-:]/g,"").replace("T","_").replace(".000Z","Z")+"_isobaren"+(o.fronts?"_noaa_fronten":"")+"."+type;
 }
 const ascii=new TextEncoder();
 function concat(items){
@@ -199,6 +277,7 @@ async function renderPDF(options){
  "BT /F1 "+fmt(Math.max(11,w*.011))+" Tf 18 "+fmt(pageH-60)+" Td ("+escapedTime+") Tj ET",
  "q "+fmt(w)+" 0 0 "+fmt(h)+" 0 "+fmt(bottom)+" cm /Im0 Do Q",
  drawPDFVectors(o,options.region,w,h,bottom),
+ drawPDFFronts(options.fronts,options.region,w,h,bottom,o.satelliteUTC),
  "0.063 0.149 0.247 rg",
  "BT /F1 "+fmt(Math.max(11,w*.012))+" Tf 18 "+fmt(bottom/2)+" Td ("+escapedFooter+") Tj ET"
  ].join("\n")+"\n";
@@ -233,5 +312,5 @@ function download(result){
  setTimeout(()=>URL.revokeObjectURL(u),60000);
  return result.blob.size;
 }
-window.SatelliteMapExport={paintIsobars,paintPressureCenters,pressureCenters,pathsFor,renderPNG,renderPDF,download};
+window.SatelliteMapExport={paintIsobars,paintFronts,frontFeatures,paintPressureCenters,pressureCenters,pathsFor,renderPNG,renderPDF,download};
 })();

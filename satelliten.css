@@ -228,3 +228,13 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 #satWpcFrontSvg path{stroke-linejoin:round;stroke-linecap:round}
 #satCitiesLayer{z-index:6}
 .sat-overlay-controls label:has(#satShowWpcFronts:disabled){opacity:.68;cursor:not-allowed}
+
+/* NOAA WPC front legend: small, accessible, unobtrusive also on narrow screens. */
+.sat-front-legend{display:flex;flex-wrap:wrap;gap:9px 17px;margin:9px 0 4px;font-size:12px;color:var(--sat-muted)}
+.sat-front-legend span{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.sat-front-swatch{display:inline-block;width:29px;height:0;border-top:2px solid;vertical-align:middle}
+.sat-front-swatch.cold{border-color:#48a8ff}
+.sat-front-swatch.warm{border-color:#ff6262}
+.sat-front-swatch.occluded{border-color:#ce77f9}
+.sat-front-swatch.stationary{border-color:#ec73b6;border-top-style:dashed}
+.sat-front-note{font-size:12px;color:var(--sat-muted);line-height:1.55;margin:6px 0 12px}

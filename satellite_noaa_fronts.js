@@ -19,7 +19,7 @@ const BBOX={
 const COLORS={cold:"#48a8ff",warm:"#ff6262",occluded:"#ce77f9",stationary:"#ec73b6"};
 let info=null,context={time:null,region:region.value,source:source.value},lastStatus="";
 function utc(s){
- if(typeof s!=="string"||!/\d{4}-\d\d-\d\dT\d\d:\d\dZ$/.test(s))return null;
+ if(typeof s!=="string"||!/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?Z$/.test(s))return null;
  const ms=Date.parse(s);return Number.isFinite(ms)?ms:null;
 }
 function nice(ms){
@@ -64,6 +64,29 @@ function intersect(arr,bbox){
  return !(Math.max(...xs)<bbox[0]||Math.min(...xs)>bbox[2]||
           Math.max(...ys)<bbox[1]||Math.min(...ys)>bbox[3]);
 }
+function current(){
+ const valid=info&&utc(info.valid_utc);
+ return valid!==null&&valid!==undefined&&Date.now()-valid<=14*3600000&&valid-Date.now()<=30*60000;
+}
+function visibleFor(time,place){
+ if(!info||!current()||source.value!=="mtgi1"||place!==region.value||!BBOX[place])return [];
+ const stamp=utc(time),valid=utc(info.valid_utc);
+ if(stamp===null||stamp===undefined||valid===null)return [];
+ const delta=(stamp-valid)/3600000;
+ if(delta < -1||delta > 12)return [];
+ return info.features.filter(f=>intersect(f.coords,BBOX[place]));
+}
+function exportAt(time,place){
+ // Export exactly the front layer the user enabled, with the same spatial,
+ // source and temporal constraints as the visible EPSG:4326 satellite map.
+ if(!toggle.checked||!current())return null;
+ const selected=visibleFor(time,place);
+ if(!selected.length)return null;
+ return {provider:"NOAA WPC",source_url:TRUSTED,
+  coordinate_reference_system:"EPSG:4326",front_source_format:"CODSUS-HIRES",
+  valid_utc:info.valid_utc,satelliteUTC:time,region:place,
+  features:selected.map(f=>({type:f.type,coords:f.coords.map(p=>[...p])}))};
+}
 function reset(){
  svg.replaceChildren();svg.setAttribute("hidden","");
 }
@@ -79,7 +102,7 @@ function render(){
   toggle.disabled=true;msg.textContent="NOAA-Fronten auf dieser Satellitenprojektion nicht darstellbar.";
   timeLabel.textContent="";return;
  }
- if(!info){
+ if(!info||!current()){
   toggle.disabled=true;
   msg.textContent=lastStatus||"NOAA WPC: Kein gültiges aktuelles Frontalanalyse-Bulletin. "+
     "Für Europa bleiben die ECMWF-Isobaren verfügbar; DWD-Vektordaten werden separat geprüft.";
@@ -114,11 +137,11 @@ function render(){
   }).join(" ");
   const halo=document.createElementNS(NS,"path");
   halo.setAttribute("d",d);halo.setAttribute("fill","none");
-  halo.setAttribute("stroke","#061826");halo.setAttribute("stroke-width","4.6");
+  halo.setAttribute("stroke","#061826");halo.setAttribute("stroke-width","3.4");
   halo.setAttribute("stroke-linejoin","round");
   const path=document.createElementNS(NS,"path");
   path.setAttribute("d",d);path.setAttribute("fill","none");
-  path.setAttribute("stroke",COLORS[feature.type]);path.setAttribute("stroke-width","2.6");
+  path.setAttribute("stroke",COLORS[feature.type]);path.setAttribute("stroke-width","1.8");
   path.setAttribute("stroke-linecap","round");path.setAttribute("stroke-linejoin","round");
   path.setAttribute("vector-effect","non-scaling-stroke");
   if(feature.type==="stationary")path.setAttribute("stroke-dasharray","6 5");
@@ -154,6 +177,6 @@ source.addEventListener("change",()=>sync({time:context.time}));
 toggle.addEventListener("change",render);
 link.href=TRUSTED;
 link.rel="noopener noreferrer";link.target="_blank";
-window.SatelliteNOAAFronts={sync,validate,project};
+window.SatelliteNOAAFronts={sync,validate,project,exportAt,visibleFor,COLORS};
 void refresh();
 })();

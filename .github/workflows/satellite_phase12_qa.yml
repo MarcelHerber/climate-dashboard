@@ -85,6 +85,8 @@ jobs:
           node --check satelliten.js
           node --check satellite_dwd_fronts.js
           node --check satellite_noaa_fronts.js
+          node --check satellite_map_export.js
+          node --check satellite_hd.js
           node --check satellite_view_options.js
           node --check satellite_lightning.js
           node --check satellite_radar.js
@@ -125,6 +127,7 @@ jobs:
           node --test tests/test_satellite_hd.cjs
           node --test tests/test_satellite_dwd_fronts.cjs
           node --test tests/test_satellite_noaa_fronts.cjs
+          node --test tests/test_satellite_noaa_export.cjs
           node --test tests/test_satellite_progressive.cjs
           node --test tests/test_satellite_quality_comparison.cjs
           node --test tests/test_satellite_fullhd_film.cjs

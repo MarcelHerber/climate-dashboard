@@ -719,6 +719,7 @@ node --test tests/test_satellite_tile_cache.cjs
 node --test tests/test_satellite_hd.cjs
 node --test tests/test_satellite_dwd_fronts.cjs
 node --test tests/test_satellite_noaa_fronts.cjs
+node --test tests/test_satellite_noaa_export.cjs
 python -m unittest discover -s tests -p "test_satellite_dwd_fronts.py" -v
 python -m unittest discover -s tests -p "test_satellite_noaa_wpc_fronts.py" -v
 python -m unittest discover -s tests -p "test_satellite_dwd_geo_fronts.py" -v
