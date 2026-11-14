@@ -98,7 +98,7 @@ function tempSeason(yearMap,event){
    if(!observed.length)continue;
    const row=s.pick==="first"?observed[0]:observed.at(-1);
    const md=mdAt(year,row.idx);
-   rows.push({year,date:climateSeason(year,md),md,dayOfYear:row.idx+1,
+   rows.push({year,date:climateSeason(year,md),md,dayOfYear:dayIndex(2000,md)+1,
      value:row.value,coverage:valid/subset.length});
  }
  rows.sort((a,b)=>s.pick==="first"?a.dayOfYear-b.dayOfYear||a.year-b.year:
