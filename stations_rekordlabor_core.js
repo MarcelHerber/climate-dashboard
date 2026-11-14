@@ -223,7 +223,7 @@ function seasonDateAxis(monthDays){
  const format=value=>{
    if(!Number.isInteger(value)||value<1||value>days.length)return "";
    const md=days[value-1];
-   if(!/^\\d{2}-\\d{2}$/.test(md))return "";
+   if(!/^[0-9]{2}-[0-9]{2}$/.test(md))return "";
    const [month,day]=md.split("-").map(Number);
    return day+"."+month+".";
  };
