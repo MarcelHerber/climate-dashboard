@@ -27,6 +27,55 @@ async function fetchJson(path,optional=false){
 function validStation(st){
  return st && (st.temp||st.snow);
 }
+// Original DWD station coordinates from the compact Pages catalogue. Markers
+// use Leaflet's canvas renderer for thousands of archive stations; no estimated
+// coordinates or generic city centroids are ever generated.
+let stationMap=null,markedStationId=null;
+const stationMarkers=new Map();
+const normalMarker={radius:3.8,color:"#356c97",fillColor:"#3c91ba",fillOpacity:.63,weight:1};
+const activeMarker={radius:8,color:"#b63926",fillColor:"#e4543d",fillOpacity:.95,weight:2};
+function initMap(){
+ const node=$("rlMap"),feedback=$("rlMapStatus");
+ if(!node||!state.catalog)return;
+ if(!window.L){feedback.textContent="Karte momentan nicht verfügbar; Stationssuche und Rekordauswertung funktionieren weiterhin.";return;}
+ const stations=state.catalog.stations.filter(st=>validStation(st)&&
+    finite(st.lat)&&finite(st.lon)&&st.lat>=45&&st.lat<=57&&st.lon>=4&&st.lon<=17);
+ if(!stations.length){
+  feedback.textContent="Für den Stationskatalog sind keine amtlich verorteten Koordinaten verfügbar.";
+  return;
+ }
+ try{
+  stationMap=L.map(node,{zoomControl:true,scrollWheelZoom:false,preferCanvas:true})
+   .setView([51.2,10.4],6);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+   maxZoom:13,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(stationMap);
+  const renderer=L.canvas({padding:.2});
+  for(const st of stations){
+   const marker=L.circleMarker([st.lat,st.lon],{...normalMarker,renderer})
+     .addTo(stationMap);
+   marker.bindTooltip(st.name+" · DWD "+st.id);
+   marker.on("click",()=>{
+     $("rlSearch").value=st.name;
+     void selectStation(st);
+     stationMap.setView([st.lat,st.lon],Math.max(8,stationMap.getZoom()));
+   });
+   stationMarkers.set(st.id,marker);
+  }
+  feedback.textContent=stations.length.toLocaleString("de-DE")+
+   " Stationsstandorte mit Originalkoordinaten · Punkt anklicken, um historische Messungen zu öffnen.";
+  setTimeout(()=>stationMap?.invalidateSize(),200);
+ }catch(err){feedback.textContent="Karte konnte nicht initialisiert werden: "+err.message;}
+}
+function highlightStation(st){
+ if(!stationMap)return;
+ if(markedStationId&&stationMarkers.has(markedStationId))
+   stationMarkers.get(markedStationId).setStyle(normalMarker);
+ markedStationId=st?.id;
+ if(stationMarkers.has(markedStationId))
+   stationMarkers.get(markedStationId).setStyle(activeMarker).bringToFront();
+}
+
 function renderSuggestions(){
  const query=$("rlSearch").value.trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
  const stateName=$("rlState").value;
@@ -39,7 +88,7 @@ function renderSuggestions(){
   b.classList.toggle("active",st.id===state.station?.id);
   b.innerHTML="<strong>"+esc(st.name)+"</strong><small>"+esc(st.state)+" · "+esc(st.id)+
    " · "+(st.temp?"Temperatur ":"")+(st.snow?"Schnee":"")+"</small>";
-  b.addEventListener("click",()=>{selectStation(st);$("rlSearch").value=st.name;});
+  b.addEventListener("click",()=>{selectStation(st);$("rlSearch").value=st.name;if(stationMap&&finite(st.lat)&&finite(st.lon))stationMap.setView([st.lat,st.lon],8);});
   $("rlSuggestions").append(b);
  }
 }
@@ -82,7 +131,7 @@ function setExportState(ready){
  for(const b of document.querySelectorAll("#"+tabs[state.view][1]+" [data-rl-export]"))b.disabled=!ready;
 }
 async function selectStation(st){
- state.station=st;state.temp=null;state.snow=null;state.kl=null;const id=++state.stationSerial;
+ state.station=st;state.temp=null;state.snow=null;state.kl=null;highlightStation(st);const id=++state.stationSerial;
  message("rlStation",st.name+" · "+st.id+" · "+st.state+" · geprüfte Daten werden geladen …");
  renderSuggestions();
  for(const [value,option] of [["tmax","tmax"],["tmin","tmin"],["tmean","tmean"],["snow","snow"],["rain","rain"],["sun","sun"]]){
@@ -360,7 +409,7 @@ async function init(){
   const wanted=new URLSearchParams(location.search).get("station");
   const initial=doc.stations.find(s=>s.id===wanted&&validStation(s))||
     doc.stations.find(s=>s.id==="01420")||doc.stations.find(validStation);
-  renderSuggestions();if(initial)await selectStation(initial);
+  initMap();renderSuggestions();if(initial)await selectStation(initial);
  }catch(e){message("rlStation","Stationskatalog nicht verfügbar: "+e.message);}
  const tab=new URLSearchParams(location.search).get("view");
  if(tabs[tab])showTab(tab);
