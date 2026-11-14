@@ -109,20 +109,28 @@ function showTab(which){
 function destroyChart(){
  if(state.chart){state.chart.destroy();state.chart=null;state.chartCanvas=null;}
 }
-function addChart(canvasId,title,labels,data,yTitle,color="#2d79ad"){
+function addChart(canvasId,title,labels,data,yTitle,color="#2d79ad",dateAxis=null){
  destroyChart();
  state.chartCanvas=$(canvasId);
  if(!window.Chart||!state.chartCanvas)return;
  const main=[{label:title,data,borderColor:color,backgroundColor:color,
   borderWidth:2.2,pointRadius:labels.length>140?1:3,pointHoverRadius:5,
   tension:0,spanGaps:false,fill:false}];
+ const yScale=dateAxis?{
+  type:"linear",min:dateAxis.min,max:dateAxis.max,
+  title:{display:true,text:"Datum"},
+  // Force monthly dates rather than Chart.js numeric day-of-year steps.
+  afterBuildTicks:scale=>{scale.ticks=dateAxis.ticks.map(t=>({value:t.value}));},
+  ticks:{autoSkip:false,callback:value=>dateAxis.format(value)}
+ }:{type:"linear",title:{display:true,text:yTitle}};
  state.chart=new Chart(state.chartCanvas,{type:"line",data:{labels,datasets:main},options:{
   responsive:true,maintainAspectRatio:false,animation:false,normalized:true,
   interaction:{mode:"nearest",intersect:false},plugins:{legend:{display:false},
   tooltip:{callbacks:{label:context=>context.parsed.y===null?"Fehlwert":
-    title+": "+num(context.parsed.y,1)+" "+yTitle}}},
+    title+": "+(dateAxis?dateAxis.format(context.parsed.y):
+      num(context.parsed.y,1)+" "+yTitle)}}},
   scales:{x:{type:"category",ticks:{autoSkip:true,maxTicksLimit:13,maxRotation:0}},
-    y:{type:"linear",title:{display:true,text:yTitle}}}
+    y:yScale}
  }});
  state.chartLabel=title;
 }
@@ -241,8 +249,10 @@ function seasonRender(){
    result=C.tempSeason(state.temp,event);records=result.records;label=result.label;
   }
  }
+ // Numeric calendar-day indices remain the chart coordinates, but the
+ // vertical scale and tooltips use readable dates such as 1.1. and 1.2.
  if(run)unit="Tage";
- else unit=snow?"Tag im hydrologischen Jahr":"Tag im Kalenderjahr";
+ else unit="Datum";
  message("rlSeasonMeta","Quelle: DWD CDC · "+label+" · "+records.length+
   " auswertbare Jahre · "+(result?.threshold||"Mindestens 95 % gültige Tage im Messjahr")+
   (result?.excluded.length?" · "+result.excluded.length+" unvollständige/ausgeschlossene Jahre":"")+
@@ -260,7 +270,8 @@ function seasonRender(){
    ...byYear.map(r=>[r.year,label,r.date||r.start||"",r.end||"",run?r.days:r.value,
      snow?r.dayOfPeriod:r.dayOfYear])];
  state.fileName="DWD_Jahreszeitenrekord_"+st.id+"_"+event;
- addChart("rlSeasonChart",label+" · "+st.name,byYear.map(r=>String(r.year)),values,unit,"#b44e46");
+ const dateAxis=run?null:C.seasonDateAxis(snow?state.snow?.month_days:null);
+ addChart("rlSeasonChart",label+" · "+st.name,byYear.map(r=>String(r.year)),values,unit,"#b44e46",dateAxis);
  setExportState(byYear.length>1);
 }
 function clearSeason(){
