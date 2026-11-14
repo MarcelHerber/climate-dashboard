@@ -328,7 +328,8 @@ if [[ -s gfs_analysis_europe/weekly_f003_extended.json &&
   python - <<'PY'
 import base64,json
 from pathlib import Path
-import numpy as np
+from array import array
+import sys
 root=Path("_site/gfs_analysis_europe")
 x=json.loads((root/"weekly_f003_extended.json").read_text(encoding="utf-8"))
 g=json.loads((root/"extended_geography.json").read_text(encoding="utf-8"))
@@ -351,7 +352,9 @@ assert len(mask)==361*121*2
 for key in ("forecast_mean_q10_b64","anomaly_mean_q10_b64"):
     raw=base64.b64decode(x[key],validate=True)
     assert len(raw)==361*121*2
-    assert np.count_nonzero(np.frombuffer(raw,dtype="<i2")==-32768)==0
+    signed=array("h");signed.frombytes(raw)
+    if sys.byteorder!="little":signed.byteswap()
+    assert signed.count(-32768)==0
 print("VERIFIED wide GFS f003–f165 weekly 1991–2020 climate data and real 50m countries integrated into Pages")
 PY
 else
