@@ -19,7 +19,7 @@ def await_published():
         try:
             with urllib.request.urlopen(BASE+"stations_rekordlabor.html?qa="+str(time.time()),timeout=16) as response:
                 txt=response.read().decode("utf8")
-            if ('id="rlChanges"' in txt and 'id="rlMap"' in txt and 'stations_rekordlabor.js?v=20261114-p3-hourly-national-v1' in txt):
+            if ('id="rlChanges"' in txt and 'id="rlMap"' in txt and 'stations_rekordlabor.js?v=' in txt and 'id="rlSeasonTrend"' in txt):
                 expected=int(os.environ.get("REKORDLABOR_MIN_HOURLY_STATIONS","0"))
                 if expected:
                     with urllib.request.urlopen(BASE+"data/rekordlabor/weather_turns/index.json?qa="+str(time.time()),timeout=16) as index_response:
