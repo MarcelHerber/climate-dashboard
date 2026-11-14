@@ -53,7 +53,11 @@ test("Additional FCI products are disclosed only after real MTG GetMap checks",(
   assert.ok(main.includes(name),"Missing RGB guide: "+name);
  assert.ok(audit.includes('"true_colour"')&&audit.includes('"visible_06"'));
  assert.ok(html.includes('id="satProductGuide"'));
- assert.ok(html.includes("Nicht bestätigte RGBs bleiben deaktiviert"));
+ assert.ok(html.includes("nur tatsächlich nachgewiesene Produkte"));
+ assert.ok(main.includes('group.append(new Option(label+" · geprüft",code))'));
+ assert.ok(!main.includes("opt.disabled=true"),"Unavailable RGBs should be described, not shown as grey menu options");
+ for(const layer of ['"fog"','"snow"'])assert.ok(audit.includes(layer),"Official WMS category missing "+layer);
+ for(const guide of ["extra_fog","extra_snow"])assert.ok(main.includes(guide));
 });
 test("Decoded frame cache is bounded and keyed by the exact verified WMS request",()=>{
  const main=fs.readFileSync("satelliten.js","utf8");

@@ -23,7 +23,9 @@ const PRODUCT_GUIDE={
  extra_ash:"Ash RGB: Hinweise auf vulkanische Asche und Staub; keine Konzentrationsbestimmung.",
  extra_water_vapour:"Wasserdampf: Höhenströmung und Feuchteverteilung qualitativ verfolgen; keine bodennahe relative Luftfeuchte.",
  extra_true_colour:"True Colour RGB: tagsüber naturnahe Darstellung aus sichtbaren FCI-Kanälen. Ohne Sonnenlicht nicht aussagekräftig.",
- extra_visible_06:"HRFI VIS 0,6 µm: feine Wolkenstrukturen im sichtbaren Kanal bei Tageslicht; nachts kein verwendbares Bild."
+ extra_visible_06:"HRFI VIS 0,6 µm: feine Wolkenstrukturen im sichtbaren Kanal bei Tageslicht; nachts kein verwendbares Bild.",
+ extra_fog:"Fog / Low Clouds RGB: tiefe Wolken und Nebel erkennen. Das offizielle FCI-Produkt ist nicht identisch mit Night Microphysics RGB; Farben sind qualitativ.",
+ extra_snow:"Snow RGB: Schneedecke, Eiswolken und Wasserwolken tagsüber besser unterscheiden. Nachts ist dieses Produkt eingeschränkt verwendbar."
 };
 function updateProductGuide(){
  let node;try{node=document.getElementById("satProductGuide");}catch(_){return;}
@@ -78,17 +80,14 @@ async function enableAuditedProducts(){
  catch(_){return;} // Optional panel must not affect legacy film-only test DOMs.
  if(!group||!status)return;
  const titles={
+  cloud_phase:"Cloud Phase RGB",true_colour:"True Colour RGB",
+  visible_06:"VIS 0,6 µm (HRFI)",fog:"Fog / Low Clouds RGB",snow:"Snow RGB",
   airmass:"Airmass RGB",night_microphysics:"Night Microphysics RGB",
-  convection:"Convection/Severe Storms RGB",water_vapour:"Wasserdampf (WV)",
-  ash:"Ash RGB",cloud_phase:"Cloud Phase RGB",
-  true_colour:"True Colour RGB",visible_06:"VIS 0,6 µm (HRFI)"
+  convection:"Convection/Severe Storms RGB",water_vapour:"Wasserdampf (WV)",ash:"Ash RGB"
  };
- const choices={};
- for(const [key,label] of Object.entries(titles)){
-  const opt=new Option(label+" · noch nicht überprüft","extra_"+key);
-  opt.disabled=true;group.append(opt);choices[key]=opt;
- }
- let count=0;
+ // No inert entries: an unsupported MTG WMS layer is not a selectable product.
+ // The status below names missing variants without making the dropdown look broken.
+ let count=0;const missing=[];
  try{
   const response=await fetch("./data/satellite_layer_discovery_latest.json",{cache:"no-store"});
   if(!response.ok)throw Error("Audit nicht vorhanden");
@@ -100,15 +99,17 @@ async function enableAuditedProducts(){
    const entry=(report.categories?.[key]||[]).find(x=>x.map_ok&&x.tested&&x.recent&&
      typeof x.layer==="string"&&/^mtg_fd:[a-z0-9_]+$/.test(x.layer)&&
      Date.parse(x.latest_verified_time)>Date.parse(report.checked_at)-90*60000);
-   if(!entry){choices[key].textContent=label+" · derzeit nicht im MTG-WMS bestätigt";continue;}
+   if(!entry){missing.push(label);continue;}
    const code="extra_"+key;
    PRODUCTS[code]={layer:entry.layer,name:label,url:entry.product_page,
     credit:"© EUMETSAT"};
-   choices[key].disabled=false;choices[key].textContent=label+" · verifiziert";
+   group.append(new Option(label+" · geprüft",code));
    count++;
   }
-  status.textContent=count?count+" zusätzliche MTG-Produkte beim letzten offiziellen WMS-Audit geprüft und auswählbar. Die aktuellen UTC-Zeiten werden beim Öffnen neu geprüft.":
-   "Noch keine weiteren FCI-Produkte mit bestätigten PNGs und aktuellen UTC-Daten.";
+  status.textContent=(count?count+" zusätzliche MTG-Produkte anhand echter WMS-Bilder geprüft und auswählbar.": 
+   "Derzeit keine zusätzlichen RGB-Produkte mit geprüften WMS-Bildern.")+
+   (missing.length?" Nicht im aktuellen offiziellen MTG-WMS nachgewiesen: "+missing.join(", ")+".":"")+
+   " Für auswählbare Produkte werden die aktuellen UTC-Zeiten beim Öffnen geprüft.";
  }catch(error){status.textContent="Zusätzliche Produkte nicht freigeschaltet: "+error.message+".";}
 }
 

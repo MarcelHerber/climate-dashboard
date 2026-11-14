@@ -32,8 +32,8 @@ MAX_XML = 64 * 1024 * 1024
 NOW = datetime.now(timezone.utc)
 OUT = Path("data/satellite_wms_times.json")
 DISCOVERY = Path("data/satellite_layer_discovery_latest.json")
-EXTRA_CATEGORIES = ("cloud_phase", "true_colour", "visible_06", "airmass",
-                    "night_microphysics", "convection", "ash", "water_vapour")
+EXTRA_CATEGORIES = ("cloud_phase", "true_colour", "visible_06", "fog", "snow",
+                    "airmass", "night_microphysics", "convection", "ash", "water_vapour")
 
 
 def url(params):
