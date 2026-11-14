@@ -79,8 +79,8 @@ class RecordLaborHourlyTests(unittest.TestCase):
             historical_inventory,parse_stations_description,discover_stations
         )
         body=(
-          "00071 19500101 20251231 100 50.1120 8.6840 Frankfurt am Main Hessen\n"
-          "00073 19600101 20251231 200 49.2330 7.0030 Saarbrücken Saarland\n"
+          "00071 19500101 20251231 100 50.1120 8.6840 Frankfurt am Main                     Hessen                               Frei\n"
+          "00073 19600101 20251231 200 49.2330 7.0030 Saarbrücken                       Saarland                        Frei\n"
           "00078 19500101 20151231 100 50.1000 8.5000 Closed Hessen\n"
           "00091 20100101 20251231 100 50.2000 8.9000 Too Short Hessen\n"
         )
