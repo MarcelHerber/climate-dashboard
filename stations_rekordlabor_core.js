@@ -226,7 +226,7 @@ function seasonDateAxis(monthDays,values){
  // Keep the date coordinate unchanged, but frame the actual event dates.
  // Without observations, fall back to the full calendar/hydrological year.
  const observed=Array.isArray(values)?
-   values.filter(v=>Number.isInteger(v)&&v>=1&&v<=days.length):[];
+   values.filter(v=>Number.isFinite(v)&&v>=1&&v<=days.length):[];
  const low=observed.length?Math.min(...observed):1;
  const high=observed.length?Math.max(...observed):days.length;
  const padding=observed.length?Math.max(7,Math.ceil((high-low)*.15)):0;
