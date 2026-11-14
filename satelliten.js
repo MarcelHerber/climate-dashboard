@@ -783,6 +783,29 @@ gif.addEventListener("click",()=>exportFilm("gif"));
 mp4.addEventListener("click",()=>exportFilm("mp4"));
 window.addEventListener("keydown",event=>{if(document.activeElement?.matches("input,select,textarea,button"))return;if(event.key==="ArrowLeft"&&frames.length){event.preventDefault();stop();show(index-1);}if(event.key==="ArrowRight"&&frames.length){event.preventDefault();stop();show(index+1);}});
 document.addEventListener("visibilitychange",()=>{if(document.hidden)stop();});
+// Keep a concise, live overview near the controls while the detailed ECMWF
+// message remains in the three disclosures below the satellite image.
+function initIsobarBrief(){
+ const brief=id("satIsobarBrief"),full=id("satIsobarStatus"),toggle=id("satShowIsobars");
+ if(!brief||!full||typeof MutationObserver==="undefined")return;
+ function update(){
+  const message=(full.textContent||"").replace(/\s+/g," ").trim();
+  brief.title=message;
+  if(toggle&&!toggle.checked){
+   brief.textContent="Isobaren ausgeschaltet";brief.dataset.kind="muted";
+  }else if(/fehler|fehlgeschlagen|keine.{0,45}(konturen|druckdaten)|nicht verfügbar|konnte nicht|veraltet|abgebrochen/i.test(message)){
+   brief.textContent="Isobaren: Hinweis zum Datenstand · unten";brief.dataset.kind="attention";
+  }else if(/prüf|lade|warte|berechn|suche/i.test(message)){
+   brief.textContent="Isobaren: Daten werden geprüft …";brief.dataset.kind="loading";
+  }else{
+   brief.textContent="Isobaren: Datenstatus unter dem Bild";brief.dataset.kind="ready";
+  }
+ }
+ new MutationObserver(update).observe(full,{childList:true,characterData:true,subtree:true});
+ toggle?.addEventListener("change",update);
+ update();
+}
+initIsobarBrief();
 enableAuditedProducts();
 refresh();
 })();
