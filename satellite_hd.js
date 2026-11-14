@@ -309,7 +309,8 @@ async function compositeLayers(ctx,sceneData,grid,choice){
   if(overlay?.satelliteUTC!==sceneData.time||!overlay?.validUTC)
    throw Error("Die ECMWF-Isobaren passen nicht zum ausgewählten Satellitenzeitpunkt.");
   if(choice.format==="png")
-   window.SatelliteMapExport.paintIsobars(ctx,overlay,sceneData.region,area);
+   window.SatelliteMapExport.paintIsobars(ctx,overlay,sceneData.region,area,
+    choice.cities?(window.SatelliteOverlay?.cityAnchors?.(sceneData.region)||[]):[]);
  }
  const fronts=window.SatelliteFrontsPaused===true?null:(await window.SatelliteNOAAFronts?.exportAt?.(sceneData.time,sceneData.region)||null);
  if(fronts&&choice.format==="png"){
@@ -344,7 +345,7 @@ async function exportImage(format="png"){
    const productName=byId("satProduct")?.selectedOptions?.[0]?.textContent||ctxScene.product;
    const regionName=byId("satRegion")?.selectedOptions?.[0]?.textContent||ctxScene.region;
    const exported=await window.SatelliteMapExport.renderPDF({
-    image:canvas,overlay,fronts,region:ctxScene.region,regionName,product:ctxScene.product,productName});
+    image:canvas,overlay,fronts,includeCities:choice.cities,region:ctxScene.region,regionName,product:ctxScene.product,productName});
    window.SatelliteMapExport.download({
     blob:exported.blob,name:exported.name.replace(/_isobaren(?:_noaa_fronten)?\.pdf$/,"_"+grid.width+"px_hd_vektoren"+(fronts?"_noaa_fronten":"")+".pdf")});
    setInfo("HD-/4K-PDF aus vollständigen WMS-Kacheln · ECMWF-Isobaren"+

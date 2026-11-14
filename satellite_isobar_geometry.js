@@ -311,7 +311,8 @@ function pressureLabels(centers,viewport,{width=1000,height=1000,fontSize=40.5,
  for(const m of centers){
   const [px,py]=xy(m.lon,m.lat);
   const positions=[[0,0],[.9,-.9],[-.9,-.9],[.9,.9],[-.9,.9],
-    [0,-1.25],[0,1.25],[1.25,0],[-1.25,0]];
+    [0,-1.25],[0,1.25],[1.25,0],[-1.25,0],
+    [0,-2],[0,2],[-2,0],[2,0],[-1.7,-1.7],[1.7,-1.7],[-1.7,1.7],[1.7,1.7]];
   let best=null,penalty=Infinity;
   for(const [ox,oy] of positions){
    const x=px+ox*fontSize,y=py+oy*fontSize;
