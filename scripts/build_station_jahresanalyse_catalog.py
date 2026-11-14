@@ -49,6 +49,16 @@ def build(root: Path) -> dict:
                 "state": source.get("state") or "", "temp": False,
                 "precip": False, "snow": False,
             })
+            # Geographic selection for the new Phase 3 station record laboratory.
+            # Coordinates originate in the same official DWD station indices.
+            if entry.get("lat") is None or entry.get("lon") is None:
+                try:
+                    lat = float(source.get("lat", source.get("latitude")))
+                    lon = float(source.get("lon", source.get("longitude")))
+                    if 45 <= lat <= 57 and 4 <= lon <= 17:
+                        entry["lat"], entry["lon"] = round(lat, 5), round(lon, 5)
+                except (TypeError, ValueError):
+                    pass
             entry[kind] = True
             entry[kind + "_file"] = str(filename)
             if kind == "snow":
