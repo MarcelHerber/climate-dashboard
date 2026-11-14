@@ -379,7 +379,7 @@ path=Path("_site/index.html")
 html=path.read_text(encoding="utf-8")
 for filename in ("monthly_frequency.js","t850_ensembles.js"):
     pattern=re.escape(filename)+r"(?:\?v=[A-Za-z0-9_.-]+)?"
-    version="20261113-t850-vectors-v1" if filename=="t850_ensembles.js" else "20261113-phase2-exports-v1"
+    version="20261114-vector-areas-v1" if filename=="t850_ensembles.js" else "20261113-phase2-exports-v1"
     html,count=re.subn(pattern,filename+"?v="+version,html)
     if count!=1:
         raise SystemExit(f"Phase 2: missing/duplicate chart asset {filename}: {count}")
