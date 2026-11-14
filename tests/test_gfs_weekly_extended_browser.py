@@ -103,7 +103,12 @@ def main():
                         with page.expect_download(timeout=30000) as d:
                             page.locator("#weekCsv").click()
                         d.value.save_as(str(OUT/"all_countries.csv"))
-                        assert (OUT/"all_countries.csv").read_text(encoding="utf-8-sig").count("\n")>=30
+                        country_rows=(OUT/"all_countries.csv").read_text(encoding="utf-8-sig")
+                        assert country_rows.count("\n")>=2
+                        assert "Grönland" in country_rows
+                        # CSV follows selected Greenland view instead of exporting
+                        # unrelated North African countries from the entire 121x361 grid.
+                        assert "Mali;" not in country_rows
                         page.pdf(path=str(OUT/"greenland.pdf"),print_background=True,landscape=True)
                         assert (OUT/"greenland.pdf").stat().st_size>12000
                     assert not errors,errors
