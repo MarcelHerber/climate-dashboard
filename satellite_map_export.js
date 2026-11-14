@@ -9,7 +9,7 @@ const BBOX={
  europe:[-27,24,49,73],atlantic:[-70,15,35,75],
  southwest:[-37,24,19,53],central:[-2,43,25,58],germany:[5,47,16,56]
 };
-const PINK="#ff4fcf",HALO="#061522";
+const PINK="#c6a2bb",HALO="#18283a";
 const esc=s=>String(s||"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^ -~]/g,"?").replace(/[\\()]/g,c=>"\\"+c);
 const fmt=s=>Number(s).toFixed(3).replace(/\.000$/,"");
 const inBounds=(p,b)=>p[0]>=b[0]&&p[0]<=b[2]&&p[1]>=b[1]&&p[1]<=b[3];
@@ -157,15 +157,15 @@ function pressureCenters(overlay,region){
 function paintPressureCenters(ctx,overlay,region,{x=0,y=0,width,height}){
  if(!width||!height)return [];
  const markers=pressureCenters(overlay,region);
- const size=Math.max(23,Math.min(52,Math.round(width*.031)));
+ const size=Math.max(17,Math.min(35,Math.round(width*.022)));
  ctx.save();ctx.textAlign="center";ctx.textBaseline="middle";
- ctx.font="900 "+size+"px Arial,Helvetica,sans-serif";
- ctx.lineJoin="round";ctx.lineWidth=Math.max(2.2,size*.12);
+ ctx.font="750 "+size+"px Arial,Helvetica,sans-serif";
+ ctx.lineJoin="round";ctx.lineWidth=Math.max(1.6,size*.085);
  for(const m of markers){
   const p=project([m.lon,m.lat],region,x,y,width,height);
-  ctx.strokeStyle="#0c1931";ctx.globalAlpha=.96;
+  ctx.strokeStyle="#102438";ctx.globalAlpha=.86;
   if(typeof ctx.strokeText==="function")ctx.strokeText(m.type,p[0],p[1]);
-  ctx.fillStyle=m.type==="T"?"#cf4baf":"#9750c4";
+  ctx.fillStyle=m.type==="T"?"#ba859f":"#a599bc";
   ctx.fillText(m.type,p[0],p[1]);
  }
  ctx.restore();
@@ -178,7 +178,7 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
  ctx.save();ctx.beginPath();ctx.rect(x,y,width,height);ctx.clip();
  ctx.lineJoin="round";ctx.lineCap="round";
  for(const group of groups){
-  const stroke=heavy=>Number(overlay.spacing)===2 ? 0.75*unit : (heavy?1.55:0.9)*unit;
+  const stroke=heavy=>Number(overlay.spacing)===2 ? 0.58*unit : (heavy?1.10:0.75)*unit;
   const draw=()=>{
    ctx.beginPath();
    for(const run of group.runs){
@@ -189,17 +189,17 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
    }
    ctx.stroke();
   };
-  ctx.strokeStyle=HALO;ctx.globalAlpha=.94;ctx.lineWidth=(Number(overlay.spacing)===2?1.85:(group.heavy?2.95:2.3))*unit;draw();
-  ctx.strokeStyle=PINK;ctx.globalAlpha=1;ctx.lineWidth=stroke(group.heavy);draw();
+  ctx.strokeStyle=HALO;ctx.globalAlpha=.79;ctx.lineWidth=(Number(overlay.spacing)===2?1.45:(group.heavy?2.25:1.8))*unit;draw();
+  ctx.strokeStyle=PINK;ctx.globalAlpha=.93;ctx.lineWidth=stroke(group.heavy);draw();
  }
  for(const group of groups){
   if(!group.label)continue;
   const p=project(group.label,region,x,y,width,height);
-  const label=String(group.hpa),size=Math.max(9,Math.round(13*unit));
+  const label=String(group.hpa),size=Math.max(8,Math.round(11*unit));
   ctx.font="bold "+size+"px Arial,sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
-  const tw=ctx.measureText(label).width+12*unit,th=size+8*unit;
-  ctx.globalAlpha=.94;ctx.fillStyle="#07182a";ctx.fillRect(p[0]-tw/2,p[1]-th/2,tw,th);
-  ctx.globalAlpha=1;ctx.strokeStyle=PINK;ctx.lineWidth=.65*unit;
+  const tw=ctx.measureText(label).width+9*unit,th=size+6*unit;
+  ctx.globalAlpha=.78;ctx.fillStyle="#10253a";ctx.fillRect(p[0]-tw/2,p[1]-th/2,tw,th);
+  ctx.globalAlpha=1;ctx.strokeStyle="#a98b9f";ctx.lineWidth=.45*unit;
   ctx.strokeRect(p[0]-tw/2,p[1]-th/2,tw,th);
   ctx.fillStyle="#ffffff";ctx.fillText(label,p[0],p[1]);
  }
@@ -274,16 +274,16 @@ function drawPDFVectors(overlay,region,w,h,bottom){
   }
   const d=path.join("\n");
   const fine=Number(overlay.spacing)===2;
-  const line=(fine?0.75:(group.heavy?1.55:0.9))*unit;
-  out.push(pdfRGB(HALO)+" RG",fmt((fine?1.85:(group.heavy?2.95:2.3))*unit)+" w",d,"S");
+  const line=(fine?0.58:(group.heavy?1.10:0.75))*unit;
+  out.push(pdfRGB(HALO)+" RG",fmt((fine?1.45:(group.heavy?2.25:1.8))*unit)+" w",d,"S");
   out.push(pdfRGB(PINK)+" RG",fmt(line)+" w",d,"S");
  }
  for(const group of groups){
   if(!group.label)continue;
-  const xy=pt(group.label),fs=12*unit;
-  out.push("0.027 0.094 0.165 rg",fmt(xy[0]-24*unit)+" "+fmt(xy[1]-10*unit)+
+  const xy=pt(group.label),fs=10*unit;
+  out.push("0.063 0.145 0.227 rg",fmt(xy[0]-24*unit)+" "+fmt(xy[1]-10*unit)+
    " "+fmt(48*unit)+" "+fmt(20*unit)+" re f",
-   pdfRGB(PINK)+" RG",fmt(.65*unit)+" w",fmt(xy[0]-24*unit)+" "+fmt(xy[1]-10*unit)+
+   pdfRGB("#a98b9f")+" RG",fmt(.45*unit)+" w",fmt(xy[0]-24*unit)+" "+fmt(xy[1]-10*unit)+
    " "+fmt(48*unit)+" "+fmt(20*unit)+" re S",
    "1 1 1 rg","BT /F1 "+fmt(fs)+" Tf "+fmt(xy[0]-14*unit)+" "+fmt(xy[1]-4*unit)+
     " Td ("+esc(String(group.hpa))+") Tj ET");
@@ -291,11 +291,11 @@ function drawPDFVectors(overlay,region,w,h,bottom){
  // Keep H/T as editable text within the vector layer, not raster pixels.
  for(const m of pressureCenters(overlay,region)){
   const [cx,cy]=pt([m.lon,m.lat]);
-  const fs=Math.max(24,Math.min(48,w*.031));
+  const fs=Math.max(18,Math.min(34,w*.022));
   out.push("q",
-   pdfRGB("#0c1931")+" RG",
-   pdfRGB(m.type==="T"?"#cf4baf":"#9750c4")+" rg",
-   fmt(Math.max(2.2,fs*.12))+" w",
+   pdfRGB("#102438")+" RG",
+   pdfRGB(m.type==="T"?"#ba859f":"#a599bc")+" rg",
+   fmt(Math.max(1.6,fs*.085))+" w",
    "BT /F1 "+fmt(fs)+" Tf 2 Tr "+
     fmt(cx-fs*.35)+" "+fmt(cy-fs*.34)+" Td ("+m.type+") Tj ET",
    "Q");
