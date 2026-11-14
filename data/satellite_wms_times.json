@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-14T10:41:05Z",
+  "generated_at": "2026-11-14T10:44:21Z",
   "provider": "EUMETSAT",
   "service": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
-  "check_mode": "fast",
+  "check_mode": "deep",
   "products": {
     "geocolour": {
       "layer": "mtg_fd:rgb_geocolour",
@@ -67,9 +67,27 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 21.1,
+      "age_minutes": 24.4,
       "fresh": true,
-      "verified_attempts": 1
+      "verified_attempts": 1,
+      "diagnostics_checked_at": "2026-11-14T10:44:21Z",
+      "full_disk_ok": true,
+      "full_disk_bytes": 317170,
+      "atlantic_ok": true,
+      "atlantic_bytes": 924455,
+      "southwest_ok": true,
+      "southwest_bytes": 1649461,
+      "film_preview_ok": true,
+      "film_preview_bytes": [
+        {
+          "width": 480,
+          "bytes": 276238
+        },
+        {
+          "width": 480,
+          "bytes": 275405
+        }
+      ]
     },
     "dust": {
       "layer": "mtg_fd:rgb_dust",
@@ -132,9 +150,27 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 21.1,
+      "age_minutes": 24.4,
       "fresh": true,
-      "verified_attempts": 1
+      "verified_attempts": 1,
+      "diagnostics_checked_at": "2026-11-14T10:44:21Z",
+      "full_disk_ok": true,
+      "full_disk_bytes": 256043,
+      "atlantic_ok": true,
+      "atlantic_bytes": 1026841,
+      "southwest_ok": true,
+      "southwest_bytes": 1904908,
+      "film_preview_ok": true,
+      "film_preview_bytes": [
+        {
+          "width": 480,
+          "bytes": 300645
+        },
+        {
+          "width": 480,
+          "bytes": 300071
+        }
+      ]
     },
     "cloudtype": {
       "layer": "mtg_fd:rgb_cloudtype",
@@ -197,9 +233,27 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 21.1,
+      "age_minutes": 24.4,
       "fresh": true,
-      "verified_attempts": 1
+      "verified_attempts": 1,
+      "diagnostics_checked_at": "2026-11-14T10:44:21Z",
+      "full_disk_ok": true,
+      "full_disk_bytes": 337441,
+      "atlantic_ok": true,
+      "atlantic_bytes": 849853,
+      "southwest_ok": true,
+      "southwest_bytes": 2022194,
+      "film_preview_ok": true,
+      "film_preview_bytes": [
+        {
+          "width": 480,
+          "bytes": 316486
+        },
+        {
+          "width": 480,
+          "bytes": 316457
+        }
+      ]
     },
     "ir105": {
       "layer": "mtg_fd:ir105_hrfi",
@@ -254,17 +308,36 @@
         "2026-11-14T10:20:00Z"
       ],
       "latest_advertised_time": "2026-11-14T10:20:00Z",
-      "latest_verified_time": "2026-11-14T10:20:00Z",
+      "latest_verified_time": "2026-11-14T10:10:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 65326,
+      "bytes": 64970,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 21.1,
+      "age_minutes": 34.4,
       "fresh": true,
-      "verified_attempts": 1
+      "verified_attempts": 2,
+      "latest_frame_warning": "2026-11-14T10:20:00Z: <urlopen error _ssl.c:983: The handshake operation timed out>",
+      "diagnostics_checked_at": "2026-11-14T10:44:21Z",
+      "full_disk_ok": true,
+      "full_disk_bytes": 71791,
+      "atlantic_ok": true,
+      "atlantic_bytes": 159327,
+      "southwest_ok": true,
+      "southwest_bytes": 238875,
+      "film_preview_ok": true,
+      "film_preview_bytes": [
+        {
+          "width": 480,
+          "bytes": 50432
+        },
+        {
+          "width": 480,
+          "bytes": 50587
+        }
+      ]
     },
     "firetemperature": {
       "layer": "mtg_fd:rgb_firetemperature",
@@ -327,9 +400,27 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 21.1,
+      "age_minutes": 24.4,
       "fresh": true,
-      "verified_attempts": 1
+      "verified_attempts": 1,
+      "diagnostics_checked_at": "2026-11-14T10:44:21Z",
+      "full_disk_ok": true,
+      "full_disk_bytes": 267778,
+      "atlantic_ok": true,
+      "atlantic_bytes": 616447,
+      "southwest_ok": true,
+      "southwest_bytes": 1409627,
+      "film_preview_ok": true,
+      "film_preview_bytes": [
+        {
+          "width": 480,
+          "bytes": 232884
+        },
+        {
+          "width": 480,
+          "bytes": 235958
+        }
+      ]
     },
     "lightning": {
       "layer": "mtg_fd:li_afa",
@@ -392,9 +483,10 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 11.1,
+      "age_minutes": 14.4,
       "fresh": true,
-      "verified_attempts": 1
+      "verified_attempts": 1,
+      "diagnostics_checked_at": "2026-11-14T10:44:21Z"
     }
   },
   "errors": [],
