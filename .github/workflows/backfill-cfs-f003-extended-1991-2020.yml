@@ -41,8 +41,8 @@ jobs:
 
   historical-year:
     # Protect ~360 historical NOAA archives against accidental re-downloads
-    # on code/test changes. Explicit dispatch starts the expensive backfill.
-    if: github.event_name == 'workflow_dispatch'
+    # on code/test changes. Explicit dispatch or a single exact start commit starts the backfill.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit.message == 'Start verified expanded CFS f003 30-year backfill')
     needs: validate
     strategy:
       fail-fast: false
@@ -74,7 +74,7 @@ jobs:
           if-no-files-found: error
 
   finalize:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit.message == 'Start verified expanded CFS f003 30-year backfill')
     needs: historical-year
     runs-on: ubuntu-24.04
     timeout-minutes: 50
