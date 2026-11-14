@@ -101,12 +101,23 @@ def exercise(page, viewport_label, official_xml):
         "() => document.getElementById('satTime').options.length > 1 || document.getElementById('satStatus').textContent.includes('nicht')",
         timeout=25000
     )
+    # Reproduce the reported screenshot: GeoColour/Europe with unverified
+    # observation UTC must still allow independent, real ECMWF contours.
+    page.evaluate("() => window.SatelliteIsobars?.sync({time:null,region:'europe',source:'mtgi1'})")
+    page.wait_for_function(
+        "() => document.querySelectorAll('#satIsobarSvg path').length>0 "
+        "&& !document.getElementById('satIsobarSvg').hasAttribute('hidden')",
+        timeout=15000
+    )
+    evidence["europe_independent_ecmwf_paths"]=page.locator("#satIsobarSvg path").count()
+    evidence["europe_isobar_status"]=page.locator("#satIsobarStatus").inner_text()
+    page.screenshot(path=str(SHOTS/(viewport_label+"-europe-independent-isobars.png")))
     # Explanations may no longer push the satellite image far down the screen.
     # A real browser verifies the closed-by-default panels on desktop AND mobile.
     evidence["map_details_follow_image"] = page.evaluate("""() => {
       const picture=document.getElementById('satPictureFrame');
       const info=document.getElementById('satImageDetails');
-      return !!picture && !!info && picture.compareDocumentPosition(info) & Node.DOCUMENT_POSITION_FOLLOWING
+      return Boolean(picture && info && (picture.compareDocumentPosition(info) & Node.DOCUMENT_POSITION_FOLLOWING))
     }""")
     assert evidence["map_details_follow_image"], "Info panels are not below the satellite raster"
     evidence["collapsed_info_count"]=page.locator("#satImageDetails details:not([open])").count()
@@ -126,17 +137,6 @@ def exercise(page, viewport_label, official_xml):
     assert evidence["collapsed_info_after_interaction"]==3
     assert page.locator("#satIsobarBrief").is_visible(), "Compact isobar status disappeared"
 
-    # Reproduce the reported screenshot: GeoColour/Europe with unverified
-    # observation UTC must still allow independent, real ECMWF contours.
-    page.evaluate("() => window.SatelliteIsobars?.sync({time:null,region:'europe',source:'mtgi1'})")
-    page.wait_for_function(
-        "() => document.querySelectorAll('#satIsobarSvg path').length>0 "
-        "&& !document.getElementById('satIsobarSvg').hasAttribute('hidden')",
-        timeout=15000
-    )
-    evidence["europe_independent_ecmwf_paths"]=page.locator("#satIsobarSvg path").count()
-    evidence["europe_isobar_status"]=page.locator("#satIsobarStatus").inner_text()
-    page.screenshot(path=str(SHOTS/(viewport_label+"-europe-independent-isobars.png")))
     assert evidence["europe_independent_ecmwf_paths"]>=1, "ECMWF Europe overlay absent"
     evidence["initial_product"]="geocolour"
     evidence["times"]=page.locator("#satTime option").count()
