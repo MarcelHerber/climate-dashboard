@@ -1,0 +1,65 @@
+name: GFS Europa 7 Tage · komplette Website und Browser QA
+on:
+  push:
+    branches: [feature/gfs-7day-europe-anomaly-20261114]
+    paths:
+      - ".github/workflows/validate-gfs-weekly-europe.yml"
+      - "gfs_weekly_europe.html"
+      - "gfs_weekly_europe.js"
+      - "gfs_weekly_europe.css"
+      - "tests/test_gfs_weekly_europe_browser.py"
+      - "scripts/build_pages_site.sh"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  full-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install independent scientific and browser test dependencies
+        run: python -m pip install numpy requests eccodes pytest playwright
+      - name: Verify official seven-day lead set, reference and page source syntax
+        run: |
+          python -m pytest -q tests/test_gfs_weekly_europe.py
+          python -m compileall -q scripts/update_gfs_weekly_europe.py
+          node --check gfs_weekly_europe.js
+          bash -n scripts/build_pages_site.sh
+      - name: Build complete actual Climate Dashboard GitHub Pages site (without deploying)
+        run: bash scripts/build_pages_site.sh
+      - name: Check seven-day product, source attribution and navigation were published to staged Pages artifact
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path("_site")
+          for fn in ("gfs_weekly_europe.html","gfs_weekly_europe.js","gfs_weekly_europe.css",
+                     "gfs_analysis_europe/weekly_f003.json","cpc_europe/index.json","cpc_europe/boundaries.png"):
+              assert (root/fn).is_file(),f"Missing Pages asset: {fn}"
+          x=json.loads((root/"gfs_analysis_europe/weekly_f003.json").read_text())
+          assert x["sample_count"]==28 and x["lead_hours"]==list(range(3,166,6))
+          assert x["reference_metadata"]["source_months"]==360
+          assert x["reference_metadata"]["years"]==30
+          assert 'href="gfs_weekly_europe.html"' in (root/"index.html").read_text()
+          assert '["gfs_weekly_europe.html","GFS · 7-Tage-Temperaturanomalie"]' in (root/"mobile_navigation.js").read_text()
+          assert "1991–2020" in (root/"gfs_weekly_europe.html").read_text()
+          print("PASS: full Pages site built with authentic weekly GFS and navigation",flush=True)
+          PY
+      - name: Install Chromium and dependencies to verify rendered map on desktop and phone
+        run: python -m playwright install chromium --with-deps
+      - name: Test real GFS 28-field map with mobile, both projections, and PNG/PDF/CSV
+        run: python tests/test_gfs_weekly_europe_browser.py
+      - name: Preserve real-data QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gfs-weekly-europe-full-QA-${{ github.run_id }}
+          path: |
+            gfs_weekly_europe_qa/
+            _site/gfs_analysis_europe/weekly_f003.json
+          retention-days: 10
+          if-no-files-found: ignore
