@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Stationsrekorde & Wetterumschwünge · Climate Dashboard Deutschland</title>
+<meta name="description" content="DWD-Messdaten: historischer Rekordkalender, Jahreszeitenrekorde und Wetterumschwünge aus echten Stationszeitreihen.">
+<link rel="stylesheet" href="dashboard_theme.css">
+<link rel="stylesheet" href="stations_rekordlabor.css?v=20261114-p3">
+<script defer src="dashboard_theme.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script defer src="t850_vector_export.js?v=20261114-vector-areas-v1"></script>
+<script defer src="stations_rekordlabor_core.js?v=20261114-p3"></script>
+<script defer src="stations_rekordlabor.js?v=20261114-p3"></script>
+</head>
+<body class="rl-body">
+<header class="rl-top">
+<a href="index.html" class="rl-brand">◌ Climate Dashboard Deutschland</a>
+<nav><a href="index.html">Übersicht</a><a href="station_jahresanalyse.html">Stations-Jahresanalyse</a><a href="dekadenrekorde.html">Dekadenrekorde</a></nav>
+</header>
+<main class="rl-main">
+<div class="rl-intro">
+<span class="rl-eyebrow">NEU · PHASE 3 · DWD CDC</span>
+<h1>Stationsrekorde &amp; Wetterumschwünge</h1>
+<p>Wie außergewöhnlich war das Wetter wirklich? Historische Tagesrekorde, jahreszeitliche Erst- und Letztereignisse und echte Stundenmessungen – mit dokumentierter Datenabdeckung.</p>
+</div>
+<section class="rl-panel rl-station" aria-label="Wetterstation wählen">
+<div class="rl-row">
+<div class="rl-grow">
+<label for="rlSearch">DWD-Station suchen</label>
+<input id="rlSearch" type="search" placeholder="z. B. Frankfurt, Saarbrücken, Zugspitze …" autocomplete="off" aria-controls="rlSuggestions">
+</div>
+<div><label for="rlState">Bundesland</label><select id="rlState"><option value="">Alle Bundesländer</option></select></div>
+</div>
+<div id="rlSuggestions" class="rl-suggest" role="listbox" aria-label="Stationen"></div>
+<div id="rlStation" class="rl-meta" aria-live="polite">Lade echten DWD-Stationskatalog …</div>
+</section>
+<div class="rl-tabs" role="tablist" aria-label="Rekordauswertungen">
+<button type="button" id="rlTabCalendar" role="tab" aria-selected="true" aria-controls="rlCalendar">Rekordkalender</button>
+<button type="button" id="rlTabSeasons" role="tab" aria-selected="false" aria-controls="rlSeasons">Jahreszeitenrekorde</button>
+<button type="button" id="rlTabChanges" role="tab" aria-selected="false" aria-controls="rlChanges">Wetterumschwünge</button>
+</div>
+<section class="rl-panel" id="rlCalendar" role="tabpanel" aria-labelledby="rlTabCalendar">
+<div class="rl-heading"><div><h2>Historischer Rekordkalender</h2><p>Für jeden Kalendertag die höchsten und niedrigsten tatsächlich gemessenen Stationswerte.</p></div></div>
+<div class="rl-row">
+<div><label for="rlDay">Kalendertag</label><select id="rlDay"></select></div>
+<div><label for="rlCalMetric">Messgröße</label>
+<select id="rlCalMetric">
+<option value="tmax">Tageshöchsttemperatur (Tmax)</option>
+<option value="tmin">Tagestiefsttemperatur (Tmin)</option>
+<option value="tmean">Tagesmitteltemperatur</option>
+<option value="snow">Schneehöhe</option>
+</select></div>
+<div><label for="rlCalOrder">Rangliste</label>
+<select id="rlCalOrder"><option value="max">Höchste Werte</option><option value="min">Niedrigste Werte</option></select></div>
+</div>
+<div id="rlCalendarMeta" class="rl-meta" role="status">Lade Tagesreihen …</div>
+<div class="rl-kpis" id="rlCalendarKpis"></div>
+<div class="rl-chart"><canvas id="rlChart" role="img" aria-label="Historischer Stationsvergleich je Kalenderjahr"></canvas></div>
+<div class="rl-downloads"><button type="button" data-rl-export="png">PNG</button><button type="button" data-rl-export="pdf">PDF (Vektor)</button><button type="button" data-rl-export="svg">SVG</button><button type="button" data-rl-export="csv">CSV</button></div>
+<h3>Historische Top 10</h3><div class="rl-table-scroll"><table><thead><tr><th>Rang</th><th>Datum</th><th>Wert</th><th>Jahr</th></tr></thead><tbody id="rlCalendarTable"></tbody></table></div>
+<details class="rl-details"><summary>Alle verfügbaren Jahre anzeigen</summary><div class="rl-table-scroll"><table><thead><tr><th>Datum</th><th>Wert</th></tr></thead><tbody id="rlCalendarAllYears"></tbody></table></div></details>
+<p class="rl-hint">Die Rangliste zählt jeden Kalendertag separat; der 29. Februar erscheint ausschließlich in Schaltjahren. Fehlende oder ungültige Tagesmessungen werden ausgelassen. Schneehöhen-Rekorde verwenden nur qualitätsgeprüfte hydrologische Jahre.</p>
+</section>
+<section class="rl-panel" id="rlSeasons" role="tabpanel" aria-labelledby="rlTabSeasons" hidden>
+<div class="rl-heading"><div><h2>Jahreszeitenrekorde</h2><p>Wann begann die Hitze? Wann gab es den letzten Frost – und wie lange hielt die Schneedecke?</p></div></div>
+<div class="rl-row">
+<div class="rl-grow"><label for="rlSeasonMetric">Ereignis</label><select id="rlSeasonMetric">
+<optgroup label="Frost & Eis">
+<option value="frostSpring">Spätester Frost im Frühjahr (Tmin &lt; 0 °C)</option>
+<option value="frostAutumn">Frühester Frost im Herbst (Tmin &lt; 0 °C)</option>
+<option value="iceLast">Spätester Eistag (Tmax &lt; 0 °C)</option>
+<option value="iceFirst">Frühester Eistag im Herbst (Tmax &lt; 0 °C)</option>
+</optgroup><optgroup label="Sommer & Hitze">
+<option value="summerFirst">Frühester Sommertag (Tmax ≥ 25 °C)</option>
+<option value="summerLast">Spätester Sommertag (Tmax ≥ 25 °C)</option>
+<option value="hotFirst">Frühester heißer Tag (Tmax ≥ 30 °C)</option>
+<option value="hotLast">Spätester heißer Tag (Tmax ≥ 30 °C)</option>
+<option value="hotRun">Längste Hitzeperiode (Tmax ≥ 30 °C)</option>
+<option value="frostRun">Längste Frostperiode (Tmin &lt; 0 °C)</option>
+</optgroup><optgroup label="Schnee">
+<option value="snowFirst">Erste messbare Schneedecke ab November (≥ 1 cm)</option>
+<option value="snowLast">Letzte messbare Schneedecke ab Februar (≥ 1 cm)</option>
+<option value="snowRun">Längste ununterbrochene Schneedecke</option>
+</optgroup>
+</select></div>
+</div>
+<div id="rlSeasonMeta" class="rl-meta" role="status">Daten laden …</div>
+<div class="rl-kpis" id="rlSeasonKpis"></div>
+<div class="rl-chart"><canvas id="rlSeasonChart" role="img" aria-label="Historische Jahreszeitenrekorde nach Jahr"></canvas></div>
+<div class="rl-downloads"><button type="button" data-rl-export="png">PNG</button><button type="button" data-rl-export="pdf">PDF (Vektor)</button><button type="button" data-rl-export="svg">SVG</button><button type="button" data-rl-export="csv">CSV</button></div>
+<h3>Rekord-Rangliste</h3><div class="rl-table-scroll"><table><thead><tr><th>Rang</th><th>Jahr</th><th>Datum / Zeitraum</th><th>Messwert / Dauer</th></tr></thead><tbody id="rlSeasonTable"></tbody></table></div>
+<p class="rl-hint">Für Temperaturereignisse werden nur Jahre mit mindestens 95 % gültigen Tagesmessungen im jeweiligen Suchfenster berücksichtigt. Schneereihen benötigen ein als vollständig klassifiziertes hydrologisches Jahr. „Erster Schnee“ bedeutet erste gemessene Schneedecke – nicht erster Schneefall.</p>
+</section>
+<section class="rl-panel" id="rlChanges" role="tabpanel" aria-labelledby="rlTabChanges" hidden>
+<div class="rl-heading"><div><h2>Die größten Wetterumschwünge</h2><p>Historische Temperatur- und Druckänderungen sowie markante Winddrehungen aus exakten DWD-Stundenmessungen.</p></div></div>
+<div class="rl-banner" id="rlChangesCoverage">Für die Stundenanalyse wird ein eigenständiges DWD-Archiv aufgebaut. Nur dort nachgewiesene Stationen werden angeboten.</div>
+<div class="rl-row">
+<div class="rl-grow"><label for="rlChangeStation">Station im Stundenmessarchiv</label><select id="rlChangeStation"></select></div>
+<div><label for="rlChangeMetric">Messgröße</label><select id="rlChangeMetric">
+<option value="temperature">Temperaturänderung</option>
+<option value="pressure">Luftdruckänderung (auf Meereshöhe reduziert)</option>
+<option value="wind_direction">Windrichtungsänderung (beide Werte ≥ 3 m/s)</option>
+</select></div>
+<div><label for="rlChangeHours">Zeitfenster</label><select id="rlChangeHours">
+<option value="1">1 Stunde</option><option value="3">3 Stunden</option><option value="6">6 Stunden</option><option value="12">12 Stunden</option><option value="24" selected>24 Stunden</option></select></div>
+<div><label for="rlChangeDirection">Art der Änderung</label><select id="rlChangeDirection"><option value="up">Größter Anstieg / Drehwinkel</option><option value="down">Größter Rückgang</option></select></div>
+</div>
+<div class="rl-meta" id="rlChangeMeta" role="status">Warte auf verifiziertes Stundenarchiv …</div>
+<div class="rl-kpis" id="rlChangeKpis"></div>
+<div class="rl-chart"><canvas id="rlChangeChart" role="img" aria-label="Messwerte vor und nach dem größten Wetterumschwung"></canvas></div>
+<div class="rl-downloads"><button type="button" data-rl-export="png">PNG</button><button type="button" data-rl-export="pdf">PDF (Vektor)</button><button type="button" data-rl-export="svg">SVG</button><button type="button" data-rl-export="csv">CSV</button></div>
+<h3>Historische Top 20</h3><div class="rl-table-scroll"><table><thead><tr><th>Rang</th><th>Zeitpunkt (UTC)</th><th>Änderung</th><th>Ausgangswert → Endwert</th></tr></thead><tbody id="rlChangeTable"></tbody></table></div>
+<p class="rl-hint">Verglichen werden nur tatsächlich vorhandene Messwerte in exakt gleichem Abstand. Keine Interpolation über Lücken. Die Windrichtung wird nur bei mindestens 3 m/s an beiden Zeitpunkten bewertet; maximale Richtungsänderung: 180°. Die veröffentlichten Ranglisten gelten ausschließlich für die Stationen und Zeiträume des Stundenmessarchivs, nicht automatisch deutschlandweit.</p>
+</section>
+<footer class="rl-footer">Quelle: Deutscher Wetterdienst (DWD), Climate Data Center. Originalmesswerte, keine synthetischen Rekorde. Archivabdeckung und vorläufige Daten werden ausgewiesen. <a href="https://opendata.dwd.de/climate_environment/CDC/" target="_blank" rel="noopener">DWD Open Data</a></footer>
+</main></body></html>
