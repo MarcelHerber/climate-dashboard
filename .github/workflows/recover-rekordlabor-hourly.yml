@@ -1,0 +1,43 @@
+name: DWD Stundenstationen · bereits geprüfte Vollarchive veröffentlichen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/recover-rekordlabor-hourly.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  recover-previous-shards:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/merge_rekordlabor_hourly.py
+            scripts/publish_rekordlabor_hourly.sh
+            tests/test_rekordlabor_hourly_merge.py
+            data/rekordlabor/weather_turns
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Read completed DWD shard artifacts from prior eight-part archive run
+        uses: actions/download-artifact@v4
+        with:
+          run-id: 43605736658
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          pattern: hourly-shard-*
+          merge-multiple: false
+          path: _hourly_parts
+      - name: Verify complete recovered archive and station validation
+        run: |
+          python -m unittest discover -s tests -p test_rekordlabor_hourly_merge.py -v
+          python -u scripts/publish_rekordlabor_hourly.sh _hourly_parts 8
