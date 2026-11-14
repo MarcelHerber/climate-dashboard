@@ -1,0 +1,12 @@
+/* Independent NOAA GFS 7-day Europe anomaly map: responsive, print-friendly. */
+.weekly-source-note{border-left:3px solid #2e7da3;background:#eef6fb;color:#254a62;padding:11px 13px;border-radius:7px;margin:0 0 14px;font-size:.87rem}
+.weekly-map-frame{background:#e9f0f5}
+#weekMap{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+#weekMapLabel{pointer-events:none}
+.weekly-country-table{max-height:390px}
+#weekLegend .weekly-gradient{width:100%;height:21px;border-radius:5px;border:1px solid #8299ae}
+#weekLegend .weekly-steps{display:flex;justify-content:space-between;gap:4px;font-size:.74rem;color:var(--cpc-muted);margin-top:4px}
+#weekLegend small{display:block;color:var(--cpc-muted);font-size:.76rem;margin-top:4px}
+@media(max-width:720px){.weekly-source-note{font-size:.8rem;padding:9px 10px}#weekMapLabel{font-size:.6rem}#weekLegend .weekly-steps{font-size:.6rem}}
+@media(prefers-color-scheme:dark){.weekly-source-note{background:#243f52;color:#c7e1f3}}
+@media print{.cpc-export,.cpc-back,.cpc-fields,#cd-mobile-navigation,.weekly-country-table{display:none!important}.weekly-map-frame,#weekMap{-webkit-print-color-adjust:exact;print-color-adjust:exact}.cpc-panel{break-inside:avoid}.cpc-method{display:none!important}}
