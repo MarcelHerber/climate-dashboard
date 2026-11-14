@@ -235,9 +235,9 @@ if [[ -s gfs_analysis_europe/index_f003.json ]]; then
   mkdir -p _site/gfs_analysis_europe
   cp gfs_analysis_europe/index_f003.json _site/gfs_analysis_europe/index_f003.json
   python - <<'PY'
-import base64, json
+import base64, json, sys
+from array import array
 from pathlib import Path
-import numpy as np
 x=json.loads(Path("_site/gfs_analysis_europe/index_f003.json").read_text(encoding="utf-8"))
 assert x["schema"]==1 and x["type"]=="model_forecast_not_observation"
 assert x["provider"]=="NOAA NCEP GFS 0.5° forecast f003"
@@ -251,8 +251,11 @@ assert m.get("reference_version")=="cfsr-cfsv2-t2m-f003-v1"
 assert m.get("source_months")==360 and m.get("years")==30
 raw=base64.b64decode(x["anomaly_q10_b64"])
 assert len(raw)==len(x["dates"])*140*76*2
-arr=np.frombuffer(raw,dtype="<i2")
-assert int(np.count_nonzero(arr==-32768))<int(arr.size*0.01)
+arr=array("h")
+arr.frombytes(raw)
+if sys.byteorder!="little":
+    arr.byteswap()
+assert sum(value==-32768 for value in arr)<len(arr)*0.01
 print("Verified separate GFS 0.5° +3h anomalies from 30-year CFSR/CFSv2 f003 normal")
 PY
 else
