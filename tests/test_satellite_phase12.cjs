@@ -67,3 +67,28 @@ test("Decoded frame cache is bounded and keyed by the exact verified WMS request
  assert.match(main,/savePreview\(url,im\)/);
  assert.match(main,/aus Vorschaucache/);
 });
+
+test("Long satellite explanations live below the picture in three closed, accessible panels",()=>{
+ const main=fs.readFileSync("satelliten.js","utf8");
+ const css=fs.readFileSync("satelliten.css","utf8");
+ const picture=html.indexOf('id="satPictureFrame"');
+ const details=html.indexOf('id="satImageDetails"');
+ assert.ok(picture>0&&details>picture,"Detailed descriptions must follow the real satellite picture");
+ for(const section of ["satProductDetails","satDataDetails","satTechDetails"]){
+  assert.match(html,new RegExp('<details class="sat-image-accordion" id="'+section+'">'));
+ }
+ for(const id of ["satProductGuide","satIsobarStatus","satAdditionalStatus"]){
+  const match=html.match(new RegExp('id="'+id+'"','g'))||[];
+  assert.equal(match.length,1,id+" preserved exactly once for live update");
+  assert.ok(html.indexOf('id="'+id+'"')>details,id+" must be below the image");
+ }
+ for(const phrase of ["Der Film lädt die gewählten Aufnahmen","Zum Verschieben das vergrößerte Bild","Standardmäßig werden 5-hPa-Isobaren"]){
+  assert.ok(html.includes(phrase));
+  assert.ok(!html.slice(0,picture).includes(phrase),"Long note displayed before the picture: "+phrase);
+ }
+ assert.match(html,/id="satIsobarBrief" role="status" aria-live="polite"/);
+ assert.match(main,/function initIsobarBrief\(\)/);
+ assert.match(main,/new MutationObserver\(update\)/);
+ assert.match(css,/\.sat-image-accordion summary:focus-visible/);
+ assert.match(css,/@media\(max-width:650px\)/);
+});
