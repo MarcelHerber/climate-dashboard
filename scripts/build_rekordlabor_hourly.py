@@ -85,7 +85,7 @@ def rows_from_zip(blob:bytes,parameter:str)->dict[str,object]:
                         v=numeric(row.get(headers[column]))
                         if v is None:continue
                         if parameter=="temperature" and not -70<=v<=65:continue
-                        if parameter=="pressure" and not 800<=v<=1100:continue
+                        if parameter=="pressure" and not 930<=v<=1065:continue
                         if parameter=="wind_direction" and not 0<=v<=360:continue
                         if parameter=="wind_direction":
                             speed=numeric(row.get(headers.get("F","F")))
@@ -113,12 +113,30 @@ def plot_value(parameter,value):
 def is_significant(parameter,direction,change):
     return change is not None and (direction!="down" or parameter!="wind_direction")
 
+def physically_continuous_pressure(data,start,end,hours):
+    """Pressure changes must have fully observed, physically plausible hours.
+    This rejects one-hour instrument spikes and isolated bad 1990s P0 values.
+    We conservatively exclude unverified candidates, never interpolate them.
+    """
+    previous=data.get(start)
+    if previous is None:return False
+    for h in range(1,hours+1):
+        current=data.get(step(start,h))
+        if current is None or abs(current-previous)>8.0:return False
+        previous=current
+    return True
+
 def top_events(data:dict,parameter:str,hours:int,direction:str):
     counters=0;queue=[]
     for end,after in data.items():
         before=data.get(step(end,-hours))
         if before is None:continue
         change=delta(parameter,before,after)
+        if parameter=="pressure":
+            # DWD historical P0 has sparse spurious 109x hPa hours in early years.
+            # No real-world 100 hPa jumps are admitted to the record ranking.
+            if abs(change)>55 or not physically_continuous_pressure(data,step(end,-hours),end,hours):
+                continue
         if not is_significant(parameter,direction,change):continue
         counters+=1
         score=change if direction=="up" else -change
@@ -173,7 +191,10 @@ def build_station(sid,listing):
             years={"start":iso(dates[0]),"end":iso(dates[-1])}
             d={"source":"DWD CDC · "+SOURCES[parameter][0]+" · "+SOURCES[parameter][2],
                 "source_url":url,"unit":SOURCES[parameter][3],"period":years,
-                "observed_hours":len(data),"windows":{}}
+                "observed_hours":len(data),"windows":{},
+                "quality_notes":("Sea-level pressure: 930–1065 hPa plus <=8 hPa/hour continuous hourly validation, <=55 hPa per window" if parameter=="pressure" else
+                   "Wind directions require both hourly mean speeds >=3 m/s; no gusts" if parameter=="wind_direction" else
+                   "Temperature valid only at measured UTC hours; no filled gaps")}
             for hours in HOURS:
                 up=record_events(data,parameter,hours,"up")
                 down=record_events(data,parameter,hours,"down") if parameter!="wind_direction" else {"coverage":{"pairs":up["coverage"]["pairs"]},"events":[]}
