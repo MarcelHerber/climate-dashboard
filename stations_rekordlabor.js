@@ -198,7 +198,7 @@ function seasonRender(){
    {value:count(records.length),label:"Ausgewertete Jahre mit Ereignis"}]);
  tableRows("rlSeasonTable",top.map((r,i)=>"<tr><td>"+(i+1)+"</td><td>"+r.year+"</td><td>"+
   esc(run?C.readable(r.start)+" bis "+C.readable(r.end):C.readable(r.date))+
-  "</td><td>"+(run?r.days+" Tage":num(r.value)+" °C"+(r.atBoundary?" · bereits vorhanden":""))+"</td></tr>"));
+  "</td><td>"+(run?r.days+" Tage":num(r.value)+(snow?" cm":" °C")+(r.atBoundary?" · bereits vorhanden":""))+"</td></tr>"));
  const values=byYear.map(r=>run?r.days:snow?r.dayOfPeriod:r.dayOfYear);
  state.csv=[["Jahr","Ereignis","Datum/Start","Ende","Dauer/Wert", "Tag-im-Zeitraum"],
    ...byYear.map(r=>[r.year,label,r.date||r.start||"",r.end||"",run?r.days:r.value,
@@ -255,6 +255,12 @@ function weatherRender(){
  const metric=$("rlChangeMetric").value,hours=$("rlChangeHours").value;
  const dir=metric==="wind_direction"?"up":$("rlChangeDirection").value;
  const group=doc.metrics?.[metric],rank=group?.windows?.[hours]?.[dir];
+ // Historical P0 contains sparse implausible 109x hPa spikes; the revised
+ // CDC audit certifies contiguous hourly differences and source QC.
+ if(metric==="pressure"&&!group?.quality_notes?.includes("930")){
+   message("rlChangeMeta","Historische Luftdruckrekorde dieser Station werden erneut geprüft. Ältere, unvalidierte P0-Ausreißer werden nicht als Messrekorde ausgegeben.");
+   tableRows("rlChangeTable",[]);kpis("rlChangeKpis",[]);destroyChart();setExportState(false);return;
+ }
  if(metric==="wind_direction"){
   $("rlChangeDirection").value="up";$("rlChangeDirection").disabled=true;
  }else $("rlChangeDirection").disabled=false;
