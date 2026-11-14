@@ -1,0 +1,86 @@
+name: Phase 3 · DWD-Stundenrekorde aus amtlichen Originalarchiven
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/build_rekordlabor_hourly.py
+      - tests/test_rekordlabor_hourly.py
+      - .github/workflows/update-rekordlabor-hourly.yml
+  schedule:
+    - cron: "25 5 1 * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rekordlabor-hourly-publication
+  cancel-in-progress: false
+
+jobs:
+  historical-hourly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 38
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Test exact DWD hourly timestamps and gaps
+        run: |
+          python -m unittest discover -s tests -p test_rekordlabor_hourly.py -v
+      - name: Fetch and validate actual DWD CDC hourly history
+        run: |
+          python -u scripts/build_rekordlabor_hourly.py --out data/rekordlabor/weather_turns
+      - name: Verify no synthetic or unsupported hourly ranks are published
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("data/rekordlabor/weather_turns")
+          idx=json.loads((p/"index.json").read_text(encoding="utf8"))
+          assert idx["ready"] and idx["stations"]
+          for station in idx["stations"]:
+              d=json.loads((p/(station["id"]+".json")).read_text(encoding="utf8"))
+              assert d["station_id"]==station["id"]
+              assert all(x in ("temperature","pressure","wind_direction") for x in d["metrics"])
+              for name,source in d["metrics"].items():
+                  assert "opendata.dwd.de" in source["source_url"]
+                  assert source["period"]["start"]<=source["period"]["end"]
+                  for width,period in source["windows"].items():
+                      assert period["coverage"]["pairs"]>=1
+                      for side in ("up","down"):
+                          for x in period[side]:
+                              assert x["start"]<x["end"]
+                              assert x["trace"]
+          print("VERIFIED DWD HOURLY RECORDS",len(idx["stations"]))
+          PY
+      - name: Publish only the validated DWD hourly snapshots on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/rekordlabor/weather_turns
+          if git diff --cached --quiet; then
+            echo "Verified DWD hourly snapshot unchanged."
+            exit 0
+          fi
+          git commit -m "data: verified DWD CDC original hourly weather-change record archive [skip ci]"
+          for attempt in 1 2 3 4; do
+            git pull --rebase origin main
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 4))
+          done
+          echo "Verified data built but could not be pushed to main." >&2
+          exit 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rekordlabor-dwd-original-hourly-archive
+          path: data/rekordlabor/weather_turns/
+          retention-days: 14
+          if-no-files-found: warn
