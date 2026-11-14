@@ -12,6 +12,7 @@ on:
       - "satellite_hd.js"
       - "tests/test_satellite_noaa_export.cjs"
       - "tests/test_satellite_front_style.cjs"
+      - "tests/test_satellite_front_pause.cjs"
       - "tests/fixtures/noaa_wpc_verified_20261114.json"
       - "scripts/test_satellite_noaa_export_browser.py"
       - ".github/workflows/satellite-noaa-front-exports-qa.yml"
@@ -28,6 +29,7 @@ on:
       - "satellite_hd.js"
       - "tests/test_satellite_noaa_export.cjs"
       - "tests/test_satellite_front_style.cjs"
+      - "tests/test_satellite_front_pause.cjs"
       - "scripts/test_satellite_noaa_export_browser.py"
   workflow_dispatch:
 permissions:
@@ -52,6 +54,7 @@ jobs:
       - name: Real historical NOAA vector geometry and PNG/PDF/GIF regression tests
         run: |
           node --test tests/test_satellite_noaa_fronts.cjs
+          node --test tests/test_satellite_front_pause.cjs
           node --test tests/test_satellite_front_style.cjs
           node --test tests/test_satellite_noaa_export.cjs
           node --test tests/test_satellite_map_export.cjs
