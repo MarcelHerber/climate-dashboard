@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - scripts/build_rekordlabor_daily_rain_sun.py
+      - tests/test_rekordlabor_daily_coverage.py
       - .github/workflows/update-rekordlabor-daily-kl.yml
   schedule:
     - cron: "15 6 2 * *"
@@ -28,6 +29,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - name: Unit tests for official station selection and authentic DWD observations
+        run: python -m unittest discover -s tests -p test_rekordlabor_daily_coverage.py -v
       - name: Fetch and decode only genuine DWD CDC historical daily KL archives
         run: python -u scripts/build_rekordlabor_daily_rain_sun.py --out data/rekordlabor/calendar
       - name: Validate original rain/sun provenance, years and packed data
@@ -37,7 +40,8 @@ jobs:
           import base64,json,struct,zlib,datetime as dt
           root=Path("data/rekordlabor/calendar")
           idx=json.loads((root/"index.json").read_text(encoding="utf8"))
-          assert idx["ready"] and idx["stations"]
+          assert idx["ready"] and len(idx["stations"])>=30, "At least 30 verified national DWD KL stations required"
+          assert len(idx.get("selection",{}).get("states",{}))>=14, "State-wide station selection absent"
           for st in idx["stations"]:
               doc=json.loads((root/(st["id"]+".json")).read_text(encoding="utf8"))
               assert doc["station_id"]==st["id"] and doc["source_url"].startswith("https://opendata.dwd.de/")
