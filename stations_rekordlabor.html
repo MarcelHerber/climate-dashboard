@@ -13,8 +13,8 @@
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script defer src="t850_vector_export.js?v=20261114-vector-areas-v1"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-<script defer src="stations_rekordlabor_core.js?v=20261114-calendar-y-auto-range"></script>
-<script defer src="stations_rekordlabor.js?v=20261114-calendar-y-auto-range"></script>
+<script defer src="stations_rekordlabor_core.js?v=20261114-season-linear-trend-v1"></script>
+<script defer src="stations_rekordlabor.js?v=20261114-season-linear-trend-v1"></script>
 </head>
 <body class="rl-body">
 <header class="rl-top">
@@ -95,7 +95,15 @@
 </div>
 <div id="rlSeasonMeta" class="rl-meta" role="status">Daten laden …</div>
 <div class="rl-kpis" id="rlSeasonKpis"></div>
-<div class="rl-chart"><canvas id="rlSeasonChart" role="img" aria-label="Historische Jahreszeitenrekorde nach Jahr"></canvas></div>
+<div class="rl-trend-control">
+<label for="rlSeasonTrend" class="rl-trend-toggle">
+<input type="checkbox" id="rlSeasonTrend" disabled>
+<span class="rl-trend-dash" aria-hidden="true"></span>
+Trendlinie anzeigen
+</label>
+<span class="rl-trend-note" id="rlSeasonTrendInfo" role="status">Trendlinie erst mit auswertbaren Jahreswerten verfügbar</span>
+</div>
+<div class="rl-chart"><canvas id="rlSeasonChart" role="img" aria-label="Historische Jahreszeitenrekorde nach Jahr, mit optionaler linearer Trendlinie"></canvas></div>
 <div class="rl-downloads"><button type="button" data-rl-export="png">PNG</button><button type="button" data-rl-export="pdf">PDF (Vektor)</button><button type="button" data-rl-export="svg">SVG</button><button type="button" data-rl-export="csv">CSV</button></div>
 <h3>Rekord-Rangliste</h3><div class="rl-table-scroll"><table><thead><tr><th>Rang</th><th>Jahr</th><th>Datum / Zeitraum</th><th>Messwert / Dauer</th></tr></thead><tbody id="rlSeasonTable"></tbody></table></div>
 <p class="rl-hint">Für Temperaturereignisse werden nur Jahre mit mindestens 95 % gültigen Tagesmessungen im jeweiligen Suchfenster berücksichtigt. Schneereihen benötigen ein als vollständig klassifiziertes hydrologisches Jahr. „Erster Schnee“ bedeutet erste gemessene Schneedecke – nicht erster Schneefall.</p>
