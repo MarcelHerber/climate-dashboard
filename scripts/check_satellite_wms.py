@@ -31,6 +31,9 @@ TIMEOUT = 18
 MAX_XML = 64 * 1024 * 1024
 NOW = datetime.now(timezone.utc)
 OUT = Path("data/satellite_wms_times.json")
+DISCOVERY = Path("data/satellite_layer_discovery_latest.json")
+EXTRA_CATEGORIES = ("cloud_phase", "true_colour", "visible_06", "airmass",
+                    "night_microphysics", "convection", "ash", "water_vapour")
 
 
 def url(params):
@@ -160,13 +163,56 @@ def last_report():
         return {}
 
 
+def audited_additional_layers(report=None, now=NOW):
+    """Only previously PNG-tested MTG layers can join the frequent UTC monitor.
+
+    The daily discovery decides *which layer names exist*; the frequent health
+    monitor then independently verifies each newer official GetMap timestamp.
+    Historical MSG layers and untested guesses are never substituted.
+    """
+    if report is None:
+        try:
+            report = json.loads(DISCOVERY.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+    if not report.get("capabilities_ok"):
+        return {}
+    try:
+        checked = parse_date(report["checked_at"])
+        if checked is None or not timedelta(0) <= now - checked <= timedelta(hours=30):
+            return {}
+    except (KeyError, ValueError, TypeError):
+        return {}
+    approved = {}
+    for category in EXTRA_CATEGORIES:
+        for item in report.get("categories", {}).get(category, []):
+            layer = item.get("layer")
+            if not (item.get("map_ok") and item.get("tested") and item.get("recent")
+                    and isinstance(layer, str)
+                    and re.fullmatch(r"mtg_fd:[a-z0-9_]+", layer)):
+                continue
+            try:
+                stamp = parse_date(item["latest_verified_time"])
+                if stamp is None or not timedelta(0) <= checked - stamp <= timedelta(minutes=90):
+                    continue
+            except (KeyError, ValueError, TypeError):
+                continue
+            approved["extra_" + category] = layer
+            break
+        if len(approved) >= 5:  # bounded additional WMS probes per monitor run
+            break
+    return approved
+
+
 def main(deep=False):
     previous = last_report()
+    monitored = {**LAYERS, **audited_additional_layers()}
     result = {
         "schema": 1, "generated_at": NOW.isoformat(timespec="seconds").replace("+00:00", "Z"),
         "provider": "EUMETSAT", "service": SERVICE, "capabilities_ok": False,
         "check_mode": "deep" if deep else "fast",
         "products": {}, "errors": [],
+        "audited_additional_products": [k for k in monitored if k.startswith("extra_")],
     }
     root = None
     try:
@@ -229,7 +275,9 @@ def main(deep=False):
         entry["diagnostics_checked_at"] = result["generated_at"]
         # Lightning AFA is only an EPSG:4326 overlay. Skip unrelated RGB
         # full-disk, regional and film probes to protect the upstream WMS.
-        if key == "lightning":
+        if key == "lightning" or key.startswith("extra_"):
+            # Extras are already discovery-audited; no repetitive full-disk,
+            # regional and film stress tests during daily deep checks.
             return key, entry
         try:
             native = test_png(layer, entry["latest_verified_time"], full_disk=True)
@@ -279,7 +327,7 @@ def main(deep=False):
     # Deep diagnostics run once a day or by explicit dispatch only.
     # Never exceed two simultaneous checks against the upstream WMS.
     with ThreadPoolExecutor(max_workers=2) as pool:
-        for key, entry in pool.map(check_product, LAYERS.items()):
+        for key, entry in pool.map(check_product, monitored.items()):
             result["products"][key] = entry
     fresh = sum(bool(v.get("map_ok") and v.get("fresh"))
                 for k, v in result["products"].items() if k != "lightning")
