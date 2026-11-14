@@ -41,3 +41,25 @@ test("Radar uses matched past timestamps and genuine Mercator reprojection",()=>
  assert.match(source,/satFilmStage/);
  assert.match(source,/rainviewer\.com/);
 });
+
+test("Additional FCI products are disclosed only after real MTG GetMap checks",()=>{
+ const main=fs.readFileSync("satelliten.js","utf8");
+ const audit=fs.readFileSync("scripts/audit_satellite_layers.py","utf8");
+ assert.match(main,/report\.capabilities_ok/);
+ assert.match(main,/x\.map_ok&&x\.tested&&x\.recent/);
+ assert.match(main,/\^mtg_fd:/);
+ for(const name of ["extra_airmass","extra_night_microphysics","extra_convection",
+  "extra_cloud_phase","extra_true_colour","extra_visible_06"])
+  assert.ok(main.includes(name),"Missing RGB guide: "+name);
+ assert.ok(audit.includes('"true_colour"')&&audit.includes('"visible_06"'));
+ assert.ok(html.includes('id="satProductGuide"'));
+ assert.ok(html.includes("Nicht bestätigte RGBs bleiben deaktiviert"));
+});
+test("Decoded frame cache is bounded and keyed by the exact verified WMS request",()=>{
+ const main=fs.readFileSync("satelliten.js","utf8");
+ assert.match(main,/const PREVIEW_CACHE_LIMIT=/);
+ assert.match(main,/const PREVIEW_CACHE_TTL=15\*60\*1000/);
+ assert.match(main,/previewCache\.get\(url\)/);
+ assert.match(main,/savePreview\(url,im\)/);
+ assert.match(main,/aus Vorschaucache/);
+});
