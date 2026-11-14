@@ -267,3 +267,49 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
  font-size:13px;line-height:1.6;max-width:none!important;
 }
 @media(max-width:650px){.sat-product-guide{font-size:12px;padding:10px 11px}}
+
+
+/* Long explanations live below the actual EUMETSAT image, never in front
+   of the film controls or between the zoom controls and the raster. */
+.sat-inline-status{
+ display:flex;align-items:center;flex-wrap:wrap;gap:5px 15px;
+ color:var(--sat-muted);font-size:12px;line-height:1.5;
+ margin:8px 0 3px;
+}
+.sat-inline-status a{color:var(--sat-link);font-weight:650}
+.sat-inline-status [data-kind="attention"]{color:var(--sat-text);font-weight:700}
+.sat-image-details{margin:18px 0 0;padding-top:12px;border-top:1px solid var(--sat-border)}
+.sat-image-details h3{font-size:14px;font-weight:750;margin:0 0 10px;color:var(--sat-text)}
+.sat-image-accordion{border:1px solid var(--sat-border);background:var(--sat-bg);border-radius:9px;margin:0 0 8px;overflow:hidden}
+.sat-image-accordion summary{
+ display:flex;align-items:center;gap:7px 18px;flex-wrap:wrap;
+ position:relative;cursor:pointer;padding:12px 38px 12px 13px;
+ color:var(--sat-text);font-size:13px;font-weight:750;line-height:1.4;
+ list-style:none;min-height:44px;
+}
+.sat-image-accordion summary::-webkit-details-marker{display:none}
+.sat-image-accordion summary::after{
+ content:"⌄";position:absolute;right:15px;top:50%;transform:translateY(-57%);
+ font-size:20px;font-weight:500;color:var(--sat-muted);
+}
+.sat-image-accordion[open] summary::after{transform:translateY(-43%) rotate(180deg)}
+.sat-image-accordion summary:hover{background:var(--sat-button)}
+.sat-image-accordion summary:focus-visible{outline:2px solid var(--sat-link);outline-offset:-3px}
+.sat-image-accordion summary small{font:inherit;font-size:11px;font-weight:450;color:var(--sat-muted)}
+.sat-info-content{padding:2px 14px 14px;border-top:1px solid var(--sat-border)}
+.sat-info-content p{font-size:12px;line-height:1.65;max-width:none!important;margin:9px 0!important;overflow-wrap:anywhere}
+.sat-info-content .sat-product-guide{
+ padding:0;margin:12px 0!important;border:0;border-radius:0;background:transparent;
+ font-size:13px;line-height:1.6;
+}
+.sat-info-content .sat-isobar-status{white-space:normal}
+.sat-info-content .sat-isobar-explainer{font-size:12px}
+.sat-info-content a{overflow-wrap:anywhere}
+@media(max-width:650px){
+ .sat-inline-status{font-size:11px}
+ .sat-image-accordion summary{display:block;padding:12px 36px 12px 12px}
+ .sat-image-accordion summary span{display:block}
+ .sat-image-accordion summary small{display:block;margin-top:2px;font-size:11px}
+ .sat-info-content{padding:2px 11px 12px}
+ .sat-info-content p{font-size:11.5px}
+}
