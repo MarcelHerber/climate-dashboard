@@ -76,7 +76,7 @@ function layout(feature,project,unit=1){
  if(raw.length<2)return null;
  const points=raw.map(project),commands=curved(points,unit);
  const len=points.slice(1).reduce((n,p,i)=>n+Math.hypot(p[0]-points[i][0],p[1]-points[i][1]),0);
- const type=feature.type,r=6.2*unit,space=34*unit;
+ const type=feature.type,r=5.8*unit,space=44*unit;
  const rawSide=feature.symbol_orientation_verified===true&&
   ["left","right"].includes(feature.symbol_side)?(feature.symbol_side==="right"?-1:1):1;
  const verified=feature.symbol_orientation_verified===true&&
