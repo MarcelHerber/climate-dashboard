@@ -13,7 +13,7 @@
       ["feiertagsextremwerte.html","Feiertags-Extreme"]]},
     {id:"stations",name:"Stationen",items:[
       ["current","Aktuelle DWD-Stationen"],["stationObservations","Stations-Messwerte"],
-      ["stationProfile","Stationsprofil"],["station_jahresanalyse.html","Jahresdiagramme · DWD-Stationen"],["stationPrecip","Stationsniederschlag"],
+      ["stationProfile","Stationsprofil"],["station_jahresanalyse.html","Jahresdiagramme · DWD-Stationen"],["stations_rekordlabor.html","Stationsrekorde & Wetterumschwünge"],["stationPrecip","Stationsniederschlag"],
       ["stationSnow","Schneehöhe"],["stationClimateDays","Stations-Kenntage"],
       ["stationHeatwaves","Stations-Hitzewellen"],["maps","Stationskarten"],["records","Stationsrekorde"]]},
     {id:"europe",name:"Europa & Prognosen",items:[
