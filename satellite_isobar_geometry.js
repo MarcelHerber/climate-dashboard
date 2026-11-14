@@ -161,7 +161,6 @@ function detectPressureSystems(contours,bbox,{minRings=3,maxSystems=7,minSeparat
  // contour at >=1015 hPa is a genuine MSLP high by source contour winding,
  // even when the next 5-hPa threshold is not reached (e.g. 1020-1024 hPa).
  // Do not mark small islands/noise, clipped systems, or a low's outer edge.
- for(const ring of rings){
  // A single, CLOSED clockwise ECMWF/contourpy ring can already
  // enclose a genuine secondary LOW, just as one anticlockwise 1020-hPa
  // contour can mark a broad high. The previous three-ring minimum missed,
@@ -188,7 +187,7 @@ function detectPressureSystems(contours,bbox,{minRings=3,maxSystems=7,minSeparat
    center:ring.center,rings:1,windingVerified:true,
    detection:"closed-single-low"});
  }
-
+ for(const ring of rings){
   if(!ring.higherInside||ring.hpa<1015||
      ring.area<4500||Math.sqrt(ring.area)<60)continue;
   const smallerLower=rings.some(inner=>inner!==ring&&
