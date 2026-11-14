@@ -3,7 +3,7 @@
 No route interception, no mocked results, no synthetic station observations.
 """
 from __future__ import annotations
-import json, time, urllib.request
+import json, time, urllib.request, traceback
 from pathlib import Path
 from xml.etree import ElementTree as ET
 from playwright.sync_api import sync_playwright
@@ -93,11 +93,14 @@ def test(browser,width):
         leap=page.locator("#rlCalendarMeta").inner_text()
         assert "DWD CDC" in leap,leap
         leap_dates=page.locator("#rlCalendarAllYears tr").all_inner_texts()
-        assert leap_dates and all(".02." in row for row in leap_dates)
+        result["leap_probe"]={"days":leap_dates[:10],"count":len(leap_dates),"meta":leap}
+        assert leap_dates and all(".02." in row for row in leap_dates), "February 29 leap-year list incorrect: "+repr(result["leap_probe"])
+        result["phase"]="select leap day snow"
         page.locator("#rlCalMetric").select_option("snow")
         page.wait_for_function("""()=>document.getElementById('rlCalendarMeta')?.textContent?.includes('Schneehöhe SHK_TAG')""",
                                timeout=40000)
         result["cases"].append("real_snow_day_calendar_leap")
+        result["phase"]="season module"
         page.locator("#rlTabSeasons").click()
         page.wait_for_function("""()=>document.getElementById('rlSeasonMeta')?.textContent?.includes('DWD CDC')""",
                                timeout=30000)
@@ -109,6 +112,7 @@ def test(browser,width):
         assert "Schneedecke" in page.locator("#rlSeasonMeta").inner_text()
         result["cases"].append("true_qualified_seasonal_records")
 
+        result["phase"]="hourly weather changes"
         page.locator("#rlTabChanges").click()
         page.wait_for_function("""()=>/Archiv|DWD|Stunden/.test(document.getElementById('rlChangeMeta')?.textContent||'')""",
                                timeout=70000)
@@ -136,7 +140,8 @@ def test(browser,width):
         result["ok"]=True
         page.screenshot(path=str(OUT/f"rekordlabor_{width}.png"),timeout=22000)
     except Exception as error:
-        result["error"]=str(error)[:1600]
+        result["error"]=repr(error)[:1600]
+        result["traceback"]=traceback.format_exc()[-1800:]
         try:page.screenshot(path=str(OUT/f"FAILED_rekordlabor_{width}.png"),timeout=15000)
         except Exception:pass
     result["page_errors"]=errors[-5:]
