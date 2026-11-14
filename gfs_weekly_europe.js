@@ -320,23 +320,87 @@
     const a=document.createElement("a");a.href=url;a.download=name;
     document.body.appendChild(a);a.click();a.remove();
   }
-  function savePng(){
-    if(!payload)return;
+  // Draw the *same* palette as the map into its downloadable image.
+  // Legend values come from color(), so neither projections nor map smoothing
+  // can accidentally introduce a second, mismatching colour scale.
+  function drawExportLegend(ctx,absolute){
+    const x=205,y=752,w=990,h=94;
+    ctx.save();
+    ctx.fillStyle="rgba(255,255,255,0.94)";
+    ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle="rgba(25,58,85,0.45)";
+    ctx.lineWidth=1;ctx.strokeRect(x+.5,y+.5,w-1,h-1);
+    ctx.fillStyle="#193a55";ctx.font="bold 16px Arial";
+    ctx.textBaseline="alphabetic";
+    ctx.fillText(absolute?"2-m-Mitteltemperatur (°C)":
+      "Temperaturabweichung gegenüber 1991–2020 (K)",x+20,y+23);
+    const bx=x+20,by=y+33,bw=w-40,bh=19;
+    const low=absolute?-30:-8,high=absolute?35:8;
+    for(let i=0;i<bw;i++){
+      const v=low+(high-low)*i/(bw-1);
+      const [r,g,b]=color(v,absolute);
+      ctx.fillStyle="rgb("+r+","+g+","+b+")";
+      ctx.fillRect(bx+i,by,1,bh);
+    }
+    ctx.strokeStyle="#8299ae";ctx.strokeRect(bx+.5,by+.5,bw-1,bh-1);
+    const ticks=absolute?[-30,-20,-10,0,10,20,35]:[-8,-4,-2,0,2,4,8];
+    ctx.fillStyle="#193a55";ctx.font="14px Arial";ctx.textBaseline="top";
+    for(let i=0;i<ticks.length;i++){
+      const v=ticks[i],tx=bx+(v-low)/(high-low)*bw;
+      ctx.textAlign=i===0?"left":i===ticks.length-1?"right":"center";
+      const label=absolute?(i===0?"≤ −30":i===ticks.length-1?"≥ +35":
+        (v>0?"+":"")+v):(i===0?"≤ −8":i===ticks.length-1?"≥ +8":
+        (v>0?"+":"")+v);
+      ctx.fillText(label,tx,by+bh+8);
+    }
+    ctx.restore();
+  }
+  function exportMapCanvas(){
+    if(!payload)return null;
+    const absolute=el.metric.value==="absolute";
     const out=document.createElement("canvas");out.width=W;out.height=950;
     const ctx=out.getContext("2d");
     ctx.fillStyle="#fff";ctx.fillRect(0,0,W,950);
     ctx.fillStyle="#193a55";ctx.font="bold 29px Arial";
-    ctx.fillText("Europa · GFS Sieben-Tage-Temperaturabweichung",32,45);
+    ctx.fillText("Europa · GFS Sieben-Tage-"+(absolute?"Mitteltemperatur":"Temperaturabweichung"),32,45);
     ctx.font="18px Arial";
     ctx.fillText("GFS "+fmtTime(payload.run_utc)+" · "+
-      (el.metric.value==="anomaly"?"CFSR/CFSv2 1991–2020":"2-m-Temperatur °C")+
+      (absolute?"2-m-Temperatur °C":"CFSR/CFSv2 1991–2020")+
       " · "+currentRegion().name,32,75);
     ctx.drawImage(el.map,0,100,W,H);
-    ctx.font="15px Arial";ctx.fillText("Gültig "+fmtTime(payload.valid_from_utc)+" bis "+fmtTime(payload.valid_to_utc),32,895);
-    ctx.fillText("NOAA GFS 0,5° f003–f165 · 28 echte Felder · 7 Tage · "+el.projection.options[el.projection.selectedIndex].text,32,925);
+    drawExportLegend(ctx,absolute);
+    ctx.fillStyle="#193a55";ctx.font="15px Arial";
+    ctx.fillText("Gültig "+fmtTime(payload.valid_from_utc)+" bis "+fmtTime(payload.valid_to_utc),32,895);
+    ctx.fillText("NOAA GFS 0,5° f003–f165 · 28 echte Felder · 7 Tage · "+
+      el.projection.options[el.projection.selectedIndex].text,32,925);
+    return out;
+  }
+  function savePng(){
+    const out=exportMapCanvas();if(!out)return;
     out.toBlob(blob=>{if(!blob)return;const url=URL.createObjectURL(blob);
       download(url,"gfs_europa_7tage_"+payload.run_utc.slice(0,10)+".png");
       setTimeout(()=>URL.revokeObjectURL(url),5000);},"image/png");
+  }
+  function savePdf(){
+    const out=exportMapCanvas();if(!out)return;
+    document.getElementById("weekPrintPage")?.remove();
+    const container=document.createElement("div");
+    container.id="weekPrintPage";
+    container.setAttribute("aria-hidden","true");
+    const img=new Image();
+    img.alt="GFS-Sieben-Tage-Karte mit integrierter Farbskala";
+    container.appendChild(img);document.body.appendChild(container);
+    const cleanup=()=>{
+      document.body.classList.remove("weekly-export-print");
+      container.remove();
+    };
+    window.addEventListener("afterprint",cleanup,{once:true});
+    img.onload=()=>{
+      document.body.classList.add("weekly-export-print");
+      window.print();
+    };
+    img.onerror=cleanup;
+    img.src=out.toDataURL("image/png");
   }
   function saveCsv(){
     if(!payload)return;
@@ -364,7 +428,7 @@
   });
   el.png.addEventListener("click",savePng);
   el.csv.addEventListener("click",saveCsv);
-  el.pdf.addEventListener("click",()=>{if(payload)window.print();});
+  el.pdf.addEventListener("click",savePdf);
   async function start(){
     try{
       // The larger original grid becomes available ONLY after the complete
