@@ -63,7 +63,7 @@ test("SVG and PDF season trend exports preserve dashed separate vector layer and
  const svg=exporter.toSvg([scene]);
  assert.match(svg,/stroke-dasharray="9,6"/);
  assert.match(svg,/Trendlinie/);
- assert.match(svg,/10\\.5\\./);
+ assert.ok(svg.includes("10.5."));
  const patterns=[];
  const pdf={internal:{pageSize:{getWidth:()=>420,getHeight:()=>297}},
   setFont(){},setFontSize(){},setTextColor(){},text(){},setFillColor(){},
