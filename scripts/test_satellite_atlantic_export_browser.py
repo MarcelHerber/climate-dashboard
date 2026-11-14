@@ -203,7 +203,30 @@ def exercise(browser,device,base,tmp):
         if area=="europe":
             grid_center_ids=page.locator("#satIsobarSvg .sat-pressure-center").evaluate_all(
                 "(els)=>els.map(el=>el.getAttribute('data-pressure-type')+'|'+el.getAttribute('data-center-lon')+'|'+el.getAttribute('data-center-lat')).sort()")
-            assert grid_center_ids and len(grid_center_ids)>=2, "No true-grid center labels in fine mode"
+            if not grid_center_ids or len(grid_center_ids)<2:
+                diagnostic=page.evaluate("""async () => {
+                    const status=document.querySelector('#satIsobarStatus')?.textContent;
+                    const svg=document.querySelector('#satIsobarSvg');
+                    const src=window.SatelliteIsobarGeometry;
+                    const time=document.querySelector('#satTime')?.value;
+                    let exported=null;
+                    try {
+                       const v=await window.SatelliteIsobars.exportAt(time,'europe',2);
+                       const candidates=src.modelGridCenters(v,[-27,24,49,73]);
+                       const placed=src.pressureLabels(candidates,[-27,24,49,73],{
+                          width:1000,height:1000,fontSize:40.5,
+                          cityAnchors:window.SatelliteOverlay?.cityAnchors?.('europe')||[]
+                       });
+                       exported={method:v.pressure_centers_method,raw:v.pressure_centers,
+                         candidates,placed};
+                    }catch(error){exported={error:String(error)}}
+                    return {status,time,spacing:document.querySelector('#satIsobarSpacing')?.value,
+                     paths:svg?.querySelectorAll('path').length,children:svg?.children.length,
+                     pressure:svg?.querySelectorAll('.sat-pressure-center').length,
+                     html:svg?.innerHTML.slice(-1400),exported};
+                }""")
+                raise AssertionError("Missing grid center labels: "+json.dumps(diagnostic,ensure_ascii=False))
+
             assert page.locator("#satIsobarStatus").inner_text().find("H/T: IFS-Gitterextrema")>=0
             page.locator("#satIsobarSpacing").select_option("5")
             page.wait_for_function("()=>document.querySelector('#satIsobarStatus')?.textContent.includes('5 hPa')",timeout=15000)
