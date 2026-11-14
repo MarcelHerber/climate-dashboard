@@ -213,7 +213,8 @@ function provenance(options){const o=options.overlay;
  return "Satellit: "+utc(o.satelliteUTC)+" | ECMWF IFS "+utc(o.runUTC)+
   " | Isobaren: "+utc(o.validUTC)+" | Abstand "+o.spacing+" hPa | "+o.method+
   (options.fronts?" | NOAA WPC Analyse "+utc(options.fronts.valid_utc):"");}
-function footerLine(o){return "Bild: EUMETSAT | Druckprognose: ECMWF CC BY 4.0 | Interpolierte Modellwerte, keine Messung";}
+function footerLine(o){return "Bild: EUMETSAT | Druck: ECMWF CC BY 4.0 (Modell, keine Messung)"+
+ (o.fronts?" | NOAA WPC: Symbolseiten schematisch":"");}
 function rasterCanvas(image){
  const w=image.naturalWidth||image.width,h=image.naturalHeight||image.height;
  if(!w||!h)throw Error("Satellitenbild nicht vollständig geladen.");
