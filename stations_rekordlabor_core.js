@@ -210,11 +210,35 @@ function snowLongest(archive){
  }
  return rows.sort((a,b)=>b.days-a.days||a.year-b.year);
 }
+// The seasonal charts store calendar-day indices, but people read dates.
+// Standardise the calendar year to leap-year 2000 (including 29 February).
+// Snow records use the DWD hydrological sequence from 1 November.
+function seasonDateAxis(monthDays){
+ const days=Array.isArray(monthDays)&&monthDays.length?
+   monthDays:Array.from({length:366},(_,i)=>mdAt(2000,i));
+ const months=days[0]==="11-01"?
+   [11,12,1,2,3,4,5,6,7,8,9,10]:
+   [1,2,3,4,5,6,7,8,9,10,11,12];
+ const positions=new Map(days.map((md,i)=>[md,i+1]));
+ const format=value=>{
+   if(!Number.isInteger(value)||value<1||value>days.length)return "";
+   const md=days[value-1];
+   if(!/^\\d{2}-\\d{2}$/.test(md))return "";
+   const [month,day]=md.split("-").map(Number);
+   return day+"."+month+".";
+ };
+ const ticks=months.map(month=>{
+   const md=String(month).padStart(2,"0")+"-01";
+   const value=positions.get(md);
+   return value?{value,label:format(value)}:null;
+ }).filter(Boolean);
+ return {min:1,max:days.length,ticks,format};
+}
 function stationWindDifference(before,after){
  if(!finite(before?.speed)||!finite(after?.speed)||before.speed<3||after.speed<3 ||
     !finite(before.direction)||!finite(after.direction))return null;
  return Math.abs(((after.direction-before.direction+540)%360)-180);
 }
-return Object.freeze({leap,dayIndex,mdAt,readable,decodeRawTemperature,decodeTemperature,
+return Object.freeze({leap,dayIndex,mdAt,readable,seasonDateAxis,decodeRawTemperature,decodeTemperature,
  calendarTemperature,decodeRawDailyMetric,decodeDailyMetric,calendarKL,snowCalendar,sortedRecords,tempSeason,snowSeason,longestRun,snowLongest,stationWindDifference});
 });
