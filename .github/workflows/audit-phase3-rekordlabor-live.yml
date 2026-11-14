@@ -2,6 +2,9 @@ name: Phase 3 · Rekordlabor Live-DWD Desktop und Handy
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Phase 3 · DWD-Stundenrekorde aus amtlichen Originalarchiven"]
+    types: [completed]
   push:
     branches: [main]
     paths:
@@ -23,6 +26,7 @@ concurrency:
 
 jobs:
   real-dwd-records:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -48,6 +52,8 @@ jobs:
           python -m pip install "playwright==1.57.0" "pypdf>=5,<8"
           python -m playwright install --with-deps chromium
       - name: Live original DWD station calendar, seasonal records and observed hourly changes
+        env:
+          REKORDLABOR_MIN_HOURLY_STATIONS: ${{ github.event_name == 'workflow_run' && '20' || '0' }}
         run: python -u tests/audit_phase3_rekordlabor_live.py
       - name: Preserve original-data exports, screenshots and findings
         if: always()
