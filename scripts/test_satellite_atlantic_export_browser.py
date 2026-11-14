@@ -290,7 +290,19 @@ def exercise(browser,device,base,tmp):
         else:
             assert raw.startswith(b"%PDF-1.4")
             assert b"/Subtype /Image" in raw
-            assert b"(H) Tj ET" in raw and b"(T) Tj ET" in raw
+            if not (b"(H) Tj ET" in raw and b"(T) Tj ET" in raw):
+                import re
+                extraction=re.findall(rb"\\([HT]\\) Tj ET",raw)
+                exported=page.evaluate("""async()=> {
+                    const t=window.SatelliteIsobars?.frameFor?.(new Date().toISOString());
+                    return {time:document.querySelector('#satTime')?.value,
+                      letters:[...document.querySelectorAll('#satIsobarSvg .sat-pressure-center')]
+                        .map(n=>({value:n.textContent,lon:n.dataset.centerLon,lat:n.dataset.centerLat}))};
+                }""")
+                raise AssertionError("PDF H/T disagree with screen: "+repr({
+                    "pdfLetters":[x.decode() for x in extraction],
+                    "screen":exported,
+                    "pdfBytes":len(raw)}))
         details[button.lstrip("#")]={"filename":artifact.suggested_filename,
                                      "size":len(raw),"valid":True}
 
