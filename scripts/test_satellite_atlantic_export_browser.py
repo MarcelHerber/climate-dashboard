@@ -203,12 +203,12 @@ def exercise(browser,device,base,tmp):
         if area=="europe":
             grid_center_ids=page.locator("#satIsobarSvg .sat-pressure-center").evaluate_all(
                 "(els)=>els.map(el=>el.getAttribute('data-pressure-type')+'|'+el.getAttribute('data-center-lon')+'|'+el.getAttribute('data-center-lat')).sort()")
-            if not grid_center_ids or len(grid_center_ids)<2:
+            if not grid_center_ids:
                 diagnostic=page.evaluate("""async () => {
                     const status=document.querySelector('#satIsobarStatus')?.textContent;
                     const svg=document.querySelector('#satIsobarSvg');
                     const src=window.SatelliteIsobarGeometry;
-                    const time=document.querySelector('#satTime')?.value;
+                    const time=document.querySelector('#satTime')?.selectedOptions?.[0]?.textContent;
                     let exported=null;
                     try {
                        const v=await window.SatelliteIsobars.exportAt(time,'europe',2);
