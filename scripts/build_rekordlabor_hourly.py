@@ -24,7 +24,7 @@ from zipfile import ZipFile
 URL="https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/hourly/"
 SOURCES={
  "temperature":("air_temperature","TU","TT_TU","°C"),
- "pressure":("pressure","P0","P0","hPa"),
+ "pressure":("pressure","P0","P","hPa"),
  "wind_direction":("wind","FF","D","°")
 }
 STATIONS={
@@ -87,7 +87,7 @@ def rows_from_zip(blob:bytes,parameter:str)->dict[str,object]:
                         v=numeric(row.get(headers[column]))
                         if v is None:continue
                         if parameter=="temperature" and not -70<=v<=65:continue
-                        if parameter=="pressure" and not 930<=v<=1065:continue
+                        if parameter=="pressure" and not 950<=v<=1065:continue
                         if parameter=="wind_direction" and not 0<=v<=360:continue
                         if parameter=="wind_direction":
                             speed=numeric(row.get(headers.get("F","F")))
@@ -117,7 +117,7 @@ def is_significant(parameter,direction,change):
 
 def physically_continuous_pressure(data,start,end,hours):
     """Pressure changes must have fully observed, physically plausible hours.
-    This rejects one-hour instrument spikes and isolated bad 1990s P0 values.
+    This rejects one-hour instrument spikes in the mean-sea-level P field.
     We conservatively exclude unverified candidates, never interpolate them.
     """
     previous=data.get(start)
@@ -300,27 +300,19 @@ def discover_stations(listing,target=0,pinned=None):
 
 def build_station(sid,listing,stations=None,cache_dir=None):
     name,state,lat,lon=(stations or STATIONS)[sid]
-    # Reuse audited output only while the official historical ZIP names
-    # remain unchanged and the snapshot is recent. Avoid redownloading
-    # identical 50-year hourly archives on every branch or retry.
+    # Preserve already audited temperature and wind ranks, but force
+    # recomputation of every legacy pressure record: the DWD's P0 column is
+    # station-height pressure, while the dashboard needs sea-level P.
+    # Cache eligibility is checked per metric, never by ZIP URL alone.
+    cached=None
     if cache_dir:
         cached_path=Path(cache_dir)/(sid+".json")
         if cached_path.is_file():
             try:
                 old=json.loads(cached_path.read_text(encoding="utf-8"))
                 checked=dt.datetime.fromisoformat(old["generated_at"].replace("Z","+00:00"))
-                fresh=(now-checked).total_seconds()<14*86400
-                complete=all(
-                    (old.get("metrics",{}).get(param,{}).get("source_url")==archive_url(param,sid,listing.get(param)))
-                    if param in old.get("metrics",{})
-                    else (param in old.get("unavailable_sources",{}) and
-                          ("No official historical hourly archive" not in old["unavailable_sources"][param] or
-                           archive_url(param,sid,listing.get(param)) is None))
-                    for param in SOURCES
-                )
-                if fresh and complete and old.get("station_id")==sid and old.get("metrics"):
-                    print("DWD HOURLY CACHE VALID",sid,flush=True)
-                    return old
+                if (now-checked).total_seconds()<14*86400 and old.get("station_id")==sid:
+                    cached=old
             except (OSError,ValueError,KeyError,TypeError):
                 pass
     metrics={};failures={}
@@ -328,6 +320,14 @@ def build_station(sid,listing,stations=None,cache_dir=None):
         url=archive_url(parameter,sid,listing.get(parameter))
         if not url:
             failures[parameter]="No official historical hourly archive"
+            continue
+        previous=(cached or {}).get("metrics",{}).get(parameter)
+        if (previous and previous.get("source_url")==url and
+            previous.get("source","").endswith(" · "+SOURCES[parameter][2]) and
+            (parameter!="pressure" or
+             (previous.get("source_column")=="P" and previous.get("pressure_reference")=="sea_level"))):
+            metrics[parameter]=previous
+            print("DWD HOURLY VALID METRIC CACHE",sid,parameter,flush=True)
             continue
         try:
             data=rows_from_zip(read_url(url),parameter)
@@ -338,8 +338,10 @@ def build_station(sid,listing,stations=None,cache_dir=None):
             pressure_valid=pressure_runs(indexed) if parameter=="pressure" else None
             d={"source":"DWD CDC · "+SOURCES[parameter][0]+" · "+SOURCES[parameter][2],
                 "source_url":url,"unit":SOURCES[parameter][3],"period":years,
+                "source_column":SOURCES[parameter][2],
+                "pressure_reference":"sea_level" if parameter=="pressure" else None,
                 "observed_hours":len(data),"windows":{},
-                "quality_notes":("Sea-level pressure: 930–1065 hPa plus <=8 hPa/hour continuous hourly validation, <=55 hPa per window" if parameter=="pressure" else
+                "quality_notes":("DWD P: sea-level pressure (NN), 950–1065 hPa; <=8 hPa/hour contiguous validation, <=55 hPa per window; never P0 station-height pressure" if parameter=="pressure" else
                    "Wind directions require both hourly mean speeds >=3 m/s; no gusts" if parameter=="wind_direction" else
                    "Temperature valid only at measured UTC hours; no filled gaps")}
             for hours in HOURS:
