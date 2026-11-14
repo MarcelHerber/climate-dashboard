@@ -132,3 +132,97 @@ test("one renderer keeps DWD / ECMWF data sources and units in scientific vector
  assert.ok(words.some(t=>t.includes("DWD Climate Data Center")));
  assert.ok(words.some(t=>t.includes("Schneehöhe [cm]")));
 });
+
+test("true 5–95 and 25–75 percentile fill uses the original 0.17/0.29 alpha",()=>{
+ const {a,chart,info}=harness();
+ chart.data.datasets=[
+  {label:"_90% min",data:[-2,-3,-3,-4,-4],borderColor:"transparent"},
+  {label:"_90% max",data:[3,4,4,3,3],borderColor:"transparent",
+   fill:{target:"-1",above:"rgba(71,126,183,.18)",below:"rgba(71,126,183,.18)"}},
+  {label:"_50% min",data:[-1,-2,-2,-2,-2],borderColor:"transparent"},
+  {label:"_50% max",data:[1,2,2,2,2],borderColor:"transparent",
+   fill:{target:"-1",above:"rgba(71,126,183,.30)",below:"rgba(71,126,183,.30)"}},
+  {label:"EPS-Mittel",data:[0,0,0,0,0],borderColor:"#d62828"}
+ ];
+ chart.isDatasetVisible=()=>true;
+ const original=JSON.stringify(chart.data);
+ const scene=a.buildScene(chart,info);
+ assert.equal(scene.fills.length,2);
+ assert.ok(scene.fills.every(f=>f.areas.length>=1));
+ assert.equal(scene.fills[0].areas[0].opacity,.18);
+ assert.equal(scene.fills[1].areas[0].opacity,.30);
+ assert.equal(scene.fills[0].areas[0].hex.toLowerCase(),"#477eb7");
+ const svg=a.toSvg([scene]);
+ assert.match(svg,/Fläche: _90% max → _90% min/);
+ assert.match(svg,/fill-opacity="0.18"/);
+ assert.match(svg,/fill-opacity="0.3"/);
+ assert.doesNotMatch(svg,/<image\b/);
+ assert.equal(JSON.stringify(chart.data),original);
+});
+test("warm and cold 1991–2020 anomaly polygons cross the mean without bridging missing days",()=>{
+ const {a,chart,info}=harness();
+ chart.data.labels=["1","2","3","4","5","6","7","8"];
+ chart.scales.x={min:0,max:7};
+ chart.scales.y={min:-5,max:5};
+ chart.data.datasets=[
+  {label:"1991–2020 · Mittel",data:[0,0,0,0,0,0,0,0],borderColor:"#333333"},
+  {label:"2026",data:[-3,3,2,null,1,-1,-2,2],borderColor:"#c64f44",
+   fill:{target:0,above:"rgba(222,44,41,0.58)",below:"rgba(31,96,217,0.58)"}}
+ ];
+ chart.isDatasetVisible=()=>true;
+ const scene=a.buildScene(chart,info);
+ assert.equal(scene.fills.length,1);
+ const areas=scene.fills[0].areas;
+ assert.ok(areas.some(o=>o.side==="above"&&o.hex==="#de2c29"));
+ assert.ok(areas.some(o=>o.side==="below"&&o.hex==="#1f60d9"));
+ assert.ok(areas.some(o=>o.points.some(p=>Math.abs(p[0]-(115+1210/7/2))<0.5)),
+    "Crossing between first two days must be interpolated exactly");
+ // Every drawn polygon must come from consecutive non-missing original days.
+ const x3=115+1210*3/7, x4=115+1210*4/7;
+ assert.ok(areas.every(o=>o.points.every(p=>p[0]<=x3+1e-5||p[0]>=x4-1e-5)),
+    "No arbitrary bridge over missing data");
+ assert.ok(areas.every(o=>o.points.every(p=>p[0]>=115-1e-5&&p[0]<=1325+1e-5
+   &&p[1]>=259-1e-5&&p[1]<=802+1e-5)));
+ const svg=a.toSvg([scene]);
+ assert.match(svg,/fill-opacity="0.58"/);
+ assert.match(svg,/data-side="above"/);
+ assert.match(svg,/data-side="below"/);
+});
+test("filled area is hidden if reference dataset is not visible",()=>{
+ const {a,chart,info}=harness();
+ chart.data.datasets=[
+  {label:"Baseline",data:[0,0,0,0,0]},
+  {label:"2026",data:[1,2,3,2,1],fill:{target:0,above:"#ff0000",below:"#0000ff"}}
+ ];
+ chart.isDatasetVisible=i=>i===1;
+ const scene=a.buildScene(chart,info);
+ assert.equal(scene.fills.length,0);
+});
+test("vector PDF produces independent filled polygons with non-opaque jsPDF GState",()=>{
+ const {a,chart,info}=harness();
+ chart.data.datasets=[
+  {label:"Base",data:[0,0,0,0,0],borderColor:"#999999"},
+  {label:"2026",data:[-1,1,2,-2,3],borderColor:"#ed2233",
+   fill:{target:0,above:"rgba(222,44,41,.58)",below:"rgba(31,96,217,.58)"}}
+ ];
+ chart.isDatasetVisible=()=>true;
+ const scene=a.buildScene(chart,info),ops=[];
+ const doc={
+  GState:class{constructor(v){ops.push(["gstate",v]);}},
+  internal:{pageSize:{getWidth(){return 420},getHeight(){return 297}}},
+  saveGraphicsState(){ops.push(["save"])},
+  restoreGraphicsState(){ops.push(["restore"])},
+  setGState(){ops.push(["setalpha"])},
+  setFillColor(){},rect(){},setFont(){},setFontSize(){},setTextColor(){},text(){},
+  setLineWidth(){},setDrawColor(){},line(){},setLineDashPattern(){},lines(){},
+  path(commands,mode){ops.push([mode,commands])},
+  addImage(){throw Error("Raster embedded")}
+ };
+ a.drawPdf(doc,scene);
+ const fills=ops.filter(o=>o[0]==="F");
+ assert.ok(fills.length>=2);
+ assert.ok(fills.every(o=>o[1].at(-1).op==="h"),"PDF polygons must be closed");
+ assert.ok(ops.some(o=>o[0]==="gstate"&&o[1].opacity===.58));
+ assert.equal(ops.filter(o=>o[0]==="save").length,fills.length);
+ assert.equal(ops.filter(o=>o[0]==="restore").length,fills.length);
+});
