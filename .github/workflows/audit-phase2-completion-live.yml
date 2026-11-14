@@ -1,0 +1,45 @@
+name: Phase 2 · Abschluss mit ECMWF-EPS, DWD-Stationen und Vektorflächen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tests/audit_phase2_completion_live.py
+      - .github/workflows/audit-phase2-completion-live.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase2-completion-live
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 42
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/audit_phase2_completion_live.py
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Playwright Chromium and editable PDF inspection
+        run: |
+          python -m pip install "playwright==1.57.0" "pypdf>=5,<8"
+          python -m playwright install --with-deps chromium
+      - name: Run genuine ECMWF ENS, GEFS, DWD annual and snow vector PDF/SVG checks at 390/1200px
+        run: python -u tests/audit_phase2_completion_live.py
+      - name: Preserve all real data downloads and validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-completion-real-eps-dwd-vectors
+          path: phase2_completion_live/
+          retention-days: 14
+          if-no-files-found: warn
