@@ -30,6 +30,8 @@ PATTERNS={
     "water_vapour": re.compile(r"water.?vapou?r|(^|[^a-z])wv[_ ]?[67]",re.I),
     "true_colour": re.compile(r"rgb_truecolou?r|true.?colou?r",re.I),
     "visible_06": re.compile(r"vis.?0[._]?6|vis06|visible.?0[.,]6",re.I),
+    "fog": re.compile(r"^mtg_fd:rgb_fog$|fog.?/.?low.?cloud|fog.?rgb",re.I),
+    "snow": re.compile(r"^mtg_fd:rgb_snow$|snow.?rgb",re.I),
 }
 MAX_PROBES=12
 
