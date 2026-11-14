@@ -180,7 +180,7 @@ for filename in ("index.html","stratosphaere.html","station_jahresanalyse.html")
     path=Path("_site")/filename
     html=path.read_text(encoding="utf-8")
     scripts=(
-        '<script defer src="t850_vector_export.js?v=20261113-vector-source-v2"></script>\n'
+        '<script defer src="t850_vector_export.js?v=20261114-vector-areas-v1"></script>\n'
         '<script defer src="scientific_vector_actions.js?v=20261113-science-vector-v1"></script>\n'
     )
     if html.count("</head>")!=1:
