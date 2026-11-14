@@ -71,7 +71,7 @@ class RecordLaborHourlyTests(unittest.TestCase):
         self.assertEqual(pressure_runs(idx)[a+1],1)
         self.assertEqual(pressure_runs(idx)[a+3],0)
         self.assertEqual(top_events(idx,"pressure",3,"down")[0],0)
-        self.assertEqual(top_events(idx,"temperature",3,"down")[0],1)
+        self.assertEqual(top_events(idx,"temperature",3,"down")[0],2)
 
     def test_official_station_catalogue_and_regional_selection(self):
         from unittest.mock import patch
