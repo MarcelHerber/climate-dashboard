@@ -6,6 +6,8 @@ on:
       - stations_rekordlabor.js
       - stations_rekordlabor_core.js
       - stations_rekordlabor.html
+      - stations_rekordlabor.css
+      - t850_vector_export.js
       - tests/test_stations_rekordlabor.cjs
       - .github/workflows/test-rekordlabor-date-axes.yml
   push:
@@ -14,6 +16,8 @@ on:
       - stations_rekordlabor.js
       - stations_rekordlabor_core.js
       - stations_rekordlabor.html
+      - stations_rekordlabor.css
+      - t850_vector_export.js
       - tests/test_stations_rekordlabor.cjs
       - .github/workflows/test-rekordlabor-date-axes.yml
 
@@ -32,6 +36,8 @@ jobs:
             stations_rekordlabor.js
             stations_rekordlabor_core.js
             stations_rekordlabor.html
+            stations_rekordlabor.css
+            t850_vector_export.js
             tests/test_stations_rekordlabor.cjs
       - uses: actions/setup-node@v4
         with:
@@ -40,4 +46,5 @@ jobs:
         run: |
           node --check stations_rekordlabor_core.js
           node --check stations_rekordlabor.js
+          node --check t850_vector_export.js
           node --test tests/test_stations_rekordlabor.cjs
