@@ -1,0 +1,43 @@
+name: Rekordlabor · Datumsachsen und Jahreszeiten-Test
+
+on:
+  pull_request:
+    paths:
+      - stations_rekordlabor.js
+      - stations_rekordlabor_core.js
+      - stations_rekordlabor.html
+      - tests/test_stations_rekordlabor.cjs
+      - .github/workflows/test-rekordlabor-date-axes.yml
+  push:
+    branches: [main]
+    paths:
+      - stations_rekordlabor.js
+      - stations_rekordlabor_core.js
+      - stations_rekordlabor.html
+      - tests/test_stations_rekordlabor.cjs
+      - .github/workflows/test-rekordlabor-date-axes.yml
+
+permissions:
+  contents: read
+
+jobs:
+  date-axis:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            stations_rekordlabor.js
+            stations_rekordlabor_core.js
+            stations_rekordlabor.html
+            tests/test_stations_rekordlabor.cjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Verify scripts and calendar date-axis regression tests
+        run: |
+          node --check stations_rekordlabor_core.js
+          node --check stations_rekordlabor.js
+          node --test tests/test_stations_rekordlabor.cjs
