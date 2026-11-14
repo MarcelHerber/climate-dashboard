@@ -180,8 +180,16 @@ function buildScene(chart,info){
       dash:Array.isArray(ds.borderDash)?ds.borderDash:[]});
   });
   if(!series.length)throw Error("Keine sichtbaren Ensemblekurven verfügbar.");
+  // Preserve optional categorical/date tick labels when the source chart
+  // uses numeric coordinates with formatted ticks (seasonal DWD records).
+  const customTicks=Array.isArray(info?.yTicks)?
+    info.yTicks.filter(t=>finite(t.value)&&t.value>=ymin&&t.value<=ymax):[];
   const ticks=[];
-  for(let i=0;i<=6;i++)ticks.push({v:ymin+(ymax-ymin)*i/6,
+  if(customTicks.length){
+    for(const t of customTicks)ticks.push({v:t.value,py:ya(t.value),
+      label:typeof info?.yTickFormatter==="function"?
+        String(info.yTickFormatter(t.value)):String(t.label??t.value)});
+  }else for(let i=0;i<=6;i++)ticks.push({v:ymin+(ymax-ymin)*i/6,
     py:ya(ymin+(ymax-ymin)*i/6)});
   const dates=[];
   const count=Math.max(1,Math.ceil((xmax-xmin)/8));
@@ -209,7 +217,7 @@ function legend(scene){
       label;
    if(key==="Member"||seen.has(key))continue;
    seen.add(key);
-   out.push({label:key,hex:series.hex});
+   out.push({label:key,hex:series.hex,dash:series.dash});
  }
  return out.slice(0,8);
 }
@@ -236,7 +244,8 @@ function svgScene(scene,index){
  for(const item of legend(scene)){
    const width=Math.max(115,Math.min(205,item.label.length*9+33));
    if(lx+width>W-75)break;
-   s+='<path d="M'+lx+" "+(242+dy)+" h22"+'" stroke="'+item.hex+'" stroke-width="3" fill="none"/>';
+   s+='<path d="M'+lx+" "+(242+dy)+" h22"+'" stroke="'+item.hex+'" stroke-width="3" fill="none"'+
+      (item.dash?.length?' stroke-dasharray="'+item.dash.join(",")+'"':"")+'/>';
    s+=svgText(lx+28,248+dy,item.label,13);
    lx+=width;
  }
@@ -246,7 +255,7 @@ function svgScene(scene,index){
  for(const t of scene.ticks){
   const y=t.py+dy;
   s+='<path d="M'+P.x+" "+y+" H"+(P.x+P.w)+'" fill="none" stroke="#e3e9ee"/>';
-  s+=svgText(P.x-12,y+5,t.v.toLocaleString("de-DE",{maximumFractionDigits:2}),16,"#51667a","end");
+  s+=svgText(P.x-12,y+5,t.label??t.v.toLocaleString("de-DE",{maximumFractionDigits:2}),16,"#51667a","end");
  }
  for(const d of scene.dates){
   s+=svgText(d.px,P.y+P.h+32+dy,d.text,15,"#51667a","middle");
@@ -293,7 +302,10 @@ function drawPdf(pdf,scene){
    const width=Math.max(115,Math.min(205,item.label.length*9+33));
    if(lx+width>W-75)break;
    pdf.setDrawColor(...ink(item.hex));pdf.setLineWidth(3*s);
+   if(typeof pdf.setLineDashPattern==="function"&&item.dash?.length)
+     pdf.setLineDashPattern(item.dash.map(n=>n*s),0);
    pdf.line(X(lx),Y(242),X(lx+22),Y(242));
+   if(typeof pdf.setLineDashPattern==="function")pdf.setLineDashPattern([],0);
    text(item.label,lx+28,248,13);
    lx+=width;
  }
@@ -305,7 +317,7 @@ function drawPdf(pdf,scene){
  for(const t of scene.ticks){
    pdf.setDrawColor(226,232,239);pdf.setLineWidth(.25);
    pdf.line(X(P.x),Y(t.py),X(P.x+P.w),Y(t.py));
-   text(t.v.toLocaleString("de-DE",{maximumFractionDigits:2}),P.x-12,t.py+5,16,"#51667a","right");
+   text(t.label??t.v.toLocaleString("de-DE",{maximumFractionDigits:2}),P.x-12,t.py+5,16,"#51667a","right");
  }
  for(const d of scene.dates)text(d.text,d.px,P.y+P.h+32,15,"#51667a","center");
  // Independent PDF polygons precede the member strokes and preserve overlays.
