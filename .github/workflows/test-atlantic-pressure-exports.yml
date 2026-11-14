@@ -2,11 +2,6 @@ name: Satellite Atlantic downloads and pressure centers - deterministic Chromium
 on:
   pull_request:
     paths:
-name: Satellite Atlantic downloads and pressure centers - deterministic Chromium
-on:
-  push:
-    branches: [main]
-    paths:
       - "satelliten.js"
       - "satelliten.html"
       - "satelliten.css"
