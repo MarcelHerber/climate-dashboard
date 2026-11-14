@@ -213,13 +213,9 @@ function snowLongest(archive){
 // The seasonal charts store calendar-day indices, but people read dates.
 // Standardise the calendar year to leap-year 2000 (including 29 February).
 // Snow records use the DWD hydrological sequence from 1 November.
-function seasonDateAxis(monthDays){
+function seasonDateAxis(monthDays,values){
  const days=Array.isArray(monthDays)&&monthDays.length?
    monthDays:Array.from({length:366},(_,i)=>mdAt(2000,i));
- const months=days[0]==="11-01"?
-   [11,12,1,2,3,4,5,6,7,8,9,10]:
-   [1,2,3,4,5,6,7,8,9,10,11,12];
- const positions=new Map(days.map((md,i)=>[md,i+1]));
  const format=value=>{
    if(!Number.isInteger(value)||value<1||value>days.length)return "";
    const md=days[value-1];
@@ -227,12 +223,35 @@ function seasonDateAxis(monthDays){
    const [month,day]=md.split("-").map(Number);
    return day+"."+month+".";
  };
- const ticks=months.map(month=>{
-   const md=String(month).padStart(2,"0")+"-01";
-   const value=positions.get(md);
-   return value?{value,label:format(value)}:null;
- }).filter(Boolean);
- return {min:1,max:days.length,ticks,format};
+ // Keep the date coordinate unchanged, but frame the actual event dates.
+ // Without observations, fall back to the full calendar/hydrological year.
+ const observed=Array.isArray(values)?
+   values.filter(v=>Number.isInteger(v)&&v>=1&&v<=days.length):[];
+ const low=observed.length?Math.min(...observed):1;
+ const high=observed.length?Math.max(...observed):days.length;
+ const padding=observed.length?Math.max(7,Math.ceil((high-low)*.15)):0;
+ const min=Math.max(1,low-padding),max=Math.min(days.length,high+padding);
+ const span=max-min;
+ // Use month beginnings over long periods, and increasingly detailed
+ // calendar dates for short seasonal windows. No arbitrary day numbers.
+ const wantedDay=span>=160?d=>d===1:
+   span>=70?d=>d===1||d===15:
+   span>=35?d=>[1,8,15,22].includes(d):
+   span>=18?d=>[1,6,11,16,21,26,31].includes(d):
+   d=>d%2===1;
+ let ticks=[];
+ for(let value=min;value<=max;value++){
+   const md=days[value-1],day=Number(md?.slice(3,5));
+   if(wantedDay(day))ticks.push({value,label:format(value)});
+ }
+ // Very narrow edge windows must still have enough readable labels.
+ if(ticks.length<3&&span>=3){
+   const step=Math.max(1,Math.ceil(span/5));
+   ticks=[];
+   for(let value=min;value<=max;value+=step)
+     ticks.push({value,label:format(value)});
+ }
+ return {min,max,ticks,format};
 }
 function stationWindDifference(before,after){
  if(!finite(before?.speed)||!finite(after?.speed)||before.speed<3||after.speed<3 ||
