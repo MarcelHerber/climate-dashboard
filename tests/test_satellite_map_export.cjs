@@ -195,3 +195,36 @@ test("2-hPa European PNG and vector PDF retain even-pressure contours and 1015 i
  assert.ok(txt.includes("/Subtype /Image"));
  assert.ok(txt.includes("(1010) Tj ET"));
 });
+
+test("Real single-ring 1000-hPa low appears identically in PNG, vector PDF and GIF",async()=>{
+ const {api,film,textCalls}=loaded();
+ const fixture=JSON.parse(fs.readFileSync(
+  "tests/fixtures/satellite_mslp_20261114_1040_missing_low.json","utf8"));
+ const satelliteUTC=fixture.valid_utc;
+ const overlay={...sourceOverlay,
+  validUTC:satelliteUTC,satelliteUTC,runUTC:"2026-11-14T00:00:00Z",
+  method:"IFS 10-Minuten-Interpolation (echte archivierte Linien)",
+  region:"europe",spacing:5,contours:fixture.contours};
+ const markers=api.pressureCenters(overlay,"europe");
+ assert.equal(markers.length,1);assert.equal(markers[0].type,"T");
+ assert.equal(markers[0].hpa,1000);
+ assert.ok(Math.abs(markers[0].lon+18.8)<.7);
+ const optionsReal={...options,region:"europe",regionName:"Europa",overlay};
+ const png=await api.renderPNG(optionsReal);
+ assert.equal(png.blob.type,"image/png");
+ assert.ok(textCalls.includes("T"),"Render low's letter in real-coordinate PNG");
+ const pdf=await api.renderPDF(optionsReal);
+ const text=Buffer.from(await pdf.blob.arrayBuffer()).toString("latin1");
+ assert.match(text,/\(T\) Tj ET/,"Editable PDF contains the authentic western-Ireland T");
+ const second=new Date(Date.parse(satelliteUTC)+600000).toISOString().replace(".000Z","Z");
+ const gif=await film.exportGIF({
+  frames:[{time:satelliteUTC,img:{naturalWidth:180,naturalHeight:100}},
+          {time:second,img:{naturalWidth:180,naturalHeight:100}}],
+  isobarOverlays:[overlay,{...overlay,satelliteUTC:second,validUTC:second}],
+  region:"europe",product:"geocolour",productName:"GeoColour",
+  width:180,delayMs:350,credit:"EUMETSAT"
+ });
+ assert.equal(gif.blob.type,"image/gif");
+ assert.ok(textCalls.filter(x=>x==="T").length>=3,
+  "PNG and both GIF frames render T; PDF writes its own independent vector text");
+});

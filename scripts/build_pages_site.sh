@@ -832,8 +832,12 @@ node --check _site/satellite_tile_cache.js
 node --check _site/satellite_hd.js
 node --check _site/satellite_quality_comparison.js
 node --check _site/satellite_fullhd_film.js
+node --check _site/satellite_isobar_geometry.js
+node --check _site/satellite_map_export.js
 node --check _site/satellite_isobars.js
 node --check _site/satellite_film_export.js
+node --test tests/test_satellite_isobar_geometry.cjs
+node --test tests/test_satellite_map_export.cjs
 node --test tests/test_satellite_isobars.cjs
 node --test tests/test_satellite_film_export.cjs
 node --test tests/test_satellite_overlay.cjs

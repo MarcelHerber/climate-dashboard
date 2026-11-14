@@ -93,6 +93,7 @@ jobs:
           node --check satellite_view_options.js
           node --check satellite_lightning.js
           node --check satellite_radar.js
+          node --check satellite_isobar_geometry.js
           node --check satellite_isobars.js
           node --check satellite_film_export.js
       - name: Python syntax
@@ -133,6 +134,8 @@ jobs:
           node --test tests/test_satellite_front_pause.cjs
           node --test tests/test_satellite_front_style.cjs
           node --test tests/test_satellite_noaa_export.cjs
+          node --test tests/test_satellite_isobar_geometry.cjs
+          node --test tests/test_satellite_map_export.cjs
           node --test tests/test_satellite_progressive.cjs
           node --test tests/test_satellite_quality_comparison.cjs
           node --test tests/test_satellite_fullhd_film.cjs

@@ -161,6 +161,32 @@ function detectPressureSystems(contours,bbox,{minRings=3,maxSystems=7,minSeparat
  // contour at >=1015 hPa is a genuine MSLP high by source contour winding,
  // even when the next 5-hPa threshold is not reached (e.g. 1020-1024 hPa).
  // Do not mark small islands/noise, clipped systems, or a low's outer edge.
+ // A single, CLOSED clockwise ECMWF/contourpy ring can already
+ // enclose a genuine secondary LOW, just as one anticlockwise 1020-hPa
+ // contour can mark a broad high. The previous three-ring minimum missed,
+ // for example, the verified 1000-hPa low at 18.8°W / 49.8°N on 14 Nov 2026.
+ // This conservative exception only permits pronounced (<1010 hPa)
+ // compact lows with a substantial, well-rounded, fully contained polygon.
+ // Deep/nested systems still take priority in the score ranking.
+ // Winding is read in geographic lon/lat, NOT reversed screen coordinates.
+ for(const ring of rings){
+  if(ring.higherInside||ring.hpa>1010||ring.area<1250)continue;
+  const xs=ring.outline.map(p=>p[0]),ys=ring.outline.map(p=>p[1]);
+  const width=Math.max(...xs)-Math.min(...xs);
+  const height=Math.max(...ys)-Math.min(...ys);
+  const diameter=Math.hypot(width,height);
+  const rectangularArea=width*height;
+  if(width<30||height<26||diameter<55||
+     rectangularArea<=0||ring.area/rectangularArea<.42)continue;
+  const smallerHigh=rings.some(inner=>inner!==ring&&inner.higherInside&&
+   inner.area<ring.area*.85&&insidePolygon(inner.center,ring.outline));
+  if(smallerHigh)continue;
+  options.push({type:"T",hpa:ring.hpa,
+   score:23+Math.min(14,Math.sqrt(ring.area)/9)+
+    Math.max(0,1010-ring.hpa)*.15,
+   center:ring.center,rings:1,windingVerified:true,
+   detection:"closed-single-low"});
+ }
  for(const ring of rings){
   if(!ring.higherInside||ring.hpa<1015||
      ring.area<4500||Math.sqrt(ring.area)<60)continue;
