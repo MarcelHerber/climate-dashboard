@@ -1,0 +1,95 @@
+name: Finalize verified CFSR/CFSv2 f003 reference from existing artifacts
+on:
+  push:
+    branches: [feature/gfs-cfsr-1991-2020-europe-20261113]
+    paths:
+      - ".github/workflows/finalize-cfsr-cfsv2-f003-reference.yml"
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: write
+concurrency:
+  group: cfsr-f003-finalize-only
+  cancel-in-progress: false
+jobs:
+  finalize-existing:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout only scripts and reference destination
+        uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+            gfs_analysis_europe
+          sparse-checkout-cone-mode: false
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy
+      - name: Restore 30 already verified annual originals (do not redownload NOAA archives)
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 43524120045
+          pattern: cfs-f003-year-*
+          merge-multiple: true
+          path: gfs_analysis_europe/reference_sources_f003
+      - name: Rebuild and independently verify 30 complete original years
+        run: |
+          python scripts/build_gfs_cfsr_f003_1991_2020.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import numpy as np
+          from scripts import build_gfs_cfsr_f003_1991_2020 as x
+          assert len(list(x.SOURCE.glob("t2m_6h_????.npz")))==30
+          source=[x.check_source(y,x.SOURCE/f"t2m_6h_{y}.npz") for y in range(1991,2021)]
+          assert sum(len(m["source_files"]) for _,m in source)==360
+          assert all(m["forecast_hour"]==3 for _,m in source)
+          assert all(m["hours_utc"]==[3,9,15,21] for _,m in source)
+          assert all(m["cycles_utc"]==[0,6,12,18] for _,m in source)
+          with np.load(x.DEST,allow_pickle=False) as z:
+              m=json.loads(str(z["metadata_json"]))
+              assert m["reference_version"]=="cfsr-cfsv2-t2m-f003-v1"
+              assert m["forecast_hour"]==3 and m["source_months"]==360
+              assert z["normal_t2m_c"].shape==(365,76,140)
+              assert np.all(z["year_count"]==30)
+              assert np.isfinite(z["normal_t2m_c"]).all()
+          print("PASS: genuine +3h normals; 30 years, 360 originals, grid 365x76x140",flush=True)
+          PY
+      - name: Compare regenerated reference to original verified artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 43524120045
+          name: cfsr-cfsv2-1991-2020-f003-reference-verified
+          path: /tmp/verified-original-cfs-f003
+      - name: Confirm byte identity before committing
+        run: |
+          sha256sum gfs_analysis_europe/climatology_1991_2020_f003.npz /tmp/verified-original-cfs-f003/climatology_1991_2020_f003.npz
+          cmp gfs_analysis_europe/climatology_1991_2020_f003.npz /tmp/verified-original-cfs-f003/climatology_1991_2020_f003.npz
+      - name: Commit validated reference only to development branch
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --sparse -f gfs_analysis_europe/climatology_1991_2020_f003.npz
+          if git diff --cached --quiet; then
+            echo "Reference already present and verified"
+            exit 0
+          fi
+          git commit -m "GFS Europa: geprüfte CFSR/CFSv2 f003-Klimatologie 1991–2020"
+          for TRY in 1 2 3; do
+            git fetch origin feature/gfs-cfsr-1991-2020-europe-20261113
+            git rebase origin/feature/gfs-cfsr-1991-2020-europe-20261113
+            if git push origin HEAD:feature/gfs-cfsr-1991-2020-europe-20261113; then
+              echo "Verified f003 baseline committed to feature branch"
+              exit 0
+            fi
+            sleep $((TRY * 6))
+          done
+          exit 1
