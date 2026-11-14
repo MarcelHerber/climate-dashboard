@@ -21,7 +21,7 @@ class PressureGridTests(unittest.TestCase):
         cls.base=1013+0.012*x+0.01*y
         cls.low=-23*np.exp(-((x+18)**2+(y-50)**2)/(2*3.4**2))
         cls.high=23*np.exp(-((x-11)**2+(y-54)**2)/(2*3.8**2))
-        cls.run=dt.datetime(2026,11,14,tzinfo=dt.timezone.utc)
+        cls.cycle=dt.datetime(2026,11,14,tzinfo=dt.timezone.utc)
 
     def test_mslp_grid_extrema_are_real_grid_locations_and_values(self):
         field=self.base+self.low+self.high
@@ -51,8 +51,8 @@ class PressureGridTests(unittest.TestCase):
     def test_original_model_steps_and_10min_interpolation_are_labeled(self):
         grids={lead:(self.lon,self.lat,self.base+self.low+self.high+lead*.15)
                for lead in LEADS}
-        first=frame_from_grids(grids,self.run,0)
-        between=frame_from_grids(grids,self.run,10)
+        first=frame_from_grids(grids,self.cycle,0)
+        between=frame_from_grids(grids,self.cycle,10)
         self.assertEqual(first["pressure_centers_method"],ALGORITHM)
         self.assertEqual(between["pressure_centers_method"],ALGORITHM)
         self.assertFalse(first["interpolated"])
@@ -67,7 +67,7 @@ class PressureGridTests(unittest.TestCase):
 
     def test_original_payload_contains_grid_based_centers_with_utc(self):
         grids={h:(self.lon,self.lat,self.base+self.low+self.high+h*.1) for h in LEADS}
-        doc=build_payload(grids,self.run,self.run+dt.timedelta(hours=7))
+        doc=build_payload(grids,self.cycle,self.cycle+dt.timedelta(hours=7))
         self.assertEqual(doc["pressure_centers_algorithm"],ALGORITHM)
         self.assertEqual(doc["frames"][0]["pressure_centers_method"],ALGORITHM)
         self.assertTrue(all("pressure_centers" in f and "valid_utc" in f
