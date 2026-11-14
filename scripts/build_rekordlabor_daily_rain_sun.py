@@ -14,7 +14,36 @@ from urllib.request import Request,urlopen
 from zipfile import ZipFile
 
 BASE="https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/daily/kl/historical/"
-IDS=("01420","00164","00198","00102","05792","03668","04336","01048","00403","01198")
+# Retain established, verified pilot stations, even if a snow series is absent.
+PILOT_IDS=("01420","00164","00198","00102","05792","03668","04336","01048","00403","01198")
+PER_STATE=6
+
+def select_stations(index_path:Path, per_state:int=PER_STATE)->tuple[list[str],dict[str,int]]:
+    """Choose a geographically distributed and traceable set of genuine DWD stations.
+    Geographic distribution follows the existing official DWD snow-station index.
+    Only well documented stations with recent observations and >=30 QC years enter
+    the automatically discovered extension. Previously tested IDs are retained.
+    """
+    stations=json.loads(index_path.read_text(encoding="utf8")).get("stations",[])
+    grouped:dict[str,list[dict]]={}
+    for row in stations:
+        sid=str(row.get("id","")).zfill(5)
+        state=str(row.get("state") or "")
+        if not sid.isdigit() or len(sid)!=5 or not state:continue
+        if int(row.get("history_end_year") or 0)<2020:continue
+        if int(row.get("accepted_history_years") or 0)<30:continue
+        grouped.setdefault(state,[]).append({**row,"id":sid})
+    selection=set(PILOT_IDS)
+    state_counts={}
+    for state in sorted(grouped):
+        # Older, still-observing archives get priority; ties use DWD station ID.
+        entries=sorted(grouped[state],key=lambda v:(
+          -int(v.get("accepted_history_years") or 0),
+          -int(v.get("reference_years_available") or 0),v["id"]))
+        chosen=entries[:per_state]
+        selection.update(row["id"] for row in chosen)
+        state_counts[state]=len(chosen)
+    return sorted(selection),state_counts
 METRICS={"rain":{"column":"RSK","unit":"mm","label":"Tagesniederschlag (korrigiert)"},
          "sun":{"column":"SDK","unit":"h","label":"Sonnenscheindauer"}}
 MISSING=-32768
@@ -60,11 +89,13 @@ def parse(blob):
                         data[date.year][metric][ix]=round(value*10)
     return data
 
-def build(root):
+def build(root, station_index:Path, per_state:int=PER_STATE):
     root.mkdir(parents=True,exist_ok=True)
     index=download(BASE).decode("utf8","replace")
+    selected,states=select_stations(station_index,per_state)
+    print("DWD KL COVERAGE CANDIDATES",len(selected),"STATES",json.dumps(states,ensure_ascii=False),flush=True)
     published=[]
-    for sid in IDS:
+    for sid in selected:
         url=entries(index,sid)
         if not url:print("DWD KL NOT AVAILABLE",sid,flush=True);continue
         try:
@@ -93,7 +124,17 @@ def build(root):
             print("DWD KL FAILURE",sid,str(error)[:250],flush=True)
     if not any(x["id"]=="01420" for x in published):
         raise SystemExit("No verified Frankfurt DWD KL original rain/sun daily archive; refuse publishing")
+    if len(published)<30:
+        raise SystemExit(f"Only {len(published)} verified DWD KL stations. Refusing incomplete coverage regression.")
+    # Rebuild indices from this run only: stale JSON not in the new archive must
+    # not masquerade as a current station.
+    active={row["id"] for row in published}
+    for previous in root.glob("[0-9][0-9][0-9][0-9][0-9].json"):
+        if previous.stem not in active:previous.unlink()
     metadata={"schema":1,"ready":True,"stations":published,
+              "selection":{"method":"DWD official station histories >=30 QC years and observations since 2020",
+                           "per_state_target":per_state,"states":states,
+                           "candidates":len(selected),"published":len(published)},
               "dataset":"DWD CDC daily KL historical RSK (corrected rain) and SDK (sunshine)",
               "generated_at":dt.datetime.now(dt.timezone.utc).isoformat(),
               "note":"DWD historical archive, original observations; not all stations measure sunshine."}
@@ -101,5 +142,10 @@ def build(root):
     print("DWD KL HISTORICAL DAILY",len(published),"stations",flush=True)
 
 if __name__=="__main__":
-    ap=argparse.ArgumentParser();ap.add_argument("--out",type=Path,default=Path("data/rekordlabor/calendar"))
-    build(ap.parse_args().out)
+    ap=argparse.ArgumentParser()
+    ap.add_argument("--out",type=Path,default=Path("data/rekordlabor/calendar"))
+    ap.add_argument("--station-index",type=Path,default=Path("station_snow_height_index.json"))
+    ap.add_argument("--per-state",type=int,default=PER_STATE)
+    args=ap.parse_args()
+    if not 1<=args.per_state<=20:ap.error("--per-state must be 1..20")
+    build(args.out,args.station_index,args.per_state)
