@@ -259,3 +259,11 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 /* Front analyses temporarily paused; retain internal nodes for potential reactivation. */
 .sat-overlay-controls label[hidden],#satSynopticOverlaySection[hidden],
 .sat-front-legend[hidden],.sat-front-note[hidden]{display:none!important}
+
+/* Phase 2: useful explanation accompanies the exact selected official FCI product. */
+.sat-product-guide{
+ margin:8px 0 14px;padding:11px 14px;border:1px solid var(--sat-border);
+ border-radius:9px;background:var(--sat-bg);color:var(--sat-text);
+ font-size:13px;line-height:1.6;max-width:none!important;
+}
+@media(max-width:650px){.sat-product-guide{font-size:12px;padding:10px 11px}}
