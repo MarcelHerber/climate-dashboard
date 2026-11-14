@@ -30,6 +30,18 @@ class RecordLaborHourlyTests(unittest.TestCase):
         row=rows_from_zip(blob,"pressure")
         self.assertEqual(len(row),2)
         self.assertAlmostEqual(row["2020010101"],1002.9)
+        self.assertEqual(top_events(row,"pressure",1,"down")[0],1)
+    def test_invalid_high_pressure_hours_never_become_records(self):
+        blob=pack("p0",[
+            "STATIONS_ID;MESS_DATUM;QN_8;P;P0;eor",
+            "00164;2020010100;3;980;989.7;eor",
+            "00164;2020010101;3;981;1090.6;eor",
+            "00164;2020010102;3;982;990.2;eor",
+            "00164;2020010103;3;983;991.2;eor"])
+        data=rows_from_zip(blob,"pressure")
+        self.assertNotIn("2020010101",data)
+        self.assertEqual(top_events(data,"pressure",2,"up")[0],0)
+        self.assertEqual(top_events(data,"pressure",1,"up")[0],1)
     def test_dwd_wind_direction_threshold(self):
         blob=pack("ff",[
            "STATIONS_ID;MESS_DATUM;QN_3;F;D;eor",
