@@ -17,10 +17,10 @@ const sourceOverlay={validUTC:"2026-11-12T03:20:00Z",satelliteUTC:"2026-11-12T03
   {hpa:1015,lines:[[[-30,40],[-26,41],[-22,42],[-18,43],[-14,43],[-10,44],[-5,44],[-2,45]]]}
  ]};
 function loaded(){
- const calls=[],textCalls=[];
+ const calls=[],textCalls=[],pressurePaint=[];
  const ctx={
   save(){},restore(){},beginPath(){},rect(){},clip(){},moveTo(){},lineTo(){},fillRect(){},
-  strokeRect(){},fillText(s){textCalls.push(String(s));},strokeText(s){textCalls.push("outline:"+String(s));},drawImage(){},stroke(){calls.push({width:this.lineWidth,color:this.strokeStyle});},
+  strokeRect(){},fillText(s){textCalls.push(String(s));if(s==="H"||s==="T")pressurePaint.push({letter:s,font:this.font,lineWidth:this.lineWidth});},strokeText(s){textCalls.push("outline:"+String(s));},drawImage(){},stroke(){calls.push({width:this.lineWidth,color:this.strokeStyle});},
   measureText(s){return {width:s.length*7};},
   getImageData(x,y,w,h){return {data:new Uint8ClampedArray(w*h*4).fill(127)}}
  };
@@ -38,7 +38,7 @@ function loaded(){
  vm.runInNewContext(geometry,scope,{timeout:5000});
  vm.runInNewContext(content,scope,{timeout:5000});
  vm.runInNewContext(film,scope,{timeout:5000});
- return {api:scope.window.SatelliteMapExport,film:scope.window.SatelliteFilmExport,calls,textCalls};
+ return {api:scope.window.SatelliteMapExport,film:scope.window.SatelliteFilmExport,calls,textCalls,pressurePaint,ctx};
 }
 const options={image:{naturalWidth:180,naturalHeight:100},
  overlay:sourceOverlay,region:"southwest",regionName:"Südwesteuropa",
@@ -227,4 +227,39 @@ test("Real single-ring 1000-hPa low appears identically in PNG, vector PDF and G
  assert.equal(gif.blob.type,"image/gif");
  assert.ok(textCalls.filter(x=>x==="T").length>=3,
   "PNG and both GIF frames render T; PDF writes its own independent vector text");
+});
+
+test("Only H/T font sizes are exactly +50% on desktop/mobile, Canvas, GIF and editable PDF",async()=>{
+ const css=fs.readFileSync("satelliten.css","utf8");
+ const html=fs.readFileSync("satelliten.html","utf8");
+ // Final overriding CSS rule is responsible for both desktop and touch sizes.
+ assert.match(css,/sat-pressure-center\\{\\s*font-family:[^}]*font-size:40\\.5px;font-weight:750/);
+ assert.match(css,/@media\\(max-width:650px\\)\\{\\.sat-pressure-center\\{font-size:37\\.5px\\}/);
+ assert.match(css,/font-size:40\\.5px;font-weight:750;\\s*stroke:#15283b;stroke-width:2\\.1px/);
+ assert.match(html,/satelliten\\.css\\?v=20261114-pressure-150/);
+ assert.match(html,/satellite_map_export\\.js\\?v=20261114-pressure-150/);
+ const {api,ctx,pressurePaint}=loaded();
+ const fixture=JSON.parse(fs.readFileSync(
+  "tests/fixtures/satellite_mslp_20261114_1040_missing_low.json","utf8"));
+ const overlay={...sourceOverlay,
+  validUTC:fixture.valid_utc,satelliteUTC:fixture.valid_utc,
+  region:"europe",contours:fixture.contours};
+ assert.equal(api.pressureCenters(overlay,"europe").length,1);
+ for(const width of [180,900,1600]){
+  api.paintPressureCenters(ctx,overlay,"europe",{width,height:500});
+  const observed=pressurePaint.at(-1);
+  const previous=Math.max(17,Math.min(35,Math.round(width*.022)));
+  assert.equal(observed.letter,"T");
+  assert.equal(Number(observed.font.match(/(\\d+(?:\\.\\d+)?)px/)[1]),previous*1.5);
+  assert.equal(observed.lineWidth,Math.max(1.6,previous*.085),
+   "Outline width must stay exactly as before despite larger font");
+ }
+ for(const width of [180,1200]){
+  const result=await api.renderPDF({...options,region:"europe",regionName:"Europa",
+   overlay,image:{naturalWidth:width,naturalHeight:500}});
+  const pdf=Buffer.from(await result.blob.arrayBuffer()).toString("latin1");
+  const actual=pdf.match(/BT \/F1 (\\d+(?:\\.\\d+)?) Tf 2 Tr [^\\n]*\\(T\\) Tj ET/);
+  assert.ok(actual,"PDF must preserve editable T text");
+  assert.equal(Number(actual[1]),1.5*Math.max(18,Math.min(34,width*.022)));
+ }
 });
