@@ -3,7 +3,7 @@
 No route interception, no mocked results, no synthetic station observations.
 """
 from __future__ import annotations
-import json, time, urllib.request, traceback
+import json, os, time, urllib.request, traceback
 from pathlib import Path
 from xml.etree import ElementTree as ET
 from playwright.sync_api import sync_playwright
@@ -19,7 +19,16 @@ def await_published():
         try:
             with urllib.request.urlopen(BASE+"stations_rekordlabor.html?qa="+str(time.time()),timeout=16) as response:
                 txt=response.read().decode("utf8")
-            if ('id="rlChanges"' in txt and 'id="rlMap"' in txt and 'stations_rekordlabor.js?v=20261114-p3-expanded-kl-v3' in txt):return
+            if ('id="rlChanges"' in txt and 'id="rlMap"' in txt and 'stations_rekordlabor.js?v=20261114-p3-hourly-national-v1' in txt):
+                expected=int(os.environ.get("REKORDLABOR_MIN_HOURLY_STATIONS","0"))
+                if expected:
+                    with urllib.request.urlopen(BASE+"data/rekordlabor/weather_turns/index.json?qa="+str(time.time()),timeout=16) as index_response:
+                        index=json.load(index_response)
+                    if len(index.get("stations",[]))<expected:
+                        print("Hourly site archive not yet published:",len(index.get("stations",[])),"of",expected,flush=True)
+                        time.sleep(15)
+                        continue
+                return
         except Exception as error:
             print("Phase3 release probe:",str(error)[:140],flush=True)
         time.sleep(15)
