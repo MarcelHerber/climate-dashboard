@@ -236,11 +236,11 @@ link='<a class="tab-button" data-nav-group="europe" href="gfs_f003_europe.html">
 if link not in s:
     # The existing navigation has evolved: match the source link by href,
     # not by a brittle CSS class, attribute order or exact label.
-    pattern=r'(<a\\b[^>]*href=["\\\'](?:[.]/)?temperatur_anomalie_europa[.]html["\\\'][^>]*>.*?</a>)'
+    pattern=r'(<a\b[^>]*href=[^>]*temperatur_anomalie_europa[.]html[^>]*>[^<]*</a>)'
     found=list(re.finditer(pattern,s,flags=re.DOTALL|re.IGNORECASE))
     if found:
         at=found[0].end()
-        s=s[:at]+"\\n          "+link+s[at:]
+        s=s[:at]+"\n          "+link+s[at:]
         print("GFS f003 desktop navigation inserted beside CPC link",flush=True)
     else:
         # Safe explicit link is better than silently hiding the new map.
@@ -250,7 +250,7 @@ if link not in s:
             s=s.replace("</header>","</header>\\n"+wrapper,1)
         elif "<main" in s:
             where=s.index("<main")
-            s=s[:where]+wrapper+"\\n"+s[where:]
+            s=s[:where]+wrapper+"\n"+s[where:]
         else:
             raise SystemExit("GFS f003: cannot find a safe navigation insertion point")
         print("GFS f003: CPC desktop anchor absent; inserted visible page entry near header",flush=True)
