@@ -77,3 +77,18 @@ test("seasonal rank sorts calendar date rather than raw 365/366 day index",()=>{
  assert.equal(ranked.records[1].md,"03-01");
  assert.equal(ranked.records[0].dayOfYear,ranked.records[1].dayOfYear);
 });
+
+test("Historical DWD KL RSK/SDK retains leap-day records and missing days",()=>{
+ const doc={years:[2023,2024],metrics:{rain:{encoded:"dwd-kl-daily-zlib16-v1"}}};
+ const buf=new ArrayBuffer(2*366*2),view=new DataView(buf);
+ for(let i=0;i<366*2;i++)view.setInt16(i*2,-32768,true);
+ view.setInt16((366+59)*2,224,true);  // 22.4 mm on February 29, 2024
+ view.setInt16((366+60)*2,53,true);   // 5.3 mm on March 1
+ view.setInt16(58*2,122,true);        // 12.2 mm February 28, 2023
+ const map=C.decodeRawDailyMetric(doc,"rain",buf);
+ assert.equal(C.calendarKL(map,"02-29").length,1);
+ assert.equal(C.calendarKL(map,"02-29")[0].value,22.4);
+ assert.equal(C.calendarKL(map,"03-01").length,1);
+ assert.equal(C.calendarKL(map,"03-01")[0].value,5.3);
+ assert.equal(C.calendarKL(map,"12-31").length,0);
+});
