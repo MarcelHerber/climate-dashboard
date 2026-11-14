@@ -19,7 +19,7 @@ const BBOX={
 const COLORS={cold:"#48a8ff",warm:"#ff6262",occluded:"#ce77f9",stationary:"#ec73b6"};
 let info=null,context={time:null,region:region.value,source:source.value},lastStatus="";
 function utc(s){
- if(typeof s!=="string"||!/\d{4}-\d\d-\d\dT\d\d:\d\dZ$/.test(s))return null;
+ if(typeof s!=="string"||!/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?Z$/.test(s))return null;
  const ms=Date.parse(s);return Number.isFinite(ms)?ms:null;
 }
 function nice(ms){
