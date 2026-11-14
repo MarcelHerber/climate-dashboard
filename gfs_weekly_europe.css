@@ -10,3 +10,13 @@
 @media(max-width:720px){.weekly-source-note{font-size:.8rem;padding:9px 10px}#weekMapLabel{font-size:.6rem}#weekLegend .weekly-steps{font-size:.6rem}}
 @media(prefers-color-scheme:dark){.weekly-source-note{background:#243f52;color:#c7e1f3}}
 @media print{.cpc-export,.cpc-back,.cpc-fields,#cd-mobile-navigation,.weekly-country-table{display:none!important}.weekly-map-frame,#weekMap{-webkit-print-color-adjust:exact;print-color-adjust:exact}.cpc-panel{break-inside:avoid}.cpc-method{display:none!important}}
+
+/* The PDF button prints the exact same annotated canvas as the PNG download. */
+#weekPrintPage{display:none}
+@media print{
+  @page{size:A4 landscape;margin:7mm}
+  body.weekly-export-print{margin:0!important;background:#fff!important}
+  body.weekly-export-print > :not(#weekPrintPage){display:none!important}
+  body.weekly-export-print #weekPrintPage{display:block!important;width:100%;padding:0;margin:0}
+  body.weekly-export-print #weekPrintPage img{display:block;width:100%;height:auto;object-fit:contain}
+}
