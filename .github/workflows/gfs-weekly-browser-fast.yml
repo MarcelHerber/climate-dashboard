@@ -1,8 +1,13 @@
 name: GFS Europa 7 Tage · schneller Desktop und Handytest
 on:
   push:
-    branches: [feature/gfs-7day-europe-anomaly-20261114]
-    paths: [".github/workflows/gfs-weekly-browser-fast.yml"]
+    branches: [main, feature/gfs-7day-europe-anomaly-20261114]
+    paths:
+      - ".github/workflows/gfs-weekly-browser-fast.yml"
+      - "gfs_weekly_europe.html"
+      - "gfs_weekly_europe.js"
+      - "gfs_weekly_europe.css"
+      - "tests/test_gfs_weekly_europe_browser.py"
   workflow_dispatch:
 permissions:
   contents: read
