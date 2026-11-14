@@ -50,6 +50,8 @@
 <option value="tmax">Tageshöchsttemperatur (Tmax)</option>
 <option value="tmin">Tagestiefsttemperatur (Tmin)</option>
 <option value="tmean">Tagesmitteltemperatur</option>
+<option value="rain">Tagesniederschlag · RSK (DWD KL)</option>
+<option value="sun">Sonnenscheindauer · SDK (DWD KL)</option>
 <option value="snow">Schneehöhe</option>
 </select></div>
 <div><label for="rlCalOrder">Rangliste</label>
@@ -61,7 +63,7 @@
 <div class="rl-downloads"><button type="button" data-rl-export="png">PNG</button><button type="button" data-rl-export="pdf">PDF (Vektor)</button><button type="button" data-rl-export="svg">SVG</button><button type="button" data-rl-export="csv">CSV</button></div>
 <h3>Historische Top 10</h3><div class="rl-table-scroll"><table><thead><tr><th>Rang</th><th>Datum</th><th>Wert</th><th>Jahr</th></tr></thead><tbody id="rlCalendarTable"></tbody></table></div>
 <details class="rl-details"><summary>Alle verfügbaren Jahre anzeigen</summary><div class="rl-table-scroll"><table><thead><tr><th>Datum</th><th>Wert</th></tr></thead><tbody id="rlCalendarAllYears"></tbody></table></div></details>
-<p class="rl-hint">Die Rangliste zählt jeden Kalendertag separat; der 29. Februar erscheint ausschließlich in Schaltjahren. Fehlende oder ungültige Tagesmessungen werden ausgelassen. Schneehöhen-Rekorde verwenden nur qualitätsgeprüfte hydrologische Jahre.</p>
+<p class="rl-hint">Die Rangliste zählt jeden Kalendertag separat; der 29. Februar erscheint ausschließlich in Schaltjahren. Fehlende oder ungültige Tagesmessungen werden ausgelassen. Schneehöhen-Rekorde verwenden nur qualitätsgeprüfte hydrologische Jahre. Niederschlag (DWD RSK, korrigierte Tagessumme) und Sonnenscheindauer (DWD SDK) werden nur für Stationen mit separat geprüftem historischem DWD-KL-Archiv angeboten.</p>
 </section>
 <section class="rl-panel" id="rlSeasons" role="tabpanel" aria-labelledby="rlTabSeasons" hidden>
 <div class="rl-heading"><div><h2>Jahreszeitenrekorde</h2><p>Wann begann die Hitze? Wann gab es den letzten Frost – und wie lange hielt die Schneedecke?</p></div></div>
