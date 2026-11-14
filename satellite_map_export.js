@@ -32,7 +32,7 @@ function project(point,region,x,y,w,h){
  * Reject unverified sources or mixed UTC. No invented front-side triangles.
  */
 const NOAA_SOURCE="https://tgftp.nws.noaa.gov/data/raw/as/asus02.kwbc.cod.sus.txt";
-const FRONT_COLORS={cold:"#48a8ff",warm:"#ff6262",occluded:"#ce77f9",stationary:"#ec73b6"};
+const FRONT_COLORS={cold:"#5998c9",warm:"#d77a76",occluded:"#a795c5",stationary:"#a795c5"};
 function frontFeatures(fronts,region,satelliteUTC){
  if(!fronts)return [];
  if(!BBOX[region]||fronts.provider!=="NOAA WPC"||fronts.source_url!==NOAA_SOURCE||
@@ -59,45 +59,88 @@ function frontFeatures(fronts,region,satelliteUTC){
  }
  return found;
 }
-function paintFronts(ctx,fronts,region,{x=0,y=0,width,height},satelliteUTC=fronts?.satelliteUTC){
+/* All three output media use the same source vertices and symbol geometry.
+ * Symbol SIDES are schematic unless explicitly verified in the NOAA feed.
+ * Small Bezier handles preserve every actual WPC coordinate exactly.
+ */
+const frontUnit=width=>Math.max(.74,Math.min(3.6,width/900));
+function frontLayout(fronts,region,satelliteUTC,area){
  const features=frontFeatures(fronts,region,satelliteUTC);
- if(!features.length)return 0;
+ const style=window.SatelliteFrontStyle;
+ if(features.length&&!style?.layout)
+  throw Error("Gemeinsames NOAA-Synoptikmodul fehlt.");
+ return features.map(f=>style.layout(f,p=>project(p,region,area.x,area.y,area.width,area.height),
+  frontUnit(area.width))).filter(Boolean);
+}
+function canvasCommandPath(ctx,steps){
+ ctx.beginPath();
+ for(const item of steps){
+  if(item[0]==="M")ctx.moveTo(item[1],item[2]);
+  else if(item[0]==="L")ctx.lineTo(item[1],item[2]);
+  else if(item[0]==="C")ctx.bezierCurveTo(...item.slice(1));
+  else if(item[0]==="Z")ctx.closePath();
+ }
+}
+function paintFronts(ctx,fronts,region,{x=0,y=0,width,height},satelliteUTC=fronts?.satelliteUTC){
+ if(!fronts)return 0;
  if(!width||!height)throw Error("Fronten: Kartenmaße fehlen.");
- const unit=Math.max(.8,Math.min(1.75,width/900));
+ const glyphs=frontLayout(fronts,region,satelliteUTC,{x,y,width,height});
+ if(!glyphs.length)return 0;
+ const unit=frontUnit(width);
  ctx.save();ctx.beginPath();ctx.rect(x,y,width,height);ctx.clip();
  ctx.lineJoin="round";ctx.lineCap="round";
- for(const f of features){
-  ctx.beginPath();
-  for(let i=0;i<f.coords.length;i++){
-   const p=project(f.coords[i],region,x,y,width,height);
-   if(i===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);
+ for(const g of glyphs){
+  ctx.setLineDash?.([]);canvasCommandPath(ctx,g.commands);
+  ctx.strokeStyle="#122438";ctx.lineWidth=2.55*unit;ctx.stroke();
+  if(g.type==="stationary"){
+   for(const section of g.sections){
+    canvasCommandPath(ctx,section.commands);
+    ctx.strokeStyle=section.color;ctx.lineWidth=1.4*unit;ctx.stroke();
+   }
+  }else{
+   canvasCommandPath(ctx,g.commands);
+   ctx.strokeStyle=g.color;ctx.lineWidth=1.4*unit;ctx.stroke();
   }
-  ctx.setLineDash?.([]);
-  ctx.strokeStyle="#061826";ctx.lineWidth=3.4*unit;ctx.stroke();
-  ctx.strokeStyle=FRONT_COLORS[f.type];ctx.lineWidth=1.8*unit;
-  if(f.type==="stationary")ctx.setLineDash?.([6*unit,5*unit]);
-  ctx.stroke();ctx.setLineDash?.([]);
+  for(const glyph of g.symbols){
+   canvasCommandPath(ctx,glyph.commands);
+   ctx.fillStyle=glyph.color;ctx.fill();
+   ctx.strokeStyle="#122438";ctx.lineWidth=.55*unit;ctx.stroke();
+  }
  }
  ctx.restore();
- return features.length;
+ return glyphs.length;
+}
+function pdfCommands(steps,top){
+ const arr=[];
+ for(const item of steps){
+  const t=item[0];
+  if(t==="Z"){arr.push("h");continue;}
+  const coords=[];
+  for(let i=1;i<item.length;i+=2)coords.push(fmt(item[i]),fmt(top-item[i+1]));
+  arr.push(coords.join(" ")+(t==="M"?" m":t==="L"?" l":" c"));
+ }
+ return arr.join("\n");
 }
 function drawPDFFronts(fronts,region,w,h,bottom,satelliteUTC){
- const features=frontFeatures(fronts,region,satelliteUTC);
- if(!features.length)return "";
+ if(!fronts)return "";
+ const glyphs=frontLayout(fronts,region,satelliteUTC,{x:0,y:0,width:w,height:h});
+ if(!glyphs.length)return "";
  const out=["% NOAA WPC analyzed frontal vectors (individual editable paths)",
+  "% Pips schematic: CODSUS does not encode frontal movement/side",
   "q 0 "+fmt(bottom)+" "+fmt(w)+" "+fmt(h)+" re W n","1 J 1 j"];
- const unit=Math.max(.8,Math.min(1.75,w/900));
- for(const f of features){
-  const p=f.coords.map((coord,i)=>{
-   const [x,y]=project(coord,region,0,0,w,h);
-   return fmt(x)+" "+fmt(bottom+h-y)+(i?" l":" m");
-  }).join("\n");
-  out.push("q",pdfRGB("#061826")+" RG",fmt(3.4*unit)+" w",
-    "[] 0 d",p,"S","Q");
-  out.push("q",pdfRGB(FRONT_COLORS[f.type])+" RG",
-    fmt(1.8*unit)+" w",
-    f.type==="stationary"?"["+fmt(6*unit)+" "+fmt(5*unit)+"] 0 d":"[] 0 d",
-    p,"S","Q");
+ const unit=frontUnit(w),top=bottom+h;
+ for(const g of glyphs){
+  const path=pdfCommands(g.commands,top);
+  out.push("q",pdfRGB("#122438")+" RG",fmt(2.55*unit)+" w",path,"S","Q");
+  if(g.type==="stationary"){
+   for(const section of g.sections)out.push("q",pdfRGB(section.color)+" RG",
+    fmt(1.4*unit)+" w",pdfCommands(section.commands,top),"S","Q");
+  }else out.push("q",pdfRGB(g.color)+" RG",fmt(1.4*unit)+" w",path,"S","Q");
+  for(const glyph of g.symbols){
+   out.push("q",pdfRGB(glyph.color)+" rg",
+    pdfRGB("#122438")+" RG",fmt(.55*unit)+" w",
+    pdfCommands(glyph.commands,top),"B","Q");
+  }
  }
  out.push("Q");
  return out.join("\n");
@@ -312,5 +355,5 @@ function download(result){
  setTimeout(()=>URL.revokeObjectURL(u),60000);
  return result.blob.size;
 }
-window.SatelliteMapExport={paintIsobars,paintFronts,frontFeatures,paintPressureCenters,pressureCenters,pathsFor,renderPNG,renderPDF,download};
+window.SatelliteMapExport={paintIsobars,paintFronts,frontLayout,frontFeatures,paintPressureCenters,pressureCenters,pathsFor,renderPNG,renderPDF,download};
 })();
