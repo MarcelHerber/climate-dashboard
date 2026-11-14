@@ -19,7 +19,7 @@ def await_published():
         try:
             with urllib.request.urlopen(BASE+"stations_rekordlabor.html?qa="+str(time.time()),timeout=16) as response:
                 txt=response.read().decode("utf8")
-            if ('id="rlChanges"' in txt and 'stations_rekordlabor.js?v=20261114-p3' in txt):return
+            if ('id="rlChanges"' in txt and 'id="rlMap"' in txt and 'stations_rekordlabor.js?v=20261114-p3' in txt):return
         except Exception as error:
             print("Phase3 release probe:",str(error)[:140],flush=True)
         time.sleep(15)
@@ -78,6 +78,9 @@ def test(browser,width):
                                timeout=100000)
         station=page.locator("#rlStation").inner_text()
         assert "01420" in station,f"Frankfurt initial station missing: {station}"
+        page.wait_for_function("""()=>document.getElementById('rlMapStatus')?.textContent.includes('Stationsstandorte')""",timeout=35000)
+        assert page.locator("#rlMap.leaflet-container").count()==1,"Original DWD station map absent"
+        result["map"]=page.locator("#rlMapStatus").inner_text()
         page.wait_for_function("""()=>document.getElementById("rlCalendarTable")?.querySelectorAll("tr").length>=5""",
                                timeout=45000)
         cover=page.locator("#rlCalendarMeta").inner_text()
@@ -130,7 +133,19 @@ def test(browser,width):
             downloads(page,"rlChanges",f"weather_{width}")
             page.locator("#rlChangeHours").select_option("6")
             assert page.locator("#rlChangeTable tr[data-rl-event]").count()>0
-            result["cases"].append("real_hourly_dwd_changes")
+            page.locator("#rlChangeMetric").select_option("pressure")
+            page.locator("#rlChangeHours").select_option("1")
+            page.wait_for_function("""()=>document.getElementById('rlChangeMeta')?.textContent.includes('pressure')""",timeout=30000)
+            pvalues=page.locator("#rlChangeTable tr[data-rl-event]").all_inner_texts()
+            assert pvalues and "hPa" in pvalues[0],"Validated DWD hourly pressure records missing"
+            doc=page.evaluate("""async()=>await (await fetch('data/rekordlabor/weather_turns/00164.json',{cache:'no-store'})).json()""")
+            assert "930" in doc["metrics"]["pressure"]["quality_notes"],"Unverified historical P0 data present"
+            hourly=doc["metrics"]["pressure"]["windows"]["1"]
+            assert abs(hourly["up"][0]["delta"])<=8 and abs(hourly["down"][0]["delta"])<=8
+            result["pressure_qc"]={"up":hourly["up"][0]["delta"],"down":hourly["down"][0]["delta"]}
+            page.locator("#rlChangeMetric").select_option("wind_direction")
+            assert page.locator("#rlChangeTable tr[data-rl-event]").count()>0,"DWD wind shifts missing"
+            result["cases"].append("real_hourly_dwd_changes_pressure_qc_wind")
         else:
             assert "kein" in change_status.lower() or "noch" in change_status.lower(),change_status
             result["cases"].append("hourly_archive_not_yet_published")
