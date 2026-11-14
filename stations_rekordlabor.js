@@ -7,14 +7,14 @@ const RAW="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main
 const TODAY=new Date(),YEAR=TODAY.getUTCFullYear();
 const tabs={calendar:["rlTabCalendar","rlCalendar"],seasons:["rlTabSeasons","rlSeasons"],
  changes:["rlTabChanges","rlChanges"]};
-const state={catalog:null,station:null,view:"calendar",temp:null,snow:null,
+const state={catalog:null,station:null,view:"calendar",temp:null,snow:null,kl:null,
   stationSerial:0,weatherIndex:null,weather:null,weatherSerial:0,
   selectedEvent:null,csv:[],fileName:"",chart:null,chartCanvas:null,chartLabel:"",status:""};
 const num=(n,max=1)=>Number(n).toLocaleString("de-DE",{maximumFractionDigits:max});
 const finite=Number.isFinite,esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&quot;","'":"&#39;"}[c]));
 const count=(s)=>s?num(s,0):"0";
 const metricOpts={tmax:{i:0,label:"Tmax",unit:"°C"},tmin:{i:1,label:"Tmin",unit:"°C"},
- tmean:{i:2,label:"Tagesmittel",unit:"°C"},snow:{label:"Schneehöhe",unit:"cm"}};
+ tmean:{i:2,label:"Tagesmittel",unit:"°C"},rain:{label:"Tagesniederschlag",unit:"mm"},sun:{label:"Sonnenscheindauer",unit:"h"},snow:{label:"Schneehöhe",unit:"cm"}};
 function message(target,s){$(target).textContent=s;}
 async function fetchJson(path,optional=false){
  for(const url of [path,RAW+path]){
@@ -82,11 +82,11 @@ function setExportState(ready){
  for(const b of document.querySelectorAll("#"+tabs[state.view][1]+" [data-rl-export]"))b.disabled=!ready;
 }
 async function selectStation(st){
- state.station=st;state.temp=null;state.snow=null;const id=++state.stationSerial;
+ state.station=st;state.temp=null;state.snow=null;state.kl=null;const id=++state.stationSerial;
  message("rlStation",st.name+" · "+st.id+" · "+st.state+" · geprüfte Daten werden geladen …");
  renderSuggestions();
- for(const [value,option] of [["tmax","tmax"],["tmin","tmin"],["tmean","tmean"],["snow","snow"]]){
-  const el=$("rlCalMetric").querySelector('option[value="'+option+'"]');if(el)el.disabled=value==="snow"?!st.snow:!st.temp;
+ for(const [value,option] of [["tmax","tmax"],["tmin","tmin"],["tmean","tmean"],["snow","snow"],["rain","rain"],["sun","sun"]]){
+  const el=$("rlCalMetric").querySelector('option[value="'+option+'"]');if(el)el.disabled=value==="snow"?!st.snow:(value==="rain"||value==="sun")?true:!st.temp;
  }
  const snowOnly=!st.temp&&st.snow;
  if(snowOnly){$("rlCalMetric").value="snow";$("rlSeasonMetric").value="snowFirst";}
@@ -98,17 +98,34 @@ async function selectStation(st){
     st.snow?fetchJson(st.snow_file).then(doc=>{
        if(!Array.isArray(doc?.years)||!Array.isArray(doc?.month_days))throw Error("Schneehöhenarchiv ungültig");
        return doc;
-     }):Promise.resolve(null)
+     }):Promise.resolve(null),
+    fetchJson("data/rekordlabor/calendar/"+st.id+".json",true).then(async doc=>{
+      if(!doc?.metrics||String(doc.station_id)!==st.id)return null;
+      const [rain,sun]=await Promise.all([
+        doc.metrics.rain?C.decodeDailyMetric(doc,"rain"):Promise.resolve(null),
+        doc.metrics.sun?C.decodeDailyMetric(doc,"sun"):Promise.resolve(null)
+      ]);
+      return {rain,sun,source:doc.source};
+    })
   ];
   // Only current station should be allowed to render on delayed network replies.
   const values=await Promise.allSettled(tasks);
   if(id!==state.stationSerial)return;
   state.temp=values[0].status==="fulfilled"?values[0].value:null;
   state.snow=values[1].status==="fulfilled"?values[1].value:null;
+  state.kl=values[2].status==="fulfilled"?values[2].value:null;
+  for(const value of ["rain","sun"]){
+    const op=$("rlCalMetric").querySelector('option[value="'+value+'"]');
+    if(op)op.disabled=!state.kl?.[value];
+  }
+  if($("rlCalMetric").selectedOptions[0]?.disabled)
+    $("rlCalMetric").value=state.temp?"tmax":state.snow?"snow":state.kl?.rain?"rain":"sun";
   const errors=values.map(v=>v.status==="rejected"?v.reason.message:null).filter(Boolean);
   message("rlStation",st.name+" · DWD-ID "+st.id+" · "+st.state+
     " · Temperatur: "+(state.temp?state.temp.size+" historische Jahre":"nicht verfügbar")+
     " · Schneehöhe: "+(state.snow?state.snow.years.filter(y=>y.accepted).length+" vollständige hydrol. Jahre":"nicht verfügbar")+
+    " · Niederschlag historisch: "+(state.kl?.rain?"ja":"kein geprüftes KL-Archiv")+
+    " · Sonne historisch: "+(state.kl?.sun?"ja":"kein geprüftes KL-Archiv")+
     (errors.length?" · Einschränkung: "+errors.join(" / "):""));
   render();
  }catch(e){if(id===state.stationSerial)message("rlStation","Ladefehler: "+e.message);}
@@ -117,16 +134,19 @@ function calendarRender(){
  const metric=$("rlCalMetric").value,md=$("rlDay").value,order=$("rlCalOrder").value;
  const spec=metricOpts[metric],station=state.station;
  if(!station)return;
- const rows=metric==="snow"?state.snow?C.snowCalendar(state.snow,md):[]:
-   state.temp?C.calendarTemperature(state.temp,md,spec.i):[];
+ const rows=metric==="snow"?(state.snow?C.snowCalendar(state.snow,md):[]):
+   (metric==="rain"||metric==="sun")?C.calendarKL(state.kl?.[metric],md):
+   (state.temp?C.calendarTemperature(state.temp,md,spec.i):[]);
  const sorted=C.sortedRecords(rows,order,10);
  const title=spec.label+" · "+md.slice(3)+"."+md.slice(0,2)+". · "+station.name;
  const sortedByYear=rows.slice().sort((a,b)=>a.year-b.year);
  const first=sortedByYear[0]?.year,last=sortedByYear.at(-1)?.year;
  message("rlCalendarMeta",rows.length?
-   "Quelle: DWD CDC "+(metric==="snow"?"Schneehöhe SHK_TAG":"Tageswerte TXK/TNK/TMK")+
+   "Quelle: DWD CDC "+(metric==="snow"?"Schneehöhe SHK_TAG":
+     metric==="rain"?"historische DWD KL Tagesniederschläge RSK (korrigiert)":
+     metric==="sun"?"historische DWD KL Sonnenscheindauer SDK":"Tageswerte TXK/TNK/TMK")+
    " · "+rows.length+" echte, gültige Kalenderjahresmessungen · "+first+"–"+last+
-   " · "+(metric==="snow"?"nur als vollständig markierte Schnee-Hydrojahre":"einschließlich historischer Datenlücken"):
+   " · "+(metric==="snow"?"nur als vollständig markierte Schnee-Hydrojahre":"originale geprüfte CDC-Tageswerte, keine Lückenfüllung"):
    "Keine gültigen Tageswerte für diesen Kalendertag oder Parameter.");
  kpis("rlCalendarKpis",[{value:rows.length?num(sorted.records[0].value)+" "+spec.unit:"—",label:"Rang 1 · "+(order==="max"?"Maximum":"Minimum")},
    {value:count(rows.length),label:"Beobachtete Jahre"},
