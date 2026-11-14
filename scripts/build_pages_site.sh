@@ -136,6 +136,8 @@ required_root_files=(
   cpc_europe.css
   gfs_analysis_europe.html
   gfs_analysis_europe.js
+  gfs_f003_europe.html
+  gfs_f003_europe.js
   gfs_analysis_europe.css
   era5_synoptic.js
   era5_synoptic.css
@@ -226,6 +228,37 @@ PY
 else
   echo "GFS 0,5° analysis is not yet verified; no imaginary 1991–2020 anomaly published."
 fi
+
+# Publish the separate, genuinely verified short-lead +3h GFS anomaly index
+# only when the 30-year CFSR/CFSv2 f003 provenance is checked and present.
+if [[ -s gfs_analysis_europe/index_f003.json ]]; then
+  mkdir -p _site/gfs_analysis_europe
+  cp gfs_analysis_europe/index_f003.json _site/gfs_analysis_europe/index_f003.json
+  python - <<'PY'
+import base64, json
+from pathlib import Path
+import numpy as np
+x=json.loads(Path("_site/gfs_analysis_europe/index_f003.json").read_text(encoding="utf-8"))
+assert x["schema"]==1 and x["type"]=="model_forecast_not_observation"
+assert x["provider"]=="NOAA NCEP GFS 0.5° forecast f003"
+assert x["grid_degrees"]==0.5 and x["width"]==140 and x["height"]==76
+assert x["dates"] and x["data_through"]==x["dates"][-1]
+assert bool(x.get("anomaly_q10_b64"))==bool(x["reference_ready"])
+assert x["reference_ready"], "Do not publish incomplete GFS +3h anomalies"
+m=x.get("reference_metadata",{})
+assert m.get("forecast_hour")==3
+assert m.get("reference_version")=="cfsr-cfsv2-t2m-f003-v1"
+assert m.get("source_months")==360 and m.get("years")==30
+raw=base64.b64decode(x["anomaly_q10_b64"])
+assert len(raw)==len(x["dates"])*140*76*2
+arr=np.frombuffer(raw,dtype="<i2")
+assert int(np.count_nonzero(arr==-32768))<int(arr.size*0.01)
+print("Verified separate GFS 0.5° +3h anomalies from 30-year CFSR/CFSv2 f003 normal")
+PY
+else
+  echo "GFS f003 anomaly index not yet prepared; cannot publish without genuine reference."
+fi
+
 # Add a distinct desktop link next to the observation-only product.
 python - <<'PY'
 from pathlib import Path
@@ -233,14 +266,22 @@ page=Path("_site/index.html")
 s=page.read_text(encoding="utf-8")
 anchor='<a class="tab-button" data-nav-group="europe" href="temperatur_anomalie_europa.html">Aktuelle Temperaturabweichung</a>'
 extra='<a class="tab-button" data-nav-group="europe" href="gfs_analysis_europe.html">GFS-Analyse · CFSR</a>'
+extra_f003='<a class="tab-button" data-nav-group="europe" href="gfs_f003_europe.html">GFS +3 h · CFSR 1991–2020</a>'
 if extra not in s:
     if s.count(anchor)!=1:
         raise SystemExit("GFS Europe: CPC menu anchor is missing or ambiguous")
     s=s.replace(anchor,anchor+"\n          "+extra,1)
     page.write_text(s,encoding="utf-8")
+if extra_f003 not in s:
+    if s.count(extra)!=1:
+        raise SystemExit("GFS f003 Europe: expected exactly one f000 menu link")
+    s=s.replace(extra,extra+"\n          "+extra_f003,1)
+    page.write_text(s,encoding="utf-8")
+assert '["gfs_f003_europe.html","GFS +3 h · CFSR 1991–2020"]' in Path("_site/mobile_navigation.js").read_text(encoding="utf-8")
 assert '["gfs_analysis_europe.html","GFS-Analyse · CFSR 1991–2020"]' in Path("_site/mobile_navigation.js").read_text(encoding="utf-8")
 PY
 node --check _site/gfs_analysis_europe.js
+node --check _site/gfs_f003_europe.js
 
 
 # Phase 2: bust old cached Gebietsmittel styles/scripts in published Pages.
