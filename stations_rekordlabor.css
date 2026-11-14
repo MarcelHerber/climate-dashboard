@@ -12,6 +12,10 @@
 .rl-row>div{min-width:min(155px,100%);flex:1 1 170px}.rl-row>.rl-grow{flex:3 1 250px}
 .rl-row label{display:block;font-size:12px;font-weight:760;color:#385873;margin-bottom:5px}
 .rl-row select,.rl-row input{width:100%;max-width:100%;min-width:0;border:1px solid #b6c9d9;border-radius:8px;padding:10px 11px;font:inherit;font-size:13px;color:#163a56;background:var(--rl-card)}
+.rl-filterbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 0;color:var(--rl-muted);font-size:12px}
+.rl-filter{display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-weight:650}
+.rl-filter input{accent-color:#195e97;width:17px;height:17px;margin:0}
+#rlKlCount{font-variant-numeric:tabular-nums}
 .rl-suggest{display:flex;flex-wrap:wrap;gap:7px;max-height:165px;overflow:auto;margin:9px 0}
 .rl-suggest button{background:#f2f7fc;border:1px solid #c5d9e8;border-radius:8px;padding:7px 11px;text-align:left;color:#16476a;font-size:12px;cursor:pointer}
 .rl-suggest button strong{display:block}.rl-suggest button small{color:#617b90;display:block}.rl-suggest button.active{border-color:#276a9c;background:#e0f0fc}
