@@ -1,0 +1,146 @@
+name: CFSR/CFSv2 f003 · 30 Jahre erweiterte Nordatlantik-Europa-Ural-Referenz
+
+on:
+  push:
+    branches: [feature/cfs-f003-extended-1991-2020-20261114]
+    paths:
+      - ".github/workflows/backfill-cfs-f003-extended-1991-2020.yml"
+      - "scripts/import_cfs_f003_extended_1991_2020.py"
+      - "scripts/build_cfs_f003_extended_1991_2020.py"
+      - "tests/test_cfs_f003_extended.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: cfsr-f003-extended-30year
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+            tests
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy requests pytest
+      - name: Refuse f000 substitutions, invalid geospatial overlap and missing original archive months
+        run: |
+          python -m pytest -q tests/test_cfs_f003_extended.py
+          python -m compileall -q scripts/import_cfs_f003_extended_1991_2020.py scripts/build_cfs_f003_extended_1991_2020.py
+
+  historical-year:
+    # Protect ~360 historical NOAA archives against accidental re-downloads
+    # on code/test changes. Explicit dispatch starts the expensive backfill.
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        year: [1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 345
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy requests eccodes
+      - name: Decode all 12 official CFSR/CFSv2 original 2m temperature months in expanded 0.5 degree domain
+        run: python -m scripts.import_cfs_f003_extended_1991_2020 --year ${{ matrix.year }}
+      - name: Keep proven expanded 365-day original means with 12 monthly SHA256 checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: cfs-f003-extended-year-${{ matrix.year }}
+          path: gfs_analysis_europe/reference_sources_f003_extended/t2m_f003_extended_${{ matrix.year }}.npz
+          retention-days: 5
+          compression-level: 1
+          if-no-files-found: error
+
+  finalize:
+    if: github.event_name == 'workflow_dispatch'
+    needs: historical-year
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+            gfs_analysis_europe
+          sparse-checkout-cone-mode: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy requests
+      - name: Restore all 30 independently verified full-domain historical annual samples
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cfs-f003-extended-year-*
+          merge-multiple: true
+          path: gfs_analysis_europe/reference_sources_f003_extended
+      - name: Require all 360 original archive checksums and pixel-exact original Europe reference
+        run: |
+          python -m scripts.build_cfs_f003_extended_1991_2020
+          python - <<'PY'
+          import json,numpy as np
+          from pathlib import Path
+          from scripts import build_cfs_f003_extended_1991_2020 as mod
+          assert len(list(mod.SOURCE.glob("t2m_f003_extended_????.npz")))==30
+          with np.load(mod.DEST,allow_pickle=False) as z:
+              ref=z["normal_t2m_c"]
+              count=z["year_count"]
+              meta=json.loads(str(z["metadata_json"]))
+              assert ref.shape==(365,121,361)
+              assert np.all(np.isfinite(ref)) and np.all(count==30)
+              assert meta["source_months"]==360 and meta["years"]==30
+              assert meta["forecast_hour"]==3
+              assert meta["reference_version"]=="cfsr-cfsv2-t2m-f003-extended-v1"
+              assert meta["old_core_max_difference_k"]<0.001
+          print("PASS: 1991–2020 wide-grid climatology, all 30/30 years, 360/360 original months, old Europe identical")
+          PY
+      - name: Save fully verified extended 1991–2020 reference separately from live website
+        uses: actions/upload-artifact@v4
+        with:
+          name: cfsr-cfsv2-f003-extended-1991-2020-verified
+          path: gfs_analysis_europe/climatology_1991_2020_f003_extended.npz
+          retention-days: 30
+          if-no-files-found: error
+      - name: Commit fully verified wider reference only to development branch
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --sparse -f gfs_analysis_europe/climatology_1991_2020_f003_extended.npz
+          if git diff --cached --quiet; then
+            echo "Verified expanded reference already committed"
+            exit 0
+          fi
+          git commit -m "CFSR 1991–2020: geprüfte f003-Klimatologie Nordatlantik bis Ural 0,5°"
+          for TRY in 1 2 3; do
+            git fetch origin feature/cfs-f003-extended-1991-2020-20261114
+            git rebase origin/feature/cfs-f003-extended-1991-2020-20261114
+            if git push origin HEAD:feature/cfs-f003-extended-1991-2020-20261114; then
+              exit 0
+            fi
+            sleep $((TRY*5))
+          done
+          exit 1
