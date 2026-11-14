@@ -7,6 +7,33 @@ test("February 29 is never invented for non-leap years",()=>{
  assert.equal(C.dayIndex(2024,"03-01"),60);
  assert.equal(C.dayIndex(2023,"03-01"),59);
 });
+test("seasonal Y axis uses calendar dates at month starts with a leap-day tooltip",()=>{
+ const axis=C.seasonDateAxis();
+ assert.equal(axis.min,1);
+ assert.equal(axis.max,366);
+ assert.deepEqual(axis.ticks.map(t=>t.label),
+  ["1.1.","1.2.","1.3.","1.4.","1.5.","1.6.",
+   "1.7.","1.8.","1.9.","1.10.","1.11.","1.12."]);
+ assert.equal(axis.format(1),"1.1.");
+ assert.equal(axis.format(60),"29.2.");
+ assert.equal(axis.format(61),"1.3.");
+ assert.equal(axis.format(366),"31.12.");
+ assert.equal(axis.format(367),"");
+});
+test("hydrological snow Y axis uses real Nov-to-Oct month dates",()=>{
+ const days=Array.from({length:366},(_,i)=>
+   new Date(Date.UTC(2023,10,1+i)).toISOString().slice(5,10));
+ const axis=C.seasonDateAxis(days);
+ assert.equal(axis.min,1);
+ assert.equal(axis.max,366);
+ assert.deepEqual(axis.ticks.map(t=>t.label),
+  ["1.11.","1.12.","1.1.","1.2.","1.3.","1.4.",
+   "1.5.","1.6.","1.7.","1.8.","1.9.","1.10."]);
+ assert.equal(axis.format(1),"1.11.");
+ assert.equal(axis.format(days.indexOf("02-29")+1),"29.2.");
+ assert.equal(axis.format(366),"31.10.");
+});
+
 test("DWD daily zlib16 decoded into original 366-day records",()=>{
  const doc={format:"dwd-tx-tn-tm-zlib16-v1",years:[2023,2024]};
  const bytes=new ArrayBuffer(2*366*3*2);const view=new DataView(bytes);
