@@ -119,7 +119,7 @@ function addChart(canvasId,title,labels,data,yTitle,color="#2d79ad",dateAxis=nul
  const yScale=dateAxis?{
   type:"linear",min:dateAxis.min,max:dateAxis.max,
   title:{display:true,text:"Datum"},
-  // Force monthly dates rather than Chart.js numeric day-of-year steps.
+  // Use calendar-date ticks within the actual recorded event window.
   afterBuildTicks:scale=>{scale.ticks=dateAxis.ticks.map(t=>({value:t.value}));},
   ticks:{autoSkip:false,callback:value=>dateAxis.format(value)}
  }:{type:"linear",title:{display:true,text:yTitle}};
@@ -270,7 +270,7 @@ function seasonRender(){
    ...byYear.map(r=>[r.year,label,r.date||r.start||"",r.end||"",run?r.days:r.value,
      snow?r.dayOfPeriod:r.dayOfYear])];
  state.fileName="DWD_Jahreszeitenrekord_"+st.id+"_"+event;
- const dateAxis=run?null:C.seasonDateAxis(snow?state.snow?.month_days:null);
+ const dateAxis=run?null:C.seasonDateAxis(snow?state.snow?.month_days:null,values);
  addChart("rlSeasonChart",label+" · "+st.name,byYear.map(r=>String(r.year)),values,unit,"#b44e46",dateAxis);
  setExportState(byYear.length>1);
 }
