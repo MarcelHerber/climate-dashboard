@@ -92,7 +92,7 @@ def test(browser,width):
         page.locator("#rlDay").select_option("02-29")
         leap=page.locator("#rlCalendarMeta").inner_text()
         assert "DWD CDC" in leap,leap
-        leap_dates=page.locator("#rlCalendarAllYears tr").all_inner_texts()
+        leap_dates=page.locator("#rlCalendarAllYears tr").evaluate_all("(rows)=>rows.map(row=>row.textContent.trim())")
         result["leap_probe"]={"days":leap_dates[:10],"count":len(leap_dates),"meta":leap}
         assert leap_dates and all(".02." in row for row in leap_dates), "February 29 leap-year list incorrect: "+repr(result["leap_probe"])
         result["phase"]="select leap day snow"
