@@ -136,6 +136,7 @@ jobs:
           node --test tests/test_satellite_noaa_export.cjs
           node --test tests/test_satellite_isobar_geometry.cjs
           node --test tests/test_satellite_map_export.cjs
+          node --test tests/test_satellite_grid_centers.cjs
           node --test tests/test_satellite_progressive.cjs
           node --test tests/test_satellite_quality_comparison.cjs
           node --test tests/test_satellite_fullhd_film.cjs
