@@ -838,6 +838,7 @@ node --check _site/satellite_isobars.js
 node --check _site/satellite_film_export.js
 node --test tests/test_satellite_isobar_geometry.cjs
 node --test tests/test_satellite_map_export.cjs
+node --test tests/test_satellite_grid_centers.cjs
 node --test tests/test_satellite_isobars.cjs
 node --test tests/test_satellite_film_export.cjs
 node --test tests/test_satellite_overlay.cjs
