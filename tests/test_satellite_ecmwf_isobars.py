@@ -6,9 +6,11 @@ import importlib.util
 import json
 from pathlib import Path
 import unittest
+import sys
 
 import numpy as np
 
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
 MODULE=Path(__file__).resolve().parents[1]/"scripts/build_satellite_ecmwf_isobars.py"
 spec=importlib.util.spec_from_file_location("satellite_isobars_builder",MODULE)
 isobars=importlib.util.module_from_spec(spec)

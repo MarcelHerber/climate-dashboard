@@ -150,23 +150,41 @@ function pressureCenters(overlay,region){
  const b=BBOX[region],geo=window.SatelliteIsobarGeometry;
  if(!b||!geo?.detectVisiblePressureSystems||!Array.isArray(overlay?.contours))return [];
  const caps={atlantic:8,europe:6,southwest:5,central:3,germany:2};
- return geo.detectVisiblePressureSystems(overlay.contours,b,{
-  minRings:Number(overlay.spacing)===2?6:3,maxSystems:caps[region]||5,minSeparation:94
- });
+ const opts={minRings:Number(overlay.spacing)===2?6:3,
+  maxSystems:caps[region]||5,minSeparation:94};
+ // Metadata from real native/interpolated IFS MSLP takes priority and must
+ // be identical whether the requested contour interval is 2 or 5 hPa.
+ const model=geo.modelGridCenters?.(overlay,b,opts);
+ return model??geo.detectVisiblePressureSystems(overlay.contours,b,opts);
 }
-function paintPressureCenters(ctx,overlay,region,{x=0,y=0,width,height}){
+function placedCenters(overlay,region,width,height,{groups=[],cities=[]}={}){
+ const geo=window.SatelliteIsobarGeometry;
+ return geo?.pressureLabels?.(pressureCenters(overlay,region),BBOX[region],{
+  width,height,fontSize:1.5*Math.max(17,Math.min(35,Math.round(width*.022))),
+  isobarLabels:groups.filter(g=>g.label).map(g=>g.label),cityAnchors:cities
+ })||[];
+}
+function paintPressureCenters(ctx,overlay,region,{x=0,y=0,width,height},groups=[]){
  if(!width||!height)return [];
- const markers=pressureCenters(overlay,region);
+ const cities=window.SatelliteOverlay?.cityAnchors?.(region)||[];
+ const markers=placedCenters(overlay,region,width,height,{groups,cities});
  const size=1.5*Math.max(17,Math.min(35,Math.round(width*.022)));
  ctx.save();ctx.textAlign="center";ctx.textBaseline="middle";
  ctx.font="750 "+size+"px Arial,Helvetica,sans-serif";
  ctx.lineJoin="round";ctx.lineWidth=Math.max(1.6,(size/1.5)*.085);
  for(const m of markers){
-  const p=project([m.lon,m.lat],region,x,y,width,height);
+  if(m.leader){
+   ctx.beginPath();ctx.moveTo(x+m.anchorX,y+m.anchorY);
+   ctx.lineTo(x+m.labelX,y+m.labelY);
+   ctx.strokeStyle="#cbd4df";ctx.globalAlpha=.78;ctx.lineWidth=Math.max(.6,width/1150);ctx.stroke();
+   ctx.beginPath();ctx.arc?.(x+m.anchorX,y+m.anchorY,Math.max(1,width/340),0,Math.PI*2);
+   ctx.fillStyle="#f3f4f6";ctx.fill?.();
+  }
+  ctx.lineWidth=Math.max(1.6,(size/1.5)*.085);
   ctx.strokeStyle="#102438";ctx.globalAlpha=.86;
-  if(typeof ctx.strokeText==="function")ctx.strokeText(m.type,p[0],p[1]);
+  if(typeof ctx.strokeText==="function")ctx.strokeText(m.type,x+m.labelX,y+m.labelY);
   ctx.fillStyle=m.type==="T"?"#ba859f":"#a599bc";
-  ctx.fillText(m.type,p[0],p[1]);
+  ctx.fillText(m.type,x+m.labelX,y+m.labelY);
  }
  ctx.restore();
  return markers;
@@ -193,7 +211,9 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
   ctx.strokeStyle=PINK;ctx.globalAlpha=.93;ctx.lineWidth=stroke(group.heavy);draw();
  }
  for(const group of groups){
-  if(!group.label)continue;
+  // Tiny GIF previews have no room for pressure-number boxes alongside H/T.
+  // Preserve the complete isobar geometry and the meteorologically useful centers.
+  if(!group.label||width<260)continue;
   const p=project(group.label,region,x,y,width,height);
   const label=String(group.hpa),size=Math.max(8,Math.round(11*unit));
   ctx.font="bold "+size+"px Arial,sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
@@ -203,7 +223,7 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
   ctx.strokeRect(p[0]-tw/2,p[1]-th/2,tw,th);
   ctx.fillStyle="#ffffff";ctx.fillText(label,p[0],p[1]);
  }
- paintPressureCenters(ctx,overlay,region,{x,y,width,height});
+ paintPressureCenters(ctx,overlay,region,{x,y,width,height},width<260?[]:groups);
  ctx.restore();
  return groups;
 }
@@ -289,10 +309,20 @@ function drawPDFVectors(overlay,region,w,h,bottom){
    "1 1 1 rg","BT /F1 "+fmt(fs)+" Tf "+fmt(xy[0]-14*unit)+" "+fmt(xy[1]-4*unit)+
     " Td ("+esc(String(group.hpa))+") Tj ET");
  }
- // Keep H/T as editable text within the vector layer, not raster pixels.
- for(const m of pressureCenters(overlay,region)){
-  const [cx,cy]=pt([m.lon,m.lat]);
+ // H/T remain editable PDF font objects; the real grid-extremum
+ // location stays at the anchor when a label is displaced.
+ const cities=window.SatelliteOverlay?.cityAnchors?.(region)||[];
+ const positioned=placedCenters(overlay,region,w,h,{groups,cities});
+ for(const m of positioned){
   const fs=1.5*Math.max(18,Math.min(34,w*.022));
+  const cx=m.labelX,cy=bottom+h-m.labelY;
+  if(m.leader){
+   const x0=m.anchorX,y0=bottom+h-m.anchorY;
+   out.push("q",pdfRGB("#cbd4df")+" RG",fmt(Math.max(.6,w/1150))+" w",
+    fmt(x0)+" "+fmt(y0)+" m "+fmt(cx)+" "+fmt(cy)+" l S",
+    pdfRGB("#f3f4f6")+" rg",
+    fmt(x0-1.1)+" "+fmt(y0-1.1)+" 2.2 2.2 re f","Q");
+  }
   out.push("q",
    pdfRGB("#102438")+" RG",
    pdfRGB(m.type==="T"?"#ba859f":"#a599bc")+" rg",
@@ -356,5 +386,5 @@ function download(result){
  setTimeout(()=>URL.revokeObjectURL(u),60000);
  return result.blob.size;
 }
-window.SatelliteMapExport={paintIsobars,paintFronts,frontLayout,frontFeatures,paintPressureCenters,pressureCenters,pathsFor,renderPNG,renderPDF,download};
+window.SatelliteMapExport={paintIsobars,paintFronts,frontLayout,frontFeatures,paintPressureCenters,pressureCenters,placedCenters,pathsFor,renderPNG,renderPDF,download};
 })();

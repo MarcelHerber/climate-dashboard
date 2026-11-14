@@ -15,6 +15,7 @@ import math
 from pathlib import Path
 
 import numpy as np
+from satellite_mslp_grid_centers import ALGORITHM, detect_pressure_centers
 
 UTC = dt.timezone.utc
 TEN_MINUTES = 600
@@ -150,6 +151,8 @@ def frame_from_grids(grids, run, forecast_minute):
         ],
         "min_hpa": round(float(np.min(pressure)), 1),
         "max_hpa": round(float(np.max(pressure)), 1),
+        "pressure_centers": detect_pressure_centers(x, y, pressure),
+        "pressure_centers_method": ALGORITHM,
         "contours": contours,
         "fine_contours": fine_contours,
     }
@@ -211,6 +214,8 @@ def build_10min(grids, run, generated_at, root):
         "time_resolution_minutes": 10,
         "source_interval_hours": 3,
         "interpolation_method": "linear_mslp_grid_then_contours",
+        "pressure_centers_algorithm": ALGORITHM,
+        "pressure_centers_source": "true IFS 0.25-degree MSLP grid at source steps; between steps linear MSLP-grid interpolation",
         "source": "ECMWF IFS Open Data (© ECMWF, CC BY 4.0)",
         "note": "10-minute intervals are interpolated IFS MSLP forecasts, NOT separate 10-minute observations or model runs.",
         "hours": chunks,

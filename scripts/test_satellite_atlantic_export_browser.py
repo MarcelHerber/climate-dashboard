@@ -57,6 +57,15 @@ FINE_CONTOURS = [
     {"hpa":1010,"lines":[[[-2,50],[5,51],[11,53],[17,54],[25,56]]]},
 ]
 FINE_REGIONS = ["europe","southwest","central","germany"]
+# Deterministic synthetic MSLP-center fixture for browser/interaction checks.
+# The separate official-GRIB action validates the real-data calculation.
+GRID_CENTERS=[
+ {"type":"T","lon":-18,"lat":50,"pressure_hpa":995.2,"prominence_hpa":6.5,"score":45},
+ {"type":"H","lon":10,"lat":51,"pressure_hpa":1029.4,"prominence_hpa":5.4,"score":42},
+ {"type":"T","lon":-55,"lat":55,"pressure_hpa":989.8,"prominence_hpa":6.2,"score":43}
+]
+GRID_METHOD="ifs_mslp_grid_extrema_v1"
+
 
 
 def png(width,height,number):
@@ -88,6 +97,7 @@ def model_index():
     return {"schema_version":2,"model":"ECMWF IFS Open Data",
             "run_utc":RUN_STR,"generated_at":iso(datetime.now(UTC)),
             "time_resolution_minutes":10,"source_interval_hours":3,
+            "pressure_centers_algorithm":GRID_METHOD,
             "hours":{"h"+f"{h:02d}":RUN_PATH+"/h"+f"{h:02d}"+".json"
                      for h in range(19)},
             "fine_interval_hpa":2,"fine_regions":FINE_REGIONS,
@@ -99,9 +109,12 @@ def full_model():
     return {"schema_version":1,"model":"ECMWF IFS Open Data",
             "run_utc":RUN_STR,"generated_at":iso(datetime.now(UTC)),
             "resolution_degrees":0.25,"interval_hpa":5,"units":"hPa",
+            "pressure_centers_algorithm":GRID_METHOD,
             "field":"mean sea-level pressure","bbox":[-75,12,55,80],
             "frames":[{"valid_utc":iso(RUN+timedelta(hours=h)),
-                       "forecast_hour":h,"contours":CONTOURS}
+                       "forecast_hour":h,"contours":CONTOURS,
+                       "pressure_centers_method":GRID_METHOD,
+                       "pressure_centers":GRID_CENTERS}
                       for h in range(0,19,3)]}
 
 
@@ -113,7 +126,9 @@ def hour_chunk(hour,fine=False):
             "frames":[{"valid_utc":iso(RUN+timedelta(hours=hour,minutes=i*10)),
                        "forecast_minute":hour*60+i*10,
                        "interpolated":(hour*6+i)%18!=0,
-                       "contours":FINE_CONTOURS if fine else CONTOURS}
+                       "contours":FINE_CONTOURS if fine else CONTOURS,
+                       "pressure_centers_method":GRID_METHOD,
+                       "pressure_centers":GRID_CENTERS}
                       for i in range(length)]}
 
 
@@ -186,6 +201,19 @@ def exercise(browser,device,base,tmp):
         details["fine_2hpa_"+area]={"positive_lines":len(page.locator(
             "#satIsobarSvg path[stroke='#c6a2bb']").all()),"widths":widths}
         if area=="europe":
+            grid_center_ids=page.locator("#satIsobarSvg .sat-pressure-center").evaluate_all(
+                "(els)=>els.map(el=>el.getAttribute('data-pressure-type')+'|'+el.getAttribute('data-center-lon')+'|'+el.getAttribute('data-center-lat')).sort()")
+            assert grid_center_ids and len(grid_center_ids)>=2, "No true-grid center labels in fine mode"
+            assert page.locator("#satIsobarStatus").inner_text().find("H/T: IFS-Gitterextrema")>=0
+            page.locator("#satIsobarSpacing").select_option("5")
+            page.wait_for_function("()=>document.querySelector('#satIsobarStatus')?.textContent.includes('5 hPa')",timeout=15000)
+            regular_center_ids=page.locator("#satIsobarSvg .sat-pressure-center").evaluate_all(
+                "(els)=>els.map(el=>el.getAttribute('data-pressure-type')+'|'+el.getAttribute('data-center-lon')+'|'+el.getAttribute('data-center-lat')).sort()")
+            assert regular_center_ids==grid_center_ids,(regular_center_ids,grid_center_ids)
+            details["real_grid_contract_2_5_centers_identical"]=True
+            details["center_positions"]=grid_center_ids
+            page.locator("#satIsobarSpacing").select_option("2")
+            page.wait_for_function("()=>document.querySelector('#satIsobarStatus')?.textContent.includes('2 hPa')",timeout=15000)
             screenshot=SHOTS/(device+"-europe-2hpa-synthetic.png")
             page.screenshot(path=str(screenshot))
             details["europe_2hpa_screenshot"]=screenshot.name

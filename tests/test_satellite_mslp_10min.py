@@ -6,12 +6,14 @@ import importlib.util
 import json
 import tempfile
 import unittest
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/"scripts"))
 spec = importlib.util.spec_from_file_location("tenminute", ROOT/"scripts/build_satellite_mslp_10min.py")
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)

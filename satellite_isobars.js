@@ -184,21 +184,50 @@ function draw(frame,bbox,gap){
    batch.appendChild(label);
   }
  }
- // H/T only for validated closed IFS pressure systems: nested levels, or conservative single-ring extrema.
+ // New verified model frames carry native-grid extrema shared by 2/5 hPa.
+ // Legacy archives use their prior contour-based diagnosis, clearly labelled.
  const limits={atlantic:8,europe:6,southwest:5,central:3,germany:2};
- const systems=geometry.detectVisiblePressureSystems?.(frame.contours,bbox,{
-  maxSystems:limits[context.region]||5,minRings:Number(gap)===2?6:3,minSeparation:94
+ const opts={maxSystems:limits[context.region]||5,minRings:Number(gap)===2?6:3,
+   minSeparation:94};
+ const grid=geometry.modelGridCenters?.(frame,bbox,opts);
+ const systems=grid??geometry.detectVisiblePressureSystems?.(frame.contours,bbox,opts)??[];
+ const cities=window.SatelliteOverlay?.cityAnchors?.(context.region)||[];
+ const placed=geometry.pressureLabels?.(systems,bbox,{
+  width:1000,height:1000,fontSize:40.5,
+  isobarLabels:groups.filter(x=>x.label).map(x=>x.label),
+  cityAnchors:document.querySelector?.("#satShowCities")?.checked?cities:[]
  })||[];
- for(const center of systems){
-  const lon=((center.lon-minX)/(maxX-minX))*1000;
-  const lat=((maxY-center.lat)/(maxY-minY))*1000;
+ for(const center of placed){
+  if(center.leader){
+   const line=document.createElementNS(ns,"line");
+   line.setAttribute("x1",center.anchorX.toFixed(2));
+   line.setAttribute("y1",center.anchorY.toFixed(2));
+   line.setAttribute("x2",center.labelX.toFixed(2));
+   line.setAttribute("y2",center.labelY.toFixed(2));
+   line.setAttribute("stroke","#cbd4df");
+   line.setAttribute("stroke-width","0.85");
+   line.setAttribute("stroke-opacity",".78");
+   line.setAttribute("vector-effect","non-scaling-stroke");
+   batch.appendChild(line);
+   const dot=document.createElementNS(ns,"circle");
+   dot.setAttribute("cx",center.anchorX.toFixed(2));
+   dot.setAttribute("cy",center.anchorY.toFixed(2));
+   dot.setAttribute("r","3");
+   dot.setAttribute("fill","#f3f4f6");
+   dot.setAttribute("stroke","#102438");
+   dot.setAttribute("stroke-width","1.2");
+   batch.appendChild(dot);
+  }
   const glyph=document.createElementNS(ns,"text");
-  glyph.setAttribute("x",lon.toFixed(2));
-  glyph.setAttribute("y",lat.toFixed(2));
+  glyph.setAttribute("x",center.labelX.toFixed(2));
+  glyph.setAttribute("y",center.labelY.toFixed(2));
   glyph.setAttribute("class","sat-pressure-center");
   glyph.setAttribute("data-pressure-type",center.type);
+  glyph.setAttribute("data-center-lon",String(center.lon));
+  glyph.setAttribute("data-center-lat",String(center.lat));
+  glyph.setAttribute("data-center-method",center.source||"isobar_legacy");
   glyph.setAttribute("aria-label",(center.type==="T"?"Tief":"Hoch")+
-   "druckzentrum "+center.hpa+" hPa");
+   "druckzentrum, Kerndruck "+center.hpa+" hPa, Position "+center.lat+" N / "+center.lon+" E");
   glyph.setAttribute("fill",center.type==="T"?"#ba859f":"#a599bc");
   glyph.textContent=center.type;
   batch.appendChild(glyph);
@@ -243,6 +272,7 @@ function update(){
   return;
  }
  const lines=draw(frame,BBOX[context.region],gap);
+ const gridCenters=frame.pressure_centers_method==="ifs_mslp_grid_extrema_v1";
  if(!lines){note("ECMWF-Daten vorhanden, aber keine sichtbaren "+spacing.value+"-hPa-Isobaren in diesem Ausschnitt.");return;}
  svg.toggleAttribute("hidden",false);
  const interpolated=Boolean(ten?.interpolated);
@@ -256,7 +286,9 @@ function update(){
    " · Satellit "+utc(satelliteTime)+(ten&&deltaMinutes!==0?" ("+(deltaMinutes>0?"+":"")+deltaMinutes+" min Zeitdifferenz)":""):
    " · nicht zeitgleich mit Satellitenbild "+utc(satelliteTime)):
    " · eigenständige ECMWF-Karte ohne Satellitenbild";
- note(base+derivation+" · "+lines+" Linien"+syncLabel+" · "+spacing.value+" hPa"+origin+" · © ECMWF");
+ note(base+derivation+" · "+lines+" Linien"+syncLabel+" · "+spacing.value+" hPa"+origin+
+  (gridCenters?" · H/T: IFS-Gitterextrema":" · H/T: ältere Isobaren-Diagnose bis zum nächsten Datenlauf")+
+  " · © ECMWF");
 }
 async function load(force=false){
  if(loading||(!force&&(data||failed)))return loading;
@@ -335,7 +367,10 @@ async function exportAt(time,place,gap=5,{strictTenMinute=false}={}){
  const run=exact10?tenIndex.run_utc:data.run_utc;
  const method=exact10?(frame.interpolated?"10-Minuten-Interpolation des MSLP-Gitterfeldes":"Original-IFS-Druckfeld"):"3-h-IFS-Druckfeld (Ersatz)";
  if(!Array.isArray(frame.contours)||!frame.contours.length)throw Error("Isobaren-Konturen fehlen.");
- return {contours:frame.contours,validUTC:frame.valid_utc,runUTC:run,
+ return {contours:frame.contours,
+  pressure_centers:frame.pressure_centers,
+  pressure_centers_method:frame.pressure_centers_method,
+  validUTC:frame.valid_utc,runUTC:run,
   satelliteUTC:time,method,interpolated:exact10&&Boolean(frame.interpolated),
   spacing:gap,region:place,exact10};
 }

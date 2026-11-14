@@ -259,7 +259,77 @@ function detectVisiblePressureSystems(contours,viewport,{
  }
  return selected;
 }
-window.SatelliteIsobarGeometry={detectVisiblePressureSystems,detectPressureSystems,prepare,clean,smooth,project,
+
+// Grid extrema are physically identified in the 0.25° IFS MSLP array before
+// either 2-hPa or 5-hPa contours are drawn.
+const GRID_METHOD="ifs_mslp_grid_extrema_v1";
+function modelGridCenters(overlay,viewport,{maxSystems=7,minSeparation=94}={}){
+ if(!overlay||overlay.pressure_centers_method!==GRID_METHOD||
+    !Array.isArray(overlay.pressure_centers))return null; // legacy run
+ if(overlay.pressure_centers.length>40)throw Error("IFS: ungültige Extremaanzahl");
+ const proposed=[];
+ for(const item of overlay.pressure_centers){
+  const lon=Number(item.lon),lat=Number(item.lat),hpa=Number(item.pressure_hpa);
+  if(!["T","H"].includes(item.type)||!Number.isFinite(lon)||!Number.isFinite(lat)||
+    lon < -75||lon > 55||lat < 12||lat > 80||hpa<850||hpa>1100||
+    !Number.isFinite(item.score)||item.score<0||item.score>300)
+   throw Error("IFS: fehlerhafte Druckgitter-Koordinate");
+  const p=project([lon,lat],viewport);
+  if(p[0]<35||p[0]>965||p[1]<35||p[1]>965)continue;
+  proposed.push({type:item.type,lon,lat,hpa,pressure_hpa:hpa,
+   score:item.score,prominence_hpa:item.prominence_hpa,
+   method:GRID_METHOD,source:"ifs_grid"});
+ }
+ proposed.sort((a,b)=>b.score-a.score||a.lon-b.lon);
+ const out=[];
+ for(const m of proposed){
+  const at=project([m.lon,m.lat],viewport);
+  if(out.some(q=>distance(project([q.lon,q.lat],viewport),at)<minSeparation))continue;
+  out.push(m);
+  if(out.length>=maxSystems)break;
+ }
+ return out;
+}
+function pressureLabels(centers,viewport,{width=1000,height=1000,fontSize=40.5,
+ isobarLabels=[],cityAnchors=[]}={}){
+ const xy=(lon,lat)=>{
+  const p=project([lon,lat],viewport);
+  return [p[0]*width/1000,p[1]*height/1000];
+ };
+ const occupied=[];
+ for(const v of isobarLabels){
+  if(!Array.isArray(v)||v.length!==2)continue;
+  const [x,y]=xy(v[0],v[1]);occupied.push([x-28,y-12,x+28,y+12]);
+ }
+ for(const c of cityAnchors){
+  if(!Number.isFinite(c?.lon)||!Number.isFinite(c?.lat))continue;
+  const [x,y]=xy(c.lon,c.lat);
+  occupied.push([x-6,y-19,x+Math.min(width*.23,100),y+7]);
+ }
+ const overlaps=(a,b)=>a[0]<b[2]&&a[2]>b[0]&&a[1]<b[3]&&a[3]>b[1];
+ const out=[];
+ for(const m of centers){
+  const [px,py]=xy(m.lon,m.lat);
+  const positions=[[0,0],[.9,-.9],[-.9,-.9],[.9,.9],[-.9,.9],
+    [0,-1.25],[0,1.25],[1.25,0],[-1.25,0]];
+  let best=null,penalty=Infinity;
+  for(const [ox,oy] of positions){
+   const x=px+ox*fontSize,y=py+oy*fontSize;
+   const box=[x-fontSize*.43,y-fontSize*.58,x+fontSize*.43,y+fontSize*.58];
+   const edge=box[0]<3||box[1]<3||box[2]>width-3||box[3]>height-3;
+   const conflicts=occupied.filter(b=>overlaps(box,b)).length;
+   const p=(edge?100000:0)+conflicts*10000+Math.hypot(ox,oy)*fontSize;
+   if(p<penalty){penalty=p;best={x,y,box,edge,conflicts,ox,oy};}
+  }
+  if(!best||best.edge||best.conflicts)continue;
+  occupied.push(best.box);
+  out.push({...m,anchorX:px,anchorY:py,labelX:best.x,labelY:best.y,
+   leader:Math.hypot(best.ox,best.oy)>.25});
+ }
+ return out;
+}
+
+window.SatelliteIsobarGeometry={modelGridCenters,pressureLabels,detectVisiblePressureSystems,detectPressureSystems,prepare,clean,smooth,project,
  settings:{minLoopDiagonal:MIN_LOOP_DIAGONAL,minLoopArea:MIN_LOOP_AREA,
   minOpenLength:MIN_OPEN_LENGTH,smoothing:SMOOTHING,maxShift:MAX_SHIFT}};
 })();

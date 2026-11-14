@@ -9,6 +9,8 @@ on:
     branches: [main]
     paths:
       - "scripts/build_satellite_ecmwf_isobars.py"
+      - "scripts/satellite_mslp_grid_centers.py"
+      - "tests/test_satellite_mslp_grid_centers.py"
       - "tests/test_satellite_ecmwf_isobars.py"
       - "scripts/build_satellite_mslp_10min.py"
       - "tests/test_satellite_mslp_10min.py"
@@ -40,6 +42,7 @@ jobs:
         run: |
           python -m unittest discover -s tests -p test_satellite_ecmwf_isobars.py -v
           python -m unittest discover -s tests -p test_satellite_mslp_10min.py -v
+          python -m unittest discover -s tests -p test_satellite_mslp_grid_centers.py -v
       - name: Download genuine ECMWF Open Data IFS sea-level pressure
         run: python scripts/build_satellite_ecmwf_isobars.py --out data/satellite_mslp/latest.json --ten-minute-dir data/satellite_mslp/ten_minute
       - name: Validate output and UTC provenance
@@ -51,6 +54,7 @@ jobs:
           d=json.loads(p.read_text())
           assert d["schema_version"]==1 and d["model"]=="ECMWF IFS Open Data"
           assert d["interval_hpa"]==5 and d["resolution_degrees"]==0.25
+          assert d["pressure_centers_algorithm"]=="ifs_mslp_grid_extrema_v1"
           run=dt.datetime.fromisoformat(d["run_utc"].replace("Z","+00:00"))
           assert len(d["frames"])>=7
           for frame in d["frames"]:
@@ -58,10 +62,18 @@ jobs:
               assert valid==run+dt.timedelta(hours=frame["forecast_hour"])
               assert frame["contours"] and all(x["hpa"]%5==0 for x in frame["contours"])
               assert 880<=frame["min_hpa"]<=1080 and 940<=frame["max_hpa"]<=1130
+              assert frame["pressure_centers_method"]=="ifs_mslp_grid_extrema_v1"
+              assert isinstance(frame["pressure_centers"],list) and len(frame["pressure_centers"])<=40
+              for center in frame["pressure_centers"]:
+                  assert center["type"] in ("H","T")
+                  assert -75<=center["lon"]<=55 and 12<=center["lat"]<=80
+                  assert 850<center["pressure_hpa"]<1100
+
           import pathlib
           base=pathlib.Path("data/satellite_mslp/ten_minute")
           index=json.loads((base/"index.json").read_text())
           assert index["schema_version"]==2
+          assert index["pressure_centers_algorithm"]=="ifs_mslp_grid_extrema_v1"
           assert index["run_utc"]==d["run_utc"]
           assert index["time_resolution_minutes"]==10
           assert len(index["hours"])==19
@@ -90,12 +102,19 @@ jobs:
               assert frame["interpolated"]==(i%18!=0)
               assert frame["contours"]
               assert all(level["hpa"]%2==0 and level["lines"] for level in frame["contours"])
+          for coarse,fine in zip(allframes,fineframes):
+              assert coarse["valid_utc"]==fine["valid_utc"]
+              assert coarse["pressure_centers_method"]=="ifs_mslp_grid_extrema_v1"
+              assert fine["pressure_centers_method"]=="ifs_mslp_grid_extrema_v1"
+              assert coarse["pressure_centers"]==fine["pressure_centers"], "2/5 hPa H/T must be identical"
+              assert len(coarse["pressure_centers"])<=40
           for i,frame in enumerate(allframes):
               assert dt.datetime.fromisoformat(frame["valid_utc"].replace("Z","+00:00"))==run+dt.timedelta(minutes=i*10)
               assert frame["forecast_minute"]==i*10
               assert frame["interpolated"]==(i%18!=0)
               assert frame["contours"]
               assert all(level["hpa"]%5==0 and level["lines"] for level in frame["contours"])
+          print("Confirmed 109 identical grid-derived H/T center lists for genuine 2- and 5-hPa contours")
           print("Confirmed 109 real 2-hPa European and 109 original 5-hPa forecast contours")
           print("Confirmed real ECMWF IFS MSLP:", d["run_utc"], p.stat().st_size,
                 "bytes +", len(allframes), "verified 10-minute steps")
