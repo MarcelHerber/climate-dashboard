@@ -7,7 +7,7 @@ const RAW="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main
 const TODAY=new Date(),YEAR=TODAY.getUTCFullYear();
 const tabs={calendar:["rlTabCalendar","rlCalendar"],seasons:["rlTabSeasons","rlSeasons"],
  changes:["rlTabChanges","rlChanges"]};
-const state={catalog:null,station:null,view:"calendar",temp:null,snow:null,kl:null,
+const state={catalog:null,klIndex:new Map(),station:null,view:"calendar",temp:null,snow:null,kl:null,
   stationSerial:0,weatherIndex:null,weather:null,weatherSerial:0,
   selectedEvent:null,csv:[],fileName:"",chart:null,chartCanvas:null,chartLabel:"",status:""};
 const num=(n,max=1)=>Number(n).toLocaleString("de-DE",{maximumFractionDigits:max});
@@ -34,6 +34,7 @@ let stationMap=null,markedStationId=null;
 const stationMarkers=new Map();
 const normalMarker={radius:3.8,color:"#356c97",fillColor:"#3c91ba",fillOpacity:.63,weight:1};
 const activeMarker={radius:8,color:"#b63926",fillColor:"#e4543d",fillOpacity:.95,weight:2};
+const klMarker={radius:5.4,color:"#8a5b27",fillColor:"#c98d33",fillOpacity:.82,weight:1.3};
 function initMap(){
  const node=$("rlMap"),feedback=$("rlMapStatus");
  if(!node||!state.catalog)return;
@@ -52,7 +53,8 @@ function initMap(){
   }).addTo(stationMap);
   const renderer=L.canvas({padding:.2});
   for(const st of stations){
-   const marker=L.circleMarker([st.lat,st.lon],{...normalMarker,renderer})
+   const style=state.klIndex.has(st.id)?klMarker:normalMarker;
+   const marker=L.circleMarker([st.lat,st.lon],{...style,renderer})
      .addTo(stationMap);
    marker.bindTooltip(st.name+" · DWD "+st.id);
    marker.on("click",()=>{
@@ -62,15 +64,17 @@ function initMap(){
    });
    stationMarkers.set(st.id,marker);
   }
+  const klMapped=stations.filter(st=>state.klIndex.has(st.id)).length;
   feedback.textContent=stations.length.toLocaleString("de-DE")+
-   " Stationsstandorte mit Originalkoordinaten · Punkt anklicken, um historische Messungen zu öffnen.";
+   " Stationsstandorte mit Originalkoordinaten · "+klMapped+
+   " davon mit historischen Niederschlags-/Sonnenreihen (ockerfarbene Punkte) · Punkt anklicken.";
   setTimeout(()=>stationMap?.invalidateSize(),200);
  }catch(err){feedback.textContent="Karte konnte nicht initialisiert werden: "+err.message;}
 }
 function highlightStation(st){
  if(!stationMap)return;
  if(markedStationId&&stationMarkers.has(markedStationId))
-   stationMarkers.get(markedStationId).setStyle(normalMarker);
+   stationMarkers.get(markedStationId).setStyle(state.klIndex.has(markedStationId)?klMarker:normalMarker);
  markedStationId=st?.id;
  if(stationMarkers.has(markedStationId))
    stationMarkers.get(markedStationId).setStyle(activeMarker).bringToFront();
@@ -78,8 +82,9 @@ function highlightStation(st){
 
 function renderSuggestions(){
  const query=$("rlSearch").value.trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
- const stateName=$("rlState").value;
+ const stateName=$("rlState").value,onlyKL=$("rlOnlyKL").checked;
  const list=(state.catalog?.stations||[]).filter(st=>validStation(st)&&(!stateName||st.state===stateName))
+  .filter(st=>!onlyKL||state.klIndex.has(st.id))
   .filter(st=>!query||(st.name+" "+st.id+" "+st.state).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().includes(query))
   .slice(0,18);
  $("rlSuggestions").replaceChildren();
@@ -87,7 +92,8 @@ function renderSuggestions(){
   const b=document.createElement("button");b.type="button";
   b.classList.toggle("active",st.id===state.station?.id);
   b.innerHTML="<strong>"+esc(st.name)+"</strong><small>"+esc(st.state)+" · "+esc(st.id)+
-   " · "+(st.temp?"Temperatur ":"")+(st.snow?"Schnee":"")+"</small>";
+   " · "+(st.temp?"Temperatur ":"")+(st.snow?"Schnee ":"")+
+   (state.klIndex.has(st.id)?" · Niederschlag/Sonne (KL)":"")+"</small>";
   b.addEventListener("click",()=>{selectStation(st);$("rlSearch").value=st.name;if(stationMap&&finite(st.lat)&&finite(st.lon))stationMap.setView([st.lat,st.lon],8);});
   $("rlSuggestions").append(b);
  }
@@ -148,7 +154,8 @@ async function selectStation(st){
        if(!Array.isArray(doc?.years)||!Array.isArray(doc?.month_days))throw Error("Schneehöhenarchiv ungültig");
        return doc;
      }):Promise.resolve(null),
-    fetchJson("data/rekordlabor/calendar/"+st.id+".json",true).then(async doc=>{
+    (state.klIndex.has(st.id)?fetchJson("data/rekordlabor/calendar/"+st.id+".json",true):
+      Promise.resolve(null)).then(async doc=>{
       if(!doc?.metrics||String(doc.station_id)!==st.id)return null;
       const [rain,sun]=await Promise.all([
         doc.metrics.rain?C.decodeDailyMetric(doc,"rain"):Promise.resolve(null),
@@ -397,11 +404,23 @@ async function init(){
  $("rlChangeStation").addEventListener("change",()=>{state.selectedEvent=null;loadWeather();});
  $("rlSearch").addEventListener("input",renderSuggestions);
  $("rlState").addEventListener("change",renderSuggestions);
+ $("rlOnlyKL").addEventListener("change",renderSuggestions);
  for(const b of document.querySelectorAll("[data-rl-export]")){
   b.disabled=true;b.addEventListener("click",()=>exportChart(b.dataset.rlExport));
  }
  try{
-  const doc=await fetchJson("station_jahresanalyse_catalog.json");
+  const [doc,klCatalogue]=await Promise.all([
+    fetchJson("station_jahresanalyse_catalog.json"),
+    fetchJson("data/rekordlabor/calendar/index.json",true)
+  ]);
+  state.klIndex=new Map((klCatalogue?.ready&&Array.isArray(klCatalogue.stations)?
+    klCatalogue.stations:[]).map(row=>[String(row.id).padStart(5,"0"),row]));
+  const totalKL=state.klIndex.size;
+  const countRain=[...state.klIndex.values()].filter(st=>st.metrics?.rain).length;
+  const countSun=[...state.klIndex.values()].filter(st=>st.metrics?.sun).length;
+  $("rlKlCount").textContent=totalKL.toLocaleString("de-DE")+
+    " DWD-Stationen mit geprüften KL-Reihen · "+countRain+
+    " Niederschlag · "+countSun+" Sonne";
   if(doc.schema!==1||!doc.stations?.length)throw Error("Unvollständiger DWD-Stationskatalog");
   state.catalog=doc;
   const names=[...new Set(doc.stations.map(s=>s.state).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de"));
