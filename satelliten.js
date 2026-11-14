@@ -86,7 +86,7 @@ async function enableAuditedProducts(){
  const choices={};
  for(const [key,label] of Object.entries(titles)){
   const opt=new Option(label+" · noch nicht überprüft","extra_"+key);
-  opt.disabled=true;group.add(opt);choices[key]=opt;
+  opt.disabled=true;group.append(opt);choices[key]=opt;
  }
  let count=0;
  try{
