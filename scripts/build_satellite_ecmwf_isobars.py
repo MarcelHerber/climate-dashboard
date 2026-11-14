@@ -16,6 +16,7 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+from satellite_mslp_grid_centers import ALGORITHM, detect_pressure_centers
 
 UTC = dt.timezone.utc
 BBOX = (-75.0, 12.0, 55.0, 80.0)
@@ -158,6 +159,8 @@ def build_payload(grids, run, generated_at):
             "forecast_hour": lead,
             "min_hpa": round(float(press.min()), 1),
             "max_hpa": round(float(press.max()), 1),
+            "pressure_centers": detect_pressure_centers(lons, lats, press),
+            "pressure_centers_method": ALGORITHM,
             "contours": contour_lines(lons, lats, press),
         })
     return {
@@ -171,6 +174,7 @@ def build_payload(grids, run, generated_at):
         "resolution_degrees": 0.25,
         "bbox": list(BBOX),
         "interval_hpa": 5,
+        "pressure_centers_algorithm": ALGORITHM,
         "run_utc": run.isoformat(timespec="seconds").replace("+00:00", "Z"),
         "note": "IFS deterministic forecast, not a satellite observation or official synoptic analysis. Never interpolate across missing valid times.",
         "frames": frames,
@@ -194,6 +198,8 @@ def main():
                 valid_run = run.isoformat(timespec="seconds").replace("+00:00", "Z")
                 if (previous.get("run_utc")==valid_run and manifest.get("run_utc")==valid_run
                         and manifest.get("schema_version")==2
+                        and manifest.get("pressure_centers_algorithm")==ALGORITHM
+                        and previous.get("pressure_centers_algorithm")==ALGORITHM
                         and len(manifest.get("hours", {}))==19
                         and manifest.get("fine_interval_hpa")==2
                         and set(manifest.get("fine_regions",[]))=={"europe","southwest","central","germany"}
