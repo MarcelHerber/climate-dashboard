@@ -45,6 +45,43 @@ async function decodeTemperature(doc){
  const bytes=await new Response(stream).arrayBuffer();
  return decodeRawTemperature(doc,bytes);
 }
+function decodeRawDailyMetric(doc,metric,buffer){
+ const field=doc?.metrics?.[metric];
+ if(field?.encoded!=="dwd-kl-daily-zlib16-v1"||!Array.isArray(doc.years))
+  throw Error("Unbekanntes DWD-KL-Tagesarchiv");
+ const bytes=buffer instanceof ArrayBuffer?buffer:buffer.buffer.slice(buffer.byteOffset,buffer.byteOffset+buffer.byteLength);
+ if(bytes.byteLength!==doc.years.length*366*2)throw Error("DWD KL: unvollständige Messreihe");
+ const view=new DataView(bytes),map=new Map();
+ doc.years.forEach((year,i)=>{
+  const values=[];
+  for(let day=0;day<(leap(year)?366:365);day++){
+   const v=view.getInt16((i*366+day)*2,true);
+   values.push(v===MISSING?null:v/10);
+  }
+  map.set(Number(year),values);
+ });
+ return map;
+}
+async function decodeDailyMetric(doc,metric){
+ if(typeof DecompressionStream==="undefined")throw Error("Browser benötigt Deflate-Unterstützung");
+ const field=doc.metrics?.[metric];
+ if(!field?.data)return null;
+ const bytes=Uint8Array.from(atob(field.data),c=>c.charCodeAt(0));
+ const raw=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"))).arrayBuffer();
+ return decodeRawDailyMetric(doc,metric,raw);
+}
+function calendarKL(map,md){
+ if(!map)return [];
+ const out=[];
+ for(const [year,days] of map){
+  const index=dayIndex(year,md);
+  if(index<0)continue;
+  const value=days[index];
+  if(finite(value))out.push({year,date:climateSeason(year,md),value,quality:"DWD CDC KL"});
+ }
+ return out;
+}
+
 function calendarTemperature(yearMap,md,metric){
  if(![0,1,2].includes(metric))throw Error("Temperaturmetrik ungültig");
  const rows=[];
@@ -179,5 +216,5 @@ function stationWindDifference(before,after){
  return Math.abs(((after.direction-before.direction+540)%360)-180);
 }
 return Object.freeze({leap,dayIndex,mdAt,readable,decodeRawTemperature,decodeTemperature,
- calendarTemperature,snowCalendar,sortedRecords,tempSeason,snowSeason,longestRun,snowLongest,stationWindDifference});
+ calendarTemperature,decodeRawDailyMetric,decodeDailyMetric,calendarKL,snowCalendar,sortedRecords,tempSeason,snowSeason,longestRun,snowLongest,stationWindDifference});
 });
