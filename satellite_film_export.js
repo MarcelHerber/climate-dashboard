@@ -81,7 +81,7 @@ function renderer(input,width){
  const ratio=(first?.naturalHeight||first?.height)/(first?.naturalWidth||first?.width);
  if(!Number.isFinite(ratio)||ratio<=0)throw new Error("Filmbilder nicht bereit");
  const fullHD=Boolean(input.fullHD);
- const header=44,footer=input.isobarOverlays?52:32;
+ const header=44,footer=input.isobarOverlays?(input.frontOverlays?68:52):32;
  const mapWidth=fullHD?Math.min(width,Math.floor((1080-header-footer)/ratio)):width;
  const mapHeight=Math.round(mapWidth*ratio);
  const mapX=fullHD?Math.round((width-mapWidth)/2):0;
@@ -101,6 +101,17 @@ function renderer(input,width){
     throw new Error("Isobaren-Zeichner für GIF-Export fehlt.");
    window.SatelliteMapExport.paintIsobars(ctx,pressure,input.region,{x:mapX,y:header,width:mapWidth,height:mapHeight});
   }
+  if(input.frontOverlays){
+   if(input.frontOverlays.length!==input.frames.length)
+    throw new Error("NOAA-Frontenfolge stimmt nicht mit den UTC-Filmbildern überein.");
+   const front=input.frontOverlays[frameIndex];
+   if(front){
+    if(!window.SatelliteMapExport?.paintFronts)
+     throw new Error("NOAA-Frontenzeichner für GIF-Export fehlt.");
+    window.SatelliteMapExport.paintFronts(ctx,front,input.region,
+     {x:mapX,y:header,width:mapWidth,height:mapHeight},frame.time);
+   }
+  }
   ctx.fillStyle="#ffffff";
   ctx.font="bold "+Math.max(12,Math.round(width/23))+"px Arial,sans-serif";
   ctx.fillText("MTG · "+input.productName,12,Math.round(header*.65),width-24);
@@ -111,6 +122,11 @@ function renderer(input,width){
    const layer=input.isobarOverlays[frameIndex];
    ctx.fillStyle="#ff4fcf";
    ctx.fillText("ECMWF IFS · "+(layer.spacing||5)+" hPa · "+layer.method+" · "+new Date(layer.validUTC).toISOString().slice(11,16)+" UTC",12,header+mapHeight+39,width-24);
+  }
+  const front=input.frontOverlays?.[frameIndex];
+  if(front){
+   ctx.fillStyle="#aee4ff";
+   ctx.fillText("NOAA WPC · Frontanalyse "+new Date(front.valid_utc).toISOString().slice(11,16)+" UTC",12,header+mapHeight+56,width-24);
   }
  }
  return {canvas,ctx,draw};
