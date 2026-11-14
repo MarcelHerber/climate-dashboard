@@ -7,14 +7,15 @@
 <title>Satelliten · MTG | Climate Dashboard Deutschland</title>
 <link rel="stylesheet" href="dashboard_theme.css">
 <link rel="stylesheet" href="mobile_navigation.css">
-<link rel="stylesheet" href="satelliten.css?v=20261114-noaa-export1">
+<link rel="stylesheet" href="satelliten.css?v=20261114-synoptic2">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="mobile_navigation.js"></script>
 <script defer src="satellite_overlay.js?v=20261112-hdexport-video1"></script>
 <script defer src="satellite_isobar_geometry.js?v=20261112-satellite-qa-v3"></script>
-<script defer src="satellite_isobars.js?v=20261112-satellite-qa-v3"></script>
-<script defer src="satellite_map_export.js?v=20261114-noaa-export1"></script>
-<script defer src="satellite_film_export.js?v=20261114-noaa-export1"></script>
+<script defer src="satellite_isobars.js?v=20261114-synoptic2"></script>
+<script defer src="satellite_front_style.js?v=20261114-synoptic2"></script>
+<script defer src="satellite_map_export.js?v=20261114-synoptic2"></script>
+<script defer src="satellite_film_export.js?v=20261114-synoptic2"></script>
 <script defer src="satellite_fullhd_film.js?v=20261112-hd-video1"></script>
 <script defer src="satelliten.js?v=20261114-noaa-export1"></script>
 <script defer src="satellite_tile_cache.js?v=20261113-lru1"></script>
@@ -24,7 +25,7 @@
 <script defer src="satellite_lightning.js?v=20261113-liveqa-1"></script>
 <script defer src="satellite_radar.js?v=20261113-liveqa-1"></script>
 <script defer src="satellite_dwd_fronts.js?v=20261113-directoverlay1"></script>
-<script defer src="satellite_noaa_fronts.js?v=20261114-noaa-export1"></script>
+<script defer src="satellite_noaa_fronts.js?v=20261114-synoptic2"></script>
 </head>
 <body>
 <header class="sat-header"><a href="./index.html">← Climate Dashboard Deutschland</a><div class="sat-header-actions"><span>Atmosphäre · Satelliten</span><button id="dashboardThemeToggle" type="button" aria-label="Dark Mode einschalten" aria-pressed="false"><span class="header-icon" aria-hidden="true"></span><span class="action-label">Dunkel</span></button></div></header>
@@ -51,14 +52,14 @@
   <a id="satDwdFrontSource" href="https://opendata.dwd.de/weather/charts/analysis/" target="_blank" rel="noopener noreferrer">DWD-Originalanalyse ansehen</a>
   <button id="satDwdFrontRefresh" type="button">↻ Fronten prüfen</button>
 </div>
-<p class="sat-isobar-explainer">Standardmäßig werden 5-hPa-Isobaren gezeigt. Für Europa, Südwesteuropa, Mitteleuropa und Deutschland kannst du alternativ 2 hPa auswählen; für Nordatlantik und Erdkugel bleibt diese Option gesperrt. Die 10-Minuten-Isobaren werden aus echten ECMWF-IFS-Bodendruckfeldern interpoliert und für jeden Zeitpunkt neu berechnet. Das sind <strong>Modellprognosen, keine 10-minütigen Messungen</strong>. Markante geschlossene Druckzentren erhalten automatisch ein <strong>H</strong> oder <strong>T</strong>; schwache und uneindeutige Systeme bleiben unmarkiert. Wenn die neue Datenserie fehlt, bleiben die 3-Stunden-Konturen ausdrücklich als Ersatz sichtbar.</p><div class="sat-isobar-legend" aria-label="Farblegende Isobaren"><span><i class="sat-isobar-legend-line sat-isobar-legend-pink" aria-hidden="true"></i>Alle Isobaren pink · nur 1015 hPa kräftiger</span></div>
+<p class="sat-isobar-explainer">Standardmäßig werden 5-hPa-Isobaren gezeigt. Für Europa, Südwesteuropa, Mitteleuropa und Deutschland kannst du alternativ 2 hPa auswählen; für Nordatlantik und Erdkugel bleibt diese Option gesperrt. Die 10-Minuten-Isobaren werden aus echten ECMWF-IFS-Bodendruckfeldern interpoliert und für jeden Zeitpunkt neu berechnet. Das sind <strong>Modellprognosen, keine 10-minütigen Messungen</strong>. Markante geschlossene Druckzentren erhalten automatisch ein <strong>H</strong> oder <strong>T</strong>; schwache und uneindeutige Systeme bleiben unmarkiert. Wenn die neue Datenserie fehlt, bleiben die 3-Stunden-Konturen ausdrücklich als Ersatz sichtbar.</p><div class="sat-isobar-legend" aria-label="Farblegende Isobaren"><span><i class="sat-isobar-legend-line sat-isobar-legend-pink" aria-hidden="true"></i>Dezentes Rosaviolett · 1015 hPa leicht betont</span></div>
 <div class="sat-front-legend" aria-label="Farben amtlicher NOAA-WPC-Frontanalysen">
  <span><i class="sat-front-swatch cold" aria-hidden="true"></i>Kaltfront</span>
  <span><i class="sat-front-swatch warm" aria-hidden="true"></i>Warmfront</span>
  <span><i class="sat-front-swatch occluded" aria-hidden="true"></i>Okklusion</span>
- <span><i class="sat-front-swatch stationary" aria-hidden="true"></i>Stationär</span>
+ <span><i class="sat-front-swatch stationary" aria-hidden="true"></i>Stationär (rot/blau)</span>
 </div>
-<p class="sat-front-note">NOAA-WPC-Fronten sind echte amtliche Analyselinien (keine Modellfronten), nur für Nordamerika und den westlichen Nordatlantik. Der Schalter oben bestimmt auch, ob passende Fronten in PNG, PDF, GIF und HD/4K-Exporten erscheinen. Nur geografisch passende Linien innerhalb von −1 bis +12 Stunden zum bestätigten Satellitenzeitpunkt werden übernommen. Das PDF hält jede Front als gesondert bearbeitbaren Vektorpfad. Keine Richtungssymbole ohne verifizierte Bewegungsrichtung.</p>
+<p class="sat-front-note">NOAA-WPC-Fronten sind echte amtliche Analyselinien (keine Modellfronten), nur für Nordamerika und den westlichen Nordatlantik. Der Schalter oben bestimmt auch, ob passende Fronten in PNG, PDF, GIF und HD/4K-Exporten erscheinen. Nur geografisch passende Linien innerhalb von −1 bis +12 Stunden zum bestätigten Satellitenzeitpunkt werden übernommen. Das PDF hält jede Front als gesondert bearbeitbaren Vektorpfad. Dreiecke und Bögen kennzeichnen den Fronttyp, die Symbolseite ist schematisch und keine geprüfte Bewegungsrichtung (NOAA CODSUS enthält keine Orientierung).</p>
 <p id="satAdditionalStatus" class="sat-isobar-status" role="status">Zusätzliche MTG-Produkte werden anhand des Quellenberichts geprüft.</p>
 <p class="sat-view-note">Radar: RainViewer-Karten, nur für persönliche bzw. nichtkommerzielle Nutzung; <a href="https://www.rainviewer.com/api.html" target="_blank" rel="noopener noreferrer">Nutzungsbedingungen</a>. Wird nur bei passendem Radarzeitpunkt und außerhalb des Films eingeblendet. Die Radar-Kacheln werden aus WebMercator korrekt auf die Satellitenkarte umgerechnet. Keine amtliche DWD-/OPERA-Direktquelle.</p>
 <p id="satRadarStatus" class="sat-isobar-status" role="status" aria-live="polite">Radar ausgeschaltet.</p>
