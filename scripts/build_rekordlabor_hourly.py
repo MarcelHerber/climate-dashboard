@@ -294,7 +294,7 @@ def discover_stations(listing,target=0,pinned=None):
                 selected[sid]=(st["name"],land,st["lat"],st["lon"])
                 counts[land]+=1
     print("DWD HOURLY STATION DISCOVERY",len(catalogue),"catalogue locations,",
-          len(candidates),"10+ year candidates, selected",len(selected),
+          len(candidates),"available hourly candidates, selected",len(selected),
           "previously verified",len(pinned or {}),flush=True)
     return selected
 
