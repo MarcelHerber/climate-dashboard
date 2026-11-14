@@ -61,6 +61,7 @@
         <button id="weekPdf" type="button" disabled>PDF / Drucken</button>
         <button id="weekCsv" type="button" disabled>Ländermittel CSV</button>
       </div>
+      <p class="cpc-note">Die ausgewählten Ausschnitte ändern ausschließlich die Ansicht, nicht die berechneten GFS-Temperaturen. Die Ländermittel werden über die jeweils vollständig verfügbaren Länderflächen im geprüften Quelldatengitter berechnet und ändern sich nicht beim Zoom. Bei einer größeren Datendomäne können sich insbesondere Landesmittel grenzüberschreitender Länder wie Russland gegenüber der früheren Europa-Abdeckung ändern.</p>
       <div class="cpc-map-container weekly-map-frame">
         <canvas id="weekMap" width="1400" height="760"
           aria-label="GFS Sieben-Tage-Temperaturabweichung Europa mit Staatenlinien. Land anklicken für Ländermittel"
@@ -69,11 +70,11 @@
       </div>
       <div id="weekLegend" class="cpc-legend"></div>
       <p id="weekWarning" class="cpc-warning" role="alert" hidden></p>
-      <p class="cpc-note">Die Regionsauswahl vergrößert den Kartenausschnitt innerhalb des bisher tatsächlich verfügbaren CFSR-Referenzrasters. Für den weiter westlichen Atlantik, den hohen Norden und den Ural werden zunächst zusätzliche historische Originaldaten benötigt – außerhalb vorhandener Daten erscheinen keine erfundenen Anomalien. Wissenschaftliche Rasterauflösung 0,5°. Projektion und grafische Glättung ändern keine Temperaturwerte. Die seitliche ERA5-Anomalie-Farbskala kann außerhalb ihrer Endwerte sättigen.</p>
+      <p class="cpc-note">Die verfügbaren Kartenausschnitte richten sich nach der vollständig geprüften Klimareferenz. Sobald das erweiterte 30-Jahre-Raster und die passenden NOAA-Prognosen veröffentlicht sind, werden zusätzliche Regionen einschließlich Grönland, Nordatlantik und Eurasien automatisch freigeschaltet. Außerhalb des verfügbaren Rasters bleiben Flächen ohne berechnete Anomalie. Wissenschaftliche Rasterauflösung 0,5°. Projektion und grafische Glättung ändern keine Temperaturwerte. Die seitliche ERA5-Anomalie-Farbskala kann außerhalb ihrer Endwerte sättigen.</p>
     </section>
     <section class="cpc-panel">
       <div class="cpc-section-head">
-        <div><h2>Sieben-Tage-Ländermittel</h2><p>Flächengewichtete Ländermittel aus dem gesamten bisherigen 0,5°-Referenzgitter; die Regionsauswahl zoomt die Karte, verändert diese Landesmittel aber nicht.</p></div>
+        <div><h2>Sieben-Tage-Ländermittel</h2><p>Flächengewichtete Originalwerte im verfügbaren 0,5°-Referenzraster; die Regionsauswahl zoomt ausschließlich die Karte.</p></div>
         <span class="cpc-selected" id="weekSelected">Land auswählen</span>
       </div>
       <div class="cpc-country-table-wrap weekly-country-table">
