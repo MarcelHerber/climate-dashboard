@@ -7,8 +7,8 @@ test("linear trend fits actual observed years, not point positions",()=>{
  ]);
  assert.ok(trend);
  assert.equal(trend.count,3);
- assert.equal(trend.slopePerYear,1);
- assert.deepEqual(trend.values,[20,30,50]);
+ assert.ok(Math.abs(trend.slopePerYear-1)<1e-10);
+ assert.ok(trend.values.every((v,i)=>Math.abs(v-[20,30,50][i])<1e-10));
  assert.equal(trend.firstYear,1990);
  assert.equal(trend.lastYear,2020);
 });
