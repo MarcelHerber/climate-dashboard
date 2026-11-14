@@ -216,9 +216,12 @@ def parse_stations_description(body):
         match=rx.match(line)
         if not match:continue
         sid,first,last,height,latitude,longitude,tail=match.groups()
-        state=next((land for land in LANDS if tail.endswith(land)),None)
-        if state is None:continue
-        name=tail[:-len(state)].strip()
+        # The official file has a further "Abgabe" field ("Frei")
+        # after Bundesland; never assume the state is at line end.
+        found=re.search(r"\s+("+"|".join(re.escape(land) for land in LANDS)+r")(?=\s|$)",tail)
+        if found is None:continue
+        state=found.group(1)
+        name=tail[:found.start()].strip()
         lat,lon=float(latitude),float(longitude)
         if not name or not (47<=lat<=56 and 5<=lon<=16):continue
         stations[sid]={"name":name,"state":state,"lat":lat,"lon":lon,
