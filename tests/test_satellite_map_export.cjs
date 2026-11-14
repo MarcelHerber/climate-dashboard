@@ -260,6 +260,7 @@ test("Only H/T font sizes are exactly +50% on desktop/mobile, Canvas, GIF and ed
   const pdf=Buffer.from(await result.blob.arrayBuffer()).toString("latin1");
   const actual=pdf.match(/BT \/F1 (\d+(?:\.\d+)?) Tf 2 Tr [^\n]*\(T\) Tj ET/);
   assert.ok(actual,"PDF must preserve editable T text");
-  assert.equal(Number(actual[1]),1.5*Math.max(18,Math.min(34,width*.022)));
+  assert.ok(Math.abs(Number(actual[1])-1.5*Math.max(18,Math.min(34,width*.022)))<.001,
+   "PDF text metrics are serialized to three decimal places");
  }
 });
