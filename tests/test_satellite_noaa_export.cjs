@@ -70,9 +70,10 @@ test("Immutable fixture retains real WPC coordinate provenance, 46 lines and all
 test("Satellite SVG and export use identical real NOAA longitude/latitude polylines",async()=>{
  const f=fixture();await pause();
  const api=f.window.SatelliteNOAAFronts;
+ assert.ok(api.validate(datum),"Actual NOAA fixture rejected by validator");
  api.sync({time:sat,region:"atlantic",source:"mtgi1"});
  const snapshot=api.exportAt(sat,"atlantic");
- assert.ok(snapshot&&snapshot.features.length>=5);
+ assert.ok(snapshot&&snapshot.features.length>=5,"WPC export unavailable: "+f.nodes.get("satWpcFrontStatus").textContent+"; toggle="+f.nodes.get("satShowWpcFronts").checked+"; utc="+sat);
  assert.equal(f.nodes.get("satWpcFrontSvg").children.length,snapshot.features.length*2);
  const first=snapshot.features[0];
  const xy=api.project(first.coords[0],[-70,15,35,75]);
