@@ -35,6 +35,20 @@
             <option value="absolute">2-m-Temperatur (°C)</option>
           </select>
         </label>
+        <label>Region
+          <select id="weekRegion">
+            <option value="europe">Europa gesamt</option>
+            <option value="west">Westeuropa</option>
+            <option value="central">Mitteleuropa</option>
+            <option value="germany">Deutschland</option>
+            <option value="nordics">Skandinavien</option>
+            <option value="east">Osteuropa</option>
+            <option value="med">Mittelmeerraum</option>
+            <option value="iberia">Iberische Halbinsel</option>
+            <option value="alps">Alpenraum</option>
+            <option value="atlantic">Ostatlantik (bisheriger Datenbereich)</option>
+          </select>
+        </label>
         <label>Kartenprojektion
           <select id="weekProjection">
             <option value="stereo">Polar-stereografisch (ähnlich Haustein)</option>
@@ -55,11 +69,11 @@
       </div>
       <div id="weekLegend" class="cpc-legend"></div>
       <p id="weekWarning" class="cpc-warning" role="alert" hidden></p>
-      <p class="cpc-note">Wissenschaftliche Rasterauflösung 0,5°. Projektion und grafische Glättung ändern keine Temperaturwerte. Die seitliche ERA5-Anomalie-Farbskala kann außerhalb ihrer Endwerte sättigen.</p>
+      <p class="cpc-note">Die Regionsauswahl vergrößert den Kartenausschnitt innerhalb des bisher tatsächlich verfügbaren CFSR-Referenzrasters. Für den weiter westlichen Atlantik, den hohen Norden und den Ural werden zunächst zusätzliche historische Originaldaten benötigt – außerhalb vorhandener Daten erscheinen keine erfundenen Anomalien. Wissenschaftliche Rasterauflösung 0,5°. Projektion und grafische Glättung ändern keine Temperaturwerte. Die seitliche ERA5-Anomalie-Farbskala kann außerhalb ihrer Endwerte sättigen.</p>
     </section>
     <section class="cpc-panel">
       <div class="cpc-section-head">
-        <div><h2>Sieben-Tage-Ländermittel</h2><p>Flächengewichtete 0,5°-Rasterwerte, nicht aus dem Kartenbild zurückgerechnet.</p></div>
+        <div><h2>Sieben-Tage-Ländermittel</h2><p>Flächengewichtete Ländermittel aus dem gesamten bisherigen 0,5°-Referenzgitter; die Regionsauswahl zoomt die Karte, verändert diese Landesmittel aber nicht.</p></div>
         <span class="cpc-selected" id="weekSelected">Land auswählen</span>
       </div>
       <div class="cpc-country-table-wrap weekly-country-table">
