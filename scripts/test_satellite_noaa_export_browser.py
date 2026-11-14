@@ -79,9 +79,12 @@ def exercise(browser,device,url,tmp):
     page.wait_for_function("()=>!document.querySelector('#satWpcFrontSvg').hasAttribute('hidden') && document.querySelectorAll('#satWpcFrontSvg path').length>0",
                            timeout=18000)
     actual=page.locator("#satWpcFrontSvg path").count()
-    assert actual>=2 and actual%2==0,("NOAA over image",actual)
+    assert actual>=2,("NOAA over image",actual)
+    symbols=page.locator("#satWpcFrontSvg path.sat-front-symbol").count()
+    assert symbols>0, "No classic frontal pips on the Atlantic overlay"
+    details["front_symbols"]=symbols
     details["noaa_satellite_svg_paths"]=actual
-    details["noaa_atlantic_lines"]=actual//2
+    details["noaa_atlantic_lines"]=int(page.locator("#satWpcFrontStatus").inner_text().split()[0])
     details["noaa_status"]=page.locator("#satWpcFrontStatus").inner_text()
     details["date_label"]=page.locator("#satWpcFrontUTC").inner_text()
     assert "NOAA WPC" in details["date_label"],details
@@ -104,7 +107,8 @@ def exercise(browser,device,url,tmp):
             assert raw.startswith(b"%PDF-1.4")
             assert b"NOAA WPC analyzed frontal vectors" in raw
             assert b"/Subtype /Image" in raw
-            assert raw.count(bytes([10])+b"S"+bytes([10])+b"Q")>=actual//2,"Front vector strokes are missing"
+            assert raw.count(bytes([10])+b"S"+bytes([10])+b"Q")>=details["noaa_atlantic_lines"],"Front vector strokes are missing"
+            assert b" Pips schematic:" in raw and bytes([10])+b"B"+bytes([10])+b"Q" in raw, "PDF front symbols are not editable"
         details[ident]={"filename":item.suggested_filename,"bytes":len(raw)}
     page.locator("#satFilmLength").select_option("6")
     page.locator("#satFilmQuality").select_option("320")
