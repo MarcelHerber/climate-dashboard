@@ -112,9 +112,9 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 .sat-isobar-legend-orange{background:#ffb447}
 
 /* One colour for all pressure isolines; only 1015 hPa has extra weight. */
-.sat-isobar-legend-pink{background:#ff4fcf}
-.sat-actions button[id$="Isobars"]{border-color:#ff4fcf88}
-.sat-actions button[id$="Isobars"]:not(:disabled):hover{border-color:#ff4fcf}
+.sat-isobar-legend-pink{background:#c6a2bb}
+.sat-actions button[id$="Isobars"]{border-color:#c6a2bb88}
+.sat-actions button[id$="Isobars"]:not(:disabled):hover{border-color:#c6a2bb}
 
 /* Sparse, model-verified pressure centers: positioned in the shared 1000 SVG projection. */
 .sat-pressure-center{
@@ -233,8 +233,25 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 .sat-front-legend{display:flex;flex-wrap:wrap;gap:9px 17px;margin:9px 0 4px;font-size:12px;color:var(--sat-muted)}
 .sat-front-legend span{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
 .sat-front-swatch{display:inline-block;width:29px;height:0;border-top:2px solid;vertical-align:middle}
-.sat-front-swatch.cold{border-color:#48a8ff}
-.sat-front-swatch.warm{border-color:#ff6262}
-.sat-front-swatch.occluded{border-color:#ce77f9}
-.sat-front-swatch.stationary{border-color:#ec73b6;border-top-style:dashed}
+.sat-front-swatch.cold{border-color:#5998c9}
+.sat-front-swatch.warm{border-color:#d77a76}
+.sat-front-swatch.occluded{border-color:#a795c5}
+.sat-front-swatch.stationary{border:0;height:2px;background:repeating-linear-gradient(90deg,#5998c9 0 11px,#d77a76 11px 22px)}
 .sat-front-note{font-size:12px;color:var(--sat-muted);line-height:1.55;margin:6px 0 12px}
+
+/* Restrained synoptic rendering, legible over raw Meteosat RGB/IR. */
+#satIsobarSvg{filter:none!important}
+.sat-isobar-label{
+ font-size:11px;font-weight:650;letter-spacing:0;
+ fill:#f4f5f7;stroke:none;opacity:.94;
+}
+.sat-pressure-center{
+ font-family:Arial,Helvetica,sans-serif;font-size:27px;font-weight:750;
+ stroke:#15283b;stroke-width:2.1px;stroke-linejoin:round;
+ paint-order:stroke fill;opacity:.9;letter-spacing:0;
+}
+@media(max-width:650px){.sat-pressure-center{font-size:25px}.sat-isobar-label{font-size:10px}}
+#satWpcFrontSvg{filter:none}
+#satWpcFrontSvg .sat-front-symbol{stroke-linejoin:round;stroke-linecap:round}
+.sat-isobar-legend-line{height:2px;box-shadow:0 0 0 1px rgba(18,36,56,.55)}
+.sat-front-note{max-width:100%;font-size:11.5px;line-height:1.5}

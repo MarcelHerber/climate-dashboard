@@ -9,7 +9,7 @@ const BBOX={
  europe:[-27,24,49,73],atlantic:[-70,15,35,75],
  southwest:[-37,24,19,53],central:[-2,43,25,58],germany:[5,47,16,56]
 };
-const PINK="#ff4fcf",HALO="#061522";
+const PINK="#c6a2bb",HALO="#18283a";
 const esc=s=>String(s||"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^ -~]/g,"?").replace(/[\\()]/g,c=>"\\"+c);
 const fmt=s=>Number(s).toFixed(3).replace(/\.000$/,"");
 const inBounds=(p,b)=>p[0]>=b[0]&&p[0]<=b[2]&&p[1]>=b[1]&&p[1]<=b[3];
@@ -32,7 +32,7 @@ function project(point,region,x,y,w,h){
  * Reject unverified sources or mixed UTC. No invented front-side triangles.
  */
 const NOAA_SOURCE="https://tgftp.nws.noaa.gov/data/raw/as/asus02.kwbc.cod.sus.txt";
-const FRONT_COLORS={cold:"#48a8ff",warm:"#ff6262",occluded:"#ce77f9",stationary:"#ec73b6"};
+const FRONT_COLORS={cold:"#5998c9",warm:"#d77a76",occluded:"#a795c5",stationary:"#a795c5"};
 function frontFeatures(fronts,region,satelliteUTC){
  if(!fronts)return [];
  if(!BBOX[region]||fronts.provider!=="NOAA WPC"||fronts.source_url!==NOAA_SOURCE||
@@ -59,45 +59,88 @@ function frontFeatures(fronts,region,satelliteUTC){
  }
  return found;
 }
-function paintFronts(ctx,fronts,region,{x=0,y=0,width,height},satelliteUTC=fronts?.satelliteUTC){
+/* All three output media use the same source vertices and symbol geometry.
+ * Symbol SIDES are schematic unless explicitly verified in the NOAA feed.
+ * Small Bezier handles preserve every actual WPC coordinate exactly.
+ */
+const frontUnit=width=>Math.max(.74,Math.min(3.6,width/900));
+function frontLayout(fronts,region,satelliteUTC,area){
  const features=frontFeatures(fronts,region,satelliteUTC);
- if(!features.length)return 0;
+ const style=window.SatelliteFrontStyle;
+ if(features.length&&!style?.layout)
+  throw Error("Gemeinsames NOAA-Synoptikmodul fehlt.");
+ return features.map(f=>style.layout(f,p=>project(p,region,area.x,area.y,area.width,area.height),
+  frontUnit(area.width))).filter(Boolean);
+}
+function canvasCommandPath(ctx,steps){
+ ctx.beginPath();
+ for(const item of steps){
+  if(item[0]==="M")ctx.moveTo(item[1],item[2]);
+  else if(item[0]==="L")ctx.lineTo(item[1],item[2]);
+  else if(item[0]==="C")ctx.bezierCurveTo(...item.slice(1));
+  else if(item[0]==="Z")ctx.closePath();
+ }
+}
+function paintFronts(ctx,fronts,region,{x=0,y=0,width,height},satelliteUTC=fronts?.satelliteUTC){
+ if(!fronts)return 0;
  if(!width||!height)throw Error("Fronten: Kartenmaße fehlen.");
- const unit=Math.max(.8,Math.min(1.75,width/900));
+ const glyphs=frontLayout(fronts,region,satelliteUTC,{x,y,width,height});
+ if(!glyphs.length)return 0;
+ const unit=frontUnit(width);
  ctx.save();ctx.beginPath();ctx.rect(x,y,width,height);ctx.clip();
  ctx.lineJoin="round";ctx.lineCap="round";
- for(const f of features){
-  ctx.beginPath();
-  for(let i=0;i<f.coords.length;i++){
-   const p=project(f.coords[i],region,x,y,width,height);
-   if(i===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);
+ for(const g of glyphs){
+  ctx.setLineDash?.([]);canvasCommandPath(ctx,g.commands);
+  ctx.strokeStyle="#122438";ctx.lineWidth=2.55*unit;ctx.stroke();
+  if(g.type==="stationary"){
+   for(const section of g.sections){
+    canvasCommandPath(ctx,section.commands);
+    ctx.strokeStyle=section.color;ctx.lineWidth=1.4*unit;ctx.stroke();
+   }
+  }else{
+   canvasCommandPath(ctx,g.commands);
+   ctx.strokeStyle=g.color;ctx.lineWidth=1.4*unit;ctx.stroke();
   }
-  ctx.setLineDash?.([]);
-  ctx.strokeStyle="#061826";ctx.lineWidth=3.4*unit;ctx.stroke();
-  ctx.strokeStyle=FRONT_COLORS[f.type];ctx.lineWidth=1.8*unit;
-  if(f.type==="stationary")ctx.setLineDash?.([6*unit,5*unit]);
-  ctx.stroke();ctx.setLineDash?.([]);
+  for(const glyph of g.symbols){
+   canvasCommandPath(ctx,glyph.commands);
+   ctx.fillStyle=glyph.color;ctx.fill();
+   ctx.strokeStyle="#122438";ctx.lineWidth=.55*unit;ctx.stroke();
+  }
  }
  ctx.restore();
- return features.length;
+ return glyphs.length;
+}
+function pdfCommands(steps,top){
+ const arr=[];
+ for(const item of steps){
+  const t=item[0];
+  if(t==="Z"){arr.push("h");continue;}
+  const coords=[];
+  for(let i=1;i<item.length;i+=2)coords.push(fmt(item[i]),fmt(top-item[i+1]));
+  arr.push(coords.join(" ")+(t==="M"?" m":t==="L"?" l":" c"));
+ }
+ return arr.join("\n");
 }
 function drawPDFFronts(fronts,region,w,h,bottom,satelliteUTC){
- const features=frontFeatures(fronts,region,satelliteUTC);
- if(!features.length)return "";
+ if(!fronts)return "";
+ const glyphs=frontLayout(fronts,region,satelliteUTC,{x:0,y:0,width:w,height:h});
+ if(!glyphs.length)return "";
  const out=["% NOAA WPC analyzed frontal vectors (individual editable paths)",
+  "% Pips schematic: CODSUS does not encode frontal movement/side",
   "q 0 "+fmt(bottom)+" "+fmt(w)+" "+fmt(h)+" re W n","1 J 1 j"];
- const unit=Math.max(.8,Math.min(1.75,w/900));
- for(const f of features){
-  const p=f.coords.map((coord,i)=>{
-   const [x,y]=project(coord,region,0,0,w,h);
-   return fmt(x)+" "+fmt(bottom+h-y)+(i?" l":" m");
-  }).join("\n");
-  out.push("q",pdfRGB("#061826")+" RG",fmt(3.4*unit)+" w",
-    "[] 0 d",p,"S","Q");
-  out.push("q",pdfRGB(FRONT_COLORS[f.type])+" RG",
-    fmt(1.8*unit)+" w",
-    f.type==="stationary"?"["+fmt(6*unit)+" "+fmt(5*unit)+"] 0 d":"[] 0 d",
-    p,"S","Q");
+ const unit=frontUnit(w),top=bottom+h;
+ for(const g of glyphs){
+  const path=pdfCommands(g.commands,top);
+  out.push("q",pdfRGB("#122438")+" RG",fmt(2.55*unit)+" w",path,"S","Q");
+  if(g.type==="stationary"){
+   for(const section of g.sections)out.push("q",pdfRGB(section.color)+" RG",
+    fmt(1.4*unit)+" w",pdfCommands(section.commands,top),"S","Q");
+  }else out.push("q",pdfRGB(g.color)+" RG",fmt(1.4*unit)+" w",path,"S","Q");
+  for(const glyph of g.symbols){
+   out.push("q",pdfRGB(glyph.color)+" rg",
+    pdfRGB("#122438")+" RG",fmt(.55*unit)+" w",
+    pdfCommands(glyph.commands,top),"B","Q");
+  }
  }
  out.push("Q");
  return out.join("\n");
@@ -114,15 +157,15 @@ function pressureCenters(overlay,region){
 function paintPressureCenters(ctx,overlay,region,{x=0,y=0,width,height}){
  if(!width||!height)return [];
  const markers=pressureCenters(overlay,region);
- const size=Math.max(23,Math.min(52,Math.round(width*.031)));
+ const size=Math.max(17,Math.min(35,Math.round(width*.022)));
  ctx.save();ctx.textAlign="center";ctx.textBaseline="middle";
- ctx.font="900 "+size+"px Arial,Helvetica,sans-serif";
- ctx.lineJoin="round";ctx.lineWidth=Math.max(2.2,size*.12);
+ ctx.font="750 "+size+"px Arial,Helvetica,sans-serif";
+ ctx.lineJoin="round";ctx.lineWidth=Math.max(1.6,size*.085);
  for(const m of markers){
   const p=project([m.lon,m.lat],region,x,y,width,height);
-  ctx.strokeStyle="#0c1931";ctx.globalAlpha=.96;
+  ctx.strokeStyle="#102438";ctx.globalAlpha=.86;
   if(typeof ctx.strokeText==="function")ctx.strokeText(m.type,p[0],p[1]);
-  ctx.fillStyle=m.type==="T"?"#cf4baf":"#9750c4";
+  ctx.fillStyle=m.type==="T"?"#ba859f":"#a599bc";
   ctx.fillText(m.type,p[0],p[1]);
  }
  ctx.restore();
@@ -135,7 +178,7 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
  ctx.save();ctx.beginPath();ctx.rect(x,y,width,height);ctx.clip();
  ctx.lineJoin="round";ctx.lineCap="round";
  for(const group of groups){
-  const stroke=heavy=>Number(overlay.spacing)===2 ? 0.75*unit : (heavy?1.55:0.9)*unit;
+  const stroke=heavy=>Number(overlay.spacing)===2 ? 0.58*unit : (heavy?1.10:0.75)*unit;
   const draw=()=>{
    ctx.beginPath();
    for(const run of group.runs){
@@ -146,17 +189,17 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
    }
    ctx.stroke();
   };
-  ctx.strokeStyle=HALO;ctx.globalAlpha=.94;ctx.lineWidth=(Number(overlay.spacing)===2?1.85:(group.heavy?2.95:2.3))*unit;draw();
-  ctx.strokeStyle=PINK;ctx.globalAlpha=1;ctx.lineWidth=stroke(group.heavy);draw();
+  ctx.strokeStyle=HALO;ctx.globalAlpha=.79;ctx.lineWidth=(Number(overlay.spacing)===2?1.45:(group.heavy?2.25:1.8))*unit;draw();
+  ctx.strokeStyle=PINK;ctx.globalAlpha=.93;ctx.lineWidth=stroke(group.heavy);draw();
  }
  for(const group of groups){
   if(!group.label)continue;
   const p=project(group.label,region,x,y,width,height);
-  const label=String(group.hpa),size=Math.max(9,Math.round(13*unit));
+  const label=String(group.hpa),size=Math.max(8,Math.round(11*unit));
   ctx.font="bold "+size+"px Arial,sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
-  const tw=ctx.measureText(label).width+12*unit,th=size+8*unit;
-  ctx.globalAlpha=.94;ctx.fillStyle="#07182a";ctx.fillRect(p[0]-tw/2,p[1]-th/2,tw,th);
-  ctx.globalAlpha=1;ctx.strokeStyle=PINK;ctx.lineWidth=.65*unit;
+  const tw=ctx.measureText(label).width+9*unit,th=size+6*unit;
+  ctx.globalAlpha=.78;ctx.fillStyle="#10253a";ctx.fillRect(p[0]-tw/2,p[1]-th/2,tw,th);
+  ctx.globalAlpha=1;ctx.strokeStyle="#a98b9f";ctx.lineWidth=.45*unit;
   ctx.strokeRect(p[0]-tw/2,p[1]-th/2,tw,th);
   ctx.fillStyle="#ffffff";ctx.fillText(label,p[0],p[1]);
  }
@@ -170,7 +213,8 @@ function provenance(options){const o=options.overlay;
  return "Satellit: "+utc(o.satelliteUTC)+" | ECMWF IFS "+utc(o.runUTC)+
   " | Isobaren: "+utc(o.validUTC)+" | Abstand "+o.spacing+" hPa | "+o.method+
   (options.fronts?" | NOAA WPC Analyse "+utc(options.fronts.valid_utc):"");}
-function footerLine(o){return "Bild: EUMETSAT | Druckprognose: ECMWF CC BY 4.0 | Interpolierte Modellwerte, keine Messung";}
+function footerLine(o){return "Bild: EUMETSAT | Druck: ECMWF CC BY 4.0 (Modell, keine Messung)"+
+ (o.fronts?" | NOAA WPC: Symbolseiten schematisch":"");}
 function rasterCanvas(image){
  const w=image.naturalWidth||image.width,h=image.naturalHeight||image.height;
  if(!w||!h)throw Error("Satellitenbild nicht vollständig geladen.");
@@ -231,16 +275,16 @@ function drawPDFVectors(overlay,region,w,h,bottom){
   }
   const d=path.join("\n");
   const fine=Number(overlay.spacing)===2;
-  const line=(fine?0.75:(group.heavy?1.55:0.9))*unit;
-  out.push(pdfRGB(HALO)+" RG",fmt((fine?1.85:(group.heavy?2.95:2.3))*unit)+" w",d,"S");
+  const line=(fine?0.58:(group.heavy?1.10:0.75))*unit;
+  out.push(pdfRGB(HALO)+" RG",fmt((fine?1.45:(group.heavy?2.25:1.8))*unit)+" w",d,"S");
   out.push(pdfRGB(PINK)+" RG",fmt(line)+" w",d,"S");
  }
  for(const group of groups){
   if(!group.label)continue;
-  const xy=pt(group.label),fs=12*unit;
-  out.push("0.027 0.094 0.165 rg",fmt(xy[0]-24*unit)+" "+fmt(xy[1]-10*unit)+
+  const xy=pt(group.label),fs=10*unit;
+  out.push("0.063 0.145 0.227 rg",fmt(xy[0]-24*unit)+" "+fmt(xy[1]-10*unit)+
    " "+fmt(48*unit)+" "+fmt(20*unit)+" re f",
-   pdfRGB(PINK)+" RG",fmt(.65*unit)+" w",fmt(xy[0]-24*unit)+" "+fmt(xy[1]-10*unit)+
+   pdfRGB("#a98b9f")+" RG",fmt(.45*unit)+" w",fmt(xy[0]-24*unit)+" "+fmt(xy[1]-10*unit)+
    " "+fmt(48*unit)+" "+fmt(20*unit)+" re S",
    "1 1 1 rg","BT /F1 "+fmt(fs)+" Tf "+fmt(xy[0]-14*unit)+" "+fmt(xy[1]-4*unit)+
     " Td ("+esc(String(group.hpa))+") Tj ET");
@@ -248,11 +292,11 @@ function drawPDFVectors(overlay,region,w,h,bottom){
  // Keep H/T as editable text within the vector layer, not raster pixels.
  for(const m of pressureCenters(overlay,region)){
   const [cx,cy]=pt([m.lon,m.lat]);
-  const fs=Math.max(24,Math.min(48,w*.031));
+  const fs=Math.max(18,Math.min(34,w*.022));
   out.push("q",
-   pdfRGB("#0c1931")+" RG",
-   pdfRGB(m.type==="T"?"#cf4baf":"#9750c4")+" rg",
-   fmt(Math.max(2.2,fs*.12))+" w",
+   pdfRGB("#102438")+" RG",
+   pdfRGB(m.type==="T"?"#ba859f":"#a599bc")+" rg",
+   fmt(Math.max(1.6,fs*.085))+" w",
    "BT /F1 "+fmt(fs)+" Tf 2 Tr "+
     fmt(cx-fs*.35)+" "+fmt(cy-fs*.34)+" Td ("+m.type+") Tj ET",
    "Q");
@@ -312,5 +356,5 @@ function download(result){
  setTimeout(()=>URL.revokeObjectURL(u),60000);
  return result.blob.size;
 }
-window.SatelliteMapExport={paintIsobars,paintFronts,frontFeatures,paintPressureCenters,pressureCenters,pathsFor,renderPNG,renderPDF,download};
+window.SatelliteMapExport={paintIsobars,paintFronts,frontLayout,frontFeatures,paintPressureCenters,pressureCenters,pathsFor,renderPNG,renderPDF,download};
 })();

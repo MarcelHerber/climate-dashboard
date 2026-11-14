@@ -16,7 +16,7 @@ const BBOX={
  europe:[-27,24,49,73],atlantic:[-70,15,35,75],
  southwest:[-37,24,19,53],central:[-2,43,25,58],germany:[5,47,16,56]
 };
-const COLORS={cold:"#48a8ff",warm:"#ff6262",occluded:"#ce77f9",stationary:"#ec73b6"};
+const COLORS={cold:"#5998c9",warm:"#d77a76",occluded:"#a795c5",stationary:"#a795c5"};
 let info=null,context={time:null,region:region.value,source:source.value},lastStatus="";
 function utc(s){
  if(typeof s!=="string"||!/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?Z$/.test(s))return null;
@@ -49,7 +49,9 @@ function validate(raw){
       point[0]<-180||point[0]>180||point[1]<0||point[1]>90)return null;
    cleaned.push(point);
   }
-  features.push({type:p.front_type,coords:cleaned});
+  features.push({type:p.front_type,coords:cleaned,
+   symbol_orientation_verified:p.symbol_orientation_verified===true&&["left","right"].includes(p.symbol_side),
+   symbol_side:p.symbol_orientation_verified===true&&["left","right"].includes(p.symbol_side)?p.symbol_side:null});
  }
  return {...raw,features};
 }
@@ -85,7 +87,8 @@ function exportAt(time,place){
  return {provider:"NOAA WPC",source_url:TRUSTED,
   coordinate_reference_system:"EPSG:4326",front_source_format:"CODSUS-HIRES",
   valid_utc:info.valid_utc,satelliteUTC:time,region:place,
-  features:selected.map(f=>({type:f.type,coords:f.coords.map(p=>[...p])}))};
+  features:selected.map(f=>({type:f.type,coords:f.coords.map(p=>[...p]),
+   symbol_orientation_verified:f.symbol_orientation_verified,symbol_side:f.symbol_side}))};
 }
 function reset(){
  svg.replaceChildren();svg.setAttribute("hidden","");
@@ -128,29 +131,45 @@ function render(){
    "von der NOAA-Analyse entfernt.";
   return;
  }
+ const style=window.SatelliteFrontStyle;
+ if(!style?.layout||!style.cmdString){
+  msg.textContent="Frontendarstellung nicht geladen. Keine ungeprüfte Ersatzzeichnung.";
+  return;
+ }
  const NS="http://www.w3.org/2000/svg";
  const visible=matches.slice(0,350);
+ const make=(d,{stroke,fill="none",width}={})=>{
+  const element=document.createElementNS(NS,"path");
+  element.setAttribute("d",d);element.setAttribute("fill",fill);
+  if(stroke)element.setAttribute("stroke",stroke);
+  if(width!==undefined)element.setAttribute("stroke-width",String(width));
+  element.setAttribute("stroke-linejoin","round");
+  element.setAttribute("stroke-linecap","round");
+  element.setAttribute("vector-effect","non-scaling-stroke");
+  return element;
+ };
  for(const feature of visible){
-  const d=feature.coords.map((pos,i)=>{
-   const [x,y]=project(pos,bbox);
-   return (i?"L":"M")+x.toFixed(2)+" "+y.toFixed(2);
-  }).join(" ");
-  const halo=document.createElementNS(NS,"path");
-  halo.setAttribute("d",d);halo.setAttribute("fill","none");
-  halo.setAttribute("stroke","#061826");halo.setAttribute("stroke-width","3.4");
-  halo.setAttribute("stroke-linejoin","round");
-  const path=document.createElementNS(NS,"path");
-  path.setAttribute("d",d);path.setAttribute("fill","none");
-  path.setAttribute("stroke",COLORS[feature.type]);path.setAttribute("stroke-width","1.8");
-  path.setAttribute("stroke-linecap","round");path.setAttribute("stroke-linejoin","round");
-  path.setAttribute("vector-effect","non-scaling-stroke");
-  if(feature.type==="stationary")path.setAttribute("stroke-dasharray","6 5");
-  svg.appendChild(halo);svg.appendChild(path);
+  const g=style.layout(feature,pos=>project(pos,bbox),1);
+  if(!g)continue;
+  const path=style.cmdString(g.commands);
+  svg.appendChild(make(path,{stroke:"#122438",width:2.55}));
+  if(feature.type==="stationary"){
+   for(const part of g.sections)
+    svg.appendChild(make(style.cmdString(part.commands),{stroke:part.color,width:1.4}));
+  }else svg.appendChild(make(path,{stroke:g.color,width:1.4}));
+  for(const symbol of g.symbols){
+   const shape=make(style.cmdString(symbol.commands),{
+    fill:symbol.color,stroke:"#122438",width:.55
+   });
+   shape.setAttribute("class","sat-front-symbol");
+   shape.setAttribute("data-front-type",feature.type);
+   svg.appendChild(shape);
+  }
  }
  svg.removeAttribute("hidden");
- msg.textContent=visible.length+" echte NOAA-WPC-Frontlinien im Satellitenbild · "+
-  "Quelle und Analysezeit siehe unten. DWD-Fronten bleiben eine getrennte Quelle. "+
-  "Keine Frontsymbole ohne bestätigte Bewegungsrichtung.";
+ msg.textContent=visible.length+" echte NOAA-WPC-Frontlinien · ruhige synoptische Symbolik."+
+  " Frontseiten schematisch (Bewegungsrichtung im Bulletin nicht codiert)."+
+  " Analysezeit und Herkunft siehe unten.";
 }
 async function refresh(){
  lastStatus="";msg.textContent="Lade aktuelle NOAA-WPC-Frontpositionen …";

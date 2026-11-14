@@ -106,6 +106,7 @@ required_root_files=(
   satelliten.js
   satellite_dwd_fronts.js
   satellite_noaa_fronts.js
+  satellite_front_style.js
   satelliten.css
   satellite_overlay.js
   satellite_lightning.js
@@ -765,6 +766,7 @@ python scripts/inject_mobile_navigation.py _site
 node --check _site/satelliten.js
 node --check _site/satellite_dwd_fronts.js
 node --check _site/satellite_noaa_fronts.js
+node --check _site/satellite_front_style.js
 node --check _site/satellite_overlay.js
 node --check _site/satellite_lightning.js
 node --check _site/satellite_radar.js
@@ -785,6 +787,7 @@ node --test tests/test_satellite_tile_cache.cjs
 node --test tests/test_satellite_hd.cjs
 node --test tests/test_satellite_dwd_fronts.cjs
 node --test tests/test_satellite_noaa_fronts.cjs
+node --test tests/test_satellite_front_style.cjs
 node --test tests/test_satellite_noaa_export.cjs
 python -m unittest discover -s tests -p "test_satellite_dwd_fronts.py" -v
 python -m unittest discover -s tests -p "test_satellite_noaa_wpc_fronts.py" -v

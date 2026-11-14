@@ -34,6 +34,7 @@ on:
       - ".github/workflows/update-satellite-dwd-fronts.yml"
       - "data/synoptic_charts/dwd_fronts_satellite.json"
       - "tests/test_satellite_*.cjs"
+      - "satellite_front_style.js"
   push:
     branches: [main]
     paths:
@@ -66,6 +67,7 @@ on:
       - ".github/workflows/update-satellite-dwd-fronts.yml"
       - "data/synoptic_charts/dwd_fronts_satellite.json"
       - "tests/test_satellite_*.cjs"
+      - "satellite_front_style.js"
   workflow_dispatch:
 
 permissions:
@@ -85,6 +87,7 @@ jobs:
           node --check satelliten.js
           node --check satellite_dwd_fronts.js
           node --check satellite_noaa_fronts.js
+          node --check satellite_front_style.js
           node --check satellite_map_export.js
           node --check satellite_hd.js
           node --check satellite_view_options.js
@@ -127,6 +130,7 @@ jobs:
           node --test tests/test_satellite_hd.cjs
           node --test tests/test_satellite_dwd_fronts.cjs
           node --test tests/test_satellite_noaa_fronts.cjs
+          node --test tests/test_satellite_front_style.cjs
           node --test tests/test_satellite_noaa_export.cjs
           node --test tests/test_satellite_progressive.cjs
           node --test tests/test_satellite_quality_comparison.cjs

@@ -182,9 +182,9 @@ test("Every 10-minute satellite image picks its own recomputed MSLP contours",as
  assert.match(status,/gültig/);
  assert.equal(map.get("satIsobarSvg").hidden,false);
  const paths=map.get("satIsobarSvg").children[0]?.children.filter(n=>n.attrs.d)||[];
- assert.ok(paths.some(p=>p.attrs.stroke==="#ff4fcf"),"single pink isobar colour");
+ assert.ok(paths.some(p=>p.attrs.stroke==="#c6a2bb"),"single pink isobar colour");
  assert.ok(!paths.some(p=>["#ffb447","#3bdeff"].includes(p.attrs.stroke)),"old cyan/amber colours removed");
- assert.ok(paths.some(p=>p.attrs.stroke==="#061522"),"dark halo");
+ assert.ok(paths.some(p=>p.attrs.stroke==="#18283a"),"dark halo");
  const frame=api.tenFrameAt(at);
  assert.equal(frame.forecast_minute,200);
  assert.equal(frame.interpolated,true);
@@ -219,7 +219,7 @@ test("European fine mode displays genuine 2-hPa contours, syncs and exports with
  assert.equal(map.get("satIsobarSvg").hidden,false);
  assert.match(map.get("satIsobarStatus").textContent,/2 hPa/);
  const pieces=map.get("satIsobarSvg").children[0]?.children||[];
- assert.ok(pieces.some(x=>x.attrs.stroke==="#ff4fcf"&&x.attrs["stroke-width"]==="0.75"));
+ assert.ok(pieces.some(x=>x.attrs.stroke==="#c6a2bb"&&x.attrs["stroke-width"]==="0.58"));
  const exported=await api.exportAt(t,"europe",2,{strictTenMinute:true});
  assert.equal(exported.spacing,2);
  assert.ok(exported.contours.every(x=>x.hpa%2===0));

@@ -180,11 +180,11 @@ def exercise(browser,device,base,tmp):
             "()=>document.querySelector('#satIsobarStatus')?.textContent.includes('2 hPa')"
             "&&document.querySelectorAll('#satIsobarSvg path').length>0",
             timeout=15000)
-        widths=page.locator("#satIsobarSvg path[stroke='#ff4fcf']").evaluate_all(
+        widths=page.locator("#satIsobarSvg path[stroke='#c6a2bb']").evaluate_all(
             "(els)=>[...new Set(els.map(p=>Number(p.getAttribute('stroke-width'))))]")
-        assert widths==[0.75],(area,widths)
+        assert widths==[0.58],(area,widths)
         details["fine_2hpa_"+area]={"positive_lines":len(page.locator(
-            "#satIsobarSvg path[stroke='#ff4fcf']").all()),"widths":widths}
+            "#satIsobarSvg path[stroke='#c6a2bb']").all()),"widths":widths}
         if area=="europe":
             screenshot=SHOTS/(device+"-europe-2hpa-synthetic.png")
             page.screenshot(path=str(screenshot))

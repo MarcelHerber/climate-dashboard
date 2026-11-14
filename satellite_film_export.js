@@ -120,13 +120,13 @@ function renderer(input,width){
   ctx.fillText(input.credit||"© EUMETSAT",Math.max(12,width-175),fullHD?canvas.height-15:header+mapHeight+20,170);
   if(input.isobarOverlays){
    const layer=input.isobarOverlays[frameIndex];
-   ctx.fillStyle="#ff4fcf";
+   ctx.fillStyle="#c6a2bb";
    ctx.fillText("ECMWF IFS · "+(layer.spacing||5)+" hPa · "+layer.method+" · "+new Date(layer.validUTC).toISOString().slice(11,16)+" UTC",12,header+mapHeight+39,width-24);
   }
   const front=input.frontOverlays?.[frameIndex];
   if(front){
    ctx.fillStyle="#aee4ff";
-   ctx.fillText("NOAA WPC · Frontanalyse "+new Date(front.valid_utc).toISOString().slice(11,16)+" UTC",12,header+mapHeight+56,width-24);
+   ctx.fillText("NOAA WPC · Analyse "+new Date(front.valid_utc).toISOString().slice(11,16)+" UTC · Symbolseiten schematisch",12,header+mapHeight+56,width-24);
   }
  }
  return {canvas,ctx,draw};
