@@ -1652,6 +1652,24 @@ for key in ("rlCalendar","rlSeasons","rlChanges","rlStation","rlChart","rlChange
 assert (root/"station_jahresanalyse_catalog.json").stat().st_size>1500
 print("Phase 3: Rekordlabor in Desktop und Handy, Quellkatalog, alle drei Module validiert.")
 PY
+if [ -s data/rekordlabor/calendar/index.json ]; then
+  mkdir -p _site/data/rekordlabor/calendar
+  cp data/rekordlabor/calendar/*.json _site/data/rekordlabor/calendar/
+  python - <<'PY'
+import json
+from pathlib import Path
+folder=Path("_site/data/rekordlabor/calendar")
+index=json.loads((folder/"index.json").read_text(encoding="utf-8"))
+assert index.get("ready") and index.get("schema")==1
+for st in index["stations"]:
+    doc=json.loads((folder/(st["id"]+".json")).read_text(encoding="utf-8"))
+    assert doc["station_id"]==st["id"] and doc.get("metrics")
+print("DWD KL Rekordkalender: ",len(index["stations"]),"originale Tagesarchive mit RSK und SDK.")
+PY
+else
+  echo "DWD KL historische Tagesniederschläge/Sonnenscheindauer noch nicht geprüft; Optionen deaktiviert."
+fi
+
 if [ -s data/rekordlabor/weather_turns/index.json ]; then
   mkdir -p _site/data/rekordlabor/weather_turns
   cp data/rekordlabor/weather_turns/*.json _site/data/rekordlabor/weather_turns/
