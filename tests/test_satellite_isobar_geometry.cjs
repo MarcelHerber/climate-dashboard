@@ -152,3 +152,66 @@ test("A tiny anticlockwise closed loop is still suppressed as a high",()=>{
  });
  assert.equal(g.detectVisiblePressureSystems([{hpa:1020,lines:[ring]}],atlantic).length,0);
 });
+
+test("Real 2026-11-14 10:40 UTC IFS contours identify missing T west of Ireland",()=>{
+ const g=shared();
+ const fixture=JSON.parse(fs.readFileSync(
+  "tests/fixtures/satellite_mslp_20261114_1040_missing_low.json","utf8"));
+ assert.equal(fixture.source,"ECMWF IFS Open Data");
+ assert.equal(fixture.valid_utc,"2026-11-14T10:40:00Z");
+ const original=JSON.stringify(fixture.contours);
+ const found=g.detectVisiblePressureSystems(fixture.contours,fixture.bbox,{
+  minRings:3,maxSystems:6,minSeparation:94
+ });
+ assert.equal(found.length,1,
+  "1000-hPa enclosed depression must be marked, but the 1015-hPa shallow loop must not");
+ const low=found[0];
+ assert.equal(low.type,"T");assert.equal(low.hpa,1000);
+ assert.ok(Math.abs(low.lon+18.8)<.65&&Math.abs(low.lat-49.8)<.65,
+  "Marker belongs inside the genuine 1000 hPa ring west of Ireland");
+ assert.equal(low.rings,1);
+ assert.equal(JSON.stringify(fixture.contours),original,
+  "Never mutate model contour coordinates to force an H/T center");
+});
+test("Single low must be clockwise, pronounced, round enough and not clipped",()=>{
+ const g=shared(),bbox=[-27,24,49,73];
+ function loop(lon,lat,rx,ry,reverse=false){
+  const pts=Array.from({length:65},(_,i)=>{
+   const a=2*Math.PI*i/64;
+   return [lon+rx*Math.cos(a),lat+ry*Math.sin(a)];
+  });
+  return reverse?pts.reverse():pts;
+ }
+ const strict={minRings:3,maxSystems:7};
+ // Anticlockwise in lon/lat: a source contour for a high; not a low.
+ assert.equal(g.detectPressureSystems([{hpa:1000,lines:[loop(-18,50,4,2)]}],bbox,strict).length,0);
+ // Clockwise around a low with a substantial, complete single ring.
+ const good=g.detectPressureSystems([{hpa:1000,lines:[loop(-18,50,4,2,true)]}],bbox,strict);
+ assert.equal(good.length,1);assert.equal(good[0].type,"T");
+ // A single, weak 1015-hPa closed contour remains too uncertain to label.
+ assert.equal(g.detectPressureSystems([{hpa:1015,lines:[loop(-18,50,4,2,true)]}],bbox,strict).length,0);
+ assert.equal(g.detectPressureSystems([{hpa:1000,lines:[loop(-18,50,.7,.4,true)]}],bbox,strict).length,0,
+  "No tiny H/T symbols around numerical micro-loops");
+ assert.equal(g.detectPressureSystems([{hpa:1000,lines:[loop(-18,50,5,.2,true)]}],bbox,strict).length,0,
+  "A narrow pressure contour island must not be a compact low");
+ assert.equal(g.detectPressureSystems([{hpa:1000,lines:[loop(-26.2,51,4,2,true)]}],bbox,strict).length,0,
+  "Closed system crossing the map edge is not a supported center");
+});
+test("Nested deep lows take precedence over a low-scored single-ring candidate",()=>{
+ const g=shared(),bbox=[-27,24,49,73];
+ function clockwise(lon,lat,r){
+  const pts=Array.from({length:65},(_,i)=>{
+   const a=-2*Math.PI*i/64;
+   return [lon+r*Math.cos(a),lat+.65*r*Math.sin(a)];
+  });return pts;
+ }
+ const contours=[
+  {hpa:990,lines:[clockwise(-18,50,2.2)]},
+  {hpa:995,lines:[clockwise(-18,50,3.2)]},
+  {hpa:1000,lines:[clockwise(-18,50,5.4)]}
+ ];
+ const found=g.detectVisiblePressureSystems(contours,bbox,{maxSystems:7});
+ assert.equal(found.length,1,"Do not duplicate T for the same nested cyclone");
+ assert.equal(found[0].type,"T");assert.equal(found[0].hpa,990);
+ assert.ok(found[0].rings>=3);
+});
