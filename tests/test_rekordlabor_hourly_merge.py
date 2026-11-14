@@ -61,6 +61,37 @@ class HourlyShardedTests(unittest.TestCase):
                 merge(parts,archive,2)
             self.assertEqual(json.loads((archive/"index.json").read_text())["stations"],[])
 
+    def test_builder_shards_cover_all_selected_station_ids(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from unittest.mock import patch
+        from scripts.build_rekordlabor_hourly import build
+        description=(
+            "00071 19500101 20251231 100 50.1120 8.6840 Frankfurt am Main Hessen Frei\n"
+            "00073 19600101 20251231 200 49.2330 7.0030 Saarbrücken Saarland Frei\n"
+            "00078 19800101 19900101 100 50.1000 8.5000 Former Station Hessen Frei\n")
+        def dwd_response(url):
+            if url.endswith("Beschreibung_Stationen.txt"):
+                return description.encode("latin1")
+            prefix="TU" if "/air_temperature/" in url else "P0" if "/pressure/" in url else "FF"
+            return "\n".join(f"stundenwerte_{prefix}_{sid}_19800101_20251231_hist.zip"
+                             for sid in ("00071","00073","00078")).encode()
+        def fake_station(sid,listing,stations,cache_dir):
+            return station(sid)
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            with patch("scripts.build_rekordlabor_hourly.read_url",side_effect=dwd_response), \
+                 patch("scripts.build_rekordlabor_hourly.ProcessPoolExecutor",ThreadPoolExecutor), \
+                 patch("scripts.build_rekordlabor_hourly.build_station",side_effect=fake_station):
+                one=build(root/"parts"/"hourly-shard-0",shard_index=0,shard_count=2,workers=1)
+                two=build(root/"parts"/"hourly-shard-1",shard_index=1,shard_count=2,workers=1)
+            self.assertEqual(one["candidate_count"],6)
+            self.assertEqual(one["candidate_hash"],two["candidate_hash"])
+            self.assertFalse(set(one["attempted"])&set(two["attempted"]))
+            self.assertEqual(len(one["accepted"])+len(two["accepted"]),6)
+            result,coverage=merge(root/"parts",root/"archive",2)
+            self.assertEqual(len(result["stations"]),6)
+            self.assertEqual(coverage["excluded_count"],0)
+
     def test_fabricated_source_rejected(self):
         doc=station("00002")
         doc["metrics"]["temperature"]["source_url"]="https://example.com/fiction.zip"
