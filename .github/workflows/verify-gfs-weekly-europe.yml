@@ -1,0 +1,67 @@
+name: GFS Europa 7 Tage · echte f003–f165 Datenprüfung
+on:
+  push:
+    branches: [feature/gfs-7day-europe-anomaly-20261114]
+    paths:
+      - "scripts/update_gfs_weekly_europe.py"
+      - "tests/test_gfs_weekly_europe.py"
+      - ".github/workflows/verify-gfs-weekly-europe.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-gfs-weekly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+            tests
+            gfs_analysis_europe/climatology_1991_2020_f003.npz
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy requests eccodes pytest
+      - name: Test complete 28 fields, 7-day window, dates, source metadata
+        run: |
+          python -m pytest -q tests/test_gfs_weekly_europe.py tests/test_gfs_f003_europe.py
+          python -m compileall -q scripts/update_gfs_weekly_europe.py
+      - name: Download exactly 28 genuine 0.5° NOAA GFS f003 to f165 2-m fields
+        run: python -m scripts.update_gfs_weekly_europe
+      - name: Independently verify live 7-day output and the 1991–2020 reference
+        run: |
+          python - <<'PY'
+          import base64, json
+          from pathlib import Path
+          import numpy as np
+          p=Path("gfs_analysis_europe/weekly_f003.json")
+          x=json.loads(p.read_text(encoding="utf-8"))
+          assert x["schema"]==1 and x["type"]=="model_forecast_7day_not_observation"
+          assert x["grid_degrees"]==0.5 and x["width"]==140 and x["height"]==76
+          assert x["sample_count"]==28 and x["period_days"]==7
+          assert x["lead_hours"]==list(range(3,166,6))
+          assert len(x["sources"])==28 and all(src["forecast_hour"]==lead for lead,src in zip(x["lead_hours"],x["sources"]))
+          assert all("0p50" in src["source_url"] for src in x["sources"])
+          assert all(len(src["sha256"])==64 for src in x["sources"])
+          assert x["reference_metadata"]["forecast_hour"]==3
+          assert x["reference_metadata"]["source_months"]==360
+          assert x["reference_metadata"]["years"]==30
+          for key in ("forecast_mean_q10_b64","anomaly_mean_q10_b64"):
+              vals=np.frombuffer(base64.b64decode(x[key],validate=True),dtype="<i2")
+              assert vals.size==76*140
+              assert int(np.count_nonzero(vals==-32768))<vals.size//100
+              assert (vals>-500).all() if key=="anomaly_mean_q10_b64" else True
+          print("SUCCESS: authentic NOAA seven-day f003..f165 0.5° forecast and homogeneous CFSR/CFSv2 1991–2020 anomalies",flush=True)
+          PY
+      - name: Save exact original source/forecast verification (not published)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gfs-weekly-europe-pilot-${{ github.run_id }}
+          path: gfs_analysis_europe/weekly_f003.json
+          retention-days: 10
+          if-no-files-found: ignore
