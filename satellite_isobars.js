@@ -195,7 +195,7 @@ function draw(frame,bbox,gap){
  const placed=geometry.pressureLabels?.(systems,bbox,{
   width:1000,height:1000,fontSize:40.5,
   isobarLabels:groups.filter(x=>x.label).map(x=>x.label),
-  cityAnchors:document.getElementById("satShowCities")?.checked?cities:[]
+  cityAnchors:document.querySelector?.("#satShowCities")?.checked?cities:[]
  })||[];
  for(const center of placed){
   if(center.leader){
