@@ -99,12 +99,12 @@ def exercise(browser,device,url,tmp):
         item.save_as(target)
         raw=target.read_bytes()
         if ext=="png":
-            assert raw.startswith(b"\\x89PNG\\r\\n\\x1a\\n"),"Wrong PNG header"
+            assert raw.startswith(bytes([137,80,78,71,13,10,26,10])),"Wrong PNG header"
         else:
             assert raw.startswith(b"%PDF-1.4")
             assert b"NOAA WPC analyzed frontal vectors" in raw
-            assert b"\/Subtype \/Image" in raw
-            assert raw.count(b"\\nS\\nQ")>=actual//2,"Front vector strokes are missing"
+            assert b"/Subtype /Image" in raw
+            assert raw.count(bytes([10])+b"S"+bytes([10])+b"Q")>=actual//2,"Front vector strokes are missing"
         details[ident]={"filename":item.suggested_filename,"bytes":len(raw)}
     page.locator("#satFilmLength").select_option("6")
     page.locator("#satFilmQuality").select_option("320")
@@ -155,7 +155,7 @@ def main():
                 finally:browser.close()
     finally:server.shutdown()
     OUT.parent.mkdir(parents=True,exist_ok=True)
-    OUT.write_text(json.dumps(results,ensure_ascii=False,indent=2)+"\\n",encoding="utf-8")
+    OUT.write_text(json.dumps(results,ensure_ascii=False,indent=2)+chr(10),encoding="utf-8")
     print(json.dumps(results,ensure_ascii=False,indent=2))
     return int(any("error" in results.get(device,{}) for device in ("desktop","mobile"))
 
