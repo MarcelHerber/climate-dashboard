@@ -48,8 +48,13 @@ test("Seasonal frost and heat events reject years with missing measurement perio
  assert.equal(heat.records.length,1);assert.equal(heat.records[0].md,"07-20");
 });
 test("Snow first/last and longest continuous period do not cross null gaps",()=>{
- const archive={month_days:["11-01","11-02","11-03","11-04","02-01","02-02","10-31"],
-  years:[{year:2025,accepted:true,coverage:1,values:[0,2,3,null,0,5,0]}]};
+ const days=Array.from({length:366},(_,i)=>
+   new Date(Date.UTC(2003,10,1+i)).toISOString().slice(5,10));
+ const values=days.map(()=>0);
+ values[days.indexOf("11-02")]=2;values[days.indexOf("11-03")]=3;
+ values[days.indexOf("11-04")]=null;values[days.indexOf("02-02")]=5;
+ const archive={month_days:days,
+  years:[{year:2025,accepted:true,coverage:1,values}]};
  assert.equal(C.snowSeason(archive,"snowFirst").records[0].md,"11-02");
  assert.equal(C.snowSeason(archive,"snowLast").records[0].md,"02-02");
  const max=C.snowLongest(archive);
