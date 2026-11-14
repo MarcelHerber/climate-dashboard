@@ -271,6 +271,27 @@ function render(){
  if(state.view==="calendar")calendarRender();
  else if(state.view==="seasons")seasonRender();
 }
+function updateWeatherStationOptions(){
+ const index=state.weatherIndex;
+ if(!index)return;
+ const region=$("rlChangeState").value;
+ const options=$("rlChangeStation"),previous=options.value;
+ const selected=index.stations.filter(s=>!region||s.state===region);
+ options.replaceChildren();
+ let group=null,last="";
+ for(const s of selected){
+  const name=s.state||"Ohne Bundesland";
+  if(name!==last){
+   group=document.createElement("optgroup");
+   group.label=name;options.append(group);last=name;
+  }
+  const o=document.createElement("option");o.value=s.id;
+  o.textContent=s.name+" ("+s.id+")";group.append(o);
+ }
+ const fallback=selected.find(s=>s.id===state.station?.id);
+ options.value=selected.some(s=>s.id===previous)?previous:
+  fallback?.id||selected[0]?.id||"";
+}
 async function initWeather(){
  if(state.weatherIndex){weatherRender();return;}
  message("rlChangeMeta","DWD-Stundenarchiv wird geprüft …");
@@ -282,14 +303,15 @@ async function initWeather(){
    setExportState(false);return;
   }
   state.weatherIndex=doc;
-  const opts=$("rlChangeStation");opts.replaceChildren();
-  for(const s of doc.stations){
-   const o=document.createElement("option");o.value=s.id;o.textContent=s.name+" ("+s.id+")";opts.append(o);
+  const regions=$("rlChangeState");regions.replaceChildren();
+  const all=document.createElement("option");all.value="";all.textContent="Alle Bundesländer";regions.append(all);
+  for(const name of [...new Set(doc.stations.map(s=>s.state).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de"))){
+   const option=document.createElement("option");option.value=name;option.textContent=name;regions.append(option);
   }
-  const defaultSt=doc.stations.find(x=>x.id===state.station?.id);
-  if(defaultSt)opts.value=defaultSt.id;
+  updateWeatherStationOptions();
   $("rlChangesCoverage").textContent="Historisches DWD-CDC-Stundenmessarchiv · "+
-   doc.stations.length+" tatsächlich geprüfte Pilotstationen. Zeitraum, Datenlücken und verwendete Originalmessgröße werden stationsweise angegeben. Keine deutschlandweite Vollständigkeit behauptet.";
+   doc.stations.length+" geprüfte Stationen in "+(regions.options.length-1)+
+   " Bundesländern. Die Stationen sind regional ausgewählt und nicht flächendeckend. Nur tatsächliche Originalmessungen, stationsbezogene Messzeiträume und dokumentierte Datenlücken.";
   await loadWeather();
  }catch(e){message("rlChangeMeta","Stundenarchiv konnte nicht geprüft werden: "+e.message);}
 }
@@ -297,7 +319,11 @@ async function loadWeather(){
  if(!state.weatherIndex)return;
  const station=state.weatherIndex.stations.find(x=>x.id===$("rlChangeStation").value);
  if(!station)return;
- const id=++state.weatherSerial;state.weather=null;
+ for(const option of $("rlChangeMetric").options)
+  option.disabled=!station.metrics.includes(option.value);
+ if(!station.metrics.includes($("rlChangeMetric").value))
+  $("rlChangeMetric").value=station.metrics[0];
+ const id=++state.weatherSerial;state.weather=null;setExportState(false);
  message("rlChangeMeta","Lade historische DWD-Stundenmessungen für "+station.name+" …");
  try{
   const doc=await fetchJson("data/rekordlabor/weather_turns/"+station.id+".json");
@@ -402,6 +428,7 @@ async function init(){
  for(const id of ["rlChangeMetric","rlChangeHours","rlChangeDirection"])
   $(id).addEventListener("change",()=>{state.selectedEvent=null;weatherRender();});
  $("rlChangeStation").addEventListener("change",()=>{state.selectedEvent=null;loadWeather();});
+ $("rlChangeState").addEventListener("change",()=>{state.selectedEvent=null;updateWeatherStationOptions();loadWeather();});
  $("rlSearch").addEventListener("input",renderSuggestions);
  $("rlState").addEventListener("change",renderSuggestions);
  $("rlOnlyKL").addEventListener("change",renderSuggestions);
