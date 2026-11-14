@@ -19,7 +19,7 @@
     {id:"europe",name:"Europa & Prognosen",items:[
       ["europeHub","Europa-Überblick"],["europeStations","Europa-Stationen"],
       ["era5Europe","ERA5-Land Europa"],["temperatur_anomalie_europa.html","Aktuelle Temperaturabweichung · NOAA CPC"],
-      ["gfs_analysis_europe.html","GFS-Analyse · CFSR 1991–2020"],["era5Atmosphere","ERA5 Atmosphäre"],
+      ["gfs_analysis_europe.html","GFS-Analyse · CFSR 1991–2020"],["gfs_f003_europe.html","GFS +3 h · CFSR 1991–2020"],["era5Atmosphere","ERA5 Atmosphäre"],
       ["sst-europe","Meere / SST"],["t850-ensembles","Ensembleprognosen"],
       ["state-monthly-ensemble","Monatsausblick"],["saisonal_europa.html","Saisonale Prognose (SEAS5)"],
       ["wettergefahren.html","ICON-EU Wettergefahren"],["stratosphaere.html","Stratosphäre"],
