@@ -52,6 +52,10 @@ class MTGMonitorTests(unittest.TestCase):
         self.paths = patch.object(mtg, "OUT", self.out)
         self.paths.start()
         self.addCleanup(self.paths.stop)
+        self.discovery = Path(temp.name) / "data" / "satellite_layer_discovery_latest.json"
+        discovery_path = patch.object(mtg, "DISCOVERY", self.discovery)
+        discovery_path.start()
+        self.addCleanup(discovery_path.stop)
 
     def fake_capabilities(self, *layers, include_times=True):
         body = xml(*layers, include_times=include_times)
@@ -83,6 +87,41 @@ class MTGMonitorTests(unittest.TestCase):
         self.assertEqual(len(requested), 3)
         self.assertTrue(all(not flags for _, _, flags in requested))
         self.assertEqual(result["healthy_products"], 2)
+
+    def test_audited_cloud_phase_enters_realtime_manifest_but_msg_rgb_cannot(self):
+        self.discovery.parent.mkdir(parents=True, exist_ok=True)
+        self.discovery.write_text(json.dumps({
+            "checked_at": stamp(-20), "capabilities_ok": True,
+            "categories": {
+                "cloud_phase": [{
+                    "layer": "mtg_fd:rgb_cloudphase", "map_ok": True, "tested": True,
+                    "recent": True, "latest_verified_time": stamp(-30)}],
+                "airmass": [{
+                    "layer": "msg_fd:rgb_airmass", "map_ok": True, "tested": True,
+                    "recent": True, "latest_verified_time": stamp(-30)}],
+                "night_microphysics": [{
+                    "layer": "mtg_fd:rgb_nightmicrophysics", "map_ok": False, "tested": False,
+                    "recent": False, "latest_verified_time": stamp(-30)}],
+            },
+        }), encoding="utf-8")
+        with patch.object(mtg, "LAYERS", {"geocolour": "mtg_fd:rgb_geocolour"}), \
+             patch.object(mtg, "fetch", self.fake_capabilities(
+                 "mtg_fd:rgb_geocolour", "mtg_fd:rgb_cloudphase")), \
+             patch.object(mtg, "test_png", side_effect=png):
+            self.assertEqual(mtg.main(), 0)
+        result = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertEqual(result["audited_additional_products"], ["extra_cloud_phase"])
+        self.assertTrue(result["products"]["extra_cloud_phase"]["map_ok"])
+        self.assertEqual(result["products"]["extra_cloud_phase"]["latest_verified_time"], stamp(-30))
+        self.assertNotIn("extra_airmass", result["products"])
+        self.assertNotIn("extra_night_microphysics", result["products"])
+
+    def test_stale_discovery_never_unlocks_rgb_variants(self):
+        report = {"checked_at": stamp(-1900), "capabilities_ok": True,
+                  "categories": {"cloud_phase": [{
+                      "layer": "mtg_fd:rgb_cloudphase", "map_ok": True, "tested": True,
+                      "recent": True, "latest_verified_time": stamp(-1901)}]}}
+        self.assertEqual(mtg.audited_additional_layers(report=report), {})
 
     def test_missing_advertised_time_never_publishes_unverified_image(self):
         with patch.object(mtg, "LAYERS", {"geocolour": "mtg_fd:rgb_geocolour"}), \

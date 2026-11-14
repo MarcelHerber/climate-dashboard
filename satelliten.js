@@ -9,6 +9,26 @@ const PRODUCTS={
  ir105:{layer:"mtg_fd:ir105_hrfi",name:"IR 10,5 µm (HRFI)",url:"https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Air105_hrfi",credit:"© EUMETSAT"},
  firetemperature:{layer:"mtg_fd:rgb_firetemperature",name:"Fire Temperature RGB",url:"https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_firetemperature",credit:"© EUMETSAT"}
 };
+// Meteorological interpretation and caveats for official source RGBs.
+const PRODUCT_GUIDE={
+ geocolour:"Naturnahe Tag-/Nacht-Darstellung. Nachts können Hintergrundfarben und zusätzliche Daten verwendet werden; kein reines Messbild.",
+ dust:"Dust RGB: hilfreich zur Sichtung von Mineralstaub und dünnen Wolken. Farben sind qualitativ, keine Staubkonzentrationen.",
+ cloudtype:"Cloud Type RGB: Wolkentypen und Wolkenhöhe qualitativ unterscheiden; überwiegend tagsüber aussagekräftig.",
+ ir105:"IR 10,5 µm: Wolkenstrukturen bei Tag und Nacht. Helligkeit und IR-Farbfilter sind keine kalibrierte Celsius-Skala.",
+ firetemperature:"Fire Temperature RGB: Auffälligkeiten mit hoher Strahlungstemperatur. Ein heller Pixel ist keine bestätigte Brandmeldung.",
+ extra_airmass:"Airmass RGB: Luftmassen, trockene Stratosphärenluft und Höhentröge; Farbmuster sind keine direkt messbare Tropopausenhöhe.",
+ extra_night_microphysics:"Night Microphysics RGB: Nebel, tiefe und hohe Bewölkung nachts differenzieren; tagsüber nur eingeschränkt sinnvoll.",
+ extra_convection:"Convection/Severe Storms RGB: konvektive Wolkenstrukturen und Vereisung qualitativ erkennen; kein direktes Gewitterwarnprodukt.",
+ extra_cloud_phase:"Cloud Phase RGB: Eis- und Wasserwolken sowie Eigenschaften der Wolkenoberseiten unterscheiden; vor allem bei Tageslicht sinnvoll.",
+ extra_ash:"Ash RGB: Hinweise auf vulkanische Asche und Staub; keine Konzentrationsbestimmung.",
+ extra_water_vapour:"Wasserdampf: Höhenströmung und Feuchteverteilung qualitativ verfolgen; keine bodennahe relative Luftfeuchte.",
+ extra_true_colour:"True Colour RGB: tagsüber naturnahe Darstellung aus sichtbaren FCI-Kanälen. Ohne Sonnenlicht nicht aussagekräftig.",
+ extra_visible_06:"HRFI VIS 0,6 µm: feine Wolkenstrukturen im sichtbaren Kanal bei Tageslicht; nachts kein verwendbares Bild."
+};
+function updateProductGuide(){
+ let node;try{node=document.getElementById("satProductGuide");}catch(_){return;}
+ if(node)node.textContent=PRODUCT_GUIDE[product.value]||"Offizielles EUMETSAT-Produkt: UTC und Quelle vor der Interpretation prüfen.";
+}
 const REGIONS={
  europe:{name:"Europa und Nordafrika",bbox:[-27,24,49,73],w:1300,h:850},
  atlantic:{name:"Nordatlantik & Europa",bbox:[-70,15,35,75],w:1400,h:850},
@@ -28,6 +48,26 @@ const filmProgress=id("satFilmProgress"),filmProgressLabel=id("satFilmProgressLa
 let frames=[],index=-1,frameTimer=null,token=0,imageRequest=0,currentUrl="",loaded=false,verified=false,abort=null,metadataSource="";
 let filmGeneration=0,filmLoading=false,filmPlaying=false,filmItems=[],filmPosition=0;
 let stillTimeout=null,exportBusy=false,cachedImage=null;
+// Phase 1: bounded LRU for decoded preview frames, keyed by the complete
+// GetMap URL (UTC + WMS layer + region + native WMS output pixel size).
+const PREVIEW_CACHE_LIMIT=((typeof navigator!=="undefined"&&navigator.deviceMemory&&navigator.deviceMemory<=4)?20:48)*1048576;
+const PREVIEW_CACHE_TTL=15*60*1000;
+const previewCache=new Map();let previewCacheBytes=0;
+function dropPreview(key){const item=previewCache.get(key);if(item){previewCache.delete(key);previewCacheBytes-=item.bytes;}}
+function cachedPreview(url,time,index){
+ const item=previewCache.get(url);
+ if(!item)return null;
+ if(Date.now()-item.storedAt>PREVIEW_CACHE_TTL||item.img.naturalWidth<1||item.img.naturalHeight<1){dropPreview(url);return null;}
+ previewCache.delete(url);previewCache.set(url,item);
+ return {time,index,img:item.img,fromCache:true};
+}
+function savePreview(url,img){
+ const bytes=img.naturalWidth*img.naturalHeight*4;
+ if(!Number.isSafeInteger(bytes)||bytes<=0||bytes>PREVIEW_CACHE_LIMIT)return;
+ dropPreview(url);
+ while(previewCacheBytes+bytes>PREVIEW_CACHE_LIMIT&&previewCache.size)dropPreview(previewCache.keys().next().value);
+ previewCache.set(url,{img,bytes,storedAt:Date.now()});previewCacheBytes+=bytes;
+}
 const exporters=window.SatelliteFilmExport;
 const description=()=>PRODUCTS[product.value];
 /* Only release additional FCI products after the daily official capabilities
@@ -39,9 +79,15 @@ async function enableAuditedProducts(){
  if(!group||!status)return;
  const titles={
   airmass:"Airmass RGB",night_microphysics:"Night Microphysics RGB",
-  convection:"Convection RGB",water_vapour:"Wasserdampf (WV)",
-  ash:"Ash RGB",cloud_phase:"Cloud Phase RGB"
+  convection:"Convection/Severe Storms RGB",water_vapour:"Wasserdampf (WV)",
+  ash:"Ash RGB",cloud_phase:"Cloud Phase RGB",
+  true_colour:"True Colour RGB",visible_06:"VIS 0,6 µm (HRFI)"
  };
+ const choices={};
+ for(const [key,label] of Object.entries(titles)){
+  const opt=new Option(label+" · noch nicht überprüft","extra_"+key);
+  opt.disabled=true;group.append(opt);choices[key]=opt;
+ }
  let count=0;
  try{
   const response=await fetch("./data/satellite_layer_discovery_latest.json",{cache:"no-store"});
@@ -54,11 +100,11 @@ async function enableAuditedProducts(){
    const entry=(report.categories?.[key]||[]).find(x=>x.map_ok&&x.tested&&x.recent&&
      typeof x.layer==="string"&&/^mtg_fd:[a-z0-9_]+$/.test(x.layer)&&
      Date.parse(x.latest_verified_time)>Date.parse(report.checked_at)-90*60000);
-   if(!entry)continue;
+   if(!entry){choices[key].textContent=label+" · derzeit nicht im MTG-WMS bestätigt";continue;}
    const code="extra_"+key;
    PRODUCTS[code]={layer:entry.layer,name:label,url:entry.product_page,
     credit:"© EUMETSAT"};
-   group.add(new Option(label+" · verifiziert",code));
+   choices[key].disabled=false;choices[key].textContent=label+" · verifiziert";
    count++;
   }
   status.textContent=count?count+" zusätzliche MTG-Produkte beim letzten offiziellen WMS-Audit geprüft und auswählbar. Die aktuellen UTC-Zeiten werden beim Öffnen neu geprüft.":
@@ -351,6 +397,7 @@ async function tryFastManifest(mine){
  finally{clearTimeout(timer);}
 }
 async function refresh(){
+ updateProductGuide();
  window.SatelliteHD?.cancel("Satellitenauswahl geändert · keine HD-Kacheln aktiv.");
  stop();token++;const mine=token;abort?.abort();const controller=new AbortController();abort=controller;frames=[];index=-1;loaded=false;metadataSource="";fillTimes();
  id("satOfficial").href=source.value==="mtgi2"?"https://www.esa.int/articles/about-us/directorates/earth-observation-programmes/meteorological-missions/meteosat-third-generation/mtg-i2-weather-satellite-delivers-first-images":description().url;
@@ -393,6 +440,8 @@ function show(i){
  drawFrame(frames[index]);buttons();
 }
 function previewAttempt(t,width,ordinal){
+ const url=imageUrl(t,width),cached=cachedPreview(url,t,ordinal);
+ if(cached)return Promise.resolve({item:cached,reason:"cache"});
  return new Promise(resolve=>{
   const im=new Image();im.crossOrigin="anonymous";im.decoding="async";let complete=false;
   const finish=reason=>{
@@ -402,9 +451,14 @@ function previewAttempt(t,width,ordinal){
    resolve(reason==="ok"?{item:{time:t,img:im,index:ordinal},reason}:{item:null,reason});
   };
   const timeout=setTimeout(()=>finish("timeout"),6500);
-  im.onload=()=>finish(im.naturalWidth>0?"ok":"error");
+  im.onload=()=>{
+   const p=new URL(url).searchParams;
+   const valid=im.naturalWidth===Number(p.get("width"))&&im.naturalHeight===Number(p.get("height"));
+   if(valid)savePreview(url,im);
+   finish(valid?"ok":"error");
+  };
   im.onerror=()=>finish("error");
-  im.src=imageUrl(t,width);
+  im.src=url;
  });
 }
 async function loadedPreview(t,width,ordinal){
@@ -494,7 +548,8 @@ async function prepareFilm(){
  if(generation!==filmGeneration)return;
  filmLoading=false;
  filmItems=results.filter(Boolean);
- filmProgressLabel.textContent=filmItems.length+" von "+clip.length+" Filmbildern bereit ("+size+" px"+(filmItems.some(item=>item.img.naturalWidth<size)?", einzelne Bilder nochmals reduziert":"")+")";
+ const reused=filmItems.filter(item=>item.fromCache).length;
+ filmProgressLabel.textContent=filmItems.length+" von "+clip.length+" Filmbildern bereit ("+size+" px"+(filmItems.some(item=>item.img.naturalWidth<size)?", einzelne Bilder nochmals reduziert":"")+")"+(reused?" · "+reused+" aus Vorschaucache":"");
  if(filmItems.length<2){
   play.textContent="▶ Erneut versuchen";
   setStatus("Für den Film konnten nicht mindestens zwei Satellitenbilder geladen werden. Bitte kleinere Filmlänge wählen oder erneut versuchen.","warning");
