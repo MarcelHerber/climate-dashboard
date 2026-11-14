@@ -1,5 +1,24 @@
 name: Satellite Atlantic downloads and pressure centers - deterministic Chromium
 on:
+  pull_request:
+    paths:
+name: Satellite Atlantic downloads and pressure centers - deterministic Chromium
+on:
+  push:
+    branches: [main]
+    paths:
+      - "satelliten.js"
+      - "satelliten.html"
+      - "satelliten.css"
+      - "satellite_isobar_geometry.js"
+      - "satellite_isobars.js"
+      - "satellite_map_export.js"
+      - "satellite_film_export.js"
+      - "scripts/test_satellite_atlantic_export_browser.py"
+      - "tests/test_satellite_atlantic_download.cjs"
+      - "tests/test_satellite_isobar_geometry.cjs"
+      - "tests/test_satellite_map_export.cjs"
+      - ".github/workflows/test-atlantic-pressure-exports.yml"
   push:
     branches: [main]
     paths:
@@ -27,8 +46,6 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: main
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
