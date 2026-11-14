@@ -6,7 +6,7 @@ const now=Date.parse(REAL_UTC)+2*3600000;
 const sat=new Date(now).toISOString().replace(".000Z","Z");
 const later=new Date(now+600000).toISOString().replace(".000Z","Z");
 class Clock extends Date{static now(){return now;}}
-const sources=["satellite_isobar_geometry.js","satellite_map_export.js",
+const sources=["satellite_isobar_geometry.js","satellite_front_style.js","satellite_map_export.js",
  "satellite_noaa_fronts.js","satellite_film_export.js"].map(p=>fs.readFileSync(p,"utf8"));
 function fixture(record=datum){
  const strokes=[],texts=[];
@@ -25,6 +25,7 @@ function fixture(record=datum){
  nodes.get("satWpcFrontSvg").setAttribute("hidden","");
  const ctx={
   save(){},restore(){},beginPath(){},rect(){},clip(){},moveTo(){},lineTo(){},
+  bezierCurveTo(){},closePath(){},fill(){},
   fillRect(){},strokeRect(){},drawImage(){},setLineDash(a){this.dash=[...a];},
   stroke(){strokes.push({color:this.strokeStyle,width:this.lineWidth,dash:this.dash||[]});},
   fillText(t){texts.push(String(t));},strokeText(t){texts.push(String(t));},
@@ -74,7 +75,8 @@ test("Satellite SVG and export use identical real NOAA longitude/latitude polyli
  api.sync({time:sat,region:"atlantic",source:"mtgi1"});
  const snapshot=api.exportAt(sat,"atlantic");
  assert.ok(snapshot&&snapshot.features.length>=5,"WPC export unavailable: "+f.nodes.get("satWpcFrontStatus").textContent+"; toggle="+f.nodes.get("satShowWpcFronts").checked+"; utc="+sat);
- assert.equal(f.nodes.get("satWpcFrontSvg").children.length,snapshot.features.length*2);
+ assert.ok(f.nodes.get("satWpcFrontSvg").children.length>snapshot.features.length*2,
+  "Classic pips must be drawn as independent vector paths");
  const first=snapshot.features[0];
  const xy=api.project(first.coords[0],[-70,15,35,75]);
  assert.match(f.nodes.get("satWpcFrontSvg").children[1].attrs.d,
@@ -95,15 +97,16 @@ test("Canvas PNG and PDF use actual NOAA data; PDF leaves paths editable and ind
  const png=await exp.renderPNG(options(fronts));
  assert.match(png.name,/_isobaren_noaa_fronten\.png$/);
  assert.equal(png.blob.type,"image/png");
- assert.ok(f.strokes.some(x=>x.color==="#48a8ff"||x.color==="#ff6262"||
-  x.color==="#ce77f9"||x.color==="#ec73b6"));
+ assert.ok(f.strokes.some(x=>x.color==="#5998c9"||x.color==="#d77a76"||
+  x.color==="#a795c5"||x.color==="#a795c5"));
  const pdf=await exp.renderPDF(options(fronts));
  const data=Buffer.from(await pdf.blob.arrayBuffer()).toString("latin1");
  assert.match(pdf.name,/_isobaren_noaa_fronten\.pdf$/);
  assert.match(data,/% NOAA WPC analyzed frontal vectors/);
  assert.match(data,/\/Subtype \/Image/);
  assert.match(data,/\bm\n/,"PDF vector lines use move-to commands, not embedded raster paths");
- assert.match(data,/\bl\n/,"PDF vector front segments remain separately selectable");
+ assert.match(data,/ c\n/,"PDF front curves must retain original point control geometry");
+ assert.match(data,/\nB\nQ/,"Front symbols must remain separate filled PDF vector paths");
  assert.match(data,/\bRG/,"PDF front vectors specify independent stroke colors");
  assert.ok((data.match(/\nS\nQ/g)||[]).length>=fronts.features.length,
   "Each NOAA frontline must be a separate PDF stroke operation");
@@ -136,8 +139,8 @@ test("Animated GIF paints same true NOAA lines per UTC frame, and skips absent s
  const gif=await f.window.SatelliteFilmExport.exportGIF(input);
  assert.equal(gif.blob.type,"image/gif");
  assert.equal(Buffer.from(await gif.blob.arrayBuffer()).subarray(0,6).toString(),"GIF89a");
- assert.ok(f.strokes.some(x=>x.color==="#48a8ff"||x.color==="#ff6262"||
-  x.color==="#ce77f9"||x.color==="#ec73b6"));
+ assert.ok(f.strokes.some(x=>x.color==="#5998c9"||x.color==="#d77a76"||
+  x.color==="#a795c5"||x.color==="#a795c5"));
  assert.ok(f.texts.some(t=>t.includes("NOAA WPC")));
  const bad={...second,satelliteUTC:sat};
  await assert.rejects(f.window.SatelliteFilmExport.exportGIF({...input,frontOverlays:[first,bad]}),
