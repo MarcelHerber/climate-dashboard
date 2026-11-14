@@ -157,7 +157,7 @@ def main():
     OUT.parent.mkdir(parents=True,exist_ok=True)
     OUT.write_text(json.dumps(results,ensure_ascii=False,indent=2)+chr(10),encoding="utf-8")
     print(json.dumps(results,ensure_ascii=False,indent=2))
-    return int(any("error" in results.get(device,{}) for device in ("desktop","mobile"))
+    return int(any("error" in results.get(device,{}) for device in ("desktop","mobile")))
 
 if __name__=="__main__":
     raise SystemExit(main())
