@@ -5,6 +5,22 @@
   const W=1400,H=760,GW=140,GH=76,CELL=GW*GH;
   const NORTH=71.75,WEST=-24.75,LON0=12;
   const PI=Math.PI,RAD=PI/180;
+  // Bounds are strictly inside the verified CFSR/CFSv2 f003 grid
+  // (lon -24.75…44.75°, lat 34.25…71.75°); no invented data outside it.
+  const REGIONS=Object.freeze({
+    europe:{name:"Europa gesamt",west:-24.5,east:44.5,south:34.5,north:71.5},
+    west:{name:"Westeuropa",west:-20,east:16,south:39,north:66},
+    central:{name:"Mitteleuropa",west:-6,east:31,south:43.5,north:59},
+    germany:{name:"Deutschland",west:4,east:17,south:46.5,north:56},
+    nordics:{name:"Skandinavien",west:1,east:35,south:53,north:71.5},
+    east:{name:"Osteuropa",west:16,east:44.5,south:43,north:70},
+    med:{name:"Mittelmeerraum",west:-14,east:39,south:34.5,north:49},
+    iberia:{name:"Iberische Halbinsel",west:-11,east:7,south:35,north:47},
+    alps:{name:"Alpenraum",west:4,east:19,south:43.5,north:49.5},
+    atlantic:{name:"Ostatlantik",west:-24.5,east:9,south:47,north:70}
+  });
+  function currentRegion(){return REGIONS[el.region.value]||REGIONS.europe;}
+
   // Match the established Climate Dashboard / ERA5 Europe anomaly palette.
   const STOPS=[-8,-7,-6,-5,-4,-3,-2,-1,-.5,0,.5,1,2,3,4,5,6,7,8];
   const COLORS=[
@@ -15,7 +31,7 @@
   ];
   const $=id=>document.getElementById(id);
   const el={map:$("weekMap"),status:$("weekStatus"),run:$("weekRun"),
-    info:$("weekReference"),metric:$("weekMetric"),projection:$("weekProjection"),
+    info:$("weekReference"),metric:$("weekMetric"),projection:$("weekProjection"),region:$("weekRegion"),
     warn:$("weekWarning"),legend:$("weekLegend"),country:$("weekCountries"),
     countryTitle:$("weekCountryHeader"),selected:$("weekSelected"),
     label:$("weekMapLabel"),png:$("weekPng"),pdf:$("weekPdf"),csv:$("weekCsv")};
@@ -87,20 +103,29 @@
     const r=Math.tan((90-lat)*RAD/2),angle=(lon-LON0)*RAD;
     return [r*Math.sin(angle),-r*Math.cos(angle)];
   }
-  function computeView(){
+  function computeView(region){
     const pts=[];
-    for(let lon=-25;lon<=45;lon+=1){pts.push(polar(lon,34),polar(lon,72));}
-    for(let lat=34;lat<=72;lat+=1){pts.push(polar(-25,lat),polar(45,lat));}
+    const n=32;
+    // Sample all four geographic edges; stereographic bounds are not axis-aligned.
+    for(let i=0;i<=n;i++){
+      const u=i/n;
+      const lon=region.west+(region.east-region.west)*u;
+      const lat=region.south+(region.north-region.south)*u;
+      pts.push(polar(lon,region.south),polar(lon,region.north),
+               polar(region.west,lat),polar(region.east,lat));
+    }
     const xmin=Math.min(...pts.map(p=>p[0])),xmax=Math.max(...pts.map(p=>p[0]));
     const ymin=Math.min(...pts.map(p=>p[1])),ymax=Math.max(...pts.map(p=>p[1]));
-    const scale=Math.max((xmax-xmin)/W,(ymax-ymin)/H)*1.08;
+    const scale=Math.max((xmax-xmin)/W,(ymax-ymin)/H)*1.04;
     const cx=(xmin+xmax)/2,cy=(ymin+ymax)/2;
     return {xmin:cx-scale*W/2,ymax:cy+scale*H/2,scale};
   }
-  const VIEW=computeView();
+  let VIEW=computeView(REGIONS.europe);
   function geo(px,py){
     if(el.projection.value==="latlon"){
-      return [-25+(px+.5)/W*70,72-(py+.5)/H*38];
+      const region=currentRegion();
+      return [region.west+(px+.5)/W*(region.east-region.west),
+              region.north-(py+.5)/H*(region.north-region.south)];
     }
     const x=VIEW.xmin+(px+.5)*VIEW.scale;
     const y=VIEW.ymax-(py+.5)*VIEW.scale;
@@ -121,6 +146,7 @@
   }
   function draw(){
     if(!payload)return;
+    VIEW=computeView(currentRegion());
     shown=el.metric.value==="absolute"?temperature:anomaly;
     const ctx=el.map.getContext("2d",{alpha:false});
     const image=ctx.createImageData(W,H),d=image.data;
@@ -156,7 +182,8 @@
     ctx.putImageData(image,0,0);
     el.map.setAttribute("aria-label",abs?"GFS-Mitteltemperatur nächste 7 Tage in °C":
       "GFS-Temperaturabweichung nächste 7 Tage in Kelvin gegenüber 1991–2020");
-    el.label.textContent=el.projection.value==="stereo"?"Stereografische Europaansicht · 0,5°":"Breiten-Längen-Ansicht · 0,5°";
+    el.label.textContent=currentRegion().name+" · "+
+      (el.projection.value==="stereo"?"Stereografische Europaansicht":"Breiten-Längen-Ansicht")+" · 0,5°";
     legend(abs);countriesTable();
   }
   function legend(abs){
@@ -225,7 +252,8 @@
     ctx.fillText("Europa · GFS Sieben-Tage-Temperaturabweichung",32,45);
     ctx.font="18px Arial";
     ctx.fillText("GFS "+fmtTime(payload.run_utc)+" · "+
-      (el.metric.value==="anomaly"?"CFSR/CFSv2 1991–2020":"2-m-Temperatur °C"),32,75);
+      (el.metric.value==="anomaly"?"CFSR/CFSv2 1991–2020":"2-m-Temperatur °C")+
+      " · "+currentRegion().name,32,75);
     ctx.drawImage(el.map,0,100,W,H);
     ctx.font="15px Arial";ctx.fillText("Gültig "+fmtTime(payload.valid_from_utc)+" bis "+fmtTime(payload.valid_to_utc),32,895);
     ctx.fillText("NOAA GFS 0,5° f003–f165 · 28 echte Felder · 7 Tage · "+el.projection.options[el.projection.selectedIndex].text,32,925);
@@ -246,6 +274,7 @@
   }
   el.metric.addEventListener("change",draw);
   el.projection.addEventListener("change",draw);
+  el.region.addEventListener("change",draw);
   el.map.addEventListener("click",event=>{
     if(!payload||!mask)return;
     const box=el.map.getBoundingClientRect();

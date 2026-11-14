@@ -1,0 +1,55 @@
+name: CFSR/CFSv2 · echten erweiterten Europa-Ausschnitt prüfen
+on:
+  push:
+    branches: [feature/gfs-europe-regions-ecmwf-probe-20261114]
+    paths:
+      - ".github/workflows/probe-cfs-wide-europe.yml"
+      - "scripts/probe_cfs_f003_wider_europe.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-extended-month:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts/import_cfsr_cfsv2_f003_1991_2020.py
+            scripts/build_gfs_cfsr_f003_1991_2020.py
+            scripts/probe_cfs_f003_wider_europe.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy requests eccodes
+      - name: Download original CFSv2 2020-12 +3h source and verify full broad North Atlantic–Ural 0.5 degree reference coverage
+        run: python -m scripts.probe_cfs_f003_wider_europe
+      - name: Prove same historical original gives identical old Europe cells
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import numpy as np,json
+          p=Path("gfs_analysis_europe/extended_pilot_2020_12.npz")
+          with np.load(p,allow_pickle=False) as data:
+              x=data["temperature_daily_c"]
+              m=json.loads(str(data["metadata_json"]))
+              assert x.shape==(31,121,361)
+              assert m["forecast_hour"]==3
+              assert m["original_2m_grib_samples"]==124
+              assert m["original_core_max_difference_k"]<0.001
+              assert m["extended_1991_2020_complete"] is False
+              assert (m["west"],m["east"],m["north"],m["south"])==(-80.25,99.75,84.75,24.75)
+              assert np.isfinite(x).all()
+          print("PASS: original CFSv2 wide geodata and legacy Europe subset perfectly agree; one month only",flush=True)
+          PY
+      - name: Preserve verified month-only wider reference pilot, not a fabricated 30-year normal
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cfs-f003-expanded-europe-pilot-${{ github.run_id }}
+          path: gfs_analysis_europe/extended_pilot_2020_12.npz
+          if-no-files-found: ignore
+          retention-days: 10

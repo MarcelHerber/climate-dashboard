@@ -1,0 +1,51 @@
+name: ECMWF IFS Open Data · echte 2-m-Temperaturfelder prüfen
+on:
+  push:
+    branches: [feature/gfs-europe-regions-ecmwf-probe-20261114]
+    paths:
+      - ".github/workflows/probe-ecmwf-ifs-2t.yml"
+      - "scripts/probe_ecmwf_ifs_2t_weekly.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ifs-open-data:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts/probe_ecmwf_ifs_2t_weekly.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install official ECMWF Open Data client and genuine GRIB decoder
+        run: python -m pip install numpy eccodes ecmwf-opendata
+      - name: Fetch latest real ECMWF IFS deterministic 0.25 degree 2t at 3, 24 and 168 hours
+        run: python scripts/probe_ecmwf_ifs_2t_weekly.py
+      - name: Verify original 2m GRIB fields and prohibit unsupported ERA5 anomaly
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          x=json.loads(Path("gfs_analysis_europe/ecmwf_ifs_open_2t_pilot.json").read_text())
+          assert x["model"]=="ifs" and x["param"]=="2t"
+          assert x["provenance_verified"] is True
+          assert x["anomaly_ready"] is False
+          assert x["resolution_degrees"]==0.25
+          assert x["grid"]==[1440,721]
+          assert [r["step_hours"] for r in sorted(x["runs"],key=lambda r:r["step_hours"])]==[3,24,168]
+          assert len({r["run_utc"] for r in x["runs"]})==1
+          print("PASS: real ECMWF IFS 2t open 0.25 degree 3h/24h/168h GRIB fields. No ungrounded climatology.",flush=True)
+          PY
+      - name: Preserve exact ECMWF IFS source metadata (no fake anomaly output)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecmwf-ifs-open-2t-verification-${{ github.run_id }}
+          path: gfs_analysis_europe/ecmwf_ifs_open_2t_pilot.json
+          if-no-files-found: ignore
+          retention-days: 14
