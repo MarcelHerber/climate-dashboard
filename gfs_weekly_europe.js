@@ -266,20 +266,29 @@
   }
   function countryMeans(){
     const totals=new Float64Array(countries.length),weights=new Float64Array(countries.length);
-    const count=new Uint32Array(countries.length);
+    const count=new Uint32Array(countries.length),visible=new Uint32Array(countries.length);
+    const box=currentRegion();
     for(let y=0;y<GH;y++){
-      const w=Math.cos((NORTH-y*.5)*RAD);
+      const lat=NORTH-y*.5,w=Math.cos(lat*RAD);
+      const inLat=lat>=box.south&&lat<=box.north;
       for(let x=0;x<GW;x++){
         const i=y*GW+x,id=mask[i],v=shown[i];
         if(id>=0&&id<countries.length&&Number.isFinite(v)){
+          // Country means always reflect all original cells inside the full
+          // verified source domain, never a cosmetically clipped mean.
           totals[id]+=w*v;weights[id]+=w;count[id]++;
+          // The larger source domain includes North Africa and North America.
+          // List only countries whose grids intersect the selected map view.
+          if(inLat && (WEST+x*.5)>=box.west && (WEST+x*.5)<=box.east)visible[id]++;
         }
       }
     }
     return countries.map(c=>({id:c.id,name:c.name,
       value:weights[c.id]?totals[c.id]/weights[c.id]:NaN,
-      coverage:c.cells?count[c.id]/c.cells:0
-    })).filter(x=>Number.isFinite(x.value)&&x.coverage>=.45)
+      coverage:c.cells?count[c.id]/c.cells:0,
+      visible:visible[c.id]
+    })).filter(x=>Number.isFinite(x.value)&&x.coverage>=.45&&
+      (!extended||x.visible>0))
       .sort((a,b)=>b.value-a.value);
   }
   function choose(id){
