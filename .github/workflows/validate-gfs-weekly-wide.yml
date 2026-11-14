@@ -1,0 +1,81 @@
+name: GFS Nordatlantik · bestehende Karte und neue Originalraster-Logik prüfen
+on:
+  push:
+    branches: [feature/gfs-weekly-wide-forecast-map-20261114]
+    paths:
+      - ".github/workflows/validate-gfs-weekly-wide.yml"
+      - "gfs_weekly_europe.js"
+      - "gfs_weekly_europe.html"
+      - "tests/test_gfs_weekly_extended.py"
+      - "tests/test_gfs_weekly_extended_browser.py"
+      - "scripts/update_gfs_weekly_europe_extended.py"
+      - "scripts/build_pages_site.sh"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit-and-legacy-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts
+            tests
+            gfs_weekly_europe.html
+            gfs_weekly_europe.js
+            gfs_weekly_europe.css
+            gfs_analysis_europe/weekly_f003.json
+            cpc_europe
+            cpc_europe.css
+            mobile_navigation.js
+            mobile_navigation.css
+            dashboard_theme.js
+            dashboard_theme.css
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy requests eccodes pytest playwright
+      - name: Check original NOAA source compatibility and strict new 121x361 forecasts
+        run: |
+          python -m pytest -q tests/test_gfs_weekly_extended.py tests/test_gfs_weekly_europe.py
+          python -m compileall -q scripts/update_gfs_weekly_europe_extended.py
+          node --check gfs_weekly_europe.js
+      - run: python -m playwright install chromium --with-deps
+      - name: Prove 76x140 fallback, ten existing map regions, country means and exports still work
+        run: python tests/test_gfs_weekly_regions_browser.py
+      - name: Keep fallback rendered map and export screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gfs-wide-fallback-QA-${{ github.run_id }}
+          path: gfs_regions_browser_qa/
+          retention-days: 10
+          if-no-files-found: ignore
+  full-pages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Full Pages build and source validation without deploying
+        run: |
+          bash -n scripts/build_pages_site.sh
+          bash scripts/build_pages_site.sh
+      - name: Check live-compatible fallback & no fake wide reference
+        run: |
+          node --check _site/gfs_weekly_europe.js
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path("_site")
+          assert (root/"gfs_weekly_europe.html").is_file()
+          x=json.loads((root/"gfs_analysis_europe/weekly_f003.json").read_text())
+          assert x["reference_metadata"]["source_months"]==360
+          assert x["width"]==140 and x["height"]==76
+          assert 'id="weekRegion"' in (root/"gfs_weekly_europe.html").read_text()
+          assert 'href="gfs_weekly_europe.html"' in (root/"index.html").read_text()
+          print("PASS: existing live GFS fallback intact with new wide-data validation gate")
+          PY
