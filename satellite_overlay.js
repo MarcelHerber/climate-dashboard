@@ -167,5 +167,11 @@ function paintCities(ctx,place,{x=0,y=0,width,height}){
  ctx.restore();
  return count;
 }
-window.SatelliteOverlay={update,paintBorders,paintCities};
+function cityAnchors(place){
+ const bbox=BOXES[place];if(!bbox)return [];
+ return PLACES.filter(([,lon,lat])=>lon>=bbox[0]+.7&&lon<=bbox[2]-.7&&
+  lat>=bbox[1]+.5&&lat<=bbox[3]-.5)
+  .map(([name,lon,lat])=>({name,lon,lat}));
+}
+window.SatelliteOverlay={update,paintBorders,paintCities,cityAnchors};
 })();
