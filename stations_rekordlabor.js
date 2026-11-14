@@ -9,7 +9,7 @@ const tabs={calendar:["rlTabCalendar","rlCalendar"],seasons:["rlTabSeasons","rlS
  changes:["rlTabChanges","rlChanges"]};
 const state={catalog:null,klIndex:new Map(),station:null,view:"calendar",temp:null,snow:null,kl:null,
   stationSerial:0,weatherIndex:null,weather:null,weatherSerial:0,
-  selectedEvent:null,csv:[],fileName:"",chart:null,chartCanvas:null,chartLabel:"",status:""};
+  selectedEvent:null,csv:[],fileName:"",chart:null,chartCanvas:null,chartLabel:"",chartDateAxis:null,status:""};
 const num=(n,max=1)=>Number(n).toLocaleString("de-DE",{maximumFractionDigits:max});
 const finite=Number.isFinite,esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&quot;","'":"&#39;"}[c]));
 const count=(s)=>s?num(s,0):"0";
@@ -109,13 +109,19 @@ function showTab(which){
 function destroyChart(){
  if(state.chart){state.chart.destroy();state.chart=null;state.chartCanvas=null;}
 }
-function addChart(canvasId,title,labels,data,yTitle,color="#2d79ad",dateAxis=null){
+function addChart(canvasId,title,labels,data,yTitle,color="#2d79ad",dateAxis=null,trend=null){
  destroyChart();
  state.chartCanvas=$(canvasId);
  if(!window.Chart||!state.chartCanvas)return;
- const main=[{label:title,data,borderColor:color,backgroundColor:color,
+ const main=[{label:trend?"Messwerte":title,data,borderColor:color,backgroundColor:color,
   borderWidth:2.2,pointRadius:labels.length>140?1:3,pointHoverRadius:5,
   tension:0,spanGaps:false,fill:false}];
+ if(trend?.values?.length===data.length){
+  main.push({label:"Trendlinie",data:trend.values,borderColor:"#64748b",
+   backgroundColor:"#64748b",borderWidth:2.6,borderDash:[9,6],
+   pointRadius:0,pointHoverRadius:0,pointHitRadius:0,
+   tension:0,spanGaps:false,fill:false});
+ }
  const yScale=dateAxis?{
   type:"linear",min:dateAxis.min,max:dateAxis.max,
   title:{display:true,text:"Datum"},
@@ -125,14 +131,19 @@ function addChart(canvasId,title,labels,data,yTitle,color="#2d79ad",dateAxis=nul
  }:{type:"linear",title:{display:true,text:yTitle}};
  state.chart=new Chart(state.chartCanvas,{type:"line",data:{labels,datasets:main},options:{
   responsive:true,maintainAspectRatio:false,animation:false,normalized:true,
-  interaction:{mode:"nearest",intersect:false},plugins:{legend:{display:false},
+  interaction:{mode:"nearest",intersect:false},
+  plugins:{legend:{display:main.length>1,position:"top",
+   labels:{boxWidth:34,boxHeight:3,padding:12}},
   tooltip:{callbacks:{label:context=>context.parsed.y===null?"Fehlwert":
-    title+": "+(dateAxis?dateAxis.format(context.parsed.y):
-      num(context.parsed.y,1)+" "+yTitle)}}},
+    (context.datasetIndex===1?"Trendlinie (linear)":"Messwert")+": "+
+    (dateAxis?(context.datasetIndex===1?"ca. ":"")+
+     dateAxis.format(Math.round(context.parsed.y)):
+     num(context.parsed.y,1)+" "+yTitle)}}},
   scales:{x:{type:"category",ticks:{autoSkip:true,maxTicksLimit:13,maxRotation:0}},
     y:yScale}
  }});
  state.chartLabel=title;
+ state.chartDateAxis=dateAxis;
 }
 function kpis(id,entries){
  $(id).innerHTML=entries.map(x=>'<div class="rl-kpi"><strong>'+esc(x.value)+
@@ -266,15 +277,27 @@ function seasonRender(){
   esc(run?C.readable(r.start)+" bis "+C.readable(r.end):C.readable(r.date))+
   "</td><td>"+(run?r.days+" Tage":num(r.value)+(snow?" cm":" °C")+(r.atBoundary?" · bereits vorhanden":""))+"</td></tr>"));
  const values=byYear.map(r=>run?r.days:snow?r.dayOfPeriod:r.dayOfYear);
+ const linear=C.seasonLinearTrend(byYear.map((row,i)=>({year:row.year,value:values[i]})));
+ const trendToggle=$("rlSeasonTrend");
+ trendToggle.disabled=!linear;
+ // Keep the user's chosen visibility when switching stations/events.
+ const trend=linear&&trendToggle.checked?linear:null;
+ $("rlSeasonTrendInfo").textContent=linear?
+  "Lineare Regression über "+linear.count+" beobachtete Jahreswerte":
+  "Trendlinie erst ab zwei unterschiedlichen Messjahren verfügbar";
  state.csv=[["Jahr","Ereignis","Datum/Start","Ende","Dauer/Wert", "Tag-im-Zeitraum"],
    ...byYear.map(r=>[r.year,label,r.date||r.start||"",r.end||"",run?r.days:r.value,
      snow?r.dayOfPeriod:r.dayOfYear])];
  state.fileName="DWD_Jahreszeitenrekord_"+st.id+"_"+event;
- const dateAxis=run?null:C.seasonDateAxis(snow?state.snow?.month_days:null,values);
- addChart("rlSeasonChart",label+" · "+st.name,byYear.map(r=>String(r.year)),values,unit,"#b44e46",dateAxis);
+ const dateAxis=run?null:C.seasonDateAxis(snow?state.snow?.month_days:null,
+  trend?[...values,...trend.values.filter(Number.isFinite)]:values);
+ addChart("rlSeasonChart",label+" · "+st.name,byYear.map(r=>String(r.year)),values,
+  unit,"#b44e46",dateAxis,trend);
  setExportState(byYear.length>1);
 }
 function clearSeason(){
+ $("rlSeasonTrend").disabled=true;
+ $("rlSeasonTrendInfo").textContent="Trendlinie erst mit auswertbaren Jahreswerten verfügbar";
  kpis("rlSeasonKpis",[]);tableRows("rlSeasonTable",[]);
  destroyChart();setExportState(false);
 }
@@ -415,6 +438,7 @@ async function exportChart(type){
   const exp=window.T850VectorExport,scene=exp.buildScene(state.chart,{
    title:state.chartLabel,subtitle:"DWD CDC · Originalstationsmessungen",
    axis:state.chart.options.scales.y.title.text,
+   yTicks:state.chartDateAxis?.ticks,yTickFormatter:state.chartDateAxis?.format,
    source:"Quelle: Deutscher Wetterdienst, Climate Data Center",
    metadata:["Stationsauswertung · "+state.fileName,"Nur echte Messwerte; Datenlücken bleiben erhalten",
     "Erstellt: "+new Date().toLocaleString("de-DE")]});
@@ -446,6 +470,7 @@ async function init(){
  Object.keys(tabs).forEach(key=>$(tabs[key][0]).addEventListener("click",()=>showTab(key)));
  for(const id of ["rlDay","rlCalMetric","rlCalOrder","rlSeasonMetric"])
   $(id).addEventListener("change",render);
+ $("rlSeasonTrend").addEventListener("change",()=>{if(state.view==="seasons")seasonRender();});
  for(const id of ["rlChangeMetric","rlChangeHours","rlChangeDirection"])
   $(id).addEventListener("change",()=>{state.selectedEvent=null;weatherRender();});
  $("rlChangeStation").addEventListener("change",()=>{state.selectedEvent=null;loadWeather();});
