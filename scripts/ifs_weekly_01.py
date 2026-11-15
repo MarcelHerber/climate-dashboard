@@ -227,6 +227,20 @@ def build_month(month, output):
                         metadata=json.dumps({'version':VERSION,'month':month,'years':list(YEARS),'sources':sources,'hours_utc':list(HOURS)}))
 
 
+def validate_reference(path, m):
+    with np.load(path,allow_pickle=False) as r:
+        meta = json.loads(r['metadata'].item()); counts=r['counts']; normal=r['normal']
+        days = calendar.monthrange(2000,m)[1]
+        expected = [sum(calendar.monthrange(y,m)[1]>=d for y in YEARS) for d in range(1,days+1)]
+        if (meta['version']!=VERSION or meta['month']!=m or meta['years']!=list(YEARS) or meta['hours_utc']!=list(HOURS)
+                or [s['year'] for s in meta['sources']]!=list(YEARS) or any(not re.fullmatch(r'[a-f0-9]{64}',s['sha256']) or s['hours']!=calendar.monthrange(s['year'],m)[1]*4 for s in meta['sources'])
+                or not np.array_equal(counts,expected) or normal.shape!=(days,4,len(REF_LAT),len(REF_LON))
+                or not np.allclose(r['lat'],REF_LAT) or not np.allclose(r['lon'],REF_LON)
+                or not np.isfinite(normal).all() or np.any((normal<170)|(normal>340))):
+            raise ValueError('Unverified ERA5 monthly reference')
+        return normal, {'month':m,'years':30,'source_fields':sum(s['hours'] for s in meta['sources'])}
+
+
 def reference_week(run, refs):
     grid = {}
     loaded = {}
@@ -235,18 +249,8 @@ def reference_week(run, refs):
         m = valid.month
         if m not in loaded:
             path = refs/f'era5_{m:02d}.npz'
-            with np.load(path,allow_pickle=False) as r:
-                meta = json.loads(r['metadata'].item()); counts=r['counts']; normal=r['normal']
-                days = calendar.monthrange(2000,m)[1]
-                expected = [sum(calendar.monthrange(y,m)[1]>=d for y in YEARS) for d in range(1,days+1)]
-                if (meta['version']!=VERSION or meta['month']!=m or meta['years']!=list(YEARS) or meta['hours_utc']!=list(HOURS)
-                        or [s['year'] for s in meta['sources']]!=list(YEARS) or any(len(s['sha256'])!=64 or s['hours']!=calendar.monthrange(s['year'],m)[1]*4 for s in meta['sources'])
-                        or not np.array_equal(counts,expected) or normal.shape!=(days,4,len(REF_LAT),len(REF_LON))
-                        or not np.allclose(r['lat'],REF_LAT) or not np.allclose(r['lon'],REF_LON)
-                        or not np.isfinite(normal).all() or np.any((normal<170)|(normal>340))):
-                    raise ValueError('Unverified ERA5 monthly reference')
-                loaded[m]=normal
-                provenance.append({'month':m,'years':30,'source_fields':sum(s['hours'] for s in meta['sources'])})
+            loaded[m], record = validate_reference(path,m)
+            provenance.append(record)
         grid[lead] = loaded[m][valid.day-1,HOURS.index(valid.hour)]
     native_mean = weekly_mean(grid)
     return interpolate_reference(native_mean,REF_LAT,REF_LON,LAT,LON)-273.15,provenance
@@ -274,8 +278,10 @@ if __name__ == '__main__':
     p=argparse.ArgumentParser(); sub=p.add_subparsers(dest='command',required=True)
     f=sub.add_parser('forecast'); f.add_argument('--out',type=Path,required=True); f.add_argument('--source',default='ecmwf')
     m=sub.add_parser('reference'); m.add_argument('--month',type=int,choices=range(1,13),required=True); m.add_argument('--out',type=Path,required=True)
+    v=sub.add_parser('validate-reference'); v.add_argument('--month',type=int,choices=range(1,13),required=True); v.add_argument('--path',type=Path,required=True)
     c=sub.add_parser('combine'); c.add_argument('--forecast',type=Path,required=True); c.add_argument('--references',type=Path,required=True); c.add_argument('--out',type=Path,required=True)
     a=p.parse_args()
     if a.command=='forecast': fetch_ifs(a.out,a.source)
     elif a.command=='reference': build_month(a.month,a.out)
+    elif a.command=='validate-reference': print(validate_reference(a.path,a.month)[1])
     else: combine(a.forecast,a.references,a.out)
