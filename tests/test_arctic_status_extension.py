@@ -11,6 +11,14 @@ import build_data_status as mod
 
 
 class ArcticArchiveStatusTests(unittest.TestCase):
+    def setUp(self):
+        # The fixed archive intentionally tests completeness, not the real
+        # clock's growing distance from the November 2026 fixture.
+        clock = patch.object(mod, "datetime", wraps=datetime)
+        mocked = clock.start()
+        mocked.now.return_value = datetime(2026, 11, 9, 12, tzinfo=timezone.utc)
+        self.addCleanup(clock.stop)
+
     def fixture(self, folder, *, missing_cap=False):
         root = Path(folder)
         folder_dmi = root / "data"

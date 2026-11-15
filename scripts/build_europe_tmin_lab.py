@@ -123,17 +123,18 @@ def choose_cycle(now):
 
 
 def wait_for_cycle():
-    """Bounded retry for a delayed +114h source file, not for yesterday's run."""
-    for attempt in range(3):
+    """Allow delayed DWD publication (+114h can appear well after 15 UTC)."""
+    attempts=12
+    for attempt in range(attempts):
         now=datetime.now(timezone.utc)
         if not any(eligible_cycles(now)):
             raise RuntimeError("Kein bereits initialisierter ICON-EU-12-UTC-Lauf mit fünf ausstehenden Nächten")
         try:
             cycle=choose_cycle(now)
         except RuntimeError:
-            if attempt==2:
+            if attempt==attempts-1:
                 raise
-            LOG.info("ICON-EU noch nicht vollständig; neuer Versuch in zehn Minuten (%d/3)",attempt+2)
+            LOG.info("ICON-EU noch nicht vollständig; neuer Versuch in zehn Minuten (%d/%d)",attempt+2,attempts)
             time.sleep(600)
             continue
         require_pending_first_night(cycle)

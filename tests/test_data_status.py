@@ -11,6 +11,54 @@ import build_data_status as status
 
 
 class DataStatusTests(unittest.TestCase):
+    def test_status_includes_threshold_for_browser_age_recalculation(self):
+        row = status.result("x", "Test", "Radar", datetime.now(timezone.utc).isoformat(),
+                            None, "1 Bild", cadence="hourly", allowed_delay=1.25, incomplete=True)
+        self.assertEqual(row["allowed_delay"], 1.25)
+        self.assertTrue(row["incomplete"])
+
+    def test_external_archive_retries_transient_http_failure(self):
+        import io
+        from urllib.error import HTTPError
+        url = "https://example.test/metadata.json"
+        with patch.object(status, "urlopen", side_effect=[HTTPError(url,503,"temporary",None,None), io.BytesIO(b'{"latest":"2026-11-14"}')]), \
+             patch("time.sleep"):
+            self.assertEqual(status.fetch_archive_json(url), {"latest":"2026-11-14"})
+
+    def test_external_archive_retries_truncated_response(self):
+        import io
+        from http.client import IncompleteRead
+        with patch.object(status, "urlopen", side_effect=[IncompleteRead(b'{'), io.BytesIO(b'{"ok":true}')]), patch("time.sleep"):
+            self.assertEqual(status.fetch_archive_json("https://example.test/meta.json"), {"ok":True})
+
+    def test_hourly_comparison_uses_exact_age_not_rounded_display(self):
+        now=datetime(2026,11,15,17,0,tzinfo=timezone.utc)
+        with patch.object(status,"datetime",wraps=datetime) as clock:
+            clock.now.return_value=now
+            row=status.result("x","X","Radar","2026-11-15T13:58:00Z",None,"",cadence="hourly",allowed_delay=3)
+            self.assertEqual(row["status"],"delayed")
+            self.assertEqual(row["lag"],3.0)
+
+    def test_snow_and_greenland_use_observations_not_generation(self):
+        day = (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat()
+        old = (datetime.now(timezone.utc).date() - timedelta(days=20)).isoformat()
+        with tempfile.TemporaryDirectory() as tmp, patch.object(status, "ROOT", Path(tmp)):
+            root = Path(tmp)
+            for path, payload in {
+                "eurasia_snow/index.json": {"schema":1,"observed_latest":day,"daily":{day:3.0}},
+                "eurasia_snow/europe_index.json": {"schema":1,"observed_latest":day,"daily":{day:3.0}},
+                "eurasia_snow/maps/index.json": {"schema":1,"latest":day,"maps":[{"date":old,"cover":"a.png","anomaly":"b.png","europe_cover":"c.png","europe_anomaly":"d.png"}]},
+                "data/dmi_greenland_stations.json": {"schema":1,"window_end":day,"stations":[{"id":"1","status":"Active"}],"latest":{"1":{"mean_temp":{"date":old,"value":-5}}}},
+            }.items():
+                f=root/path; f.parent.mkdir(parents=True,exist_ok=True); f.write_text(json.dumps(payload))
+            rows={x["id"]:x for x in status.build({})["datasets"]}
+        self.assertEqual(rows["snow_eurasia"]["latest"],day)
+        self.assertEqual(rows["snow_europe"]["latest"],day)
+        self.assertEqual(rows["snow_maps"]["latest"],old)
+        self.assertEqual(rows["snow_maps"]["status"],"delayed")
+        self.assertEqual(rows["dmi_greenland"]["latest"],old)
+        self.assertEqual(rows["dmi_greenland"]["status"],"delayed")
+
     def test_new_products_have_explicit_unavailable_states(self):
         with tempfile.TemporaryDirectory() as tmp:
             with patch.object(status, "ROOT", Path(tmp)):

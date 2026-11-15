@@ -1611,6 +1611,7 @@ assert '<script>' in page and '</script>' in page
 Path("/tmp/climate-data-status-check.js").write_text(page.split("<script>",1)[1].split("</script>",1)[0], encoding="utf-8")
 PY
 node --check /tmp/climate-data-status-check.js
+node --test tests/test_data_status_browser.cjs
 python scripts/build_data_status.py --output _site/data/status/status.json
 test -s _site/data/status/status.json || { echo "FEHLER: Datenstatus fehlt"; exit 1; }
 

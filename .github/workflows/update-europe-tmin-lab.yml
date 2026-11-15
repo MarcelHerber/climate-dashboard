@@ -26,7 +26,8 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 110 minutes for delayed DWD files plus download/render/validation.
+    timeout-minutes: 155
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -34,7 +35,7 @@ jobs:
           python-version: "3.12"
       - name: DWD-GRIB2- und Kartenbibliotheken installieren
         run: pip install "numpy>=2,<3" "pillow>=11,<13" "scipy>=1.13,<2" "eccodes>=2,<3"
-      - name: Parser und Tagesmaximum-Tests
+      - name: Parser und Nachtminimum-Tests
         run: |
           python -m py_compile scripts/build_europe_tmin_lab.py
           python -m unittest discover -s tests -p test_europe_tmin_lab.py -v
