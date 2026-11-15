@@ -9,6 +9,10 @@ import json
 from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
 import argparse
+import base64
+import math
+import re
+from concurrent.futures import ThreadPoolExecutor
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
@@ -90,9 +94,15 @@ def external_archives():
         "sst": "sst-archive/manifest.json",
         "opera": "opera-radar-data/data/opera/current.json",
         "ssw": "stratosphere-data/data/stratosphere/ssw_catalog.json",
+        "hyras_precip": "hyras-data/hyras_index.json",
+        **{f"hyras_{p}": f"hyras-data/{p}/regions/index.json" for p in ("tmean", "tmax", "tmin")},
+        "strato_ifs": "stratosphere-ecmwf-data/data/stratosphere/ecmwf/ifs_runs.json",
+        "strato_eps": "stratosphere-ecmwf-ens-data/data/stratosphere/ecmwf/ens_current.json",
+        "strato_gefs": "stratosphere-ensemble-data/data/stratosphere/ensemble/gefs_current.json",
+        "saharastaub": "saharastaub-data/data/saharastaub/current.json",
     }
-    result = {}
-    for name, suffix in sources.items():
+    def fetch(item):
+        name, suffix = item
         try:
             req = Request(base + suffix, headers={"User-Agent": "ClimateDashboard-Status/1"})
             with urlopen(req, timeout=12) as response:
@@ -103,11 +113,13 @@ def external_archives():
             obj = json.loads(data)
             if not isinstance(obj, dict):
                 raise ValueError("Archive metadata is not an object")
-            result[name] = obj
             print(f"Externer Datenbestand {name}: geladen ({len(data)} Bytes)")
+            return name, obj
         except (OSError, ValueError, HTTPError, URLError, TimeoutError) as exc:
             print(f"Externer Datenbestand {name}: nicht prüfbar ({type(exc).__name__})")
-    return result
+            return name, None
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        return {name: obj for name, obj in pool.map(fetch, sources.items()) if obj is not None}
 
 
 def common_latest(*values):
@@ -338,12 +350,167 @@ def add_external(items, remote):
                 "Manifest fehlt", "SST-Datenzweig vorübergehend nicht prüfbar"))
 
 
+MTG_PRODUCTS = ("geocolour", "dust", "ir105", "firetemperature")
+
+
+def obj(value):
+    return value if isinstance(value, dict) else {}
+
+
+def arr(value):
+    return value if isinstance(value, list) else []
+
+
+def genuine_timestamp(value):
+    if not isinstance(value, str) or "T" not in value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo and parsed <= datetime.now(timezone.utc) else None
+    except ValueError:
+        return None
+
+
+def finite(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def grid_complete(data, *keys, count=1):
+    w, h = data.get("width"), data.get("height")
+    if not all(type(v) is int and v > 0 for v in (w, h, count)) or w*h*count > 50_000_000:
+        return False
+    try:
+        return all(len(base64.b64decode(data.get(k, ""), validate=True)) == w*h*count*2 for k in keys)
+    except (TypeError, ValueError):
+        return False
+
+
+def reference_complete(data):
+    ref = obj(data.get("reference_metadata"))
+    return (ref.get("years") == 30 and ref.get("source_months") == 360
+            and ref.get("forecast_hour") == 3 and "1991–2020" in str(data.get("reference")))
+
+
+def add_extended_products(items, remote):
+    """Use actual archive coverage and observation/model cycle rather than generation time."""
+    def emit(key, label, group, data, latest, coverage, note, good, *, cadence="daily", delay=4):
+        if not data:
+            latest, coverage, note = None, "Archivmetadaten fehlen", "Noch nicht prüfbar · " + note
+        elif cadence == "hourly" and not genuine_timestamp(latest):
+            latest = None
+        items.append(result(key, label, group, latest,
+            data.get("generated_utc") or data.get("generated_at"), coverage, note,
+            cadence=cadence, allowed_delay=delay, incomplete=not good))
+
+    for key, label in (("precip", "Niederschlag"), ("tmean", "Temperaturmittel"),
+                       ("tmax", "Tagesmaximum"), ("tmin", "Tagesminimum")):
+        data = obj(remote.get("hyras_" + key))
+        regions = arr(data.get("regions"))
+        periods = arr(data.get("periods"))
+        if key == "precip":
+            good = data.get("product") == "DWD HYRAS-DE-PR" and bool(periods) and data.get("resolution_km") == 1
+            coverage = f"{len(periods)} Perioden · 1-km-Raster"
+        else:
+            good = data.get("parameter") == key and len(set(v for v in regions if isinstance(v, str))) == 17
+            coverage = f"{len(regions)}/17 Regionen · Tagesgebietsmittel"
+        emit("hyras_"+key, "HYRAS · "+label, "Deutschland", data, data.get("data_through"), coverage,
+             "DWD · aktueller Beobachtungstag", good, delay=4)
+
+    for key, path, label, cadence, delay in (
+        ("era5_land_monthly", "era5_land_europe/index.json", "Monatsmittel", "monthly", 2),
+        ("era5_land_running", "era5_land_europe/running/index.json", "laufende Zeiträume", "daily", 9),
+    ):
+        data = obj(read_json(path)); periods = obj(data.get("periods"))
+        latest = data.get("latest_month_key") if cadence == "monthly" else data.get("data_through")
+        expected = "latest_month" if cadence == "monthly" else "running_month"
+        good = data.get("ready") is True and expected in periods and "1991" in str(data.get("reference_period"))
+        emit(key, "ERA5-Land · "+label, "Europa", data, latest, f"{len(periods)} Perioden · 0,1°",
+             "Copernicus · tatsächlicher gemeinsamer Datenstand", good, cadence=cadence, delay=delay)
+
+    data = obj(read_json("gfs_analysis_europe/index_f003.json")); dates = arr(data.get("dates"))
+    good = (data.get("reference_ready") is True and reference_complete(data) and bool(dates)
+            and all(valid_date(d) for d in dates) and dates == sorted(set(dates))
+            and data.get("data_through") == dates[-1]
+            and grid_complete(data, "temperature_q10_b64", "anomaly_q10_b64", count=len(dates)))
+    emit("gfs_f003", "GFS · f003-Temperaturanomalie", "Europa", data, data.get("data_through"),
+         f"{len(dates)} Kartentage · CFSR/CFSv2 1991–2020", "Modellanalyse aus 4 echten +3-h-Prognosen pro Tag", good)
+    data = obj(read_json("gfs_analysis_europe/weekly_f003_extended.json")) or obj(read_json("gfs_analysis_europe/weekly_f003.json"))
+    sources = arr(data.get("sources")); cycle = genuine_timestamp(data.get("run_utc"))
+    good = (cycle is not None and data.get("sample_count") == 28 and reference_complete(data)
+            and [obj(s).get("forecast_hour") for s in sources] == list(range(3,166,6))
+            and grid_complete(data, "forecast_mean_q10_b64", "anomaly_mean_q10_b64"))
+    emit("gfs_weekly", "GFS · 7-Tage-Temperaturanomalie", "Vorhersagen", data, data.get("run_utc"),
+         f"{len(sources)}/28 Originalfelder · CFSR/CFSv2 1991–2020", "Laufzeit statt prognostizierter Gültigkeit", good, cadence="hourly", delay=18)
+
+    data = obj(read_json("data/satellite_wms_times.json")); products = obj(data.get("products"))
+    verified = [obj(products.get(p)).get("latest_verified_time") for p in MTG_PRODUCTS
+                if obj(products.get(p)).get("map_ok") is True and genuine_timestamp(obj(products.get(p)).get("latest_verified_time"))]
+    emit("satellite_mtg", "EUMETSAT · MTG-Satellitenbilder", "Europa", data, min(verified, key=genuine_timestamp) if verified else None,
+         f"{len(verified)}/4 Kernprodukte bestätigt", "Älteste bestätigte Bildzeit der vier Produkte, nicht Prüfzeit", len(verified)==4, cadence="hourly", delay=3)
+
+    data = obj(remote.get("strato_ifs")); runs = [r for r in arr(data.get("runs")) if isinstance(r, dict)]
+    run = max(runs, key=lambda r: str(r.get("cycle_utc", "")), default={})
+    cycle = run.get("cycle_utc"); steps = arr(run.get("steps_hours")); values = arr(run.get("values"))
+    good = (data.get("provider") == "ECMWF IFS" and cycle == data.get("latest_cycle_utc")
+            and data.get("level_hpa") == 10 and data.get("latitude_deg") == 60
+            and steps == list(range(0,361,12)) and len(values) == len(steps) and all(finite(v) for v in values))
+    emit("strato_ifs", "Stratosphäre · ECMWF IFS", "Atmosphäre", data, cycle, f"{len(values)}/31 Zeitschritte",
+         "60°N / 10 hPa · Original-Modelllauf", good, cadence="hourly", delay=24)
+    for key, label, provider, count, min_days, max_days, delay in (
+        ("strato_eps", "ECMWF ENS", "ECMWF IFS ENS", 51, 15, 15, 30),
+        ("strato_gefs", "NOAA GEFS", "NOAA GEFS", 31, 16, 35, 24)):
+        data = obj(remote.get(key)); members = obj(data.get("members")); dates = arr(data.get("valid_dates"))
+        cycle = genuine_timestamp(data.get("cycle_utc")); horizon = data.get("forecast_horizon_days")
+        ids = {"c00", *(f"p{i:02d}" for i in range(1,count))}
+        good = (cycle is not None and data.get("provider")==provider and data.get("level_hpa")==10
+                and data.get("latitude_deg")==60 and data.get("member_count")==count and set(members)==ids
+                and type(horizon) is int and min_days <= horizon <= max_days and len(dates)==horizon+1
+                and dates == [(cycle.date()+timedelta(days=i)).isoformat() for i in range(len(dates))]
+                and all(isinstance(v,list) and len(v)==len(dates) and all(finite(x) and -160<x<170 for x in v) for v in members.values()))
+        emit(key, "Stratosphäre · "+label, "Atmosphäre", data, data.get("cycle_utc"), f"{len(members)}/{count} Mitglieder · {len(dates)} Zeitpunkte",
+             "60°N / 10 hPa · vollständige Originalmitglieder", good, cadence="hourly", delay=delay)
+
+    data = obj(remote.get("saharastaub")); frames = arr(data.get("frames")); grid = obj(data.get("grid"))
+    total = grid.get("rows", 0)*grid.get("cols", 0) if type(grid.get("rows")) is int and type(grid.get("cols")) is int else 0
+    def rle_ok(encoded):
+        try:
+            b = base64.b64decode(encoded, validate=True)
+            return len(b)%3==0 and 0<total<=500000 and sum(b[i+1]+256*b[i+2] for i in range(0,len(b),3))==total and all((b[i]<=9 or b[i]==255) and (b[i+1] or b[i+2]) for i in range(0,len(b),3))
+        except (TypeError, ValueError):
+            return False
+    good_frames = sum(all(rle_ok(obj(f).get(k)) for k in ("taod","column","surface")) for f in frames)
+    good = data.get("source") == "DWD ICON-ART-EU" and len(frames)>=21 and good_frames==len(frames)
+    emit("saharastaub", "Saharastaub · ICON-ART-EU", "Vorhersagen", data, data.get("run_utc"),
+         f"{good_frames}/{len(frames)} vollständige Rasterzeiten", "AOD, Luftsäule und bodennahe Konzentration", good, cadence="hourly", delay=18)
+
+
+def add_gbi(items, legacy=None, stamp=None):
+    data = obj(read_json("climate_indices/gbi_era5.json"))
+    if data:
+        rows = arr(data.get("monthly"))
+        complete = False
+        try:
+            from update_era5_gbi import validate_archive
+            validate_archive(data)
+            complete = True
+        except (ImportError, ValueError, TypeError, KeyError):
+            pass
+        items.append(result("gbi", "GBI · ERA5", "Indizes", data.get("latest_month"), data.get("generated_at"),
+            f"{len(rows)} Monatswerte · Referenz 1991–2020", "Copernicus ERA5 · Z500 · flächengewichtet", cadence="monthly", allowed_delay=2, incomplete=not complete))
+    else:
+        items.append(result("gbi", "GBI · ERA5", "Indizes", None, None, "ERA5-Archiv noch nicht aufgebaut", "NOAA-Historie bleibt getrennt verfügbar", cadence="monthly"))
+    if legacy:
+        items.append(result("gbi_noaa", "GBI · NOAA (Historie)", "Indizes", legacy.get("latest_month"), stamp,
+            f"{len(arr(legacy.get('monthly')))} historische Monatswerte", "NOAA/PSL · Referenz 1981–2010 · Quellverzug, nicht mit ERA5 kombiniert", cadence="monthly", allowed_delay=4))
+
+
 def add_climate_indices(items):
     p = read_json("climate_indices/index.json")
     if not p or not p.get("ready"):
         items.append(result("noaa_indices", "Atmosphärische Indizes", "Indizes",
                             None, None, "Indexarchiv fehlt oder unvollständig",
                             "NAO, AO, ENSO, QBO und MJO noch nicht überprüfbar"))
+        add_gbi(items)
         return
     stamp = p.get("generated_at")
     tele = p.get("teleconnections") or {}
@@ -386,16 +553,14 @@ def add_climate_indices(items):
         ("scand", "SCAND · Skandinavisches Muster"),
         ("ea", "EA · Ostatlantisches Muster"),
         ("eawr", "EA/WR · Ostatlantik/Westrussland"),
-        ("gbi", "GBI · Grönland-Blocking-Index"),
     ):
         dataset = europe.get(key) or {}
         rows = dataset.get("monthly") or []
-        note = ("NOAA/PSL NCEP/NCAR-Reanalyse · Quellverzug möglich · "
-                "eigene saisonale Standardisierung (1981–2010)"
-                if key == "gbi" else "NOAA/CPC monatlicher Zirkulationsindex")
+        note = "NOAA/CPC monatlicher Zirkulationsindex"
         items.append(result(key, label, "Indizes",
             dataset.get("latest_month"), stamp, f"{len(rows)} Monatswerte",
             note, cadence="monthly", allowed_delay=4, incomplete=len(rows)<300))
+    add_gbi(items, europe.get("gbi"), stamp)
     mjo=p.get("mjo") or {}
     items.append(result("mjo","MJO · Wheeler–Hendon RMM","Indizes",
         mjo.get("latest_date"),stamp,
@@ -513,9 +678,9 @@ def build(remote=None):
             f"Windtageswerte: {verified_wind_reference_days}/{total_wind_reference_days} · "
             f"vollständige Temperaturjahre: {complete}/30",
             f"Windjahre: {wind_years_label} · "
-            + ("Historische Referenz unvollständig" if complete < 30 or tdays < 366 or udays < 366
+            + ("Historische Referenz unvollständig" if complete < 30 or wind_years != 30 or tdays < 366 or udays < 366
                else "Temperatur- und Zonalwindreferenz vollständig"),
-            allowed_delay=9, incomplete=complete < 30 or tdays < 366 or udays < 366))
+            allowed_delay=9, incomplete=complete < 30 or wind_years != 30 or tdays < 366 or udays < 366))
 
     # DMI index and ERA5 Arctic map archive are independent products.
     # Count only validated observations and complete three-region map days.
@@ -648,6 +813,7 @@ def build(remote=None):
 
     add_climate_indices(items)
     add_external(items, remote or {})
+    add_extended_products(items, remote or {})
     # Ensembles are fetched per chosen location/model in the browser, not as a
     # central saved archive. No representative run date can be honestly asserted.
     items.append(result("ensembles", "Modell-Ensembles", "Vorhersagen", None, None,

@@ -11,6 +11,62 @@ import build_data_status as status
 
 
 class DataStatusTests(unittest.TestCase):
+    def test_new_products_have_explicit_unavailable_states(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(status, "ROOT", Path(tmp)):
+                rows = {row["id"]: row for row in status.build({})["datasets"]}
+        for key in ("hyras_precip", "hyras_tmean", "hyras_tmax", "hyras_tmin",
+                    "era5_land_monthly", "era5_land_running", "gfs_f003", "gfs_weekly",
+                    "satellite_mtg", "strato_ifs", "strato_eps", "strato_gefs", "saharastaub"):
+            self.assertEqual(rows[key]["status"], "unknown", key)
+
+    def test_new_products_use_observation_and_model_times_not_generation(self):
+        now = datetime.now(timezone.utc)
+        day = (now.date() - timedelta(days=2)).isoformat()
+        old = (now - timedelta(hours=48)).isoformat()
+        fresh = (now - timedelta(minutes=45)).isoformat()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "data").mkdir()
+            (root / "data/satellite_wms_times.json").write_text(json.dumps({
+                "generated_at": now.isoformat(), "products": {
+                    key: {"map_ok": True, "latest_verified_time": old if i == 0 else fresh}
+                    for i, key in enumerate(status.MTG_PRODUCTS)}}))
+            regions = [f"Region {i}" for i in range(17)]
+            with patch.object(status, "ROOT", root):
+                rows = {row["id"]: row for row in status.build({
+                    "hyras_tmax": {"parameter": "tmax", "data_through": day, "regions": regions},
+                    "hyras_tmin": {"parameter": "tmin", "data_through": day, "regions": regions[:-1]},
+                })["datasets"]}
+        self.assertEqual(rows["hyras_tmax"]["status"], "current")
+        self.assertEqual(rows["hyras_tmin"]["status"], "incomplete")
+        self.assertEqual(rows["satellite_mtg"]["latest"], old)
+        self.assertEqual(rows["satellite_mtg"]["status"], "delayed")
+
+    def test_ensemble_requires_all_member_ids_and_real_valid_dates(self):
+        now = datetime.now(timezone.utc)
+        cycle = (now - timedelta(hours=6)).replace(minute=0,second=0,microsecond=0)
+        dates = [(cycle.date() + timedelta(days=i)).isoformat() for i in range(36)]
+        data = {"provider": "NOAA GEFS", "level_hpa": 10, "latitude_deg": 60,
+                "member_count": 31, "cycle_utc": cycle.isoformat(), "forecast_horizon_days": 35,
+                "valid_dates": dates, "members": {k: [10.0]*36 for k in ("c00", *(f"p{i:02}" for i in range(1,31)))}}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(status, "ROOT", Path(tmp)):
+            def state():
+                rows=[]
+                status.add_extended_products(rows, {"strato_gefs": data})
+                return next(r for r in rows if r["id"] == "strato_gefs")["status"]
+            self.assertEqual(state(), "current")
+            data["members"]["p31"] = data["members"].pop("p30")
+            self.assertEqual(state(), "incomplete")
+            data["members"]["p30"] = data["members"].pop("p31")
+            data["valid_dates"] = dates[:-1] + [dates[-2]]
+            self.assertEqual(state(), "incomplete")
+
+    def test_grid_requires_exact_decoded_length(self):
+        self.assertTrue(status.grid_complete({"width": 1,"height": 1,"grid": "AAE="}, "grid"))
+        self.assertFalse(status.grid_complete({"width": 1,"height": 1,"grid": "AA=="}, "grid"))
+        self.assertFalse(status.grid_complete({"width": True,"height": 1,"grid": "AAE="}, "grid"))
+
     def test_date_and_month_parsing(self):
         self.assertEqual(status.valid_date("2026-09"), date(2026, 9, 1))
         self.assertEqual(status.valid_date("2026-10-13"), date(2026, 10, 13))
@@ -385,8 +441,9 @@ class DataStatusTests(unittest.TestCase):
                 entries = {x["id"]: x for x in status.build()["datasets"]}
         for key in ("scand", "ea", "eawr"):
             self.assertEqual(entries[key]["status"], "current")
-        self.assertEqual(entries["gbi"]["status"], "delayed")
-        self.assertIn("Quellverzug", entries["gbi"]["note"])
+        self.assertEqual(entries["gbi"]["status"], "unknown")
+        self.assertEqual(entries["gbi_noaa"]["status"], "delayed")
+        self.assertIn("Quellverzug", entries["gbi_noaa"]["note"])
         self.assertNotIn("circulation", entries)
 
     def test_noaa_index_freshness_uses_older_subproduct(self):

@@ -6,6 +6,9 @@ on:
     # A 10:45 UTC run cannot publish five upcoming nights: yesterday's
     # 06 UTC minimum is already in the past; today's 12 UTC cycle is not ready.
     - cron: "45 4,16,22 * * *"
+    # Further opportunity if the 12 UTC run appeared late, or the previous
+    # scheduled job was delayed by GitHub's runner queue.
+    - cron: "47 18 * * *"
   push:
     branches: [main]
     paths:
@@ -126,4 +129,7 @@ jobs:
           if git ls-remote --exit-code origin refs/heads/europe-tmin-lab-data >/dev/null 2>&1; then
             git pull --rebase origin europe-tmin-lab-data
           fi
+          # A delayed build or rebase must not publish a forecast whose first
+          # morning is already over, even if all five images are valid.
+          python "$GITHUB_WORKSPACE/scripts/build_europe_tmin_lab.py" --out "$PWD/data/europe-tmin-lab" --check-pending
           git push origin HEAD:refs/heads/europe-tmin-lab-data

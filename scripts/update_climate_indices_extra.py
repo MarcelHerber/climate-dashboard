@@ -117,10 +117,37 @@ def parse_mjo(text):
         raise ValueError(f"MJO RMM source stale: last valid observation {result[-1][0]}")
     return result
 
+def load_legacy_gbi(fetch, previous):
+    """NOAA history is independent of the ERA5 GBI and other CPC updates."""
+    old=previous.get("europe", {}).get("gbi", {})
+    if not isinstance(old, dict): old={}
+    prior=old.get("monthly", [])
+    valid=(old.get("source_url")==GBI_URL and isinstance(prior, list) and len(prior)>=750
+           and all(isinstance(r, list) and len(r)==2 and isinstance(r[0], str)
+                   and re.fullmatch(r"\d{4}-(?:0[1-9]|1[0-2])", r[0])
+                   and isinstance(r[1], (int,float)) and not isinstance(r[1], bool)
+                   and isfinite(r[1]) for r in prior)
+           and [r[0] for r in prior]==sorted({r[0] for r in prior}))
+    warning=None
+    try:
+        rows=parse_gbi(fetch(GBI_URL))
+        if valid and rows[-1][0]<prior[-1][0]:
+            raise ValueError("NOAA GBI source regressed")
+    except (OSError, RuntimeError, ValueError) as exc:
+        warning="Historischer NOAA GBI nicht abrufbar: " + str(exc)
+        print("WARNUNG:", warning, flush=True)
+        if not valid:
+            return None
+        rows=prior
+    return {"label":"GBI · historisches NOAA-Archiv", "unit":"standardisiert", "source_url":GBI_URL,
+            "method":"Historische NOAA/PSL Z500-Standardisierung 1981–2010; unabhängig von ERA5",
+            "reference":"1981–2010", "monthly":rows, "latest_month":rows[-1][0],
+            "first_month":rows[0][0], "source_warning":warning}
+
 def load_all(fetch, previous=None):
     previous = previous if isinstance(previous, dict) else {}
     tele=parse_tele(fetch(TELE_URL))
-    gbi=parse_gbi(fetch(GBI_URL))
+    gbi=load_legacy_gbi(fetch, previous)
     soi=parse_year_matrix(fetch(SOI_URL),1951,15,"SOI")
     mei=parse_year_matrix(fetch(MEI_URL),1979,15,"MEI.v2")
     q30=parse_year_matrix(fetch(QBO30_URL),1979,90,"QBO30")
@@ -148,8 +175,7 @@ def load_all(fetch, previous=None):
             **{key:series(data,TELE_URL,{"scand":"Skandinavien (SCAND)","ea":"East Atlantic (EA)","eawr":"East Atlantic / West Russia (EA/WR)"}[key],
                 method="CPC rotierte EOF-Amplitude, Referenz 1981–2010")
                for key,data in tele.items()},
-            "gbi":series(gbi,GBI_URL,"Grönland-Blocking (GBI)",
-                method="Eigene Standardisierung des NOAA/PSL 500-hPa-Höhengebietsmittels: monatliche Anomalie / Monats-Standardabweichung 1981–2010")
+            **({"gbi":gbi} if gbi else {})
         },
         "enso_extra":{
             "soi":series(soi,SOI_URL,"Southern Oscillation Index (SOI)",

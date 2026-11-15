@@ -49,4 +49,18 @@ class ExtraIndexTest(unittest.TestCase):
         self.assertEqual(r[-1][0],date.today().isoformat())
         with self.assertRaisesRegex(ValueError, "source stale"):
             parse_mjo("\n".join(lines[:-40]))
+    def test_legacy_gbi_outage_retains_original_archive_and_real_date(self):
+        import update_climate_indices_extra as module
+        self.assertTrue(hasattr(module, 'load_legacy_gbi'), 'GBI independent source fallback missing')
+        rows = [[f'{y:04d}-{m:02d}', 0.1] for y in range(1948, 2026) for m in range(1, 13)]
+        previous = {'europe': {'gbi': {'source_url': module.GBI_URL, 'monthly': rows}}}
+        def failed(url):
+            raise OSError('NOAA feed unavailable')
+        archive = module.load_legacy_gbi(failed, previous)
+        self.assertEqual(archive['monthly'], rows)
+        self.assertEqual(archive['latest_month'], '2025-12')
+        self.assertIn('NOAA', archive['label'])
+        self.assertEqual(archive['reference'], '1981–2010')
+        self.assertIn('unavailable', archive['source_warning'])
+        self.assertIsNone(module.load_legacy_gbi(failed, {}))
 if __name__=="__main__":unittest.main()

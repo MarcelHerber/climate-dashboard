@@ -2,6 +2,8 @@
 import sys
 import tempfile
 import unittest
+import calendar
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,6 +13,93 @@ import update_era5_stratosphere_stage2 as temperature
 
 
 class BackfillBudgetTests(unittest.TestCase):
+    def test_reference_backfills_across_years_with_one_shared_chunk_limit(self):
+        def fake_wind(client, year, month, days, levels=(10,30,50,100)):
+            return {f"{year}-{month:02d}-{day:02d}": {
+                "date": f"{year}-{month:02d}-{day:02d}",
+                **{f"u60_{level}": 20.0 for level in levels}}
+                for day in days}
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.object(wind, "HISTORY", Path(directory)), \
+             patch.object(wind, "retrieve_wind_chunk", side_effect=fake_wind):
+            rows = [{"date": (date(1991,1,1)+timedelta(days=i)).isoformat(),
+                     **{f"u60_{p}": 11.0 for p in (10,30,50,100)}}
+                    for i in range(364)]
+            rows.append({"date":"1991-12-31", "u60_10":-7.25,
+                         "tcap_10":-52.0, "ssw_wind_reversal":1})
+            wind.store_rows(1991, rows)
+            result = wind.backfill_reference_winds(None, max_chunks=2)
+            self.assertEqual(result, (2,False,0))
+            final = wind.read_rows(1991)[-1]
+            self.assertEqual(final["u60_10"],-7.25)
+            self.assertEqual(final["ssw_wind_reversal"],1)
+            self.assertEqual(final["tcap_10"],-52.0)
+            self.assertEqual(final["u60_100"],20.0)
+            self.assertEqual(len(wind.read_rows(1992)),31)
+            self.assertEqual(wind.read_rows(1993),[])
+
+    def test_reference_time_budget_shared_across_years(self):
+        def fake_wind(client, year, month, days):
+            return {f"{year}-{month:02d}-{day:02d}": {
+                "date":f"{year}-{month:02d}-{day:02d}",
+                **{f"u60_{p}": 2.5 for p in (10,30,50,100)}} for day in days}
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.object(wind, "HISTORY", Path(directory)), \
+             patch.object(wind, "retrieve_wind_chunk", side_effect=fake_wind), \
+             patch.object(wind.time, "monotonic", side_effect=[0,10,70]):
+            rows = [{"date":(date(1991,1,1)+timedelta(days=i)).isoformat(),
+                     **{f"u60_{p}": 11.0 for p in (10,30,50,100)}} for i in range(364)]
+            wind.store_rows(1991, rows)
+            self.assertEqual(wind.backfill_reference_winds(None, max_chunks=60, max_minutes=1),
+                             (1,False,0))
+            self.assertEqual(len(wind.read_rows(1991)),365)
+            self.assertEqual(wind.read_rows(1992),[])
+
+    def test_invalid_reference_chunk_is_not_published(self):
+        def malformed(client, year, month, days):
+            return {f"{year}-{month:02d}-{day:02d}": {
+                "date":f"{year}-{month:02d}-{day:02d}",
+                "u60_10":True, "u60_30":4.0, "u60_50":4.0, "u60_100":4.0}
+                for day in days}
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.object(wind, "HISTORY", Path(directory)), \
+             patch.object(wind, "retrieve_wind_chunk", side_effect=malformed):
+            self.assertEqual(wind.backfill_reference_winds(None, max_chunks=2), (0,False,1))
+            self.assertEqual(wind.read_rows(1991),[])
+
+    def test_extended_budget_requires_actual_complete_temperature_reference(self):
+        rows = {year: [{"date": (date(year,1,1)+timedelta(days=i)).isoformat(),
+                        **{f"tcap_{p}": -50.0 for p in (10,30,50,100)}}
+                       for i in range(366 if calendar.isleap(year) else 365)]
+                for year in range(1991,2021)}
+        with patch.object(wind, "read_rows", side_effect=rows.get):
+            self.assertTrue(wind.temperature_reference_ready())
+            rows[2020][-1]["tcap_100"] = True
+            self.assertFalse(wind.temperature_reference_ready())
+
+    def test_duplicate_date_cannot_replace_missing_reference_year(self):
+        rows={year:[{"date":f"{year}-01-01", "u60_10": 5.0}]
+              for year in range(1991,2021)}
+        rows[2020]=[]
+        rows[1991].append(dict(rows[1991][0]))
+        self.assertNotIn("u60_10", wind.reference_climatology(rows))
+
+    def test_push_only_starts_historical_work_for_verified_reference_gap(self):
+        rows = {year: [{"date": (date(year,1,1)+timedelta(days=i)).isoformat(),
+                        **{f"tcap_{p}": -50.0 for p in (10,30,50,100)},
+                        **{f"u60_{p}": 10.0 for p in (10,30,50,100)}}
+                       for i in range(366 if calendar.isleap(year) else 365)]
+                for year in range(1991,2021)}
+        with patch.object(wind, "read_rows", side_effect=rows.get):
+            self.assertEqual(wind.historical_wind_budget("push"),0)
+            self.assertEqual(wind.historical_wind_budget("schedule"),85)
+            del rows[2020][-1]["u60_100"]
+            self.assertEqual(wind.historical_wind_budget("push"),200)
+            self.assertEqual(wind.historical_wind_budget("workflow_dispatch"),200)
+            del rows[2020][-1]["tcap_100"]
+            self.assertEqual(wind.historical_wind_budget("push"),0)
+            self.assertEqual(wind.historical_wind_budget("schedule"),85)
+
     def test_wind_stops_after_one_chunk_when_budget_expires(self):
         calls = []
         def fake_wind(client, year, month, days, levels=(10, 30, 50, 100)):

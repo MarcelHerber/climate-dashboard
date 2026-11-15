@@ -103,7 +103,9 @@ jobs:
           assert len(p["europe"]["scand"]["monthly"]) > 800
           assert len(p["europe"]["ea"]["monthly"]) > 800
           assert len(p["europe"]["eawr"]["monthly"]) > 800
-          assert len(p["europe"]["gbi"]["monthly"]) > 750
+          if "gbi" in p["europe"]:
+              assert len(p["europe"]["gbi"]["monthly"]) >= 750
+              assert p["europe"]["gbi"]["source_url"] == "https://www.psl.noaa.gov/data/correlation/gbi.ncep.day"
           assert len(p["enso_extra"]["soi"]["monthly"]) > 780
           assert len(p["enso_extra"]["mei"]["monthly"]) > 500
           assert len(p["qbo"]["u30"]["monthly"]) > 500
