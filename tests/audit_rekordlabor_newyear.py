@@ -20,6 +20,23 @@ def probe(page,width):
         page.locator('#rlNYDirection').select_option(direction)
         expected=(max if direction=='warm' else min)(r[1] for st in data['stations'] for r in st['records'])
         assert str(expected).replace('.',',').rstrip('0').rstrip(',') in page.locator('#rlNYTable tr').first.inner_text()
+    page.locator('#rlNYState').select_option('Hessen')
+    hessen={st['id'] for st in data['stations'] if st['state']=='Hessen'}
+    assert set(page.locator('#rlNYStation option').evaluate_all('(opts)=>opts.map(o=>o.value)'))==hessen|{'all'}
+    for direction in ('warm','cold'):
+        page.locator('#rlNYDirection').select_option(direction)
+        expected=(max if direction=='warm' else min)(r[1] for st in data['stations'] if st['id'] in hessen for r in st['records'])
+        assert str(expected).replace('.',',').rstrip('0').rstrip(',') in page.locator('#rlNYTable tr').first.inner_text()
+    with page.expect_download(timeout=30000) as download:page.locator('#rlNewYear [data-rl-export="csv"]').click()
+    regional=OUT/f'{width}-hessen.csv';download.value.save_as(str(regional))
+    with regional.open(encoding='utf-8-sig',newline='') as handle:
+        rows=list(csv.DictReader(handle,delimiter=';'))
+    assert rows and all(r['Bundesland']=='Hessen' and r['Stations-ID'] in hessen for r in rows)
+    page.locator('#rlNYStation').select_option(next(iter(hessen)))
+    page.locator('#rlNYState').select_option('Bayern')
+    assert page.locator('#rlNYStation').input_value()=='all'
+    page.locator('#rlNYState').select_option('')
+    assert page.locator('#rlNYStation option').count()==len(data['stations'])+1
     eligible=[st for st in data['stations'] if sum(1991<=r[0]<=2020 for r in st['records'])>=2]
     assert eligible,'No station has two measurements from 1991–2020'
     chosen=next((st for st in eligible if st['id']=='01420'),eligible[0])

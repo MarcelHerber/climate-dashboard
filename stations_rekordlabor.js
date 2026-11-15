@@ -330,32 +330,42 @@ async function initNewYear(){
   message("rlNYMeta","Das geprüfte DWD-Jahreswechselarchiv wird noch aufgebaut. Keine vorläufige Teilrangliste.");return;
  }
  newYearData=doc;
- const select=$("rlNYStation");
- for(const st of doc.stations.slice().sort((a,b)=>a.name.localeCompare(b.name,"de"))){
+ for(const region of [...new Set(doc.stations.map(s=>s.state).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de"))){
+  const op=document.createElement("option");op.value=region;op.textContent=region;$("rlNYState").append(op);
+ }
+ newYearStationOptions();
+ if(state.view==="newyear")newYearRender();
+}
+function newYearStationOptions(){
+ if(!newYearData)return;
+ const select=$("rlNYStation"),previous=select.value,region=$("rlNYState").value;
+ select.replaceChildren();
+ const all=document.createElement("option");all.value="all";all.textContent=(region||"Deutschland")+" · alle verfügbaren DWD-Stationen";select.append(all);
+ for(const st of newYearData.stations.filter(s=>!region||s.state===region).sort((a,b)=>a.name.localeCompare(b.name,"de"))){
   const op=document.createElement("option");op.value=st.id;op.textContent=st.name+" · "+st.id;select.append(op);
  }
- if(state.view==="newyear")newYearRender();
+ select.value=[...select.options].some(o=>o.value===previous)?previous:"all";
 }
 function newYearRender(){
  if(state.view!=="newyear"||!newYearData)return;
- const id=$("rlNYStation").value,period=$("rlNYPeriod").value,direction=$("rlNYDirection").value;
+ const id=$("rlNYStation").value,period=$("rlNYPeriod").value,direction=$("rlNYDirection").value,region=$("rlNYState").value;
  const label=$("rlNYStation").selectedOptions[0].textContent,periodLabel=$("rlNYPeriod").selectedOptions[0].textContent;
- const {ranked,annual}=C.newYearRecords(newYearData.stations,id,period,direction);
- const warm=C.newYearRecords(newYearData.stations,id,period,"warm").ranked[0],cold=C.newYearRecords(newYearData.stations,id,period,"cold").ranked[0];
+ const {ranked,annual}=C.newYearRecords(newYearData.stations,id,period,direction,region);
+ const warm=C.newYearRecords(newYearData.stations,id,period,"warm",region).ranked[0],cold=C.newYearRecords(newYearData.stations,id,period,"cold",region).ranked[0];
  const describe=r=>r?num(r.value)+" °C · "+r.year+(id==="all"?" · "+r.name:""):"—";
  kpis("rlNYKpis",[{value:describe(warm),label:"Wärmster Jahreswechsel"},{value:describe(cold),label:"Kältester Jahreswechsel"},{value:count(ranked.length),label:"Originalmesswerte · "+count(new Set(ranked.map(r=>r.id)).size)+" Stationen"}]);
  const provisional=ranked.filter(r=>r.source==="recent").length;
- message("rlNYMeta","DWD CDC · "+periodLabel+" · "+count(annual.length)+" auswertbare Jahre · "+count(newYearData.stations.length)+" von "+count(newYearData.attempted)+" geprüften Archivstationen mit Neujahrstermin"+(newYearData.unmatched_metadata?" · "+count(newYearData.unmatched_metadata)+" Archive ohne zugeordnete Stationsmetadaten":"")+(provisional?" · "+count(provisional)+" vorläufige Messwerte":""));
+ message("rlNYMeta","DWD CDC · "+(region||"Deutschland")+" · "+periodLabel+" · "+count(annual.length)+" auswertbare Jahre · "+count(newYearData.stations.filter(s=>!region||s.state===region).length)+" Archivstationen mit Neujahrstermin"+(provisional?" · "+count(provisional)+" vorläufige Messwerte":""));
  const annualRank=annual.slice().sort((a,b)=>(direction==="cold"?a.value-b.value:b.value-a.value)||a.year-b.year);
  tableRows("rlNYTable",annualRank.slice(0,30).map((r,i)=>"<tr><td>"+(i+1)+"</td><td>"+r.year+"</td><td>"+esc(r.name)+" ("+esc(r.id)+")</td><td><strong>"+num(r.value)+" °C</strong></td><td>"+(r.source==="recent"?"Vorläufig":"Historisch")+"</td></tr>"));
  const timeline=C.seasonTimeline(annual.map(r=>({year:r.year,value:r.value})),period);
  const linear=id!=="all"?C.seasonLinearTrend(timeline):null;
  $("rlNYTrend").disabled=!linear;
  const stats=linear?new Intl.NumberFormat("de-DE",{maximumFractionDigits:2,signDisplay:"exceptZero"}).format(linear.slopePerDecade)+" °C/Dekade · R² "+(linear.rSquared==null?"—":num(linear.rSquared,3))+" · n="+linear.count:"";
- message("rlNYTrendInfo",id==="all"?"Kein nationaler Trend aus jährlich wechselnder Stationsabdeckung.":stats||"Zu wenige Messjahre");
- const title=id==="all"?(direction==="warm"?"Wärmste":"Kälteste")+" Jahreswechsel · Deutschland":"Jahreswechsel · "+label;
- state.csv=[["Rang","Jahr","Station","Stations-ID","Temperatur (°C)","Messzeitstempel DWD","Bezugszeit","QN","Archiv","Stationsanzahl im Jahr"],...annualRank.map((r,i)=>[i+1,r.year,r.name,r.id,r.value,r.stamp,r.zone,r.quality,r.source,r.count])];
- state.fileName="DWD_Jahreswechsel_"+id+"_"+period+"_"+direction;
+ message("rlNYTrendInfo",id==="all"?"Kein Gebietstrend aus jährlich wechselnder Stationsabdeckung.":stats||"Zu wenige Messjahre");
+ const title=id==="all"?(direction==="warm"?"Wärmste":"Kälteste")+" Jahreswechsel · "+(region||"Deutschland"):"Jahreswechsel · "+label;
+ state.csv=[["Rang","Jahr","Station","Stations-ID","Temperatur (°C)","Messzeitstempel DWD","Bezugszeit","QN","Archiv","Stationsanzahl im Jahr","Bundesland"],...annualRank.map((r,i)=>[i+1,r.year,r.name,r.id,r.value,r.stamp,r.zone,r.quality,r.source,r.count,r.state])];
+ state.fileName="DWD_Jahreswechsel_"+(region?region+"_":"")+id+"_"+period+"_"+direction;
  state.newYearStats=["Neujahrstermin 0:00 MEZ · nominaler DWD-Stundenwert","Zeitraum: "+periodLabel+(stats?" · "+stats:"")];
  if(timeline.length){addChart("rlNYChart",title,timeline.map(r=>String(r.year)),timeline.map(r=>r.value),"°C",direction==="warm"?"#b44e46":"#2d79ad",null,linear&&$("rlNYTrend").checked?linear:null,["1. Januar · 0:00 MEZ (nominal)",periodLabel,...(stats?[stats]:[])]);}
  else destroyChart();
@@ -529,6 +539,7 @@ function initDates(){
 async function init(){
  initDates();
  for(const id of ["rlNYStation","rlNYPeriod","rlNYDirection","rlNYTrend"])$(id).addEventListener("change",newYearRender);
+ $("rlNYState").addEventListener("change",()=>{newYearStationOptions();newYearRender();});
  Object.keys(tabs).forEach(key=>$(tabs[key][0]).addEventListener("click",()=>showTab(key)));
  for(const id of ["rlDay","rlCalMetric","rlCalOrder","rlSeasonMetric","rlSeasonPeriod"])
   $(id).addEventListener("change",render);

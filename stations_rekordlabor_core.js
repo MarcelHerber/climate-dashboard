@@ -294,8 +294,8 @@ function stationWindDifference(before,after){
     !finite(before.direction)||!finite(after.direction))return null;
  return Math.abs(((after.direction-before.direction+540)%360)-180);
 }
-function newYearRecords(stations,id,period,direction){
- const records=stations.filter(s=>id==="all"||s.id===id).flatMap(s=>(s.records||[]).filter(r=>Number.isInteger(r[0])&&finite(r[1])).map(r=>({id:s.id,name:s.name,state:s.state,year:r[0],value:r[1],stamp:r[2],zone:r[3],quality:r[4],source:r[5]})));
+function newYearRecords(stations,id,period,direction,region=""){
+ const records=stations.filter(s=>(!region||s.state===region)&&(id==="all"||s.id===id)).flatMap(s=>(s.records||[]).filter(r=>Number.isInteger(r[0])&&finite(r[1])).map(r=>({id:s.id,name:s.name,state:s.state,year:r[0],value:r[1],stamp:r[2],zone:r[3],quality:r[4],source:r[5]})));
  const chosen=filterSeasonPeriod(records,period);
  const ranked=chosen.slice().sort((a,b)=>(direction==="cold"?a.value-b.value:b.value-a.value)||a.year-b.year||a.id.localeCompare(b.id));
  const yearly=new Map();
