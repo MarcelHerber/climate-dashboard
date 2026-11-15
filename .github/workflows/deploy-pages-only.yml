@@ -19,7 +19,7 @@ on:
   # as soon as the verified monitor has committed them to main. Bot pushes
   # made with GITHUB_TOKEN do not independently trigger the push workflow.
   workflow_run:
-    workflows: ["Build DWD snow-height profiles", "Update satellite ECMWF isobars", "MTG EUMETView live data check", "DWD Boden-Frontenanalyse aktuell", "NOAA WPC aktuelle Frontanalyse (GeoJSON)", "DWD NinJo-GML Frontenquellen (WFS)", "Phase 3 · DWD-Stundenrekorde aus amtlichen Originalarchiven"]
+    workflows: ["Build DWD snow-height profiles", "Update satellite ECMWF isobars", "MTG EUMETView live data check", "DWD Boden-Frontenanalyse aktuell", "NOAA WPC aktuelle Frontanalyse (GeoJSON)", "DWD NinJo-GML Frontenquellen (WFS)", "Phase 3 · DWD-Stundenrekorde aus amtlichen Originalarchiven", "DWD Jahreswechsel · Originalmessungen"]
     types: [completed]
 
 permissions:
@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.name != 'DWD Jahreswechsel · Originalmessungen' || github.event.workflow_run.head_branch == 'main'))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment:

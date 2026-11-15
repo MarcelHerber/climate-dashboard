@@ -1681,6 +1681,7 @@ node --check _site/stations_rekordlabor_core.js
 node --check _site/stations_rekordlabor.js
 node --test tests/test_stations_rekordlabor.cjs
 python -m unittest discover -s tests -p test_rekordlabor_hourly.py -v
+python -m unittest discover -s tests -p test_rekordlabor_newyear.py -v
 python - <<'PY'
 from pathlib import Path
 root=Path("_site")
@@ -1695,7 +1696,7 @@ page.write_text(html,encoding="utf-8")
 mobile=(root/"mobile_navigation.js").read_text(encoding="utf-8")
 assert '["stations_rekordlabor.html","Stationsrekorde & Wetterumschwünge"]' in mobile
 lab=(root/"stations_rekordlabor.html").read_text(encoding="utf-8")
-for key in ("rlCalendar","rlSeasons","rlChanges","rlStation","rlChart","rlChangeChart"):
+for key in ("rlCalendar","rlSeasons","rlChanges","rlNewYear","rlStation","rlChart","rlChangeChart"):
     assert 'id="'+key+'"' in lab,key
 assert (root/"station_jahresanalyse_catalog.json").stat().st_size>1500
 print("Phase 3: Rekordlabor in Desktop und Handy, Quellkatalog, alle drei Module validiert.")
@@ -1738,6 +1739,18 @@ else
   echo "Phase 3: Stundenarchiv noch nicht verifiziert – Wetterumschwünge bleiben ausdrücklich ohne erfundene Ranglisten."
 fi
 
+if [ -s data/rekordlabor/newyear/index.json ]; then
+  mkdir -p _site/data/rekordlabor/newyear
+  cp data/rekordlabor/newyear/index.json _site/data/rekordlabor/newyear/
+  python - <<'PY'
+import json
+from pathlib import Path
+d=json.loads(Path('_site/data/rekordlabor/newyear/index.json').read_text(encoding='utf8'))
+assert d['complete'] and d['schema']==1 and len(d['stations'])>=100
+assert len(d['stations'])+d['without_terms']==d['attempted']
+print('DWD Jahreswechsel:',len(d['stations']),'vollständig gescannte Stationen mit eindeutigem Termin')
+PY
+fi
 echo "Dateien gesamt: $(find _site -type f | wc -l)"
 du -sh _site
 

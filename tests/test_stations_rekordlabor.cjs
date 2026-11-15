@@ -1,6 +1,15 @@
 "use strict";
 const test=require("node:test"),assert=require("node:assert/strict");
 const C=require("../stations_rekordlabor_core.js");
+test("new year ranking, national yearly extremes and station period filter use actual observations",()=>{
+ const data=[{id:"00001",name:"A",records:[[1990,5],[1991,10],[2020,-2]]},{id:"00002",name:"B",records:[[1991,-6],[2020,8],[2021,11]]}];
+ const national=C.newYearRecords(data,"all","1991-2020","warm");
+ assert.deepEqual(national.ranked.map(r=>[r.id,r.year,r.value]),[["00001",1991,10],["00002",2020,8],["00001",2020,-2],["00002",1991,-6]]);
+ assert.deepEqual(national.annual.map(r=>[r.year,r.value,r.count]),[[1991,10,2],[2020,8,2]]);
+ const station=C.newYearRecords(data,"00001","all","cold");
+ assert.deepEqual(station.ranked.map(r=>r.year),[2020,1990,1991]);
+ assert.deepEqual(C.newYearRecords(data,"all","1991-2020","cold").annual.map(r=>r.value),[-6,-2]);
+});
 test("trend reports days per decade and coefficient of determination on observed years",()=>{
  const trend=C.seasonLinearTrend([{year:2000,value:1},{year:2010,value:2},{year:2020,value:4},{year:2030,value:null}]);
  assert.ok(Math.abs(trend.slopePerDecade-1.5)<1e-10);

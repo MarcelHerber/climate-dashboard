@@ -25,7 +25,8 @@
 .rl-station-map .leaflet-control-attribution{font-size:10px}
 @media(max-width:650px){.rl-station-map{height:215px}}
 .rl-meta{color:#45647d;font-size:13px;line-height:1.5;padding:9px 12px;border-left:3px solid #8bb6d6;background:#f4f8fc;margin:13px 0;border-radius:4px;overflow-wrap:anywhere}
-.rl-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:7px 0 15px}
+.rl-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:7px 0 15px}
+@media(max-width:650px){.rl-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .rl-tabs button{border:1px solid #b9d0e1;padding:13px 9px;min-width:0;background:#fff;color:#245477;font-weight:750;font-size:14px;border-radius:10px;cursor:pointer}
 .rl-tabs button[aria-selected=true]{background:#174f7a;border-color:#174f7a;color:#fff}
 .rl-heading h2{font-size:22px;line-height:1.2;margin:0 0 5px}.rl-heading p{margin:0 0 18px;color:var(--rl-muted);font-size:14px}
