@@ -140,22 +140,32 @@ def build(out,mode,first,last,limit=0):
     start=dt.date(first,1,1); end=min(dt.date(last,12,31),dt.date.today()-dt.timedelta(days=1))
     days={(start+dt.timedelta(days=i)).strftime('%Y%m%d'):i for i in range((end-start).days+1)}
     hourly=mode=='hourly'; steps=24 if hourly else 1
+    early_hourly=hourly and last<1991 and not limit
     inv=inventory(mode,min(days),max(days))
     if limit: inv=inv[:limit]
-    if len(inv)<2: raise ValueError('Too few stations')
+    if not inv or (len(inv)<2 and not early_hourly): raise ValueError('Too few stations')
     hot=np.full((len(days)*steps,len(inv)),MISSING,np.int16); cold=hot.copy()
     with ThreadPoolExecutor(max_workers=8) as pool:
         for j,(a,b) in enumerate(pool.map(lambda item:read_station(*item,days,hourly),inv)):
             hot[:,j]=a; cold[:,j]=b
             if j%50==0: print(mode,j+1,'/',len(inv),flush=True)
     stations=[s for s,_ in inv]; active=np.any(hot!=MISSING,axis=0)|np.any(cold!=MISSING,axis=0)
-    if active.sum()<(2 if limit else 80): raise ValueError('Insufficient valid stations')
+    if not early_hourly and active.sum()<(2 if limit else 80): raise ValueError('Insufficient valid stations')
     lat=np.radians([s['lat'] for s in stations]); lon=np.radians([s['lon'] for s in stations]); height=np.array([s['height'] for s in stations])
     distances=6371*2*np.arcsin(np.sqrt(np.clip(np.sin((lat[:,None]-lat)/2)**2+np.cos(lat[:,None])*np.cos(lat)*np.sin((lon[:,None]-lon)/2)**2,0,1)))
     differences=np.abs(height[:,None]-height)
     for year in range(first,end.year+1):
         dates=[d for d in days if d.startswith(str(year))]; lo=days[dates[0]]*steps; hi=(days[dates[-1]]+1)*steps
         year_active=np.any(hot[lo:hi]!=MISSING,axis=0)|np.any(cold[lo:hi]!=MISSING,axis=0)
+        # Older hourly records can have no documented overlapping UTC measurements.
+        # Record this explicitly, without putting an empty year in the public index.
+        if hourly and year<1991 and not limit and not np.any(np.sum(hot[lo:hi]!=MISSING,axis=1)>=2):
+            p=out/mode/str(year)/'unavailable.json'
+            if (p.parent/'ready.json').exists(): raise ValueError(f'Previously published data missing for {year}')
+            p.parent.mkdir(parents=True,exist_ok=True)
+            p.write_text(json.dumps(dict(year=year,stations=int(year_active.sum()),reason='no_simultaneous_documented_utc_pair')))
+            print('No simultaneous documented UTC pairs in',year,flush=True)
+            continue
         national_days=0
         for region in ['DE']+STATES:
             results={}; region_idx=np.array([i for i,s in enumerate(stations) if year_active[i] and (region=='DE' or region==s['state'])],dtype=int)
@@ -182,7 +192,9 @@ def build(out,mode,first,last,limit=0):
         if not national_days: raise ValueError(f'No valid national pairs for {mode} {year}')
         if not limit:
             p=out/mode/str(year)/'ready.json'; p.write_text(json.dumps(dict(start=dates[0],end=dates[-1],stations=int(year_active.sum()),days=national_days,year=year)))
+            (p.parent/'unavailable.json').unlink(missing_ok=True)
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(); p.add_argument('--out',type=Path,required=True); p.add_argument('--mode',choices=['hourly','daily'],required=True); p.add_argument('--first',type=int,required=True); p.add_argument('--last',type=int,required=True); p.add_argument('--limit',type=int,default=0)
     a=p.parse_args(); build(a.out,a.mode,a.first,a.last,a.limit)
+

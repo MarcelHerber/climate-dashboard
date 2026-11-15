@@ -15,7 +15,7 @@ ROOT = Path('data/rekordlabor/contrast')
 
 
 class Backfill(unittest.TestCase):
-    def fixture(self, years, first='', last='', fail='', weekday='7'):
+    def fixture(self, years, first='', last='', fail='', weekday='7', old_years=range(1961,1991), unavailable=()):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         base = Path(tmp.name)
@@ -30,8 +30,9 @@ class Backfill(unittest.TestCase):
         git('config', 'user.name', 'Fixture')
         git('config', 'user.email', 'fixture@example.invalid')
         for mode in ('hourly', 'daily'):
-            for year in years:
-                p = work / ROOT / mode / str(year) / 'ready.json'
+            for year in sorted(set(years) | set(old_years)):
+                name = 'unavailable.json' if mode == 'hourly' and year in unavailable else 'ready.json'
+                p = work / ROOT / mode / str(year) / name
                 p.parent.mkdir(parents=True, exist_ok=True)
                 p.write_text(json.dumps({'year': year}))
         git('add', '.')
@@ -75,7 +76,7 @@ for year in range(first,last+1):
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(calls,['hourly 1996 2000','daily 1996 2000','hourly 2026 2026','daily 2026 2026'])
         self.assertEqual(commits,2)
-        self.assertEqual([x['year'] for x in index['hourly']],list(range(1991,2027)))
+        self.assertEqual([x['year'] for x in index['hourly']],list(range(1961,2027)))
 
     def test_multiple_blocks_and_checkpoint_on_failure(self):
         result,calls,commits,index = self.fixture([*range(1991,1996), *range(2006,2027)], fail='daily 2001')
@@ -91,7 +92,7 @@ for year in range(first,last+1):
         expected = ['1996 2000','2001 2005','2006 2010','2011 2015','2016 2020','2021 2024','2026 2026']
         self.assertEqual(calls,[f'{mode} {years}' for years in expected for mode in ('hourly','daily')])
         self.assertEqual(commits,7)
-        self.assertEqual([x['year'] for x in index['daily']],list(range(1991,2027)))
+        self.assertEqual([x['year'] for x in index['daily']],list(range(1961,2027)))
 
     def test_bootstrap_recent_years_only_once(self):
         result,calls,commits,_ = self.fixture(range(1991,2025))
@@ -121,6 +122,21 @@ for year in range(first,last+1):
         result,calls,commits,_ = self.fixture(range(1991,2027))
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(calls,['hourly 2026 2026','daily 2026 2026'])
+        self.assertEqual(commits,1)
+
+    def test_add_historical_years_and_skip_documented_unavailable_hours(self):
+        result,calls,commits,index = self.fixture(range(1991,2027),old_years=range(1961,1986),unavailable=(1961,))
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(calls,['hourly 1986 1990','daily 1986 1990','hourly 2026 2026','daily 2026 2026'])
+        self.assertEqual(commits,2)
+        self.assertEqual([x['year'] for x in index['daily']],list(range(1961,2027)))
+        self.assertEqual([x['year'] for x in index['hourly']],list(range(1962,2027)))
+        self.assertEqual([x['year'] for x in index['hourlyUnavailable']],[1961])
+
+    def test_manual_old_range_is_accepted(self):
+        result,calls,commits,_ = self.fixture([2025,2026],first='1981',last='1985')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(calls,['hourly 1981 1985','daily 1981 1985'])
         self.assertEqual(commits,1)
 
 

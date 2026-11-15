@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       first:
-        description: Erstes Jahr (leer = alle Archivlücken ab 1991)
+        description: Erstes Jahr (leer = alle Archivlücken ab 1961)
         required: false
         type: string
       last:
@@ -80,7 +80,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           ready() {
-            [ -f "$root/hourly/$1/ready.json" ] && [ -f "$root/daily/$1/ready.json" ]
+            [ -f "$root/daily/$1/ready.json" ] && { [ -f "$root/hourly/$1/ready.json" ] || { (( $1 < 1991 )) && [ -f "$root/hourly/$1/unavailable.json" ]; }; }
           }
           run_batch() {
             local first=$1 last=$2
@@ -94,6 +94,7 @@ jobs:
           from pathlib import Path
           root=Path('data/rekordlabor/contrast')
           result={m:[json.loads(p.read_text()) for p in sorted((root/m).glob('*/ready.json'))] for m in ('hourly','daily')}
+          result['hourlyUnavailable']=[json.loads(p.read_text()) for p in sorted((root/'hourly').glob('*/unavailable.json')) if not (p.parent/'ready.json').exists()]
           (root/'index.json').write_text(json.dumps(result,indent=2))
           PY
             git add "$root"
@@ -114,12 +115,12 @@ jobs:
           last=${INPUT_LAST:-}
           if [[ -n "$first" || -n "$last" ]]; then
             if [[ -z "$first" ]]; then
-              for y in $(seq 1991 "$current"); do
+              for y in $(seq 1961 "$current"); do
                 if ! ready "$y"; then first=$y; break; fi
               done
               first=${first:-$current}
             fi
-            [[ "$first" =~ ^[0-9]{4}$ ]] && ((first>=1991 && first<=current)) || exit 1
+            [[ "$first" =~ ^[0-9]{4}$ ]] && ((first>=1961 && first<=current)) || exit 1
             last=${last:-$((first+4))}
             [[ "$last" =~ ^[0-9]{4}$ ]] && ((last>=first)) || exit 1
             ((last<=current)) || last=$current
@@ -141,7 +142,7 @@ jobs:
             run_batch "$current" "$current"
             refreshed_current=1
           fi
-          y=1991
+          y=1961
           while ((y<current)); do
             if ready "$y"; then
               y=$((y+1))

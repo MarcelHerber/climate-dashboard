@@ -1,9 +1,57 @@
 import unittest
+import tempfile
+import json
+import io
+from zipfile import ZipFile
+from pathlib import Path
+from unittest.mock import patch
 import numpy as np
-from scripts.build_temperature_contrast import scan, MISSING
+from scripts.build_temperature_contrast import build, read_station, scan, MISSING
 
 
 class ContrastTests(unittest.TestCase):
+    def test_historical_time_reference_metadata_is_applied_per_day(self):
+        data=io.BytesIO()
+        with ZipFile(data,'w') as z:
+            z.writestr('Metadaten_Parameter_TU.txt','Header\n00001;1961-01-01;1961-01-01;;TT_TU;;;;Stundenwerte in MEZ\n00001;1961-01-02;1961-01-02;;TT_TU;;;;Stundenwerte in UTC\n00001;1961-01-03;;;TT_TU;;;;Stundenwerte in MEZ\n')
+            z.writestr('produkt_tu_stunde.txt','STATIONS_ID;MESS_DATUM;QN_9;TT_TU\n1;1961010100;10;1.0\n1;1961010200;10;2.0\n1;1961010300;10;3.0\n')
+        with patch('scripts.build_temperature_contrast.fetch',return_value=data.getvalue()):
+            a,b=read_station({'id':'00001'},['test'],{'19610101':0,'19610102':1,'19610103':2},True)
+        self.assertEqual(list(a[::24]),[MISSING,20,MISSING])
+        np.testing.assert_array_equal(a,b)
+    def test_early_hourly_year_without_simultaneous_pair_is_not_published(self):
+        inv=[(dict(id=str(i),name=str(i),lat=50.,lon=8.+i,height=100.,state='Hessen'),[]) for i in range(2)]
+        def read(station, urls, days, hourly):
+            a=np.full(len(days)*24,MISSING,np.int16)
+            a[int(station['id'])]=100
+            return a,a.copy()
+        with tempfile.TemporaryDirectory() as tmp, patch('scripts.build_temperature_contrast.inventory',return_value=inv), patch('scripts.build_temperature_contrast.read_station',side_effect=read):
+            build(Path(tmp),'hourly',1961,1961)
+            p=Path(tmp)/'hourly'/'1961'
+            self.assertFalse((p/'ready.json').exists())
+            self.assertEqual(json.loads((p/'unavailable.json').read_text())['year'],1961)
+
+    def test_early_single_station_is_unavailable_not_a_batch_failure(self):
+        inv=[(dict(id='1',name='1',lat=50.,lon=8.,height=100.,state='Hessen'),[])]
+        def read(station, urls, days, hourly):
+            a=np.full(len(days)*24,100,np.int16)
+            return a,a.copy()
+        with tempfile.TemporaryDirectory() as tmp, patch('scripts.build_temperature_contrast.inventory',return_value=inv), patch('scripts.build_temperature_contrast.read_station',side_effect=read):
+            build(Path(tmp),'hourly',1961,1961)
+            self.assertTrue((Path(tmp)/'hourly'/'1961'/'unavailable.json').exists())
+
+    def test_early_hourly_year_with_sparse_valid_pair_is_published(self):
+        inv=[(dict(id=str(i),name=str(i),lat=50.,lon=8.+i,height=100.,state='Hessen'),[]) for i in range(2)]
+        def read(station, urls, days, hourly):
+            a=np.full(len(days)*24,MISSING,np.int16)
+            a[1]=100+int(station['id'])*30
+            return a,a.copy()
+        with tempfile.TemporaryDirectory() as tmp, patch('scripts.build_temperature_contrast.inventory',return_value=inv), patch('scripts.build_temperature_contrast.read_station',side_effect=read):
+            build(Path(tmp),'hourly',1986,1986)
+            p=Path(tmp)/'hourly'/'1986'
+            self.assertEqual(json.loads((p/'ready.json').read_text())['days'],1)
+            self.assertFalse((p/'unavailable.json').exists())
+
     def test_exact_constraints_and_simultaneity(self):
         hot = np.array([[200, 0, 130], [100, -100, 120]], dtype=np.int16)
         cold = hot.copy()
@@ -42,3 +90,4 @@ class ContrastTests(unittest.TestCase):
         cold=np.array([[MISSING,20]],dtype=np.int16)
         d=np.zeros((2,2))
         self.assertEqual(scan(hot,cold,d,d,np.array([25.]),np.array([200.]),1)[0,0,0,0],-20)
+
