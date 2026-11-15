@@ -289,7 +289,7 @@ def add_external(items, remote):
             f"{fast.get('station_count')} SYNOP/CDC-zugeordnete Stationen · "
             f"{fast.get('source_file_count', 0)} DWD-Dateien",
             "Ergänzung zu den DWD-10-Minuten-Messungen · aktuelle SYNOP-Veröffentlichung",
-            cadence="hourly", allowed_delay=3))
+            cadence="hourly", allowed_delay=.75))
     else:
         items.append(result("fast_live", "DWD SYNOP Fast Live", "Stationen",
             None, None, "Fast-Live-Datenbranch ohne prüfbaren Stationsbestand",
@@ -318,8 +318,8 @@ def add_external(items, remote):
     # Report only frames that the OPERA ingest actually downloaded and verified.
     opera = remote.get("opera")
     for kind, label, max_delay in (
-        ("dbzh", "OPERA Europa · Radarreflektivität", 1.0),
-        ("rate", "OPERA Europa · Niederschlagsrate", 1.25),
+        ("dbzh", "OPERA Europa · Radarreflektivität", .75),
+        ("rate", "OPERA Europa · Niederschlagsrate", 1.0),
     ):
         product = ((opera.get("products") or {}).get(kind) or {}) if isinstance(opera, dict) else {}
         frames = product.get("frames") or []

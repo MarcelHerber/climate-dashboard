@@ -86,7 +86,7 @@ footer{max-width:1260px;margin:auto;padding:0 20px 30px;color:var(--muted);font-
 <p class="footnote">Zeitangaben zur Archiv-Erstellung in UTC; Messdaten stammen aus den angegebenen Quellarchiven. Eine aktuelle Tagesmeldung belegt nicht die historische Vollständigkeit. Monatsdaten werden getrennt von Tagesdaten bewertet. Der verfügbare Messzeitraum ist keine Prognose.</p>
 </section>
 </main>
-<footer>Climate Dashboard · Datenstand und Vollständigkeit werden bei der Website-Veröffentlichung neu ermittelt. Fehlende Messwerte werden nicht künstlich ergänzt.</footer>
+<footer>Climate Dashboard · Archivstatus wird bei der Website-Veröffentlichung neu ermittelt. SYNOP und OPERA werden zusätzlich direkt aus ihren öffentlichen Datenarchiven aktualisiert. Fehlende Messwerte werden nicht künstlich ergänzt.</footer>
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
@@ -138,6 +138,38 @@ function refreshAge(entry,now=new Date()){
  const expired=entry.expires_utc&&now>=new Date(entry.expires_utc);
  return {...entry,lag,status:expired||age>entry.allowed_delay?"delayed":entry.incomplete?"incomplete":"current"};
 }
+function mergeLiveMetadata(rows,fast,radar,now=new Date()){
+ const valid=v=>typeof v==="string"&&v.includes("T")&&Number.isFinite(Date.parse(v))&&Date.parse(v)<=now.getTime();
+ const newer=(entry,v)=>valid(v)&&(!valid(entry.latest)||Date.parse(v)>=Date.parse(entry.latest));
+ return rows.map(entry=>{
+  if(entry.id==="fast_live"&&Number.isInteger(fast?.station_count)&&fast.station_count>0&&newer(entry,fast.latest_measurement_utc)){
+   return refreshAge({...entry,latest:fast.latest_measurement_utc,updated:valid(fast.generated_at_utc)?fast.generated_at_utc:entry.updated,
+    coverage:`${fast.station_count} SYNOP/CDC-zugeordnete Stationen · ${fast.source_file_count??0} DWD-Dateien`,
+    cadence:"hourly",allowed_delay:.75,status:"current",incomplete:false},now);
+  }
+  const kind=entry.id==="opera_dbzh"?"dbzh":entry.id==="opera_rate"?"rate":null;
+  const frames=kind&&radar?.products?.[kind]?.frames;
+  if(Array.isArray(frames)){
+   const verified=[...new Set(frames.map(f=>f?.utc).filter(valid))].sort((a,b)=>Date.parse(a)-Date.parse(b));
+   const last=verified.at(-1);
+   if(newer(entry,last))return refreshAge({...entry,latest:last,updated:valid(radar.updated_utc)?radar.updated_utc:entry.updated,
+    coverage:`${verified.length} überprüfte Echtzeitbilder`,cadence:"hourly",allowed_delay:kind==="dbzh"?.75:1,status:"current",incomplete:verified.length<4},now);
+  }
+  return entry;
+ });
+}
+let liveRefreshRunning=false;
+async function refreshLiveRows(){
+ if(liveRefreshRunning||!items.length)return;
+ liveRefreshRunning=true;
+ try{
+  const base="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/";
+  const read=async path=>{try{const r=await fetch(base+path,{cache:"no-store",signal:AbortSignal.timeout(12000)});return r.ok?await r.json():null;}catch{return null;}};
+  const [fast,radar]=await Promise.all([read("fast-live/fast_state.json"),read("opera-radar-data/data/opera/current.json")]);
+  items=mergeLiveMetadata(items,fast,radar);
+  refreshAges();
+ }finally{liveRefreshRunning=false;}
+}
 function refreshAges(){
  items=items.map(entry=>refreshAge(entry));
  for(const key of ["current","incomplete","delayed","unknown"]){
@@ -184,6 +216,7 @@ async function refresh(){
   if(groups.includes(original))select.value=original;
   $("updated").textContent="Metadaten erstellt: "+formatted(payload.created_utc)+" · "+items.length+" Produkte";
   refreshAges();
+  await refreshLiveRows();
  }catch(e){
   items=[];
   $("updated").textContent="Datenstände derzeit nicht verfügbar: "+e.message;
@@ -194,6 +227,7 @@ async function refresh(){
 for(const id of ["filterGroup","filterStatus","filterSearch"])$(id).addEventListener(id==="filterSearch"?"input":"change",render);
 $("refresh").addEventListener("click",refresh);
 setInterval(()=>{if(items.length)refreshAges();},60000);
+setInterval(refreshLiveRows,300000);
 refresh();
 </script>
 </body>
