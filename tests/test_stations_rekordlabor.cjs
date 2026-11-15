@@ -1,6 +1,13 @@
 "use strict";
 const test=require("node:test"),assert=require("node:assert/strict");
 const C=require("../stations_rekordlabor_core.js");
+test("new year state filter excludes stations outside the selected state before ranking yearly extremes",()=>{
+ const data=[{id:"00001",name:"A",state:"Hessen",records:[[1991,3],[2020,-2]]},{id:"00002",name:"B",state:"Hessen",records:[[1991,5],[2020,-4]]},{id:"00003",name:"C",state:"Bayern",records:[[1991,20],[2020,-25]]}];
+ assert.deepEqual(C.newYearRecords(data,"all","1991-2020","warm","Hessen").annual.map(r=>[r.id,r.value,r.count]),[["00002",5,2],["00001",-2,2]]);
+ assert.deepEqual(C.newYearRecords(data,"all","1991-2020","cold","Hessen").annual.map(r=>r.value),[3,-4]);
+ assert.equal(C.newYearRecords(data,"00003","all","cold","Hessen").ranked.length,0);
+ assert.deepEqual(C.newYearRecords(data,"all","all","warm","").annual.map(r=>r.value),[20,-2]);
+});
 test("new year ranking, national yearly extremes and station period filter use actual observations",()=>{
  const data=[{id:"00001",name:"A",records:[[1990,5],[1991,10],[2020,-2]]},{id:"00002",name:"B",records:[[1991,-6],[2020,8],[2021,11]]}];
  const national=C.newYearRecords(data,"all","1991-2020","warm");
