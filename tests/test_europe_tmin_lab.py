@@ -3,14 +3,16 @@ import io
 import sys
 import unittest
 import zipfile
+from tempfile import TemporaryDirectory
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import build_europe_tmin_lab as app
 
 
-def synthetic_kmz():
+def synthetic_kmz(station_count=110):
     times=["2026-10-23T18:00:00Z","2026-10-24T00:00:00Z",
            "2026-10-24T06:00:00Z","2026-10-25T06:00:00Z",
            "2026-10-26T06:00:00Z","2026-10-27T06:00:00Z",
@@ -20,7 +22,7 @@ def synthetic_kmz():
     # More than 100 actual station-shaped records; only those near reference
     # cities may be assigned to their labels. No interpolation is permitted.
     city_points=app.CITIES[:25]
-    for i in range(110):
+    for i in range(station_count):
         city,lon,lat=city_points[i % len(city_points)]
         sid=f"S{i:04d}"
         offset=i//len(city_points)
@@ -44,6 +46,84 @@ def synthetic_kmz():
 
 
 class EuropeTminTests(unittest.TestCase):
+    def test_choose_cycle_never_queries_future_or_elapsed_runs(self):
+        now=datetime(2026,10,24,10,tzinfo=timezone.utc)
+        with patch.object(app,"request_bytes",return_value=b"BZhready") as fetch:
+            with self.assertRaises(RuntimeError):
+                app.choose_cycle(now)
+            fetch.assert_not_called()
+
+    def test_wait_for_cycle_retries_transient_missing_final_forecast(self):
+        now=datetime(2026,10,24,16,tzinfo=timezone.utc)
+        with patch.object(app,"datetime",wraps=datetime) as clock, \
+                patch.object(app,"request_bytes",side_effect=[RuntimeError("HTTP 404"),b"BZhready"]) as fetch, \
+                patch.object(app.time,"sleep") as sleep:
+            clock.now.return_value=now
+            self.assertEqual(app.wait_for_cycle(),datetime(2026,10,24,12,tzinfo=timezone.utc))
+            self.assertEqual(fetch.call_count,2)
+            sleep.assert_called_once_with(600)
+
+    def test_wait_for_cycle_stops_after_three_attempts(self):
+        now=datetime(2026,10,24,16,tzinfo=timezone.utc)
+        with patch.object(app,"datetime",wraps=datetime) as clock, \
+                patch.object(app,"request_bytes",side_effect=RuntimeError("HTTP 404")) as fetch, \
+                patch.object(app.time,"sleep") as sleep:
+            clock.now.return_value=now
+            with self.assertRaises(RuntimeError):
+                app.wait_for_cycle()
+            self.assertEqual(fetch.call_count,3)
+            self.assertEqual(sleep.call_count,2)
+
+    def test_wait_for_cycle_stops_when_first_morning_elapses(self):
+        early=datetime(2026,10,24,5,55,tzinfo=timezone.utc)
+        late=datetime(2026,10,24,6,5,tzinfo=timezone.utc)
+        with patch.object(app,"datetime",wraps=datetime) as clock, \
+                patch.object(app,"request_bytes",side_effect=RuntimeError("HTTP 404")) as fetch, \
+                patch.object(app.time,"sleep",side_effect=lambda _: setattr(clock.now,"return_value",late)):
+            clock.now.return_value=early
+            with self.assertRaises(RuntimeError):
+                app.wait_for_cycle()
+            self.assertEqual(fetch.call_count,1)
+
+    def test_first_night_cutoff_uses_exact_06utc_morning(self):
+        cycle=datetime(2026,10,23,12,tzinfo=timezone.utc)
+        self.assertTrue(app.first_night_pending(cycle,datetime(2026,10,24,5,59,59,tzinfo=timezone.utc)))
+        self.assertFalse(app.first_night_pending(cycle,datetime(2026,10,24,6,tzinfo=timezone.utc)))
+
+    def test_build_does_not_publish_when_first_night_elapsed_during_render(self):
+        from PIL import Image
+        cycle=datetime(2026,10,23,12,tzinfo=timezone.utc)
+        early=datetime(2026,10,24,5,50,tzinfo=timezone.utc)
+        late=datetime(2026,10,24,6,tzinfo=timezone.utc)
+        with TemporaryDirectory() as root, \
+                patch.object(app,"datetime",wraps=datetime) as clock, \
+                patch.object(app,"wait_for_cycle",return_value=cycle), \
+                patch.object(app,"request_bytes",return_value=synthetic_kmz(1010)):
+            clock.now.return_value=early
+            out=Path(root)
+            (out/"current.json").write_text("old-manifest",encoding="utf-8")
+            def render_icon(run, day, directory):
+                names=(f"map{day}.png",f"raw{day}.png")
+                for name in names:
+                    Image.new("RGBA",(2,2),(0,0,0,255)).save(directory/name)
+                clock.now.return_value=late
+                return *names,1.0,[24*day+12,24*day+18]
+            with patch.object(app,"icon_day",side_effect=render_icon) as render:
+                with self.assertRaisesRegex(RuntimeError,"Erste ICON-EU-Nacht.*bereits verstrichen"):
+                    app.build(out,2)
+                self.assertEqual(render.call_count,5)
+            self.assertEqual((out/"current.json").read_text(encoding="utf-8"),"old-manifest")
+
+    def test_manifest_prepublication_guard_rejects_elapsed_night(self):
+        with TemporaryDirectory() as root, patch.object(app,"datetime",wraps=datetime) as clock:
+            out=Path(root)
+            (out/"current.json").write_text('{"icon_cycle":"2026102312"}',encoding="utf-8")
+            clock.now.return_value=datetime(2026,10,24,5,59,59,tzinfo=timezone.utc)
+            app.validate_pending_manifest(out)
+            clock.now.return_value=datetime(2026,10,24,6,tzinfo=timezone.utc)
+            with self.assertRaisesRegex(RuntimeError,"Erste ICON-EU-Nacht.*bereits verstrichen"):
+                app.validate_pending_manifest(out)
+
     def test_encoded_temperature_raw_raster(self):
         import numpy as np
         original=np.array([-35.5,-10.0,0.0,23.7,44.9,np.nan],dtype=np.float32)

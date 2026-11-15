@@ -1274,6 +1274,24 @@ if [[ -s climate_indices/index.json ]]; then
   cp climate_indices/index.json _site/climate_indices/index.json
 fi
 
+# Only publish the independent ERA5 GBI once its homogeneous 30-year
+# reference and continuous monthly archive have actually been verified.
+if [[ -s climate_indices/gbi_era5.json ]]; then
+  if python - <<'PY'
+import json, sys
+from pathlib import Path
+sys.path.insert(0, "scripts")
+from update_era5_gbi import validate_archive
+validate_archive(json.loads(Path("climate_indices/gbi_era5.json").read_text(encoding="utf-8")))
+PY
+  then
+    mkdir -p _site/climate_indices
+    cp climate_indices/gbi_era5.json _site/climate_indices/gbi_era5.json
+  else
+    echo "WARNUNG: Ungültiger ERA5 GBI; nicht in Pages übernommen."
+  fi
+fi
+
 # Only publish CPC forecasts when the official CSV ingestion passed its checks.
 # The browser must show an explicit unavailable state until a verified run exists.
 if [[ -s data/nao_ao_forecast/latest.json ]]; then

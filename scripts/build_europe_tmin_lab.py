@@ -94,20 +94,24 @@ def icon_url(cycle,hour):
     return f"{ICON_ROOT}/{cycle.hour:02d}/tmin_2m/{basename}"
 
 
-def choose_cycle(now):
+def first_night_pending(cycle, now):
+    """A 12 UTC cycle's first overnight minimum ends at +18h (06 UTC)."""
+    return cycle <= now < cycle + timedelta(hours=18)
+
+
+def eligible_cycles(now):
     # 12 UTC runs have five complete 18-06 UTC nights through +114h.
     midnight=now.replace(hour=0,minute=0,second=0,microsecond=0)
-    for lag in range(3):
+    for lag in range(2):
         candidate=midnight+timedelta(hours=12)-timedelta(days=lag)
-        first_morning=(candidate+timedelta(days=1)).date()
-        # A valid TN forecast for an already elapsed 06 UTC morning is not
-        # available in the latest MOSMIX-L update. Never splice old ICON
-        # nights with fresh MOS forecasts or publish incomplete five-night data.
-        if first_morning<now.date() or (
-            first_morning==now.date() and now.hour>=6
-        ):
-            LOG.info("Skipping stale ICON 12 UTC cycle %s; first night already elapsed",candidate)
-            continue
+        if first_night_pending(candidate,now):
+            yield candidate
+
+
+def choose_cycle(now):
+    # Never probe an uninitialised future run, or choose a past morning
+    # for which the latest MOSMIX-L no longer has the identical TN window.
+    for candidate in eligible_cycles(now):
         try:
             raw=request_bytes(icon_url(candidate,114),retries=1)
             if not raw.startswith(b"BZh"):continue
@@ -116,6 +120,40 @@ def choose_cycle(now):
         except RuntimeError as ex:
             LOG.info("ICON-EU run not yet ready (%s): %s",candidate,ex)
     raise RuntimeError("Kein geeigneter ICON-EU-Hauptlauf mit Nachttemperaturminimum bis +114 h")
+
+
+def wait_for_cycle():
+    """Bounded retry for a delayed +114h source file, not for yesterday's run."""
+    for attempt in range(3):
+        now=datetime.now(timezone.utc)
+        if not any(eligible_cycles(now)):
+            raise RuntimeError("Kein bereits initialisierter ICON-EU-12-UTC-Lauf mit fünf ausstehenden Nächten")
+        try:
+            cycle=choose_cycle(now)
+        except RuntimeError:
+            if attempt==2:
+                raise
+            LOG.info("ICON-EU noch nicht vollständig; neuer Versuch in zehn Minuten (%d/3)",attempt+2)
+            time.sleep(600)
+            continue
+        require_pending_first_night(cycle)
+        return cycle
+
+
+def require_pending_first_night(cycle):
+    now=datetime.now(timezone.utc)
+    if not first_night_pending(cycle,now):
+        raise RuntimeError(f"Erste ICON-EU-Nacht {cycle+timedelta(hours=18)} bereits verstrichen oder Lauf noch nicht initialisiert")
+    return now
+
+
+def validate_pending_manifest(out):
+    """Recheck immediately before pushing the complete verified data branch."""
+    manifest=json.loads((out/"current.json").read_text(encoding="utf-8"))
+    cycle=datetime.strptime(manifest["icon_cycle"],"%Y%m%d%H").replace(tzinfo=timezone.utc)
+    if cycle.hour!=12:
+        raise RuntimeError("Unerwarteter ICON-EU-Zyklus im Manifest")
+    require_pending_first_night(cycle)
 
 
 def parse_icon(payload,expected_end):
@@ -305,13 +343,12 @@ def daily_mos_values(kmz,dates,include_catalog=False):
 
 def build(out,workers):
     out.mkdir(parents=True,exist_ok=True)
-    now=datetime.now(timezone.utc)
-    cycle=choose_cycle(now)
+    cycle=wait_for_cycle()
     dates=[(cycle+timedelta(days=i+1)).date().isoformat() for i in range(5)]
     mos_payload=request_bytes(MOS_URL)
     if not mos_payload.startswith(b"PK"):raise RuntimeError("MOSMIX KMZ ist kein ZIP")
     issue,stations,catalog=daily_mos_values(mos_payload,dates,include_catalog=True)
-    mos_age=now-datetime.fromisoformat(issue.replace("Z","+00:00"))
+    mos_age=require_pending_first_night(cycle)-datetime.fromisoformat(issue.replace("Z","+00:00"))
     if not timedelta(0)<=mos_age<=timedelta(hours=30):
         raise RuntimeError(f"MOSMIX-L-Ausgabe veraltet: {issue}")
     # Compact, real MOSMIX-TN catalogue for private editing/search.
@@ -353,7 +390,6 @@ def build(out,workers):
     manifest={
         "schema":2,"product":"Europa Tmin · MOSMIX-L + ICON-EU",
         "icon_cycle":cycle.strftime("%Y%m%d%H"),"mos_issue_utc":issue,
-        "built_utc":now.isoformat().replace("+00:00","Z"),
         "timezone":"UTC","daily_window":"18:00-06:00 UTC",
         "forecast_kind":"tmin",
         "night_date_basis":"date is following 06 UTC morning",
@@ -376,6 +412,7 @@ def build(out,workers):
             fp=out/day[key]
             with Image.open(fp) as img:
                 img.verify()
+    manifest["built_utc"]=require_pending_first_night(cycle).isoformat().replace("+00:00","Z")
     tmp=out/"current.json.tmp"
     tmp.write_text(json.dumps(manifest,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
     tmp.replace(out/"current.json")
@@ -386,9 +423,13 @@ def main():
     p=argparse.ArgumentParser()
     p.add_argument("--out",type=Path,required=True)
     p.add_argument("--max-workers",type=int,default=2)
+    p.add_argument("--check-pending",action="store_true",help="check current manifest's first-night cutoff before publication")
     a=p.parse_args()
     logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
-    build(a.out,max(1,min(a.max_workers,3)))
+    if a.check_pending:
+        validate_pending_manifest(a.out)
+    else:
+        build(a.out,max(1,min(a.max_workers,3)))
 
 
 if __name__=="__main__":

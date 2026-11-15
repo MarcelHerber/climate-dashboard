@@ -1,0 +1,122 @@
+name: ERA5 Grönland-Blocking-Index aktualisieren
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/update-era5-gbi.yml"
+      - "scripts/update_era5_gbi.py"
+      - "tests/test_era5_gbi.py"
+  schedule:
+    - cron: "25 6 7,14,21,28 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-gbi
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    outputs:
+      updated: ${{ steps.publish.outputs.updated }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: CDS- und NetCDF-Pakete installieren
+        run: python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4
+      - name: ERA5-Berechnung und getrennte Archivdarstellung prüfen
+        run: |
+          python -m unittest discover -s tests -p test_era5_gbi.py -v
+          node --test tests/test_era5_gbi_frontend.cjs
+      - name: Historischen CDS-Cache wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: .era5_gbi_cache
+          key: era5-gbi-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: era5-gbi-v1-
+      - name: ERA5 GBI aus realen Z500-Gittern berechnen
+        env:
+          CDSAPI_URL: https://cds.climate.copernicus.eu/api
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          python scripts/update_era5_gbi.py
+      - name: Vollständige historische Teilabfragen zwischenspeichern
+        if: ${{ always() && hashFiles('.era5_gbi_cache/*.json') != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .era5_gbi_cache
+          key: era5-gbi-v1-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Geprüftes ERA5-Archiv versionieren
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s climate_indices/gbi_era5.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add climate_indices/gbi_era5.json
+          if git diff --cached --quiet; then
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "ERA5 GBI Monatsarchiv aktualisieren"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              echo "updated=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep $((attempt * 4))
+          done
+          exit 1
+
+  deploy:
+    needs: update
+    if: needs.update.outputs.updated == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages-dashboard-v2
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Pages mit verifiziertem ERA5-Archiv bauen
+        run: |
+          bash scripts/build_pages_site.sh
+          test -s _site/climate_indices/gbi_era5.json
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: "_site"
+          name: "github-pages-era5-gbi-${{ github.run_id }}"
+      - uses: actions/deploy-pages@v5
+        id: deployment
+        with:
+          reporting_interval: "10000"
+          artifact_name: "github-pages-era5-gbi-${{ github.run_id }}"

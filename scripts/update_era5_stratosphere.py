@@ -34,6 +34,12 @@ METRICS = [
     "pv60_10", "ssw_wind_reversal", "ssw_major_events", "nam_10", "vortex_area_10"
 ]
 ALIASES = {"u":"u", "v":"v", "t":"t", "z":"z", "o3":"o3", "pv":"pv"}
+WIND_FIELDS = tuple(f"u60_{level}" for level in (10,30,50,100))
+TEMPERATURE_FIELDS = tuple(f"tcap_{level}" for level in (10,30,50,100))
+
+
+def finite_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and np.isfinite(value)
 
 def safe_number(value):
     value = float(value)
@@ -331,9 +337,7 @@ def update_year(client, year, *, current=False, max_chunks=3, max_minutes=None):
             stamp=[f"{year}-{month:02d}-{day:02d}" for day in days]
             missing_days = [
                 day for day,iso in zip(days,stamp)
-                if not all(isinstance(by_date.get(iso,{}).get(f"u60_{lev}"), (int,float))
-                           and np.isfinite(by_date[iso][f"u60_{lev}"])
-                           for lev in (10,30,50,100))
+                if not all(finite_number(by_date.get(iso,{}).get(field)) for field in WIND_FIELDS)
             ]
             if not missing_days:
                 continue
@@ -356,6 +360,11 @@ def update_year(client, year, *, current=False, max_chunks=3, max_minutes=None):
                 return len(by_date)
             for day,row in rows.items():
                 values={**by_date.get(day,{"date":day}),**row}
+                if not current:
+                    # Historical values already verified for a pressure level
+                    # must not be replaced while filling a partially filled day.
+                    values.update({field:by_date[day][field] for field in WIND_FIELDS
+                                   if finite_number(by_date.get(day,{}).get(field))})
                 if "u60_10" in values:
                     values["ssw_wind_reversal"]=int(values["u60_10"]<0)
                 by_date[day]=values
@@ -371,26 +380,89 @@ def choose_backfill_year():
     for year in priority:
         # Temperature-only rows are not a complete wind archive. Verify all
         # actual dates and four finite 60 N winds before advancing to the next year.
-        rows = {row["date"]:row for row in read_rows(year)}
-        expected = {date(year,1,1) + timedelta(days=i) for i in
-                    range(366 if calendar.isleap(year) else 365)}
-        if any((stamp.isoformat() not in rows or
-                any(not isinstance(rows[stamp.isoformat()].get(f"u60_{level}"),(int,float))
-                    or not np.isfinite(rows[stamp.isoformat()][f"u60_{level}"])
-                    for level in (10,30,50,100))) for stamp in expected):
+        if not full_year_coverage(year, read_rows(year), WIND_FIELDS):
             return year
     return None
 
+
+def backfill_reference_winds(client, *, max_chunks=60, max_minutes=None):
+    """Resume every incomplete 1991–2020 year under one shared request budget.
+
+    Persist each verified month (or missing subset), retaining all pre-existing
+    values. Stop before dispatching another CDS request when the time or chunk
+    limit is reached. A failed request cannot publish fabricated or partial rows.
+    """
+    started = time.monotonic()
+    done = 0
+    for year in range(1991,2021):
+        original = read_rows(year)
+        by_date = {row["date"]:row for row in original}
+        # Malformed historical files require investigation, not silent rewriting.
+        if len(by_date) != len(original):
+            print(f"ERROR: duplicate ERA5 history dates in {year}",flush=True)
+            return done, False, 1
+        for month in range(1,13):
+            days = [day for day in range(1,calendar.monthrange(year,month)[1]+1)
+                    if not all(finite_number(by_date.get(f"{year}-{month:02d}-{day:02d}",{}).get(field))
+                               for field in WIND_FIELDS)]
+            if not days:
+                continue
+            if done >= max_chunks or (max_minutes is not None and
+                                      time.monotonic()-started >= 60*max_minutes):
+                print(f"ERA5 wind reference budget reached after {done} chunks; "
+                      "verified archive is preserved.",flush=True)
+                return done, False, 0
+            expected = {f"{year}-{month:02d}-{day:02d}" for day in days}
+            try:
+                rows = retrieve_wind_chunk(client,year,month,days)
+                if set(rows) != expected or any(row.get("date") != stamp or not all(
+                        finite_number(row.get(field)) for field in WIND_FIELDS)
+                        for stamp,row in rows.items()):
+                    raise ValueError("Incomplete or non-finite ERA5 reference wind chunk")
+            except Exception as error:
+                print(f"WARNING: ERA5 wind reference {year}-{month:02d}: {error}; "
+                      "previous verified chunks preserved.",flush=True)
+                return done, False, 1
+            for stamp,row in rows.items():
+                values = dict(by_date.get(stamp,{"date":stamp}))
+                for field in WIND_FIELDS:
+                    if not finite_number(values.get(field)):
+                        values[field] = row[field]
+                values["ssw_wind_reversal"] = int(values["u60_10"]<0)
+                by_date[stamp] = values
+            store_rows(year,list(by_date.values()))
+            done += 1
+            print(f"Saved genuine ERA5 wind reference chunk {year}-{month:02d}, "
+                  f"{len(rows)} days, {done} total chunks",flush=True)
+        if not full_year_coverage(year,list(by_date.values()),WIND_FIELDS):
+            print(f"ERROR: ERA5 wind reference year {year} is incomplete",flush=True)
+            return done, False, 1
+    return done, True, 0
+
 def reference_climatology(all_years):
     reference = {}
+    # An exact date contributes at most once, from its own reference year.
+    # Duplicate or malformed dates must not replace missing reference years.
+    valid_rows = []
+    for year in range(1991,2021):
+        dates = {}
+        for row in all_years.get(year,[]):
+            stamp = row.get("date")
+            try:
+                d = date.fromisoformat(stamp)
+            except (TypeError, ValueError):
+                continue
+            if d.year != year or stamp != d.isoformat():
+                continue
+            dates[stamp] = None if stamp in dates else row
+        valid_rows.extend(row for row in dates.values() if row is not None)
     # Full coverage is mandatory: never display a partly sampled 1991–2020 climatology.
     for metric in METRICS:
         by_day = {}
-        for year in range(1991,2021):
-            for row in all_years.get(year,[]):
-                number = row.get(metric)
-                if isinstance(number,(int,float)) and np.isfinite(number):
-                    by_day.setdefault(row["date"][5:],[]).append(float(number))
+        for row in valid_rows:
+            number = row.get(metric)
+            if finite_number(number):
+                by_day.setdefault(row["date"][5:],[]).append(float(number))
         eligible = {}
         for day,values in by_day.items():
             required = 8 if day == "02-29" else 30
@@ -408,15 +480,36 @@ def full_year_coverage(year, rows, fields):
     """Count only a complete calendar year of genuine finite daily diagnostics."""
     by_date = {row.get("date"): row for row in rows}
     expected = 366 if calendar.isleap(year) else 365
-    if len(by_date) != expected:
+    if len(by_date) != expected or len(rows) != expected:
         return False
     for offset in range(expected):
         key = (date(year, 1, 1) + timedelta(days=offset)).isoformat()
         row = by_date.get(key)
-        if not row or not all(isinstance(row.get(field), (float, int))
-                              and np.isfinite(row[field]) for field in fields):
+        if not row or not all(finite_number(row.get(field)) for field in fields):
             return False
     return True
+
+
+def temperature_reference_ready():
+    """Only extend the wind budget when the actual temperature archive is complete."""
+    years = {year:read_rows(year) for year in range(1991,2021)}
+    if not all(full_year_coverage(year, rows, TEMPERATURE_FIELDS)
+               for year,rows in years.items()):
+        return False
+    ref = reference_climatology(years)
+    return len(set.intersection(*(set(ref.get(field,{})) for field in TEMPERATURE_FIELDS))) == 366
+
+
+def wind_reference_ready():
+    return all(full_year_coverage(year,read_rows(year),WIND_FIELDS)
+               for year in range(1991,2021))
+
+
+def historical_wind_budget(event):
+    """On a code push launch expensive history only for the proven wind gap."""
+    if not wind_reference_ready() and temperature_reference_ready():
+        return 200
+    return 0 if event == "push" else 85
 
 
 def rebuild_index():
@@ -495,9 +588,11 @@ def self_test():
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--current",action="store_true",help="update recent daily ERA5, starting in 2026")
-    parser.add_argument("--backfill-one",action="store_true",help="archive one historical year, prioritizing 1991–2020")
+    historical=parser.add_mutually_exclusive_group()
+    historical.add_argument("--backfill-one",action="store_true",help="archive one historical year, prioritizing 1991–2020")
+    historical.add_argument("--backfill-reference",action="store_true",help="fill missing 1991–2020 winds across years, within one shared budget")
     parser.add_argument("--backfill-chunks",type=int,default=1,
-                        help="max number of genuine 5-day wind chunks in the historical year (1..120)")
+                        help="max number of genuine historical wind chunks per run (1..120)")
     parser.add_argument("--backfill-budget-minutes", type=int, default=0,
                         help="stop historical CDS requests after this many minutes (0=unlimited)")
     parser.add_argument("--self-test",action="store_true")
@@ -509,14 +604,34 @@ def main():
         parser.error("--backfill-chunks must be between 1 and 120")
     if not 0 <= args.backfill_budget_minutes <= 240:
         parser.error("--backfill-budget-minutes must be 0..240")
-    if not (args.current or args.backfill_one):
-        parser.error("Select --current and/or --backfill-one")
+    if not (args.current or args.backfill_one or args.backfill_reference):
+        parser.error("Select --current and/or a historical backfill option")
     import cdsapi
     client=cdsapi.Client(quiet=False,progress=False)
     if args.current:
         for year in range(2026,last_available_date().year+1):
             print(f"Current {year}: {update_year(client,year,current=True)} records")
-    if args.backfill_one:
+    continue_history = args.backfill_one
+    if args.backfill_reference:
+        done, complete, failures = backfill_reference_winds(client,
+            max_chunks=args.backfill_chunks,max_minutes=args.backfill_budget_minutes or None)
+        years = sum(full_year_coverage(year,read_rows(year),WIND_FIELDS) for year in range(1991,2021))
+        OUTPUT.mkdir(parents=True,exist_ok=True)
+        progress = {"schema_version":1,"source_dataset":DATASET,
+                    "updated_utc":datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    "reference_period":"1991–2020","reference_years_complete":years,
+                    "reference_complete":bool(complete and years==30),
+                    "chunks_completed":done,"errors":failures,
+                    "max_chunks":args.backfill_chunks,
+                    "budget_minutes":args.backfill_budget_minutes or None}
+        temporary = OUTPUT / "wind_backfill_status.json.tmp"
+        temporary.write_text(json.dumps(progress,separators=(",",":"),allow_nan=False)+"\n",encoding="utf-8")
+        temporary.replace(OUTPUT / "wind_backfill_status.json")
+        print(f"ERA5 historical wind years {years}/30; this run {done} chunks",flush=True)
+        # Resume older/non-reference archive policy only after all 30 reference
+        # years were already complete at the beginning of this run.
+        continue_history = done==0 and complete and failures==0
+    if continue_history:
         year=choose_backfill_year()
         if year is not None:
             print(f"Backfilling historical ERA5 year {year}",flush=True)

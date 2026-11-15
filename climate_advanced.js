@@ -1,6 +1,8 @@
 (()=>{"use strict";
 const $=id=>document.getElementById(id), module=document.body.dataset.climateModule;
-const col={nao:"#1868ae",ao:"#d18b27",scand:"#7b58a3",ea:"#16876f",eawr:"#b64f7b",gbi:"#6b7f91",soi:"#94652b",mei:"#b14c70",u30:"#196db3",u50:"#d58e32"};
+const col={nao:"#1868ae",ao:"#d18b27",scand:"#7b58a3",ea:"#16876f",eawr:"#b64f7b",gbi:"#6b7f91",gbi_noaa:"#97774f",soi:"#94652b",mei:"#b14c70",u30:"#196db3",u50:"#d58e32"};
+const indexLabel=k=>k==="gbi"?"GBI · ERA5 (1991–2020)":k==="gbi_noaa"?"GBI · NOAA-Archiv (1981–2010)":k.toUpperCase();
+const gbiOptions=[["gbi",indexLabel("gbi")],["gbi_noaa",indexLabel("gbi_noaa")]];
 let archive=null,chart=null,table=[],title="";
 const f=n=>Number.isFinite(n)?n.toLocaleString("de-DE",{maximumFractionDigits:2}):"–";
 const sel=id=>$(id)?.value;
@@ -18,7 +20,7 @@ const zoom=(rows,num)=>{
 };
 function markup(){
  const panel=document.querySelector("main>.panel");
- const types=[["scand","SCAND"],["ea","EA"],["eawr","EA/WR"],["gbi","GBI"]];
+ const types=[["scand","SCAND"],["ea","EA"],["eawr","EA/WR"],...gbiOptions];
  function options(a){return a.map(r=>'<option value="'+r[0]+'">'+r[1]+'</option>').join("");}
  const europe=module==="nao-ao";
  const indices=europe?types:module==="enso"?[["soi","SOI"],["mei","MEI.v2"]]:[["u30","30 hPa"],["u50","50 hPa"]];
@@ -40,7 +42,7 @@ function markup(){
  function controls(opts,compare){
   return '<div class="toolbar"><label>Index<select id="advIndex">'+opts+'</select></label>'+
    (compare?'<label>Vergleich<select id="advCompare"><option value="none">Kein Vergleich</option>'+
-   options(module==="qbo"?[["u30","QBO 30 hPa"],["u50","QBO 50 hPa"]]:[["nao","NAO"],["ao","AO"],["scand","SCAND"],["ea","EA"],["eawr","EA/WR"],["gbi","GBI"]])+'</select></label>':"")+
+   options(module==="qbo"?[["u30","QBO 30 hPa"],["u50","QBO 50 hPa"]]:[["nao","NAO"],["ao","AO"],["scand","SCAND"],["ea","EA"],["eawr","EA/WR"],...gbiOptions])+'</select></label>':"")+
    '<label>Zeitraum<select id="advRange"><option value="5">5 Jahre</option><option value="10" selected>10 Jahre</option><option value="30">30 Jahre</option><option value="all">Gesamte Messreihe</option></select></label>'+
    exportButtons()+'</div><div class="status" id="advStatus">Daten laden …</div><div class="kpis" id="advKpis"></div>'+
    '<div class="chart-box" style="height:365px"><canvas id="advChart"></canvas></div><p class="small" id="advInfo"></p>';
@@ -52,12 +54,14 @@ function enable(){["advPNG","advPDF","advCSV"].forEach(k=>{if($(k))$(k).disabled
 function renderMonthly(){
  const key=sel("advIndex"),compare=sel("advCompare")||"none";
  const base=zoom(data(key),sel("advRange"));
- if(!base.length)throw Error("Keine Monatswerte für "+key);
+ if(!base.length){cleanChart();table=[];$("advInfo").textContent="";$("advKpis").innerHTML="";
+  ["advPNG","advPDF","advCSV"].forEach(k=>{if($(k))$(k).disabled=true;});
+  setStatus(key==="gbi"?"ERA5-GBI wird berechnet. Historisches NOAA-Archiv separat auswählbar.":"Keine Monatswerte für "+indexLabel(key));return;}
  const other=new Map(compare==="none"?[]:data(compare).map(r=>[r[0],r[1]]));
  const secondary=base.map(r=>other.get(r[0])??null);
- const unit=key==="gbi"?"σ":key.startsWith("u")?"m/s":"Index";
- const lines=[{label:key.toUpperCase(),data:base.map(r=>r[1]),borderColor:col[key],backgroundColor:col[key],pointRadius:0,borderWidth:2,spanGaps:false}];
- if(compare!=="none")lines.push({label:compare.toUpperCase(),data:secondary,borderColor:"#8c99ab",borderDash:[5,4],pointRadius:0,borderWidth:1.4,spanGaps:false});
+ const unit=key.startsWith("gbi")?"σ":key.startsWith("u")?"m/s":"Index";
+ const lines=[{label:indexLabel(key),data:base.map(r=>r[1]),borderColor:col[key],backgroundColor:col[key],pointRadius:0,borderWidth:2,spanGaps:false}];
+ if(compare!=="none")lines.push({label:indexLabel(compare),data:secondary,borderColor:"#8c99ab",borderDash:[5,4],pointRadius:0,borderWidth:1.4,spanGaps:false});
  cleanChart();
  chart=new Chart($("advChart"),{type:"line",data:{labels:base.map(r=>r[0]),datasets:lines},options:{
   responsive:true,maintainAspectRatio:false,animation:false,
@@ -65,15 +69,16 @@ function renderMonthly(){
   scales:{x:{ticks:{maxRotation:0,maxTicksLimit:12},grid:{display:false}},y:{title:{display:true,text:unit}}},
   plugins:{datalabels:{display:false},legend:{position:"bottom",labels:{usePointStyle:true}},tooltip:{callbacks:{label:c=>c.dataset.label+": "+f(c.parsed.y)+" "+unit}}}
  }});
- table=[["Monat",key.toUpperCase(),compare.toUpperCase()],...base.map((r,i)=>[r[0],r[1],secondary[i]])];
- title=key.toUpperCase()+" · "+base[0][0]+"–"+base[base.length-1][0];
+ table=[["Monat",indexLabel(key),indexLabel(compare)],...base.map((r,i)=>[r[0],r[1],secondary[i]])];
+ title=indexLabel(key)+" · "+base[0][0]+"–"+base[base.length-1][0];
  const source=meta(key),last=data(key).at(-1);
  $("advInfo").textContent=(source?.method||"")+". Datenstand: "+last[0]+" · Quelle: "+(source?.source_url||"NOAA/CPC")+
- (key==="gbi"?" · GBI ist eine standardisierte Z500-Abweichung und keine EOF-Amplitude.":"")+
+ (key.startsWith("gbi")?" · GBI ist eine standardisierte Z500-Abweichung und keine EOF-Amplitude.":"")+
+ (compare!=="none"&&meta(compare)?" · Vergleich: "+indexLabel(compare)+" · "+meta(compare).method:"")+
  (key==="mei"?" · MEI.v2 bezeichnet überlappende Zweimonatsperioden.":"");
  $("advKpis").innerHTML="<div class='kpi'><span>Jüngster Monatswert</span><b>"+f(last[1])+"</b><small>"+last[0]+"</small></div>"+
  "<div class='kpi'><span>Auswahl</span><b>"+base.length+"</b><small>Monate</small></div>";
- setStatus("Datenquelle geprüft · "+last[0]+(new Date(last[0]+"-01").getUTCFullYear()<new Date().getUTCFullYear()-1?" · Historisches Archiv (nicht aktuell)":""));
+ setStatus("Datenquelle geprüft · "+last[0]+(key==="gbi_noaa"?" · Historisches NOAA-Archiv, nicht ERA5":new Date(last[0]+"-01").getUTCFullYear()<new Date().getUTCFullYear()-1?" · Historisches Archiv (nicht aktuell)":""));
  enable();
 }
 function mjoRender(){
@@ -118,7 +123,7 @@ function exportCanvas(){
  const c=document.createElement("canvas"),source=chart.canvas,w=1300,h=Math.round(1200*source.height/source.width);
  c.width=w;c.height=145+h+55;const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);
  g.fillStyle="#142b43";g.font="bold 28px Arial";g.fillText(title.slice(0,65),40,56);
- g.fillStyle="#516274";g.font="17px Arial";g.fillText("Climate Dashboard · NOAA CPC / BOM",40,95);
+ g.fillStyle="#516274";g.font="17px Arial";g.fillText("Climate Dashboard · "+(sel("advIndex")==="gbi"?"Copernicus ERA5":"NOAA CPC / BOM"),40,95);
  g.drawImage(source,50,145,1200,h);g.font="15px Arial";g.fillText("Quelle und Datenstand siehe Dashboard",40,c.height-18);return c;
 }
 function download(blob,ext){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=module+"_indices."+ext;a.click();setTimeout(()=>URL.revokeObjectURL(u),1500);}
@@ -135,7 +140,20 @@ async function init(){
  for(const [id,fn] of [["advPNG",exportPNG],["advPDF",exportPDF],["advCSV",exportCSV]])$(id)?.addEventListener("click",fn);
  for(const id of ["advIndex","advCompare","advRange","advDays"])$(id)?.addEventListener("change",render);
  try{const r=await fetch("climate_indices/index.json",{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);
- archive=await r.json();if(!archive.ready)throw Error("Archiv wird aufgebaut");render();
+ archive=await r.json();if(!archive.ready)throw Error("Archiv wird aufgebaut");
+ if(module==="nao-ao"){
+  archive.europe=archive.europe||{};
+  if(archive.europe.gbi)archive.europe.gbi_noaa=archive.europe.gbi;
+  delete archive.europe.gbi;
+  try{const response=await fetch("climate_indices/gbi_era5.json",{cache:"no-store"});
+   if(response.ok){const g=await response.json(), rows=g.monthly;
+    if(g.source==="ERA5"&&g.reference==="1991–2020"&&g.reference_months===360&&g.reference_years===30&&
+       g.first_month==="1940-01"&&Array.isArray(rows)&&rows.length>=972&&rows.at(-1)?.[0]===g.latest_month&&
+       rows.every((r,i)=>Array.isArray(r)&&r.length===2&&r[0]===`${1940+Math.floor(i/12)}-${String(i%12+1).padStart(2,"0")}`&&Number.isFinite(r[1])))archive.europe.gbi=g;
+   }
+  }catch(e){console.warn("ERA5-GBI nicht verfügbar",e);}
+ }
+ render();
  }catch(e){setStatus("Datenabruf fehlgeschlagen: "+e.message);}
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
