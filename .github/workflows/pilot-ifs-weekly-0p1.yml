@@ -4,7 +4,7 @@ on:
     - cron: '35 6,18 * * *'
   workflow_dispatch:
   push:
-    branches: ['feature/ifs-periods-20261115']
+    branches: ['main', 'feature/ifs-periods-20261115']
     paths: ['.github/workflows/pilot-ifs-weekly-0p1.yml']
 permissions:
   contents: read
