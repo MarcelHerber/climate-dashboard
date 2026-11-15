@@ -3,15 +3,15 @@ on:
   workflow_dispatch:
     inputs:
       first:
-        description: Erstes Jahr (leer = nächste Archivlücke ab 1991)
+        description: Erstes Jahr (leer = alle Archivlücken ab 1991)
         required: false
         type: string
       last:
-        description: Letztes Jahr (leer = maximal fünf Jahre je Archivblock)
+        description: Letztes Jahr (leer = automatisch bis heute; bei Startjahr maximal fünf Jahre)
         required: false
         type: string
   pull_request:
-    paths: [scripts/build_temperature_contrast.py, tests/test_temperature_contrast.py, tests/audit_temperature_contrast.py, stations_temperaturgegensatz.js, stations_temperaturgegensatz.html, .github/workflows/update-temperature-contrast.yml]
+    paths: [scripts/build_temperature_contrast.py, tests/test_temperature_contrast.py, tests/audit_temperature_contrast.py, tests/test_temperature_contrast_backfill.py, stations_temperaturgegensatz.js, stations_temperaturgegensatz.html, .github/workflows/update-temperature-contrast.yml]
   push:
     branches: [main]
     paths: [scripts/build_temperature_contrast.py, .github/workflows/update-temperature-contrast.yml]
@@ -31,12 +31,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.sha || github.ref }}
           filter: blob:none
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             scripts/build_temperature_contrast.py
             tests/test_temperature_contrast.py
             tests/audit_temperature_contrast.py
+            tests/test_temperature_contrast_backfill.py
+            .github/workflows/update-temperature-contrast.yml
             stations_temperaturgegensatz.html
             stations_temperaturgegensatz.js
             stations_rekordlabor.css
@@ -47,11 +50,12 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - run: pip install 'numpy<2.4' 'numba>=0.61,<0.65'
+      - run: pip install 'numpy<2.4' 'numba>=0.61,<0.65' PyYAML
       - name: Exact pair selection tests
         run: |
           python -m unittest discover -s tests -p test_temperature_contrast.py -v
           node --check stations_temperaturgegensatz.js
+          python -m unittest discover -s tests -p test_temperature_contrast_backfill.py -v
       - name: Verify original archive ZIPs on PR
         if: github.event_name == 'pull_request'
         run: |
@@ -64,7 +68,7 @@ jobs:
           pip install 'playwright==1.57.0'
           python -m playwright install --with-deps chromium
           python -u tests/audit_temperature_contrast.py
-      - name: Compute full station coverage in annual batches
+      - name: Compute full station coverage in annual batches and publish checkpoints
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           INPUT_FIRST: ${{ inputs.first }}
@@ -73,44 +77,84 @@ jobs:
           set -euo pipefail
           root=data/rekordlabor/contrast
           current=$(date -u +%Y)
-          first=${INPUT_FIRST:-}
-          last=${INPUT_LAST:-}
-          if [ -z "$first" ]; then
-            if [ ! -f "$root/hourly/$((current-1))/ready.json" ] || [ ! -f "$root/daily/$((current-1))/ready.json" ]; then
-              first=$((current-1)); last=$current
-            else
-              if [ "$(date -u +%u)" = 1 ]; then first=$current; last=$current; fi
-              for y in $(seq 1991 "$current"); do
-                [ -z "$first" ] || break
-                if [ ! -f "$root/hourly/$y/ready.json" ] || [ ! -f "$root/daily/$y/ready.json" ]; then first=$y; break; fi
-              done
-              first=${first:-$current}
-            fi
-          fi
-          [[ "$first" =~ ^[0-9]{4}$ ]] && ((first>=1991 && first<=current))
-          last=${last:-$((first+4))}
-          [[ "$last" =~ ^[0-9]{4}$ ]] && ((last>=first))
-          ((last<=current)) || last=$current
-          for mode in hourly daily; do
-            python -u scripts/build_temperature_contrast.py --mode "$mode" --first "$first" --last "$last" --out "$root"
-          done
-          python - <<'PY'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          ready() {
+            [ -f "$root/hourly/$1/ready.json" ] && [ -f "$root/daily/$1/ready.json" ]
+          }
+          run_batch() {
+            local first=$1 last=$2
+            echo "::group::Archive $first–$last"
+            for mode in hourly daily; do
+              python -u scripts/build_temperature_contrast.py --mode "$mode" --first "$first" --last "$last" --out "$root"
+            done
+            for y in $(seq "$first" "$last"); do ready "$y" || return 1; done
+            python - <<'PY'
           import json
           from pathlib import Path
           root=Path('data/rekordlabor/contrast')
           result={m:[json.loads(p.read_text()) for p in sorted((root/m).glob('*/ready.json'))] for m in ('hourly','daily')}
           (root/'index.json').write_text(json.dumps(result,indent=2))
           PY
-      - name: Commit complete annual batches
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add data/rekordlabor/contrast/
-          git diff --cached --quiet && exit 0
-          git commit -m 'data: DWD spatial temperature contrast annual archives'
-          for i in 1 2 3 4 5; do
-            if git push origin HEAD:main; then exit 0; fi
-            git pull --rebase origin main
+            git add "$root"
+            if ! git diff --cached --quiet; then
+              git commit -m "data: DWD temperature contrasts $first-$last"
+              for i in 1 2 3 4 5; do
+                if git push origin HEAD:main; then
+                  echo "::endgroup::"
+                  return 0
+                fi
+                git pull --rebase origin main
+              done
+              return 1
+            fi
+            echo "::endgroup::"
+          }
+          first=${INPUT_FIRST:-}
+          last=${INPUT_LAST:-}
+          if [[ -n "$first" || -n "$last" ]]; then
+            if [[ -z "$first" ]]; then
+              for y in $(seq 1991 "$current"); do
+                if ! ready "$y"; then first=$y; break; fi
+              done
+              first=${first:-$current}
+            fi
+            [[ "$first" =~ ^[0-9]{4}$ ]] && ((first>=1991 && first<=current)) || exit 1
+            last=${last:-$((first+4))}
+            [[ "$last" =~ ^[0-9]{4}$ ]] && ((last>=first)) || exit 1
+            ((last<=current)) || last=$current
+            while ((first<=last)); do
+              end=$((first+4))
+              ((end<=last)) || end=$last
+              run_batch "$first" "$end"
+              first=$((end+1))
+            done
+            exit 0
+          fi
+          # Historical work is checkpointed before moving to the next gap.
+          # A failed or timed-out run resumes at the first unfinished year.
+          refreshed_current=0
+          if ! ready "$((current-1))"; then
+            run_batch "$((current-1))" "$current"
+            refreshed_current=1
+          elif ! ready "$current" || [ "$(date -u +%u)" = 1 ]; then
+            run_batch "$current" "$current"
+            refreshed_current=1
+          fi
+          y=1991
+          while ((y<current)); do
+            if ready "$y"; then
+              y=$((y+1))
+              continue
+            fi
+            first=$y
+            last=$y
+            while ((last-first<4 && last+1<current)); do
+              if ready "$((last+1))"; then break; fi
+              last=$((last+1))
+            done
+            run_batch "$first" "$last"
+            y=$((last+1))
           done
-          exit 1
+          if ((refreshed_current==0)); then run_batch "$current" "$current"; fi
+
