@@ -409,6 +409,6 @@ if(clearCacheButton)clearCacheButton.addEventListener("click",()=>{
  setInfo("Bildcache geleert ("+count+" Kacheln). Sichtbares Bild bleibt; künftige Abrufe laden wieder direkt von EUMETSAT.");
 });
 window.SatelliteHD={sync:ready,cancel,viewChanged,boundsForTile,exportImage,comparisonPlan,
- cacheStats:()=>tileCache?.stats()||null,clearTileCache:()=>tileCache?.clear()};
+ cacheStats:()=>tileCache?.stats()||null,clearTileCache:()=>tileCache?.clear(),isExporting:()=>downloadBusy};
 setInfo("Automatisch · erst 800 px Vorschau, danach 2048 px im Hintergrund · 4K ab 300 % Zoom.");
 })();

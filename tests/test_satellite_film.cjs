@@ -6,7 +6,7 @@ const vm=require("node:vm");
 const source=fs.readFileSync("satelliten.js","utf8");
 const html=fs.readFileSync("satelliten.html","utf8");
 
-function fixture({failOne480=false,failOne320=false,failLargeStill=false,failAllWms=false,archiveAvailable=false,totalSlots=8,verifiedLagSlots=0}={}){
+function fixture({failOne480=false,failOne320=false,failLargeStill=false,failAllWms=false,archiveAvailable=false,totalSlots=8,verifiedLagSlots=0,live=false}={}){
  let failed480=false,failed320=false;
  const nodes=new Map(),requests=[],fetches=[],preloaded=[],state={active:0,maxActive:0};
  const options=["satSource","satProduct","satRegion","satTime","satImage","satEmpty","satStatus",
@@ -79,9 +79,14 @@ function fixture({failOne480=false,failOne320=false,failLargeStill=false,failAll
  const manifest={generated_at:new Date().toISOString(),capabilities_ok:true,products:{
   geocolour:{map_ok:true,latest_verified_time:slots.at(-1-verifiedLagSlots),available_times:slots}
  }};
+ let liveSlots=slots.map(x=>x.replace('.000Z','Z'));
+ const intervals=[],syncs=[],downloads=[],labels=[];let hdExporting=false;
  const fetch=async (url,opts)=>{
   fetches.push(url);
-  if(String(url).includes("GetCapabilities"))throw Error("Simulate blocked capabilities; use checked GitHub manifest");
+  if(String(url).includes("GetCapabilities")){
+   if(!live)throw Error("Simulate blocked capabilities; use checked GitHub manifest");
+   return {ok:true,text:async()=>liveSlots.join(',')};
+  }
   if(String(url).includes("satellite_wms_times.json"))return {ok:true,json:async()=>manifest};
   if(String(url).includes("satellite_cache/index.json")){
    if(!archiveAvailable)return {ok:false,status:404};
@@ -94,13 +99,19 @@ function fixture({failOne480=false,failOne320=false,failLargeStill=false,failAll
   throw Error("Unexpected fetch: "+url);
  };
  const document={getElementById:id=>{assert.ok(nodes.has(id),"Unknown node "+id);return nodes.get(id);},
-  hidden:false,addEventListener(){}};
- const window={addEventListener(){}};
+  hidden:false,addEventListener(){},body:{append(){}},createElement(tag){
+   if(tag==='canvas')return {getContext:()=>({fillRect(){},drawImage(){},fillText(text){labels.push(text);}}),toBlob(cb){cb(new Blob(['test'],{type:'image/png'}));}};
+   if(tag==='a')return {click(){downloads.push(this.download);},remove(){}};
+   throw Error('Unexpected element '+tag);
+  }};
+ const window={addEventListener(){},SatelliteIsobars:{sync:state=>syncs.push(state)},SatelliteHD:{cancel(){},sync(){},isExporting:()=>hdExporting}};
  const sandbox={document,window,Image:FakeImage,Option:class{constructor(label,value){this.label=label;this.value=value;}},
   fetch,URLSearchParams,URL,Date,Intl,Math,Number,Array,Set,String,Boolean,
-  setTimeout,clearTimeout,AbortController,console};
+  setTimeout,clearTimeout,AbortController,console,
+  setInterval:(callback,ms)=>{intervals.push({callback,ms});return intervals.length;},
+  DOMParser:class{parseFromString(xml){const layer={localName:'Layer',children:[{localName:'Name',textContent:'mtg_fd:rgb_geocolour'},{localName:'Extent',textContent:xml,getAttribute:()=> 'time'}]};return {querySelector:()=>null,getElementsByTagName:()=>[layer]};}}};
  vm.runInNewContext(source,sandbox,{timeout:5000});
- return {nodes,requests,fetches,preloaded,state,slots};
+ return {nodes,requests,fetches,preloaded,state,slots,intervals,syncs,document,downloads,labels,setLiveSlots:values=>{liveSlots=values;},setLive:enabled=>{live=enabled;},setHDExporting:enabled=>{hdExporting=enabled;},setManifest:(times,verified)=>{manifest.products.geocolour.available_times=times;manifest.products.geocolour.latest_verified_time=verified;}};
 }
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function waitUntil(fn,reason,limit=2000){
@@ -112,8 +123,8 @@ test("Film player reuses small WMS PNGs and never requests each frame again",asy
  await waitUntil(()=>nodes.get("satTime").options.length===slots.length,"eight verified UTC times");
  assert.equal(nodes.get("satTimeline").max,"7");
  await waitUntil(()=>nodes.get("satImage").naturalWidth>0,"full resolution image");
- assert.ok(fetches[0].includes("satellite_wms_times.json"),"Local verified WMS metadata must load before remote capabilities");
- assert.ok(!fetches.some(url=>String(url).includes("GetCapabilities")),"Fresh local UTC metadata avoids remote GetCapabilities");
+ assert.ok(fetches.some(url=>String(url).includes("GetCapabilities")),"Try live metadata even with a fresh manifest");
+ assert.ok(fetches.some(url=>String(url).includes("satellite_wms_times.json")),"Failed live check uses verified local metadata");
  const originalRequests=requests.length;
  nodes.get("satPlay").dispatch("click");
  await waitUntil(()=>!nodes.get("satFilmStage").hidden,"film preview started");
@@ -279,8 +290,85 @@ test("Fast start selects the last successfully verified WMS UTC, never a newer u
    new URL(r.url).searchParams.get("width")==="800");
  assert.ok(stills.length>=1);
  assert.equal(new URL(stills[0].url).searchParams.get("time"),slots.at(-2));
- assert.ok(!fetches.some(u=>String(u).includes("GetCapabilities")));
+ assert.ok(fetches.some(u=>String(u).includes("GetCapabilities")));
  assert.match(nodes.get("satStatus").textContent,/Schärfere Vorschau|bestätigte/);
+});
+
+test("Live WMS is preferred to GitHub and five-minute polling advances the image and pressure overlay",async()=>{
+ const f=fixture({live:true,verifiedLagSlots:1});
+ const newest=f.slots.at(-1).replace('.000Z','Z');
+ await waitUntil(()=>f.nodes.get('satImage').naturalWidth===800,'latest live frame');
+ assert.equal(new URL(f.nodes.get('satImage').src).searchParams.get('time'),newest);
+ assert.ok(!f.fetches.some(u=>String(u).includes('satellite_wms_times.json')));
+ const next=new Date(Date.parse(newest)+600000).toISOString().replace('.000Z','Z');
+ assert.equal(f.intervals[0]?.ms,300000);
+ f.setLiveSlots([...f.slots.map(x=>x.replace('.000Z','Z')),next]);
+ await f.intervals[0].callback();
+ await waitUntil(()=>new URL(f.nodes.get('satImage').src).searchParams.get('time')===next,'new live frame');
+ assert.equal(f.syncs.at(-1).time,next);
+ await waitUntil(()=>!f.nodes.get('satPng').disabled,'new frame loaded');
+ const count=f.requests.length;
+ await f.intervals[0].callback();
+ assert.equal(f.requests.length,count,'unchanged UTC must not reload image');
+});
+
+test("Auto-update preserves manually selected UTC and pauses during films or hidden tabs",async()=>{
+ const f=fixture({live:true});
+ await waitUntil(()=>!f.nodes.get('satPng').disabled&&f.nodes.get('satTime').options.length===8,'initial still');
+ await waitUntil(()=>f.nodes.get('satImage').naturalWidth===800,'initial image');
+ const old=f.slots[4].replace('.000Z','Z');
+ f.nodes.get('satTime').value='4'; f.nodes.get('satTime').dispatch('change');
+ await waitUntil(()=>!f.nodes.get('satPng').disabled,'historical frame loaded');
+ const next=new Date(Date.parse(f.slots.at(-1))+600000).toISOString().replace('.000Z','Z');
+ f.setLiveSlots([...f.slots.map(x=>x.replace('.000Z','Z')),next]);
+ await f.intervals[0].callback();
+ assert.equal(new URL(f.nodes.get('satImage').src).searchParams.get('time'),old);
+ assert.equal(f.nodes.get('satTime').options.length,9,'new time available without moving historical selection');
+ f.document.hidden=true;const before=f.fetches.length;await f.intervals[0].callback();assert.equal(f.fetches.length,before);
+ f.document.hidden=false;f.nodes.get('satPlay').dispatch('click');
+ await waitUntil(()=>!f.nodes.get('satFilmStage').hidden,'film loaded');
+ await f.intervals[0].callback();assert.equal(f.fetches.length,before);
+ f.nodes.get('satPlay').dispatch('click');
+});
+
+test("Automatic refresh does not interrupt plain PNG export or relabel its acquisition",async()=>{
+ const f=fixture({live:true});
+ await waitUntil(()=>f.nodes.get('satImage').naturalWidth===800&&!f.nodes.get('satPng').disabled,'live still ready');
+ const selected=f.slots.at(-1).replace('.000Z','Z');
+ const next=new Date(Date.parse(selected)+600000).toISOString().replace('.000Z','Z');
+ f.setLiveSlots([...f.slots.map(x=>x.replace('.000Z','Z')),next]);
+ const before=f.fetches.length;
+ f.nodes.get('satPng').dispatch('click');
+ await f.intervals[0].callback();
+ assert.equal(f.fetches.length,before,'plain PNG export pauses live metadata fetch');
+ await waitUntil(()=>f.downloads.length===1,'PNG downloaded');
+ assert.equal(f.downloads[0],'mtg_geocolour_southwest_'+selected.replace(/[:.]/g,'-')+'.png');
+ assert.ok(f.labels.some(s=>s.includes('Aufnahme:')&&s.includes('UTC')));
+ await f.intervals[0].callback();
+ assert.equal(new URL(f.nodes.get('satImage').src).searchParams.get('time'),next);
+});
+
+test("Periodic metadata fallback advances only to the newest verified GitHub frame and never regresses",async()=>{
+ const f=fixture({live:true});
+ await waitUntil(()=>f.nodes.get('satImage').naturalWidth===800&&!f.nodes.get('satPng').disabled,'live still ready');
+ const selected=f.slots.at(-1).replace('.000Z','Z');
+ const next=new Date(Date.parse(selected)+600000).toISOString().replace('.000Z','Z');
+ const unverified=new Date(Date.parse(next)+600000).toISOString().replace('.000Z','Z');
+ f.setLive(false);f.setManifest([...f.slots,next,unverified],next);
+ await f.intervals[0].callback();
+ assert.equal(new URL(f.nodes.get('satImage').src).searchParams.get('time'),next);
+ await waitUntil(()=>!f.nodes.get('satPng').disabled,'fallback image loaded');
+ f.setManifest(f.slots, f.slots.at(-1));
+ await f.intervals[0].callback();
+ assert.equal(new URL(f.nodes.get('satImage').src).searchParams.get('time'),next);
+});
+
+test("Five-minute polling waits until HD PNG or PDF export has completed",async()=>{
+ const f=fixture({live:true});
+ await waitUntil(()=>f.nodes.get('satImage').naturalWidth===800&&!f.nodes.get('satPng').disabled,'live still ready');
+ f.setHDExporting(true);const before=f.fetches.length;
+ await f.intervals[0].callback();assert.equal(f.fetches.length,before);
+ f.setHDExporting(false);await f.intervals[0].callback();assert.equal(f.fetches.length,before+1);
 });
 
 test("Restarting a previously loaded film reuses exact-UTC preview frames; region changes miss the cache",async()=>{
