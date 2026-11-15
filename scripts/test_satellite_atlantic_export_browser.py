@@ -64,7 +64,7 @@ GRID_CENTERS=[
  {"type":"H","lon":10,"lat":51,"pressure_hpa":1029.4,"prominence_hpa":5.4,"score":42},
  {"type":"T","lon":-55,"lat":55,"pressure_hpa":989.8,"prominence_hpa":6.2,"score":43}
 ]
-GRID_METHOD="ifs_mslp_grid_extrema_v1"
+GRID_METHOD="ifs_mslp_grid_extrema_v2"
 
 
 
@@ -227,7 +227,7 @@ def exercise(browser,device,base,tmp):
                 }""")
                 raise AssertionError("Missing grid center labels: "+json.dumps(diagnostic,ensure_ascii=False))
 
-            assert page.locator("#satIsobarStatus").text_content().find("H/T: IFS-Gitterextrema")>=0
+            assert "H/T: isobarengeprüfte IFS-Gitterextrema" in page.locator("#satIsobarStatus").text_content()
             page.locator("#satIsobarSpacing").select_option("5")
             page.wait_for_function("()=>document.querySelector('#satIsobarStatus')?.textContent.includes('5 hPa')",timeout=15000)
             regular_center_ids=page.locator("#satIsobarSvg .sat-pressure-center").evaluate_all(

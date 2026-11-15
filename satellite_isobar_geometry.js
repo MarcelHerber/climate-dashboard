@@ -262,9 +262,9 @@ function detectVisiblePressureSystems(contours,viewport,{
 
 // Grid extrema are physically identified in the 0.25° IFS MSLP array before
 // either 2-hPa or 5-hPa contours are drawn.
-const GRID_METHOD="ifs_mslp_grid_extrema_v1";
+const GRID_METHODS=new Set(["ifs_mslp_grid_extrema_v1","ifs_mslp_grid_extrema_v2"]);
 function modelGridCenters(overlay,viewport,{maxSystems=7,minSeparation=94}={}){
- if(!overlay||overlay.pressure_centers_method!==GRID_METHOD||
+ if(!overlay||!GRID_METHODS.has(overlay.pressure_centers_method)||
     !Array.isArray(overlay.pressure_centers))return null; // legacy run
  if(overlay.pressure_centers.length>40)throw Error("IFS: ungültige Extremaanzahl");
  const proposed=[];
@@ -278,7 +278,7 @@ function modelGridCenters(overlay,viewport,{maxSystems=7,minSeparation=94}={}){
   if(p[0]<35||p[0]>965||p[1]<35||p[1]>965)continue;
   proposed.push({type:item.type,lon,lat,hpa,pressure_hpa:hpa,
    score:item.score,prominence_hpa:item.prominence_hpa,
-   method:GRID_METHOD,source:"ifs_grid"});
+   method:overlay.pressure_centers_method,source:"ifs_grid"});
  }
  proposed.sort((a,b)=>b.score-a.score||a.lon-b.lon);
  const out=[];

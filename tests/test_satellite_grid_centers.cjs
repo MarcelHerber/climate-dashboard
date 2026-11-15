@@ -38,6 +38,14 @@ test("Same IFS grid extrema and kerndruck for 2 and 5 hPa despite totally differ
  assert.equal(exporter.pressureCenters(a,"europe")[0].hpa,994.7);
  assert.equal(exporter.pressureCenters(a,"europe")[0].source,"ifs_grid");
 });
+test("Contour-validated IFS grid centers are used unchanged in both display intervals and exports",()=>{
+ const {geo,exporter}=context();
+ const a={...make(2),pressure_centers_method:"ifs_mslp_grid_extrema_v2"};
+ const b={...make(5),pressure_centers_method:"ifs_mslp_grid_extrema_v2"};
+ assert.deepEqual(normalized(geo.modelGridCenters(a,BBOX)),normalized(geo.modelGridCenters(b,BBOX)));
+ assert.equal(exporter.pressureCenters(a,"europe")[0].hpa,994.7);
+ assert.equal(exporter.pressureCenters(b,"europe")[1].hpa,1030.2);
+});
 test("Single grid center remains visible even when neither 2- nor 5-hPa loops close",()=>{
  const {exporter}=context();
  assert.equal(exporter.pressureCenters(make(5),"europe").length,2);
