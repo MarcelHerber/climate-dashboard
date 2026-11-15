@@ -29,6 +29,8 @@ required_root_files=(
   stations_rekordlabor.css
   stations_rekordlabor_core.js
   stations_rekordlabor.js
+  stations_temperaturgegensatz.html
+  stations_temperaturgegensatz.js
   monthly_layout.js
   monthly_climate_bars.js
   stratosphaere.html
@@ -1733,5 +1735,10 @@ print('DWD Jahreswechsel:',len(d['stations']),'vollständig gescannte Stationen 
 PY
 fi
 echo "Dateien gesamt: $(find _site -type f | wc -l)"
+node --check _site/stations_temperaturgegensatz.js
+if [ -s data/rekordlabor/contrast/index.json ]; then
+  mkdir -p _site/data/rekordlabor/contrast
+  cp -a data/rekordlabor/contrast/. _site/data/rekordlabor/contrast/
+fi
 du -sh _site
 

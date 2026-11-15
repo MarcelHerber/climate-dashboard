@@ -243,7 +243,7 @@ function svgScene(scene,index){
  const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
  if(created)s+=svgText(P.x,863+dy,created,15);
  s+=svgText(P.x,887+dy,scene.source,15);
- s+=svgText(P.x,911+dy,"UTC (Z) · Mess- und Prognosewerte unverändert · Kurven als benannte Vektorebenen",15);
+ s+=svgText(P.x,911+dy,scene.source==="Quelle: DWD CDC · Originalmessungen"?"DWD-Originalmessungen · Temperaturdifferenz in K · benannte Vektorebenen":"UTC (Z) · Mess- und Prognosewerte unverändert · Kurven als benannte Vektorebenen",15);
  s+="</g>";
  s+='<g id="'+prefix+'legend" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Legende')+'">';
  let lx=585;
@@ -320,7 +320,7 @@ function drawPdf(pdf,scene){
  const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
  if(created)text(created,P.x,863,15);
  text(scene.source,P.x,887,15);
- text("UTC (Z) · einzelne Kurven als Vektorpfade · Daten unverändert",P.x,911,15);
+ text(scene.source==="Quelle: DWD CDC · Originalmessungen"?"DWD-Originalmessungen · Temperaturdifferenz in K · einzelne Vektorpfade":"UTC (Z) · einzelne Kurven als Vektorpfade · Daten unverändert",P.x,911,15);
  pdf.setLineWidth(.5);pdf.setDrawColor(196,208,219);pdf.rect(X(P.x),Y(P.y),P.w*s,P.h*s,"S");
  for(const t of scene.ticks){
    pdf.setDrawColor(226,232,239);pdf.setLineWidth(.25);
