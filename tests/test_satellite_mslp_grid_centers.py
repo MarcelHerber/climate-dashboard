@@ -67,6 +67,25 @@ class PressureGridTests(unittest.TestCase):
         self.assertEqual(len(lows),2)
         self.assertEqual(sorted(c['lon'] for c in lows),[0.5,9.25])
 
+    def test_diagonal_saddle_follows_actual_contour_topology(self):
+        import contourpy
+        lon=np.arange(-40,36.01,.25)
+        lat=np.arange(20,66.01,.25)
+        for background,peak,want in [(1029,1033,1),(1027,1031,2)]:
+            with self.subTest(background=background,peak=peak):
+                field=np.full((len(lat),len(lon)),float(background))
+                field[80:100,120:140]=peak
+                field[100:120,140:160]=peak
+                # Independent confirmation of the actual renderer's ring count.
+                generator=contourpy.contour_generator(x=lon,y=lat,z=field,name='serial')
+                rings=generator.lines(1030)
+                self.assertEqual(len(rings),want)
+                self.assertEqual(len([c for c in detect_pressure_centers(lon,lat,field) if c['type']=='H']),want)
+                low_field=2000-field
+                low_rings=contourpy.contour_generator(x=lon,y=lat,z=low_field,name='serial').lines(970)
+                self.assertEqual(len(low_rings),want)
+                self.assertEqual(len([c for c in detect_pressure_centers(lon,lat,low_field) if c['type']=='T']),want)
+
     def test_bad_and_coarse_grids_are_rejected(self):
         with self.assertRaisesRegex(ValueError,"0.25-degree"):
             detect_pressure_centers(self.lon[::2],self.lat,self.base[:,::2])

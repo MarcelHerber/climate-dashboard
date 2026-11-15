@@ -30,6 +30,39 @@ def _smooth(z):
     return out
 
 
+def _label_level_sets(values, level, direction):
+    """Match ContourPy's saddle-cell decision rather than fixed 8-connectivity."""
+    mask = values > level if direction == 1 else values >= level
+    labels, count = ndimage.label(mask)
+    # Only diagonal checkerboard cells are ambiguous. ContourPy joins the
+    # high-valued corners if the bilinear cell center lies above the level.
+    # For low systems the field has been negated; the exact-level tie joins
+    # the lower side, consistently with the source contour engine.
+    a, b, c, d = mask[:-1, :-1], mask[:-1, 1:], mask[1:, :-1], mask[1:, 1:]
+    diag_ad = a & d & ~b & ~c
+    diag_bc = b & c & ~a & ~d
+    ambiguous = diag_ad | diag_bc
+    if not ambiguous.any():
+        return labels
+    y, x = np.nonzero(ambiguous)
+    center = (values[y, x] + values[y, x+1] + values[y+1, x] + values[y+1, x+1]) / 4
+    connected = center > level if direction == 1 else center >= level
+    parent = np.arange(count + 1)
+
+    def root(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for r, c in zip(y[connected], x[connected]):
+        i, j = ((labels[r, c], labels[r+1, c+1]) if diag_ad[r, c]
+                else (labels[r, c+1], labels[r+1, c]))
+        parent[root(j)] = root(i)
+    mapping = np.asarray([root(i) for i in range(count+1)])
+    return mapping[labels]
+
+
 def _closed_systems(z, type_):
     """Track nested closed 5-hPa level sets, strictly on the native grid.
 
@@ -44,7 +77,7 @@ def _closed_systems(z, type_):
     selected = []
     covered = np.zeros(z.shape, dtype=bool)
     for level in range(top, bottom - 1, -5):
-        labels, _ = ndimage.label(values > level)
+        labels = _label_level_sets(values, level, direction)
         edge = set(np.concatenate((labels[0], labels[-1], labels[:, 0], labels[:, -1])))
         for label_id, region in enumerate(ndimage.find_objects(labels), 1):
             if region is None or label_id in edge:
