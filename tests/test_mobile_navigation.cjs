@@ -84,7 +84,7 @@ test("accent-insensitive search and no external arbitrary routes",()=>{
 });
 test("GFS and satellite links belong to Sonstiges",()=>{
  const {byId}=readData();
- for(const id of ["gfs_f003_europe.html","gfs_weekly_europe.html","satelliten.html"]){
+ for(const id of ["gfs_f003_europe.html","gfs_weekly_europe.html","ifs_weekly_europe.html","satelliten.html"]){
   assert.equal(byId.get(id).category,"Sonstiges");
  }
 });
