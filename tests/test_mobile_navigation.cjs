@@ -82,6 +82,12 @@ test("accent-insensitive search and no external arbitrary routes",()=>{
  assert.equal(f.isFile("https://attacker.net/"),false);
  assert.equal(f.isFile("../secret.html"),false);
 });
+test("GFS and satellite links belong to Sonstiges",()=>{
+ const {byId}=readData();
+ for(const id of ["gfs_f003_europe.html","gfs_weekly_europe.html","satelliten.html"]){
+  assert.equal(byId.get(id).category,"Sonstiges");
+ }
+});
 test("mobile menu renders on standalone pages and resolves index deep links",()=>{
  const env=environment("/climate-dashboard/stratosphaere.html");
  env.ready();
