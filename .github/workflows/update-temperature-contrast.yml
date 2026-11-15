@@ -3,11 +3,11 @@ on:
   workflow_dispatch:
     inputs:
       first:
-        description: Erstes Jahr (leer = nächste Archivlücke)
+        description: Erstes Jahr (leer = nächste Archivlücke ab 1991)
         required: false
         type: string
       last:
-        description: Letztes Jahr (leer = bis zu 5 Jahre)
+        description: Letztes Jahr (leer = maximal fünf Jahre je Archivblock)
         required: false
         type: string
   pull_request:
