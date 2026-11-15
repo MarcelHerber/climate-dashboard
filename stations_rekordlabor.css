@@ -39,6 +39,9 @@
 .rl-trend-toggle input:disabled{cursor:not-allowed}
 .rl-trend-dash{display:inline-block;width:27px;border-top:3px dashed #64748b}
 .rl-trend-note{font-size:12px;color:var(--rl-muted)}
+.rl-trend-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+.rl-trend-hint{margin:0 0 12px}
+@media(max-width:650px){.rl-trend-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .rl-chart{height:340px;max-width:100%;min-width:0;position:relative;margin:14px 0 10px}
 .rl-chart canvas{width:100%!important;height:100%!important}
 .rl-downloads{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0 19px}

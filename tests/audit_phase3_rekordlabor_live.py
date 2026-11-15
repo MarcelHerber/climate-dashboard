@@ -3,7 +3,7 @@
 No route interception, no mocked results, no synthetic station observations.
 """
 from __future__ import annotations
-import json, os, time, urllib.request, traceback
+import csv, json, os, time, urllib.request, traceback
 from pathlib import Path
 from xml.etree import ElementTree as ET
 from playwright.sync_api import sync_playwright
@@ -19,7 +19,7 @@ def await_published():
         try:
             with urllib.request.urlopen(BASE+"stations_rekordlabor.html?qa="+str(time.time()),timeout=16) as response:
                 txt=response.read().decode("utf8")
-            if ('id="rlChanges"' in txt and 'id="rlMap"' in txt and 'stations_rekordlabor.js?v=' in txt and 'id="rlSeasonTrend"' in txt):
+            if ('id="rlChanges"' in txt and 'id="rlMap"' in txt and 'stations_rekordlabor.js?v=' in txt and 'id="rlSeasonTrend"' in txt and 'id="rlSeasonPeriod"' in txt):
                 expected=int(os.environ.get("REKORDLABOR_MIN_HOURLY_STATIONS","0"))
                 if expected:
                     with urllib.request.urlopen(BASE+"data/rekordlabor/weather_turns/index.json?qa="+str(time.time()),timeout=16) as index_response:
@@ -155,6 +155,30 @@ def test(browser,width):
                                timeout=30000)
         result["season"]=page.locator("#rlSeasonMeta").inner_text()
         downloads(page,"rlSeasons",f"season_{width}")
+        assert page.locator("#rlSeasonTrendKpis").is_visible()
+        for period,first,last in (("1961-1990",1961,1990),("1991-2020",1991,2020)):
+            page.locator("#rlSeasonPeriod").select_option(period)
+            assert page.locator("#rlSeasonTrendKpis .rl-kpi").count()==4
+            assert "R²" in page.locator("#rlSeasonTrendKpis").inner_text()
+            years=page.locator("#rlSeasonTable tr td:nth-child(2)").all_inner_texts()
+            assert years and all(first<=int(y)<=last for y in years),years
+            page.locator("#rlSeasonTrend").check()
+            chart=page.evaluate("""()=>{const c=Chart.getChart('rlSeasonChart');return {
+               labels:c.data.labels,datasets:c.data.datasets.map(d=>({label:d.label,data:d.data})),
+               stats:c.options.plugins.title.text};}""")
+            assert chart["labels"]==[str(y) for y in range(first,last+1)],chart
+            assert len(chart["datasets"])==2 and "Trendlinie"==chart["datasets"][1]["label"]
+            downloads(page,"rlSeasons",f"season_{period}_{width}")
+            with (OUT/f"season_{period}_{width}.csv").open(encoding="utf-8-sig",newline="") as f:
+                observed=list(csv.DictReader(f,delimiter=";"))
+            assert observed and all(first<=int(row["Jahr"])<=last for row in observed)
+            assert len(observed)==sum(v is not None for v in chart["datasets"][0]["data"])
+            svg=(OUT/f"season_{period}_{width}.svg").read_text(encoding="utf8")
+            assert "stroke-dasharray=\"9,6\"" in svg and "R²" in svg
+            assert str(first)+"–"+str(last) in svg
+            result["cases"].append("season_period_"+period+"_trend_and_exports")
+        page.locator("#rlSeasonTrend").uncheck()
+        page.locator("#rlSeasonPeriod").select_option("all")
         page.locator("#rlSeasonMetric").select_option("hotFirst")
         assert "Frühester heißer Tag" in page.locator("#rlSeasonMeta").inner_text()
         page.locator("#rlSeasonMetric").select_option("snowRun")

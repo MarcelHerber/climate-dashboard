@@ -109,7 +109,7 @@ function showTab(which){
 function destroyChart(){
  if(state.chart){state.chart.destroy();state.chart=null;state.chartCanvas=null;}
 }
-function addChart(canvasId,title,labels,data,yTitle,color="#2d79ad",dateAxis=null,trend=null){
+function addChart(canvasId,title,labels,data,yTitle,color="#2d79ad",dateAxis=null,trend=null,headerLines=[]){
  destroyChart();
  state.chartCanvas=$(canvasId);
  if(!window.Chart||!state.chartCanvas)return;
@@ -120,7 +120,7 @@ function addChart(canvasId,title,labels,data,yTitle,color="#2d79ad",dateAxis=nul
   main.push({label:"Trendlinie",data:trend.values,borderColor:"#64748b",
    backgroundColor:"#64748b",borderWidth:2.6,borderDash:[9,6],
    pointRadius:0,pointHoverRadius:0,pointHitRadius:0,
-   tension:0,spanGaps:false,fill:false});
+   tension:0,spanGaps:true,fill:false});
  }
  const yScale=dateAxis?{
   type:"linear",min:dateAxis.min,max:dateAxis.max,
@@ -132,7 +132,7 @@ function addChart(canvasId,title,labels,data,yTitle,color="#2d79ad",dateAxis=nul
  state.chart=new Chart(state.chartCanvas,{type:"line",data:{labels,datasets:main},options:{
   responsive:true,maintainAspectRatio:false,animation:false,normalized:true,
   interaction:{mode:"nearest",intersect:false},
-  plugins:{legend:{display:main.length>1,position:"top",
+  plugins:{title:{display:headerLines.length>0,text:headerLines,color:"#64748b",font:{size:11},padding:4},legend:{display:main.length>1,position:"top",
    labels:{boxWidth:34,boxHeight:3,padding:12}},
   tooltip:{callbacks:{label:context=>context.parsed.y===null?"Fehlwert":
     (context.datasetIndex===1?"Trendlinie (linear)":"Messwert")+": "+
@@ -237,6 +237,7 @@ function calendarRender(){
 }
 function seasonRender(){
  const event=$("rlSeasonMetric").value,st=state.station;
+ const period=$("rlSeasonPeriod").value,periodLabel=$("rlSeasonPeriod").selectedOptions[0].textContent;
  if(!st)return;
  const snow=event.startsWith("snow"),run=event.endsWith("Run");
  let result=null,records=[],label="",unit="Kalendertag";
@@ -264,20 +265,23 @@ function seasonRender(){
  // vertical scale and tooltips use readable dates such as 1.1. and 1.2.
  if(run)unit="Tage";
  else unit="Datum";
- message("rlSeasonMeta","Quelle: DWD CDC · "+label+" · "+records.length+
+ records=C.filterSeasonPeriod(records,period);
+ const excluded=C.filterSeasonPeriod((result?.excluded||[]).map(year=>({year})),period).length;
+ message("rlSeasonMeta","Quelle: DWD CDC · "+label+" · "+periodLabel+" · "+records.length+
   " auswertbare Jahre · "+(result?.threshold||"Mindestens 95 % gültige Tage im Messjahr")+
-  (result?.excluded.length?" · "+result.excluded.length+" unvollständige/ausgeschlossene Jahre":"")+
+  (excluded?" · "+excluded+" unvollständige/ausgeschlossene Jahre":"")+
   (records.some(r=>r.atBoundary)?" · Achtung: Schnee am 1. November bereits vorhanden (linkszensiert).":""));
  const top=records.slice(0,20),byYear=records.slice().sort((a,b)=>a.year-b.year);
  const rankValue=r=>run?String(r.days)+" Tage":r.md.slice(3)+"."+r.md.slice(0,2)+".";
- kpis("rlSeasonKpis",[{value:top.length?rankValue(top[0]):"—",label:"Historischer Rang 1"},
+ kpis("rlSeasonKpis",[{value:top.length?rankValue(top[0]):"—",label:"Rang 1 im Zeitraum"},
    {value:top.length?String(top[0].year):"—",label:"Jahr des Rangs 1"},
    {value:count(records.length),label:"Ausgewertete Jahre mit Ereignis"}]);
  tableRows("rlSeasonTable",top.map((r,i)=>"<tr><td>"+(i+1)+"</td><td>"+r.year+"</td><td>"+
   esc(run?C.readable(r.start)+" bis "+C.readable(r.end):C.readable(r.date))+
   "</td><td>"+(run?r.days+" Tage":num(r.value)+(snow?" cm":" °C")+(r.atBoundary?" · bereits vorhanden":""))+"</td></tr>"));
- const values=byYear.map(r=>run?r.days:snow?r.dayOfPeriod:r.dayOfYear);
- const linear=C.seasonLinearTrend(byYear.map((row,i)=>({year:row.year,value:values[i]})));
+ const timeline=C.seasonTimeline(byYear.map(r=>({year:r.year,value:run?r.days:snow?r.dayOfPeriod:r.dayOfYear})),period);
+ const values=timeline.map(r=>r.value);
+ const linear=C.seasonLinearTrend(timeline);
  const trendToggle=$("rlSeasonTrend");
  trendToggle.disabled=!linear;
  // Keep the user's chosen visibility when switching stations/events.
@@ -285,19 +289,33 @@ function seasonRender(){
  $("rlSeasonTrendInfo").textContent=linear?
   "Lineare Regression über "+linear.count+" beobachtete Jahreswerte":
   "Trendlinie erst ab zwei unterschiedlichen Messjahren verfügbar";
+ const signed=linear?new Intl.NumberFormat("de-DE",{maximumFractionDigits:2,signDisplay:"exceptZero"}).format(linear.slopePerDecade):"—";
+ const r2=linear?.rSquared==null?"—":num(linear.rSquared,3);
+ const measured=linear?linear.firstYear+"–"+linear.lastYear:"—";
+ $("rlSeasonTrendKpis").hidden=!linear;
+ $("rlSeasonTrendHint").hidden=!linear;
+ kpis("rlSeasonTrendKpis",linear?[
+  {value:signed+" Tage",label:"Trend pro Jahrzehnt"},
+  {value:r2,label:"R² · Bestimmtheitsmaß"},
+  {value:count(linear.count),label:"n · beobachtete Jahreswerte"},
+  {value:measured,label:"Messjahre des Trends"}]:[]);
+ const stats=linear?"Trend: "+signed+" Tage/Dekade · R² "+r2+" · n="+linear.count: "Kein berechenbarer Trend";
  state.csv=[["Jahr","Ereignis","Datum/Start","Ende","Dauer/Wert", "Tag-im-Zeitraum"],
    ...byYear.map(r=>[r.year,label,r.date||r.start||"",r.end||"",run?r.days:r.value,
      snow?r.dayOfPeriod:r.dayOfYear])];
- state.fileName="DWD_Jahreszeitenrekord_"+st.id+"_"+event;
+ state.fileName="DWD_Jahreszeitenrekord_"+st.id+"_"+event+"_"+period;
+ state.seasonStats=["Zeitraum: "+periodLabel,stats+(linear?" · "+measured:"")];
  const dateAxis=run?null:C.seasonDateAxis(snow?state.snow?.month_days:null,
   trend?[...values,...trend.values.filter(Number.isFinite)]:values);
- addChart("rlSeasonChart",label+" · "+st.name,byYear.map(r=>String(r.year)),values,
-  unit,"#b44e46",dateAxis,trend);
+ addChart("rlSeasonChart",label+" · "+st.name,timeline.map(r=>String(r.year)),values,
+  unit,"#b44e46",dateAxis,trend,[periodLabel,stats,...(linear?["Messjahre: "+measured]:[])]);
  setExportState(byYear.length>1);
 }
 function clearSeason(){
  $("rlSeasonTrend").disabled=true;
  $("rlSeasonTrendInfo").textContent="Trendlinie erst mit auswertbaren Jahreswerten verfügbar";
+ $("rlSeasonTrendKpis").hidden=true;$("rlSeasonTrendHint").hidden=true;
+ kpis("rlSeasonTrendKpis",[]);state.seasonStats=[];
  kpis("rlSeasonKpis",[]);tableRows("rlSeasonTable",[]);
  destroyChart();setExportState(false);
 }
@@ -440,7 +458,7 @@ async function exportChart(type){
    axis:state.chart.options.scales.y.title.text,
    yTicks:state.chartDateAxis?.ticks,yTickFormatter:state.chartDateAxis?.format,
    source:"Quelle: Deutscher Wetterdienst, Climate Data Center",
-   metadata:["Stationsauswertung · "+state.fileName,"Nur echte Messwerte; Datenlücken bleiben erhalten",
+   metadata:["Stationsauswertung · "+state.fileName,...(state.view==="seasons"?state.seasonStats||[]:[]),"Nur echte Messwerte; Datenlücken bleiben erhalten",
     "Erstellt: "+new Date().toLocaleString("de-DE")]});
   if(type==="svg")exp.saveSvg([scene],file+".svg");
   else{
@@ -468,7 +486,7 @@ function initDates(){
 async function init(){
  initDates();
  Object.keys(tabs).forEach(key=>$(tabs[key][0]).addEventListener("click",()=>showTab(key)));
- for(const id of ["rlDay","rlCalMetric","rlCalOrder","rlSeasonMetric"])
+ for(const id of ["rlDay","rlCalMetric","rlCalOrder","rlSeasonMetric","rlSeasonPeriod"])
   $(id).addEventListener("change",render);
  $("rlSeasonTrend").addEventListener("change",()=>{if(state.view==="seasons")seasonRender();});
  for(const id of ["rlChangeMetric","rlChangeHours","rlChangeDirection"])
