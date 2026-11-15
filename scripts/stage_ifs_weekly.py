@@ -15,10 +15,13 @@ GRID_KEYS = ('width', 'height', 'grid_degrees', 'lat_north', 'lat_south', 'lon_w
 LABEL = 'ECMWF IFS · 7-Tage-Temperaturanomalie'
 
 
-def validate(folder):
+def validate(folder, domain='europe'):
+    grid = (3600,301,.1,90,60,-180,179.9) if domain=='arctic' else GRID
+    version = 'era5-t2m-calendar-hour-1991-2020-arctic-v1' if domain=='arctic' else 'era5-t2m-calendar-hour-1991-2020-v1'
+    cell_bytes = grid[0]*grid[1]*2
     current, forecast, geo = [json.loads((folder / f).read_text(encoding='utf-8')) for f in FILES]
     for data in (current, forecast, geo):
-        assert data['schema'] == 1 and tuple(data[k] for k in GRID_KEYS) == GRID
+        assert data['schema'] == 1 and tuple(data[k] for k in GRID_KEYS) == grid
     assert current['type'] == forecast['type'] == 'ifs_0p1_seven_day_forecast'
     run = datetime.fromisoformat(current['run_utc'])
     assert datetime.fromisoformat(current['valid_from_utc']) == run
@@ -30,12 +33,12 @@ def validate(folder):
         assert re.fullmatch(r'[a-f0-9]{64}', src['sha256']) and src['bytes'] > 1000
     assert forecast['reference_ready'] is False and current['reference_ready'] is True
     assert all(current[k] == v for k, v in forecast.items() if k != 'reference_ready')
-    assert current['reference_version'] == 'era5-t2m-calendar-hour-1991-2020-v1'
+    assert current['reference_version'] == version
     ref = current['reference_metadata']
     assert (ref['period'], ref['years'], ref['native_grid_degrees'], ref['interpolation']) == ('1991–2020', 30, .25, 'bilinear')
     assert geo['type'] == 'geographic_country_boundaries_not_temperature' and geo['countries'] and len(geo['rings']) >= 100
     for data, key in ((current, 'forecast_mean_q10_b64'), (current, 'anomaly_mean_q10_b64'), (geo, 'country_mask_b64')):
-        assert len(base64.b64decode(data[key], validate=True)) == 1801 * 601 * 2
+        assert len(base64.b64decode(data[key], validate=True)) == cell_bytes
     if (folder/'periods.json').exists():
         manifest=json.loads((folder/'periods.json').read_text())
         assert manifest=={'schema':1,'run_utc':current['run_utc'],'periods':list(PERIODS)}
@@ -43,7 +46,7 @@ def validate(folder):
         for days in PERIODS:
             if days==7: continue
             data=json.loads((folder/f'current_{days:02d}.json').read_text())
-            assert data['schema']==1 and tuple(data[k] for k in GRID_KEYS)==GRID
+            assert data['schema']==1 and tuple(data[k] for k in GRID_KEYS)==grid
             assert data['type']=='ifs_0p1_period_forecast' and data['period_days']==days
             assert data['run_utc']==current['run_utc']==data['valid_from_utc']
             assert datetime.fromisoformat(data['valid_to_utc'])==run+timedelta(days=days)
@@ -56,7 +59,7 @@ def validate(folder):
                 assert src['forecast_hour']==h and datetime.fromisoformat(src['valid_utc'])==run+timedelta(hours=h)
                 assert re.fullmatch(r'[a-f0-9]{64}',src['sha256']) and src['bytes']>=1000
             for key in ('forecast_mean_q10_b64','anomaly_mean_q10_b64'):
-                assert len(base64.b64decode(data[key],validate=True))==1801*601*2
+                assert len(base64.b64decode(data[key],validate=True))==cell_bytes
             rows[days]=data
         for days,data in rows.items():
             assert data['sources']==rows[15]['sources'][:days*4+1], 'Mixed forecast provenance'
@@ -86,14 +89,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('source', type=Path)
     parser.add_argument('--site', type=Path)
+    parser.add_argument('--domain',choices=('europe','arctic'),default='europe')
     args = parser.parse_args()
-    validate(args.source)
+    validate(args.source,args.domain)
     if args.site:
-        dest = args.site / 'ifs_weekly_europe'
+        dest = args.site / ('ifs_weekly_arctic' if args.domain=='arctic' else 'ifs_weekly_europe')
         dest.mkdir(parents=True, exist_ok=True)
         for file in FILES + (PERIOD_FILES if (args.source/'periods.json').exists() else ()):
             shutil.copyfile(args.source / file, dest / file)
-        add_navigation(args.site)
+        if args.domain=='europe': add_navigation(args.site)
 
 
 if __name__ == '__main__':

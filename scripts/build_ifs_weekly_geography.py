@@ -43,17 +43,19 @@ GERMAN_NAMES={
 }
 
 
-def source_boundaries(output:Path=OUT)->dict:
+def source_boundaries(output:Path=OUT, domain="europe")->dict:
     from cartopy.io import shapereader
     from shapely import contains_xy
     from shapely.geometry import Polygon,MultiPolygon,box
 
     file=shapereader.natural_earth(resolution="50m",category="cultural",name="admin_0_countries")
-    frame=box(WEST,SOUTH,EAST,NORTH)
-    ys=NORTH-np.arange(H,dtype=np.float64)*.1
-    xs=WEST+np.arange(W,dtype=np.float64)*.1
+    arctic=domain=="arctic"
+    h,w,north,south,west,east=(301,3600,90.,60.,-180.,179.9) if arctic else (H,W,NORTH,SOUTH,WEST,EAST)
+    frame=box(west,south,180. if arctic else east,north)
+    ys=north-np.arange(h,dtype=np.float64)*.1
+    xs=west+np.arange(w,dtype=np.float64)*.1
     longitude,latitude=np.meshgrid(xs,ys)
-    mask=np.full((H,W),-1,dtype="<i2")
+    mask=np.full((h,w),-1,dtype="<i2")
     country=[]
     rings=[]
 
@@ -66,6 +68,13 @@ def source_boundaries(output:Path=OUT)->dict:
             for part in geometry.geoms:
                 yield from iter_rings(part)
 
+    def iter_lines(geometry):
+        if geometry.geom_type in ("LineString","LinearRing"):
+            yield geometry
+        elif hasattr(geometry,"geoms"):
+            for part in geometry.geoms:
+                yield from iter_lines(part)
+
     for record in shapereader.Reader(file).records():
         name=record.attributes.get("ADMIN") or record.attributes.get("NAME_EN")
         if not isinstance(name,str) or not name.strip():
@@ -76,7 +85,8 @@ def source_boundaries(output:Path=OUT)->dict:
         if not geom.intersects(frame):
             continue
         clipped=geom.intersection(frame)
-        for ring in iter_rings(clipped.simplify(0.035,preserve_topology=True)):
+        lines=iter_lines(geom.boundary.intersection(frame).simplify(0.035,preserve_topology=True)) if arctic else iter_rings(clipped.simplify(0.035,preserve_topology=True))
+        for ring in lines:
             coords=[[round(float(x),3),round(float(y),3)] for x,y in ring.coords]
             if len(coords)>1:
                 rings.append(coords)
@@ -93,19 +103,19 @@ def source_boundaries(output:Path=OUT)->dict:
             "cells":count
         })
 
-    if len(country)<60 or len(rings)<100 or np.count_nonzero(mask>=0)<5000:
+    if len(country)<(7 if arctic else 60) or len(rings)<100 or np.count_nonzero(mask>=0)<5000:
         raise RuntimeError("Natural Earth 50m source has incomplete countries/geographic polygons")
     country_names=[x["name"] for x in country]
-    for essential in ("Deutschland","Island","Norwegen","Russland","Grönland"):
+    for essential in (("Kanada","USA","Island","Norwegen","Russland","Grönland") if arctic else ("Deutschland","Island","Norwegen","Russland","Grönland")):
         if essential not in country_names:
             raise ValueError("Natural Earth 50m missing expanded-country coverage: "+essential)
     body={
         "schema":1,
         "source":"Natural Earth admin_0_countries 50m; public domain",
         "type":"geographic_country_boundaries_not_temperature",
-        "width":W,"height":H,
-        "lat_north":NORTH,"lat_south":SOUTH,
-        "lon_west":WEST,"lon_east":EAST,
+        "width":w,"height":h,
+        "lat_north":north,"lat_south":south,
+        "lon_west":west,"lon_east":east,
         "grid_degrees":.1,
         "countries":country,
         "country_mask_b64":base64.b64encode(mask.tobytes(order="C")).decode("ascii"),
@@ -123,5 +133,6 @@ def source_boundaries(output:Path=OUT)->dict:
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--output",type=Path,default=OUT)
+    parser.add_argument("--domain",choices=("europe","arctic"),default="europe")
     args=parser.parse_args()
-    source_boundaries(args.output)
+    source_boundaries(args.output,args.domain)
