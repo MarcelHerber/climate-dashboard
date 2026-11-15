@@ -1,0 +1,90 @@
+name: DWD Jahreswechsel · Originalmessungen
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/build_rekordlabor_newyear.py
+      - tests/test_rekordlabor_newyear.py
+      - tests/audit_rekordlabor_newyear.py
+      - .github/workflows/update-rekordlabor-newyear.yml
+  push:
+    branches: [main]
+    paths:
+      - scripts/build_rekordlabor_newyear.py
+      - tests/test_rekordlabor_newyear.py
+      - tests/audit_rekordlabor_newyear.py
+      - .github/workflows/update-rekordlabor-newyear.yml
+  schedule:
+    - cron: '15 7 3 1 *'
+    - cron: '15 7 15 7 *'
+permissions:
+  contents: read
+concurrency:
+  group: rekordlabor-newyear-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/build_rekordlabor_hourly.py
+            scripts/build_rekordlabor_newyear.py
+            tests/test_rekordlabor_newyear.py
+            tests/test_stations_rekordlabor.cjs
+            tests/audit_rekordlabor_newyear.py
+            stations_rekordlabor.html
+            stations_rekordlabor.css
+            stations_rekordlabor.js
+            stations_rekordlabor_core.js
+            t850_vector_export.js
+            dashboard_theme.css
+            dashboard_theme.js
+            data/rekordlabor/newyear/index.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Timestamp and ranking regressions
+        run: |
+          python -m unittest discover -s tests -p test_rekordlabor_newyear.py -v
+          node --check stations_rekordlabor.js
+          node --test tests/test_stations_rekordlabor.cjs
+      - name: Validate real DWD ZIP archives
+        if: github.event_name == 'pull_request'
+        run: python -u scripts/build_rekordlabor_newyear.py --out /tmp/newyear-preview.json --limit 4 --workers 4
+      - name: Scan all eligible DWD historical and recent TU stations
+        if: github.event_name != 'pull_request'
+        run: python -u scripts/build_rekordlabor_newyear.py --out data/rekordlabor/newyear/index.json --workers 8
+      - name: Browser verification with original data, desktop and mobile
+        if: github.event_name != 'pull_request'
+        run: |
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps chromium
+          python -u tests/audit_rekordlabor_newyear.py
+      - uses: actions/upload-artifact@v4
+        if: always() && github.event_name != 'pull_request'
+        with:
+          name: newyear-original-data-and-qa
+          path: |
+            data/rekordlabor/newyear/index.json
+            newyear_qa/
+          if-no-files-found: warn
+      - name: Commit verified data, preserving concurrent main changes
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/rekordlabor/newyear/index.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'data: verified DWD New Year midnight term archive'
+          for i in 1 2 3 4 5; do
+            if git push origin HEAD:main; then exit 0; fi
+            git pull --rebase origin main
+          done
+          exit 1
