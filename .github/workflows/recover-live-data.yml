@@ -2,13 +2,16 @@ name: Veraltete Live-Daten nachstarten
 
 on:
   workflow_dispatch:
+  # Independent of Pages deployment; avoid the crowded top of the hour.
+  schedule:
+    - cron: '7,22,37,52 * * * *'
   push:
     branches: [main]
     paths:
       - 'scripts/recover_live_data.py'
       - '.github/workflows/recover-live-data.yml'
   workflow_run:
-    workflows: ['GitHub Pages schnell veröffentlichen']
+    workflows: ['GitHub Pages schnell veröffentlichen', 'DWD Fast Live SYNOP aktualisieren', 'OPERA Europakomposit · DBZH & RATE', 'MTG EUMETView live data check', 'ERA5 Stratosphäre Tagesdaten']
     types: [completed]
 
 permissions:
@@ -21,13 +24,19 @@ concurrency:
 
 jobs:
   recover:
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v5
         with:
           ref: main
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/build_data_status.py
+            scripts/recover_live_data.py
+            tests/test_recover_live_data.py
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
