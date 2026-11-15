@@ -1,0 +1,151 @@
+name: ECMWF IFS 0,1° · 7 Tage und ERA5-Referenzpilot
+on:
+  push:
+    branches: [feature/ifs-weekly-0p1-era5-20261115]
+    paths:
+      - '.github/workflows/pilot-ifs-weekly-0p1.yml'
+      - 'scripts/ifs_weekly_01.py'
+      - 'scripts/build_ifs_weekly_geography.py'
+      - 'tests/test_ifs_weekly_01.py'
+      - 'tests/test_ifs_weekly_browser.mjs'
+      - 'ifs_weekly_europe.*'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ifs-weekly-0p1-pilot-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  forecast:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      months: ${{ steps.months.outputs.months }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts/ifs_weekly_01.py
+            scripts/build_ifs_weekly_geography.py
+            tests/test_ifs_weekly_01.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy scipy eccodes ecmwf-opendata cartopy shapely
+      - run: python -m unittest discover -s tests -p test_ifs_weekly_01.py -v
+      - name: Download and verify all 29 authentic native IFS fields
+        run: python -m scripts.ifs_weekly_01 forecast --out ifs_weekly_europe
+      - name: Generate precise native 0.1° country geography
+        run: python scripts/build_ifs_weekly_geography.py
+      - name: Determine required ERA5 months from original valid UTC times
+        id: months
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os,json
+          from datetime import datetime
+          x=json.loads(Path('ifs_weekly_europe/forecast.json').read_text())
+          months=sorted({datetime.fromisoformat(s['valid_utc'].replace('Z','+00:00')).month for s in x['sources']})
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('months='+json.dumps(months,separators=(',',':'))+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ifs-0p1-verified-forecast
+          path: ifs_weekly_europe/
+          retention-days: 30
+  reference:
+    needs: forecast
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        month: ${{ fromJSON(needs.forecast.outputs.months) }}
+    env:
+      CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+      MONTH: ${{ matrix.month }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts/ifs_weekly_01.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy scipy cdsapi xarray netCDF4
+      - uses: actions/cache@v4
+        id: climate-cache
+        with:
+          path: .ifs-era5-reference
+          key: ifs-era5-hourly-1991-2020-0p25-v1-month-${{ matrix.month }}
+      - name: Build calendar-hour reference from all 30 actual years
+        if: steps.climate-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "$CDSAPI_KEY" > "$HOME/.cdsapirc"
+          MONTH_PAD=$(printf '%02d' "$MONTH")
+          python -m scripts.ifs_weekly_01 reference --month "$MONTH" --out ".ifs-era5-reference/era5_${MONTH_PAD}.npz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ifs-era5-reference-month-${{ matrix.month }}
+          path: .ifs-era5-reference/*.npz
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+  verify:
+    needs: [forecast, reference]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts/ifs_weekly_01.py
+            tests/test_ifs_weekly_browser.mjs
+            ifs_weekly_europe.html
+            ifs_weekly_europe.js
+            gfs_weekly_europe.css
+            cpc_europe.css
+            mobile_navigation.css
+            mobile_navigation.js
+            dashboard_theme.css
+            dashboard_theme.js
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy scipy
+      - uses: actions/download-artifact@v4
+        with:
+          name: ifs-0p1-verified-forecast
+          path: ifs_weekly_europe
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ifs-era5-reference-month-*
+          path: .ifs-era5-reference
+          merge-multiple: true
+      - name: Compute anomalies only with exact, complete references
+        run: python -m scripts.ifs_weekly_01 combine --forecast ifs_weekly_europe --references .ifs-era5-reference --out ifs_weekly_europe/current.json
+      - name: Test desktop/mobile maps, selection and PNG/PDF export with actual data
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          python -m http.server 8765 --bind 127.0.0.1 > /tmp/ifs-http.log 2>&1 &
+          node tests/test_ifs_weekly_browser.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ifs-weekly-0p1-verified-map
+          path: |
+            ifs_weekly_europe/current.json
+            ifs_weekly_europe/geography.json
+            ifs_weekly_europe/forecast.json
+            ifs-test-output/
+          if-no-files-found: error
+          retention-days: 30
