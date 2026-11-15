@@ -18,7 +18,7 @@ class FakeElement{
  appendChild(item){this.children.push(item);}
  replaceChildren(...items){this.children=items;}
 }
-function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=13,fineMode=false,holdFine=false}={}){
+function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=13,fineMode=false,holdFine=false,centerMethod}={}){
  const names=["satIsobarSvg","satShowIsobars","satIsobarSpacing","satIsobarStatus","satRetryIsobars","satRegion","satSource"];
  const map=new Map(names.map(x=>[x,new FakeElement()]));
  map.get("satRegion").value="southwest";
@@ -36,7 +36,7 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
   model:"ECMWF IFS Open Data",units:"hPa",field:"mean sea-level pressure",
   resolution_degrees:.25,interval_hpa:5,bbox:[-75,12,55,80],
   frames:[0,3,6,9,12].map(frame)};
- let calls=0,releaseFine;
+ let calls=0,releaseFine;const chunkUrls=[];
  const fineGate=holdFine?new Promise(resolve=>{releaseFine=resolve;}):null;
  const sandbox={document:{getElementById:x=>{assert.ok(map.has(x),"missing node "+x);return map.get(x);},
   createElementNS:()=>new FakeElement(),createDocumentFragment:()=>new FakeElement()},
@@ -48,6 +48,7 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
      schema_version:2,model:"ECMWF IFS Open Data",
      time_resolution_minutes:10,source_interval_hours:3,
      run_utc:iso(run),generated_at:iso(now),
+     ...(centerMethod?{pressure_centers_algorithm:centerMethod}:{}),
      hours:Object.fromEntries(Array.from({length:tenHours},(_,h)=>[
       "h"+String(h).padStart(2,"0"),
       "r"+run.toISOString().slice(0,13).replace(/[-T:]/g,"")+"/h"+String(h).padStart(2,"0")+".json"
@@ -62,14 +63,17 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
     })};
    }
    if(tenMinutes&&String(url).includes("/ten_minute/r")){
-    const fine=String(url).endsWith("_2hpa.json");
+    chunkUrls.push(String(url));
+    const path=String(url).split("?")[0];
+    const fine=path.endsWith("_2hpa.json");
     if(fine&&fineGate)await fineGate;
-    const match=String(url).match(/h(\d{2})(?:_2hpa)?\.json$/);
+    const match=path.match(/h(\d{2})(?:_2hpa)?\.json$/);
     const hour=Number(match[1]);
     const frames=Array.from({length:hour===tenHours-1?1:6},(_,i)=>{
      const minute=(hour*6+i)*10;
      return {valid_utc:iso(new Date(run.getTime()+minute*60000)),
       forecast_minute:minute,interpolated:minute%180!==0,
+      ...(centerMethod?{pressure_centers_method:centerMethod,pressure_centers:[{type:"H",lon:-18,lat:45,pressure_hpa:1032,prominence_hpa:7,score:50}]}:{}),
       contours:fine?[
        {hpa:1000,lines:frame(3).contours[0].lines},
        {hpa:1002,lines:frame(3).contours[1].lines},
@@ -88,12 +92,29 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
   }};
  vm.runInNewContext(geom,sandbox,{timeout:1000});
  vm.runInNewContext(src,sandbox,{timeout:1000});
- return {map,data,api:sandbox.window.SatelliteIsobars,run,getCalls:()=>calls,releaseFine:()=>releaseFine?.()};
+ return {map,data,api:sandbox.window.SatelliteIsobars,run,getCalls:()=>calls,releaseFine:()=>releaseFine?.(),chunkUrls,setCenterMethod:m=>{centerMethod=m;}};
 }
 async function ready(api){
  for(let i=0;i<20;i++){if(api.frameFor(new Date().toISOString()))return;await new Promise(resolve=>setTimeout(resolve,3));}
  throw Error("MSLP fixture not loaded");
 }
+test("An updated algorithm within the same model run reloads both cached contour intervals",async()=>{
+ const {api,map,run,setCenterMethod,chunkUrls}=fixture({tenMinutes:true,fineMode:true,centerMethod:"ifs_mslp_grid_extrema_v1"});
+ const at=new Date(run.getTime()+200*60000).toISOString();
+ await ready(api);api.sync({time:at,region:"europe",source:"mtgi1"});
+ const first=await api.exportAt(at,"europe",5,{strictTenMinute:true});
+ assert.equal(first.pressure_centers_method,"ifs_mslp_grid_extrema_v1");
+ await api.exportAt(at,"europe",2,{strictTenMinute:true});
+ setCenterMethod("ifs_mslp_grid_extrema_v2");map.get("satRetryIsobars").emit("click");
+ for(let i=0;i<50&&api.tenFrameAt(at)?.pressure_centers_method!=="ifs_mslp_grid_extrema_v2";i++)await new Promise(ok=>setTimeout(ok,4));
+ const five=await api.exportAt(at,"europe",5,{strictTenMinute:true});
+ const two=await api.exportAt(at,"europe",2,{strictTenMinute:true});
+ assert.equal(five.pressure_centers_method,"ifs_mslp_grid_extrema_v2");
+ assert.equal(two.pressure_centers_method,"ifs_mslp_grid_extrema_v2");
+ assert.deepEqual(five.pressure_centers,two.pressure_centers);
+ assert.ok(chunkUrls.some(u=>u.endsWith("h03.json?centers=v2")));
+ assert.ok(chunkUrls.some(u=>u.endsWith("h03_2hpa.json?centers=v2")));
+});
 test("ECMWF layer has explicit controls and synchronizes on satellite still and film frames",()=>{
  for(const id of ["satIsobarSvg","satShowIsobars","satIsobarSpacing","satIsobarStatus"])assert.ok(html.includes('id="'+id+'"'));
  assert.match(html,/src="satellite_isobars\.js(?:\?v=[^"]+)?"/);
