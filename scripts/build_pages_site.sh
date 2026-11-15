@@ -148,6 +148,8 @@ required_root_files=(
   gfs_weekly_europe.html
   gfs_weekly_europe.js
   gfs_weekly_europe.css
+  ifs_weekly_europe.html
+  ifs_weekly_europe.js
   gfs_analysis_europe.css
   era5_synoptic.js
   era5_synoptic.css
@@ -281,6 +283,11 @@ assert s.count('data-nav-group="misc" href="gfs_weekly_europe.html"') == 1
 assert '["gfs_weekly_europe.html","GFS · 7-Tage-Temperaturanomalie"]' in Path("_site/mobile_navigation.js").read_text(encoding="utf-8")
 PY
 node --check _site/gfs_weekly_europe.js
+
+# Only publish ECMWF after the exact complete original data are validated.
+python -m unittest discover -s tests -p test_ifs_pages_stage.py -v
+python scripts/stage_ifs_weekly.py ifs_weekly_europe --site _site
+node --check _site/ifs_weekly_europe.js
 
 # 30-year-verified wider GFS f003–f165 week: only use exact NOAA field and
 # original CFSR/CFSv2 1991–2020 reference; preserve the old 76×140 fallback.
