@@ -49,6 +49,22 @@ class PressureGridTests(unittest.TestCase):
         self.assertEqual(len(highs),1)
         self.assertEqual((highs[0]['lon'],highs[0]['lat'],highs[0]['pressure_hpa']),(21,48,1034))
 
+    def test_broad_shallow_closed_1025_high_is_not_lost_to_stronger_high(self):
+        x,y=np.meshgrid(self.lon,self.lat)
+        field=(1020.5+4.84*np.exp(-((x+28)**2+(y-28.5)**2)/(2*8**2))
+               +11.5*np.exp(-((x-30)**2+(y-46)**2)/(2*5**2)))
+        highs=[c for c in detect_pressure_centers(self.lon,self.lat,field) if c['type']=='H']
+        azores=next((c for c in highs if c['lon']==-28 and c['lat']==28.5),None)
+        self.assertIsNotNone(azores)
+        self.assertEqual(azores['pressure_hpa'],1025.3)
+        self.assertTrue(azores['closed_system'])
+        self.assertGreater(azores['closed_area_km2'],50000)
+
+    def test_tiny_shallow_closed_speckle_is_not_labeled(self):
+        x,y=np.meshgrid(self.lon,self.lat)
+        field=1020.5+4.84*np.exp(-((x+28)**2+(y-28.5)**2)/(2*.5**2))
+        self.assertEqual(detect_pressure_centers(self.lon,self.lat,field),[])
+
     def test_two_extrema_inside_same_closed_975_system_get_one_label(self):
         x,y=np.meshgrid(self.lon,self.lat)
         field=(1010-38*np.exp(-((x-5)**2+(y-65)**2)/(2*13**2))

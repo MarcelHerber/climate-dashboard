@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 from scipy import ndimage
 
-ALGORITHM = "ifs_mslp_grid_extrema_v2"
+ALGORITHM = "ifs_mslp_grid_extrema_v3"
 MODEL_BBOX = (-70.5, 14.5, 49.5, 75.5)
 _OFFSETS = ((4, 0), (-4, 0), (0, 4), (0, -4),
             (3, 3), (3, -3), (-3, 3), (-3, -3))
@@ -63,7 +63,7 @@ def _label_level_sets(values, level, direction):
     return mapping[labels]
 
 
-def _closed_systems(z, type_):
+def _closed_systems(z, type_, latitudes):
     """Track nested closed 5-hPa level sets, strictly on the native grid.
 
     Starting at the deepest/strongest level retains separate closed cores,
@@ -76,6 +76,8 @@ def _closed_systems(z, type_):
     bottom = 1015 if type_ == "H" else -1015
     selected = []
     covered = np.zeros(z.shape, dtype=bool)
+    # Area of each 0.25° latitude/longitude cell, latitude corrected.
+    cell_area = (111.195 * .25) ** 2 * np.cos(np.deg2rad(latitudes))
     for level in range(top, bottom - 1, -5):
         labels = _label_level_sets(values, level, direction)
         edge = set(np.concatenate((labels[0], labels[-1], labels[:, 0], labels[:, -1])))
@@ -83,19 +85,24 @@ def _closed_systems(z, type_):
             if region is None or label_id in edge:
                 continue
             mask = labels[region] == label_id
+            # A rejected tiny closed ring must not be reintroduced as an
+            # allegedly open pressure system by the directional fallback.
+            covered[region] |= mask
             # Do not elevate one-pixel pressure speckles into synoptic systems.
             if np.count_nonzero(mask) < 16:
                 continue
             patch = np.where(mask, values[region], -np.inf)
             iy, ix = np.unravel_index(np.argmax(patch), patch.shape)
             depth = float(patch[iy, ix] - level)
-            if depth < 0.6:
+            area = float(np.sum(mask * cell_area[region[0]][:, None]))
+            # Broad flat highs often exceed their innermost isobar by only
+            # a few tenths of a hPa. Area distinguishes them from speckles.
+            if depth < .6 and not (depth >= .15 and area >= 50000):
                 continue
             row, col = region[0].start + iy, region[1].start + ix
-            covered[region] |= mask
             members = [m for m in selected if labels[m[0], m[1]] == label_id]
             if not members:
-                selected.append([row, col, depth])
+                selected.append([row, col, depth, area])
             elif len(members) == 1:
                 # A broader closed ring confirms the same center's prominence.
                 m = members[0]
@@ -141,7 +148,7 @@ def detect_pressure_centers(lons, lats, pressure):
     high &= strict_high & (core >= 1017)
     choices = []
 
-    def add(type_, iy, ix, prominence, closed):
+    def add(type_, iy, ix, prominence, closed, area=0):
         lon, lat = float(xx[ix]), float(yy[iy])
         if not (MODEL_BBOX[0] + 1 <= lon <= MODEL_BBOX[2] - 1
                 and MODEL_BBOX[1] + 1 <= lat <= MODEL_BBOX[3] - 1):
@@ -153,12 +160,13 @@ def detect_pressure_centers(lons, lats, pressure):
         score = min(300, prominence * 3 + max(0, departure) * .45 + (8 if closed else 0))
         choices.append({"type": type_, "lon": round(lon, 3), "lat": round(lat, 3),
                         "pressure_hpa": round(value, 1), "prominence_hpa": round(prominence, 1),
-                        "score": round(score, 2), "closed_system": closed})
+                        "score": round(score, 2), "closed_system": closed,
+                        "closed_area_km2": round(area)})
 
     for type_, selector in (("T", low), ("H", high)):
-        systems, covered = _closed_systems(z, type_)
-        for row, col, prominence in systems:
-            add(type_, row, col, prominence, True)
+        systems, covered = _closed_systems(z, type_, yy)
+        for row, col, prominence, area in systems:
+            add(type_, row, col, prominence, True, area)
         for row_, col_ in np.argwhere(selector):
             row, col = int(row_ + radius), int(col_ + radius)
             lon, lat = float(xx[col]), float(yy[row])
@@ -182,10 +190,17 @@ def detect_pressure_centers(lons, lats, pressure):
             patch = z[row - 1:row + 2, col - 1:col + 2]
             offset = np.unravel_index(np.argmin(patch) if type_ == "T" else np.argmax(patch), patch.shape)
             iy, ix = row + int(offset[0]) - 1, col + int(offset[1]) - 1
+            # A displaced smoothed candidate must still be a true native-grid
+            # local extremum, not the shoulder of a rejected small closed core.
+            neighborhood = z[iy-1:iy+2, ix-1:ix+2]
+            if z[iy, ix] != (neighborhood.min() if type_ == "T" else neighborhood.max()):
+                continue
             if covered[iy, ix]:
                 continue
             add(type_, iy, ix, prominence, False)
-    choices.sort(key=lambda entry: (-entry["score"], entry["type"], entry["lon"], entry["lat"]))
+    # Keep validated closed systems before open candidates; the latter must
+    # never use a score advantage to exclude a real closed core.
+    choices.sort(key=lambda entry: (not entry["closed_system"], -entry["score"], entry["type"], entry["lon"], entry["lat"]))
     kept = []
     for item in choices:
         # Geographic physical separation prevents duplicate candidates that

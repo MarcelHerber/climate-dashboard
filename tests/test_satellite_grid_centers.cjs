@@ -64,7 +64,7 @@ test("Grid MSLP centers reject unverified source geometry and cannot invent fall
  assert.throws(()=>geo.modelGridCenters(fake,BBOX),/Gitter|IFS/);
  assert.deepEqual(normalized(geo.modelGridCenters({...make(5),pressure_centers:[]},BBOX)),[]);
 });
-test("City and contour-number collisions move only label, with true grid anchor unchanged",()=>{
+test("City and contour-number collisions never move the H/T from the true grid anchor",()=>{
  const {geo}=context(),centers=geo.modelGridCenters(make(5),BBOX);
  const low=centers[0],lab=geo.project([low.lon,low.lat],BBOX);
  const lonlat=[low.lon,low.lat];
@@ -77,11 +77,47 @@ test("City and contour-number collisions move only label, with true grid anchor 
  assert.equal(label.lon,low.lon);
  assert.equal(label.lat,low.lat);
  assert.equal(label.anchorX,lab[0]);assert.equal(label.anchorY,lab[1]);
- assert.equal(label.leader,true);
- assert.ok(Math.hypot(label.labelX-label.anchorX,label.labelY-label.anchorY)>15);
+ assert.equal(label.leader,false);
+ assert.equal(label.labelX,label.anchorX);assert.equal(label.labelY,label.anchorY);
  const again=geo.pressureLabels(centers,BBOX,{width:1000,height:1000,fontSize:40.5,
   isobarLabels:[lonlat],cityAnchors:[{name:"Simulated city",lon:low.lon,lat:low.lat}]});
  assert.deepEqual(normalized(again),normalized(placed),"Deterministic label locations for SVG and exports");
+});
+test("V3 retains widely separated closed systems beyond a fixed count, suppressing tiny crowded cores",()=>{
+ const {geo}=context();
+ const items=[[-23,65,90,50000],[-21,65,70,2000],[-10,59,60,50000],[4,52,50,50000],[20,44,40,50000],[36,35,10,90000]].map(([lon,lat,score,area],i)=>({type:i===5?'H':'T',lon,lat,pressure_hpa:i===5?1025.3:990,score,closed_system:true,closed_area_km2:area}));
+ const a={...make(5),pressure_centers_method:"ifs_mslp_grid_extrema_v3",pressure_centers:items};
+ const centers=geo.modelGridCenters(a,BBOX,{maxSystems:2});
+ assert.ok(centers.some(c=>c.type==='H'));
+ assert.equal(centers.length,5);
+ assert.ok(!centers.some(c=>c.lon===-21));
+});
+test("Isobar number moves along its own contour instead of displacing a center",()=>{
+ const {geo}=context(),centers=geo.modelGridCenters(make(5),BBOX);
+ const group={hpa:1000,label:[-17.5,49.75],runs:[[[-17.5,49.75],[-14,49.75],[-10,49.75],[-6,49.75]]]};
+ const result=geo.layoutPressureAnnotations(centers,[group],BBOX,{width:1000,height:1000,fontSize:40.5,labelWidth:36,labelHeight:17});
+ assert.equal(result.centers[0].labelX,result.centers[0].anchorX);
+ assert.equal(result.groups[0].label[1],49.75);
+ assert.ok(result.groups[0].label[0]>-16);
+ assert.deepEqual(group.label,[-17.5,49.75]);
+ assert.deepEqual(normalized(result.groups[0].runs),group.runs);
+});
+test("V3 uses the same fixed center subset for SVG, PNG and very small GIF",()=>{
+ const {geo,exporter}=context(),b=[-70,15,35,75];
+ const items=[{...raw[0],lat:60,lon:-25,closed_system:true,closed_area_km2:80000},
+  {...raw[0],lat:57,lon:-25,score:40,closed_system:true,closed_area_km2:80000},
+  {...raw[1],lat:45.75,lon:30.5,closed_system:true,closed_area_km2:80000}];
+ const overlay={...make(5),pressure_centers_method:'ifs_mslp_grid_extrema_v3',pressure_centers:items};
+ const screen=geo.pressureLabels(geo.modelGridCenters(overlay,b),b);
+ const ids=a=>normalized(a.map(c=>[c.type,c.lon,c.lat]));
+ assert.deepEqual(ids(screen),[['T',-25,60],['H',30.5,45.75]]);
+ for(const [w,h] of [[720,437],[320,194],[1920,1166]])assert.deepEqual(ids(exporter.placedCenters(overlay,'atlantic',w,h)),ids(screen));
+});
+test("Number label cannot jump onto a disconnected same-pressure contour",()=>{
+ const {geo}=context(),centers=geo.modelGridCenters(make(5),BBOX);
+ const group={hpa:1000,label:[-17.5,49.75],runs:[[[-17.5,49.75],[-17,49.75],[-10,49.75]], [[-18,52.5],[-17,52.5]] ]};
+ const result=geo.layoutPressureAnnotations(centers,[group],BBOX);
+ assert.deepEqual(normalized(result.groups[0].label),[-10,49.75]);
 });
 test("PNG/GIF/PDF exporters use shared model centers, vector letters and leaders",async()=>{
  const {exporter}=context();
