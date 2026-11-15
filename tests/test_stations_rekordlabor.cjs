@@ -1,6 +1,34 @@
 "use strict";
 const test=require("node:test"),assert=require("node:assert/strict");
 const C=require("../stations_rekordlabor_core.js");
+test("trend reports days per decade and coefficient of determination on observed years",()=>{
+ const trend=C.seasonLinearTrend([{year:2000,value:1},{year:2010,value:2},{year:2020,value:4},{year:2030,value:null}]);
+ assert.ok(Math.abs(trend.slopePerDecade-1.5)<1e-10);
+ assert.ok(Math.abs(trend.rSquared-27/28)<1e-10);
+ assert.equal(trend.count,3);
+ assert.equal(trend.lastYear,2020);
+});
+test("constant measurements have zero trend and undefined R squared",()=>{
+ const trend=C.seasonLinearTrend([{year:1961,value:5},{year:1990,value:5}]);
+ assert.equal(trend.slopePerDecade,0);
+ assert.equal(trend.rSquared,null);
+});
+test("season period filters inclusive year limits without reordering ranks",()=>{
+ const rows=[{year:2020},{year:1990},{year:1960},{year:1961},{year:1991},{year:2021}];
+ assert.deepEqual(C.filterSeasonPeriod(rows,"1961-1990").map(r=>r.year),[1990,1961]);
+ assert.deepEqual(C.filterSeasonPeriod(rows,"1991-2020").map(r=>r.year),[2020,1991]);
+ assert.deepEqual(C.filterSeasonPeriod(rows,"all"),rows);
+ assert.deepEqual(C.filterSeasonPeriod([{year:2021}],"1991-2020"),[]);
+});
+test("season chart preserves actual year gaps and full selected year bounds",()=>{
+ const rows=[{year:1991,value:10},{year:1993,value:13}];
+ const timeline=C.seasonTimeline(rows,"1991-2020");
+ assert.equal(timeline.length,30);
+ assert.deepEqual(timeline.slice(0,3),[{year:1991,value:10},{year:1992,value:null},{year:1993,value:13}]);
+ assert.deepEqual(timeline.at(-1),{year:2020,value:null});
+ assert.deepEqual(C.seasonTimeline(rows,"all"),timeline.slice(0,3));
+ assert.deepEqual(C.seasonTimeline([],"all"),[]);
+});
 test("linear trend fits actual observed years, not point positions",()=>{
  const trend=C.seasonLinearTrend([
   {year:1990,value:20},{year:2000,value:30},{year:2020,value:50}
@@ -36,6 +64,24 @@ test("seasonal date zoom includes the fractional predicted trend line",()=>{
  assert.ok(axis.min<=130);
  assert.ok(axis.max>=150.2);
  assert.equal(axis.format(142),"21.5.");
+});
+test("sparse original observations survive SVG and PDF without drawing across missing years",()=>{
+ const fs=require("node:fs"),vm=require("node:vm"),path=require("node:path");
+ const sandbox={window:{}};
+ vm.runInNewContext(fs.readFileSync(path.join(__dirname,"..","t850_vector_export.js"),"utf8"),sandbox);
+ const exp=sandbox.window.T850VectorExport;
+ const chart={data:{labels:["1961","1962","1963","1964","1965"],datasets:[
+  {label:"Messwerte",data:[130,null,135,null,140],pointRadius:3,spanGaps:false,borderColor:"#b44e46"}]},
+  scales:{x:{min:0,max:4},y:{min:120,max:150}}};
+ const scene=exp.buildScene(chart,{title:"Messwerte"});
+ assert.equal(scene.series[0].points.length,0);
+ assert.equal(scene.series[0].markers.length,3);
+ assert.equal((exp.toSvg([scene]).match(/<circle /g)||[]).length,3);
+ const circles=[];
+ exp.drawPdf({internal:{pageSize:{getWidth:()=>420,getHeight:()=>297}},
+  setFont(){},setFontSize(){},setTextColor(){},text(){},setFillColor(){},rect(){},setDrawColor(){},
+  setLineWidth(){},line(){},lines(){},circle(...args){circles.push(args);}},scene);
+ assert.equal(circles.length,3);
 });
 test("SVG and PDF season trend exports preserve dashed separate vector layer and date ticks",()=>{
  const fs=require("node:fs"),vm=require("node:vm"),path=require("node:path");

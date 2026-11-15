@@ -174,8 +174,14 @@ function buildScene(chart,info){
     // Mobile Chart.js opacity is often 0.2; keep members legible on white paper.
     if(label.startsWith("Member "))paint.opacity=.50;
     const points=segments(ds,xa,ya);
-    if(!points.length)return;
-    series.push({label,points,hex:paint.hex,opacity:paint.opacity,
+    const radius=Number(ds.pointRadius)||0,markers=[];
+    if(radius>0)for(let j=0;j<(ds.data||[]).length;j++){
+      const v=value(ds.data[j]);if(v===null)continue;
+      const px=xa(j),py=ya(v);
+      if(px>=P.x&&px<=P.x+P.w&&py>=P.y&&py<=P.y+P.h)markers.push([px,py]);
+    }
+    if(!points.length&&!markers.length)return;
+    series.push({label,points,markers,radius,hex:paint.hex,opacity:paint.opacity,
       width:percentile?1.3:label.startsWith("Member ")?1.15:Math.max(1.4,Number(ds.borderWidth)||2),
       dash:Array.isArray(ds.borderDash)?ds.borderDash:[]});
   });
@@ -275,6 +281,8 @@ function svgScene(scene,index){
      const shifted=seg.map(p=>[p[0],p[1]+dy]);
      s+='<path d="'+path(shifted)+'" fill="none" stroke="'+c.hex+'" stroke-opacity="'+c.opacity+'" stroke-width="'+c.width+'"'+(c.dash.length?' stroke-dasharray="'+c.dash.join(",")+'"':"")+' stroke-linecap="round" stroke-linejoin="round"/>';
    }
+   for(const p of c.markers||[])
+     s+='<circle cx="'+p[0]+'" cy="'+(p[1]+dy)+'" r="'+c.radius+'" fill="'+c.hex+'" fill-opacity="'+c.opacity+'"/>';
    s+="</g>";
  });
  return s;
@@ -353,6 +361,10 @@ function drawPdf(pdf,scene){
      pdf.lines(changes,X(first[0]),Y(first[1]),[1,1],"S",false);
    }
    if(typeof pdf.setLineDashPattern==="function")pdf.setLineDashPattern([],0);
+   if(c.markers?.length){
+     pdf.setFillColor(...adjusted);
+     for(const p of c.markers)pdf.circle(X(p[0]),Y(p[1]),c.radius*s,"F");
+   }
  }
  return scene.series.length;
 }

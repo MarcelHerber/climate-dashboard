@@ -253,6 +253,18 @@ function seasonDateAxis(monthDays,values){
  }
  return {min,max,ticks,format};
 }
+const seasonPeriods={"1961-1990":[1961,1990],"1991-2020":[1991,2020]};
+function filterSeasonPeriod(records,period){
+ const bounds=seasonPeriods[period];
+ return bounds?records.filter(row=>row.year>=bounds[0]&&row.year<=bounds[1]):records.slice();
+}
+function seasonTimeline(records,period){
+ const observed=filterSeasonPeriod(records,period);
+ if(!observed.length)return [];
+ const years=observed.map(r=>Number(r.year)),byYear=new Map(observed.map(r=>[Number(r.year),r.value]));
+ const [first,last]=seasonPeriods[period]||[Math.min(...years),Math.max(...years)];
+ return Array.from({length:last-first+1},(_,i)=>({year:first+i,value:byYear.get(first+i)??null}));
+}
 // Ordinary least squares on actual calendar years, not list positions.
 // Only real, filtered seasonal events participate; never synthesize years.
 function seasonLinearTrend(records){
@@ -266,12 +278,15 @@ function seasonLinearTrend(records){
  const xx=observed.reduce((sum,row)=>sum+(row.year-mx)**2,0);
  if(xx===0)return null;
  const slope=observed.reduce((sum,row)=>sum+(row.year-mx)*(row.value-my),0)/xx;
+ const total=observed.reduce((sum,row)=>sum+(row.value-my)**2,0);
+ const residual=observed.reduce((sum,row)=>sum+(row.value-my-slope*(row.year-mx))**2,0);
+ const rSquared=total>0?Math.max(0,Math.min(1,1-residual/total)):null;
  const values=records.map(row=>{
   const year=Number(row?.year);
   return Number.isFinite(year)&&Number.isFinite(row?.value)?
    my+slope*(year-mx):null;
  });
- return {slopePerYear:slope,values,firstYear:Math.min(...observed.map(r=>r.year)),
+ return {slopePerYear:slope,slopePerDecade:slope*10,rSquared,values,firstYear:Math.min(...observed.map(r=>r.year)),
   lastYear:Math.max(...observed.map(r=>r.year)),count:observed.length};
 }
 function stationWindDifference(before,after){
@@ -279,6 +294,6 @@ function stationWindDifference(before,after){
     !finite(before.direction)||!finite(after.direction))return null;
  return Math.abs(((after.direction-before.direction+540)%360)-180);
 }
-return Object.freeze({leap,dayIndex,mdAt,readable,seasonDateAxis,seasonLinearTrend,decodeRawTemperature,decodeTemperature,
+return Object.freeze({leap,dayIndex,mdAt,readable,seasonDateAxis,seasonLinearTrend,filterSeasonPeriod,seasonTimeline,decodeRawTemperature,decodeTemperature,
  calendarTemperature,decodeRawDailyMetric,decodeDailyMetric,calendarKL,snowCalendar,sortedRecords,tempSeason,snowSeason,longestRun,snowLongest,stationWindDifference});
 });
