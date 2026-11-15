@@ -157,17 +157,26 @@ function pressureCenters(overlay,region){
  const model=geo.modelGridCenters?.(overlay,b,opts);
  return model??geo.detectVisiblePressureSystems(overlay.contours,b,opts);
 }
-function placedCenters(overlay,region,width,height,{groups=[],cities=[]}={}){
- const geo=window.SatelliteIsobarGeometry;
- return geo?.pressureLabels?.(pressureCenters(overlay,region),BBOX[region],{
-  width,height,fontSize:1.5*Math.max(17,Math.min(35,Math.round(width*.022))),
-  isobarLabels:groups.filter(g=>g.label).map(g=>g.label),cityAnchors:cities
- })||[];
+function pressureFontSize(overlay,region,width,height,previous){
+ if(overlay?.pressure_centers_method!=="ifs_mslp_grid_extrema_v3")return previous;
+ const ref=window.SatelliteIsobarGeometry.pressureReferenceHeight(BBOX[region]);
+ return Math.min(previous,29.16*width/720,29.16*height/ref);
 }
-function paintPressureCenters(ctx,overlay,region,{x=0,y=0,width,height},groups=[],cityAnchors=[]){
+function annotationLayout(overlay,region,width,height,{groups=[],cities=[]}={}){
+ const geo=window.SatelliteIsobarGeometry;
+ const unit=Math.max(.75,Math.min(1.8,width/900));
+ return geo.layoutPressureAnnotations(pressureCenters(overlay,region),groups,BBOX[region],{
+  width,height,fontSize:pressureFontSize(overlay,region,width,height,1.5*Math.max(17,Math.min(35,Math.round(width*.022)))),
+  labelWidth:48*unit,labelHeight:20*unit,cityAnchors:cities
+ });
+}
+function placedCenters(overlay,region,width,height,options={}){
+ return annotationLayout(overlay,region,width,height,options).centers;
+}
+function paintPressureCenters(ctx,overlay,region,{x=0,y=0,width,height},groups=[],cityAnchors=[],positioned=null){
  if(!width||!height)return [];
- const markers=placedCenters(overlay,region,width,height,{groups,cities:cityAnchors});
- const size=1.5*Math.max(17,Math.min(35,Math.round(width*.022)));
+ const markers=positioned??placedCenters(overlay,region,width,height,{groups,cities:cityAnchors});
+ const size=pressureFontSize(overlay,region,width,height,1.5*Math.max(17,Math.min(35,Math.round(width*.022))));
  ctx.save();ctx.textAlign="center";ctx.textBaseline="middle";
  ctx.font="750 "+size+"px Arial,Helvetica,sans-serif";
  ctx.lineJoin="round";ctx.lineWidth=Math.max(1.6,(size/1.5)*.085);
@@ -189,9 +198,10 @@ function paintPressureCenters(ctx,overlay,region,{x=0,y=0,width,height},groups=[
  return markers;
 }
 function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height},cityAnchors=[]){
- const groups=pathsFor(overlay,region);
+ const rawGroups=pathsFor(overlay,region);
  if(!width||!height)throw Error("Kartenmaße fehlen.");
  const unit=Math.max(.75,Math.min(1.8,width/900));
+ const {groups,centers}=annotationLayout(overlay,region,width,height,{groups:rawGroups,cities:cityAnchors});
  ctx.save();ctx.beginPath();ctx.rect(x,y,width,height);ctx.clip();
  ctx.lineJoin="round";ctx.lineCap="round";
  for(const group of groups){
@@ -222,7 +232,7 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height},cityAnchors=[]){
   ctx.strokeRect(p[0]-tw/2,p[1]-th/2,tw,th);
   ctx.fillStyle="#ffffff";ctx.fillText(label,p[0],p[1]);
  }
- paintPressureCenters(ctx,overlay,region,{x,y,width,height},width<260?[]:groups,cityAnchors);
+ paintPressureCenters(ctx,overlay,region,{x,y,width,height},groups,cityAnchors,centers);
  ctx.restore();
  return groups;
 }
@@ -277,7 +287,7 @@ function pdfRGB(hex){
  return [1,3,5].map(i=>fmt(parseInt(hex.slice(i,i+2),16)/255)).join(" ");
 }
 function drawPDFVectors(overlay,region,w,h,bottom,cityAnchors=[]){
- const groups=pathsFor(overlay,region),out=[];
+ const {groups,centers:positioned}=annotationLayout(overlay,region,w,h,{groups:pathsFor(overlay,region),cities:cityAnchors}),out=[];
  const pt=p=>{
   const at=project(p,region,0,0,w,h);
   return [at[0],bottom+h-at[1]];
@@ -308,11 +318,9 @@ function drawPDFVectors(overlay,region,w,h,bottom,cityAnchors=[]){
    "1 1 1 rg","BT /F1 "+fmt(fs)+" Tf "+fmt(xy[0]-14*unit)+" "+fmt(xy[1]-4*unit)+
     " Td ("+esc(String(group.hpa))+") Tj ET");
  }
- // H/T remain editable PDF font objects; the real grid-extremum
- // location stays at the anchor when a label is displaced.
- const positioned=placedCenters(overlay,region,w,h,{groups,cities:cityAnchors});
+ // H/T remain editable PDF font objects at exact grid extrema.
  for(const m of positioned){
-  const fs=1.5*Math.max(18,Math.min(34,w*.022));
+  const fs=pressureFontSize(overlay,region,w,h,1.5*Math.max(18,Math.min(34,w*.022)));
   const cx=m.labelX,cy=bottom+h-m.labelY;
   if(m.leader){
    const x0=m.anchorX,y0=bottom+h-m.anchorY;
@@ -384,5 +392,5 @@ function download(result){
  setTimeout(()=>URL.revokeObjectURL(u),60000);
  return result.blob.size;
 }
-window.SatelliteMapExport={paintIsobars,paintFronts,frontLayout,frontFeatures,paintPressureCenters,pressureCenters,placedCenters,pathsFor,renderPNG,renderPDF,download};
+window.SatelliteMapExport={paintIsobars,paintFronts,frontLayout,frontFeatures,paintPressureCenters,pressureCenters,placedCenters,annotationLayout,pathsFor,renderPNG,renderPDF,download};
 })();

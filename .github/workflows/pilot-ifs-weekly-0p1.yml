@@ -1,14 +1,7 @@
-name: ECMWF IFS 0,1° · 7 Tage und ERA5-Referenzpilot
+name: ECMWF IFS 0,1° · 7 Tage und ERA5-Referenz
 on:
-  push:
-    branches: [feature/ifs-weekly-0p1-era5-20261115]
-    paths:
-      - '.github/workflows/pilot-ifs-weekly-0p1.yml'
-      - 'scripts/ifs_weekly_01.py'
-      - 'scripts/build_ifs_weekly_geography.py'
-      - 'tests/test_ifs_weekly_01.py'
-      - 'tests/test_ifs_weekly_browser.mjs'
-      - 'ifs_weekly_europe.*'
+  schedule:
+    - cron: '35 6,18 * * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -55,6 +48,40 @@ jobs:
           name: ifs-0p1-verified-forecast
           path: ifs_weekly_europe/
           retention-days: 30
+  publish:
+    needs: verify
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /scripts/stage_ifs_weekly.py
+            /ifs_weekly_europe/
+      - uses: actions/download-artifact@v4
+        with:
+          name: ifs-weekly-0p1-verified-map
+          path: .ifs-publish
+      - name: Publish only the newer fully verified original data
+        run: |
+          set -euo pipefail
+          python scripts/stage_ifs_weekly.py .ifs-publish/ifs_weekly_europe
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git merge --ff-only origin/main
+          if python -c 'import json; from pathlib import Path; p=Path("ifs_weekly_europe/current.json"); print("already current") if p.exists() and json.loads(p.read_text())["run_utc"] >= json.loads(Path(".ifs-publish/ifs_weekly_europe/current.json").read_text())["run_utc"] else exit(1)'; then exit 0; fi
+          mkdir -p ifs_weekly_europe
+          cp .ifs-publish/ifs_weekly_europe/{current,forecast,geography}.json ifs_weekly_europe/
+          git add --sparse -f ifs_weekly_europe/{current,forecast,geography}.json
+          git commit -m 'Update verified IFS 0.1 degree seven-day forecast'
+          git push origin HEAD:main
   reference:
     needs: forecast
     runs-on: ubuntu-24.04

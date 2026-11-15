@@ -74,7 +74,7 @@ async function loadTenIndex(force=false){
       ![13,19].includes(Object.keys(fine).length)||
       !Object.values(fine).every(x=>typeof x==="string"&&/^r\d{10}\/h\d{2}_2hpa\.json$/.test(x))))
        throw Error("Ungültige 2-hPa-Metadaten");
-   if(tenIndex?.run_utc!==idx.run_utc){tenChunks.clear();tenFailed.clear();}
+   if(tenIndex?.run_utc!==idx.run_utc||tenIndex?.pressure_centers_algorithm!==idx.pressure_centers_algorithm){tenChunks.clear();tenFailed.clear();}
    tenIndex=idx;
   }catch(err){console.warn("Optional ECMWF ten-minute pressure overlay",err?.message||err);}
   finally{tenLoading=null;update();}
@@ -97,7 +97,8 @@ function tenFrameAt(target,gap=5){
  if(fine&&!isFineRegion(context.region))return null;
  const expected=fine?/^r\d{10}\/h\d{2}_2hpa\.json$/:/^r\d{10}\/h\d{2}\.json$/;
  if(typeof file!=="string"||!expected.test(file))return null;
- const cacheKey=tenIndex.run_utc+"|"+(fine?"2":"5")+"|"+key;
+ const method=tenIndex.pressure_centers_algorithm||"";
+ const cacheKey=tenIndex.run_utc+"|"+(fine?"2":"5")+"|"+key+"|"+method;
  const chunk=tenChunks.get(cacheKey);
  if(chunk){
   const f=chunk.frames[slot%6];
@@ -108,7 +109,7 @@ function tenFrameAt(target,gap=5){
  if(!tenPending.has(cacheKey)){
   const task=(async()=>{
    try{
-    const d=await fetchTenJson("./data/satellite_mslp/ten_minute/"+file);
+    const d=await fetchTenJson("./data/satellite_mslp/ten_minute/"+file+(method?"?centers="+encodeURIComponent(method.split("_").pop()):""));
     if(d.schema_version!==2||d.run_utc!==tenIndex?.run_utc||
        (fine&&(d.interval_hpa!==2||
         !Array.isArray(d.regions)||
@@ -116,7 +117,9 @@ function tenFrameAt(target,gap=5){
         !d.regions.every(place=>isFineRegion(place))))||
        d.hour!==hour||!Array.isArray(d.frames)||
        d.frames.length!==(hour===lastHour?1:6)||
+       method!==(tenIndex?.pressure_centers_algorithm||"")||
        d.frames.some((f,i)=>!Array.isArray(f.contours)||!f.contours.length||
+        (method&&f.pressure_centers_method!==method)||
         (fine&&f.contours.some(group=>group.hpa%2!==0))||
         Date.parse(f.valid_utc)!==run+(hour*6+i)*TEN_MS||
         f.interpolated!==((hour*6+i)%18!==0))){
@@ -139,7 +142,15 @@ function within(p,b){
 function draw(frame,bbox,gap){
  const geometry=window.SatelliteIsobarGeometry;
  if(!geometry?.prepare)throw Error("Isobaren-Darstellungsfilter fehlt.");
- const groups=geometry.prepare(frame.contours,bbox,gap);
+ const rawGroups=geometry.prepare(frame.contours,bbox,gap);
+ const limits={atlantic:8,europe:6,southwest:5,central:3,germany:2};
+ const opts={maxSystems:limits[context.region]||5,minRings:Number(gap)===2?6:3,minSeparation:94};
+ const systems=geometry.modelGridCenters?.(frame,bbox,opts)??geometry.detectVisiblePressureSystems?.(frame.contours,bbox,opts)??[];
+ const cities=window.SatelliteOverlay?.cityAnchors?.(context.region)||[];
+ const {groups,centers:placed}=geometry.layoutPressureAnnotations(systems,rawGroups,bbox,{
+  width:1000,height:1000,fontSize:40.5,labelWidth:36,labelHeight:17,
+  cityAnchors:document.querySelector?.("#satShowCities")?.checked?cities:[]
+ });
  const [minX,minY,maxX,maxY]=bbox;
  const px=lon=>((lon-minX)/(maxX-minX)*1000).toFixed(2);
  const py=lat=>((maxY-lat)/(maxY-minY)*1000).toFixed(2);
@@ -186,17 +197,6 @@ function draw(frame,bbox,gap){
  }
  // New verified model frames carry native-grid extrema shared by 2/5 hPa.
  // Legacy archives use their prior contour-based diagnosis, clearly labelled.
- const limits={atlantic:8,europe:6,southwest:5,central:3,germany:2};
- const opts={maxSystems:limits[context.region]||5,minRings:Number(gap)===2?6:3,
-   minSeparation:94};
- const grid=geometry.modelGridCenters?.(frame,bbox,opts);
- const systems=grid??geometry.detectVisiblePressureSystems?.(frame.contours,bbox,opts)??[];
- const cities=window.SatelliteOverlay?.cityAnchors?.(context.region)||[];
- const placed=geometry.pressureLabels?.(systems,bbox,{
-  width:1000,height:1000,fontSize:40.5,
-  isobarLabels:groups.filter(x=>x.label).map(x=>x.label),
-  cityAnchors:document.querySelector?.("#satShowCities")?.checked?cities:[]
- })||[];
  for(const center of placed){
   if(center.leader){
    const line=document.createElementNS(ns,"line");
@@ -272,7 +272,8 @@ function update(){
   return;
  }
  const lines=draw(frame,BBOX[context.region],gap);
- const gridCenters=frame.pressure_centers_method==="ifs_mslp_grid_extrema_v1";
+ const gridCenters=["ifs_mslp_grid_extrema_v1","ifs_mslp_grid_extrema_v2","ifs_mslp_grid_extrema_v3"].includes(frame.pressure_centers_method);
+ const contourChecked=["ifs_mslp_grid_extrema_v2","ifs_mslp_grid_extrema_v3"].includes(frame.pressure_centers_method);
  if(!lines){note("ECMWF-Daten vorhanden, aber keine sichtbaren "+spacing.value+"-hPa-Isobaren in diesem Ausschnitt.");return;}
  svg.toggleAttribute("hidden",false);
  const interpolated=Boolean(ten?.interpolated);
@@ -287,7 +288,7 @@ function update(){
    " · nicht zeitgleich mit Satellitenbild "+utc(satelliteTime)):
    " · eigenständige ECMWF-Karte ohne Satellitenbild";
  note(base+derivation+" · "+lines+" Linien"+syncLabel+" · "+spacing.value+" hPa"+origin+
-  (gridCenters?" · H/T: IFS-Gitterextrema":" · H/T: ältere Isobaren-Diagnose bis zum nächsten Datenlauf")+
+  (contourChecked?" · H/T: isobarengeprüfte IFS-Gitterextrema":gridCenters?" · H/T: IFS-Gitterextrema":" · H/T: ältere Isobaren-Diagnose bis zum nächsten Datenlauf")+
   " · © ECMWF");
 }
 async function load(force=false){
@@ -354,7 +355,7 @@ async function exportAt(time,place,gap=5,{strictTenMinute=false}={}){
  if(!frame&&tenIndex){
   const run=Date.parse(tenIndex.run_utc),slot=Math.round((Date.parse(time)-run)/TEN_MS);
   const hour=Math.floor(slot/6),key="h"+String(hour).padStart(2,"0");
-  const promise=tenPending.get(tenIndex.run_utc+"|"+(gap===2?"2":"5")+"|"+key);
+  const promise=tenPending.get(tenIndex.run_utc+"|"+(gap===2?"2":"5")+"|"+key+"|"+(tenIndex.pressure_centers_algorithm||""));
   if(promise)await promise;
   frame=tenFrameAt(time,gap);
  }

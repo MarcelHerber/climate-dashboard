@@ -49,14 +49,25 @@ class MobileNavigationBuildTests(unittest.TestCase):
             self.assertIn("mobile_content.js",(base/"stratosphaere.html").read_text(encoding="utf-8"))
             self.assertNotIn("mobile_navigation.js",(nested/"internal.html").read_text(encoding="utf-8"))
             home=(base/"index.html").read_text(encoding="utf-8")
-            self.assertEqual(home.count('id="cdSatelliteShortcut"'),1)
-            self.assertIn('href="./satelliten.html"',home)
-            self.assertIn('Satellitenbilder öffnen',home)
-            self.assertLess(home.index("</header>"),home.index('id="cdSatelliteShortcut"'))
+            self.assertNotIn('cdSatelliteShortcut',home)
+            self.assertNotIn('Satellitenbilder öffnen',home)
+            self.assertIn('<header>Navigation</header><main>Data</main>',home)
             self.assertNotIn("cdSatelliteShortcut",(base/"stratosphaere.html").read_text(encoding="utf-8"))
             self.assertNotIn("cdSatelliteShortcut",(base/"weltweite_isobaren.html").read_text(encoding="utf-8"))
             self.assertEqual(MODULE.deploy(base),result)
-            self.assertEqual((base/"index.html").read_text(encoding="utf-8").count('id="cdSatelliteShortcut"'),1)
+            self.assertEqual((base/"index.html").read_text(encoding="utf-8"),home)
+
+    def test_dashboard_links_are_in_misc_menu_without_header_artifacts(self):
+        source=(ROOT/"index.html").read_text(encoding="utf-8")
+        page=MODULE.inject(source)
+        menu=page.split('<div class="nav-dropdown" data-nav-group="misc">',1)[1].split('</nav>',1)[0]
+        for href in ('gfs_f003_europe.html','gfs_weekly_europe.html','satelliten.html'):
+            link=f'data-nav-group="misc" href="{href}"'
+            self.assertEqual(page.count(link),1)
+            self.assertIn(link,menu)
+        self.assertNotIn('cdSatelliteShortcut',page)
+        self.assertNotIn('gfs-f003-entry',page)
+        self.assertNotIn('</header>\\n',page)
 
     def test_no_partial_publish_if_one_html_malformed(self):
         with tempfile.TemporaryDirectory() as folder:

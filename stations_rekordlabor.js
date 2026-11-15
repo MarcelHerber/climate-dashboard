@@ -6,7 +6,7 @@ const $=id=>document.getElementById(id),C=window.RecordLaborCore;
 const RAW="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/";
 const TODAY=new Date(),YEAR=TODAY.getUTCFullYear();
 const tabs={calendar:["rlTabCalendar","rlCalendar"],seasons:["rlTabSeasons","rlSeasons"],
- changes:["rlTabChanges","rlChanges"]};
+ changes:["rlTabChanges","rlChanges"],newyear:["rlTabNewYear","rlNewYear"]};
 const state={catalog:null,klIndex:new Map(),station:null,view:"calendar",temp:null,snow:null,kl:null,
   stationSerial:0,weatherIndex:null,weather:null,weatherSerial:0,
   selectedEvent:null,csv:[],fileName:"",chart:null,chartCanvas:null,chartLabel:"",chartDateAxis:null,status:""};
@@ -104,7 +104,7 @@ function showTab(which){
   $(btn).setAttribute("aria-selected",String(key===which));
   $(area).hidden=key!==which;
  }
- if(which==="changes"){void initWeather();}else if(state.station)render();
+ if(which==="changes"){void initWeather();}else if(which==="newyear"){void initNewYear();}else if(state.station)render();
 }
 function destroyChart(){
  if(state.chart){state.chart.destroy();state.chart=null;state.chartCanvas=null;}
@@ -165,7 +165,7 @@ async function selectStation(st){
  const snowOnly=!st.temp&&st.snow;
  if(snowOnly){$("rlCalMetric").value="snow";$("rlSeasonMetric").value="snowFirst";}
  else if($("rlCalMetric").value==="snow"&&!st.snow)$("rlCalMetric").value="tmax";
- setExportState(false);
+ if(state.view==="calendar"||state.view==="seasons")setExportState(false);
  try{
   const tasks=[
     st.temp?fetchJson(st.temp_file).then(C.decodeTemperature):Promise.resolve(null),
@@ -319,6 +319,58 @@ function clearSeason(){
  kpis("rlSeasonKpis",[]);tableRows("rlSeasonTable",[]);
  destroyChart();setExportState(false);
 }
+let newYearData=null,newYearLoading=false;
+async function initNewYear(){
+ if(newYearData){newYearRender();return;}
+ if(newYearLoading)return;
+ newYearLoading=true;setExportState(false);destroyChart();
+ const doc=await fetchJson("data/rekordlabor/newyear/index.json",true);
+ newYearLoading=false;
+ if(!doc?.complete||doc.schema!==1||!Array.isArray(doc.stations)||!doc.stations.length){
+  message("rlNYMeta","Das geprüfte DWD-Jahreswechselarchiv wird noch aufgebaut. Keine vorläufige Teilrangliste.");return;
+ }
+ newYearData=doc;
+ for(const region of [...new Set(doc.stations.map(s=>s.state).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de"))){
+  const op=document.createElement("option");op.value=region;op.textContent=region;$("rlNYState").append(op);
+ }
+ newYearStationOptions();
+ if(state.view==="newyear")newYearRender();
+}
+function newYearStationOptions(){
+ if(!newYearData)return;
+ const select=$("rlNYStation"),previous=select.value,region=$("rlNYState").value;
+ select.replaceChildren();
+ const all=document.createElement("option");all.value="all";all.textContent=(region||"Deutschland")+" · alle verfügbaren DWD-Stationen";select.append(all);
+ for(const st of newYearData.stations.filter(s=>!region||s.state===region).sort((a,b)=>a.name.localeCompare(b.name,"de"))){
+  const op=document.createElement("option");op.value=st.id;op.textContent=st.name+" · "+st.id;select.append(op);
+ }
+ select.value=[...select.options].some(o=>o.value===previous)?previous:"all";
+}
+function newYearRender(){
+ if(state.view!=="newyear"||!newYearData)return;
+ const id=$("rlNYStation").value,period=$("rlNYPeriod").value,direction=$("rlNYDirection").value,region=$("rlNYState").value;
+ const label=$("rlNYStation").selectedOptions[0].textContent,periodLabel=$("rlNYPeriod").selectedOptions[0].textContent;
+ const {ranked,annual}=C.newYearRecords(newYearData.stations,id,period,direction,region);
+ const warm=C.newYearRecords(newYearData.stations,id,period,"warm",region).ranked[0],cold=C.newYearRecords(newYearData.stations,id,period,"cold",region).ranked[0];
+ const describe=r=>r?num(r.value)+" °C · "+r.year+(id==="all"?" · "+r.name:""):"—";
+ kpis("rlNYKpis",[{value:describe(warm),label:"Wärmster Jahreswechsel"},{value:describe(cold),label:"Kältester Jahreswechsel"},{value:count(ranked.length),label:"Originalmesswerte · "+count(new Set(ranked.map(r=>r.id)).size)+" Stationen"}]);
+ const provisional=ranked.filter(r=>r.source==="recent").length;
+ message("rlNYMeta","DWD CDC · "+(region||"Deutschland")+" · "+periodLabel+" · "+count(annual.length)+" auswertbare Jahre · "+count(newYearData.stations.filter(s=>!region||s.state===region).length)+" Archivstationen mit Neujahrstermin"+(provisional?" · "+count(provisional)+" vorläufige Messwerte":""));
+ const annualRank=annual.slice().sort((a,b)=>(direction==="cold"?a.value-b.value:b.value-a.value)||a.year-b.year);
+ tableRows("rlNYTable",annualRank.slice(0,30).map((r,i)=>"<tr><td>"+(i+1)+"</td><td>"+r.year+"</td><td>"+esc(r.name)+" ("+esc(r.id)+")</td><td><strong>"+num(r.value)+" °C</strong></td><td>"+(r.source==="recent"?"Vorläufig":"Historisch")+"</td></tr>"));
+ const timeline=C.seasonTimeline(annual.map(r=>({year:r.year,value:r.value})),period);
+ const linear=id!=="all"?C.seasonLinearTrend(timeline):null;
+ $("rlNYTrend").disabled=!linear;
+ const stats=linear?new Intl.NumberFormat("de-DE",{maximumFractionDigits:2,signDisplay:"exceptZero"}).format(linear.slopePerDecade)+" °C/Dekade · R² "+(linear.rSquared==null?"—":num(linear.rSquared,3))+" · n="+linear.count:"";
+ message("rlNYTrendInfo",id==="all"?"Kein Gebietstrend aus jährlich wechselnder Stationsabdeckung.":stats||"Zu wenige Messjahre");
+ const title=id==="all"?(direction==="warm"?"Wärmste":"Kälteste")+" Jahreswechsel · "+(region||"Deutschland"):"Jahreswechsel · "+label;
+ state.csv=[["Rang","Jahr","Station","Stations-ID","Temperatur (°C)","Messzeitstempel DWD","Bezugszeit","QN","Archiv","Stationsanzahl im Jahr","Bundesland"],...annualRank.map((r,i)=>[i+1,r.year,r.name,r.id,r.value,r.stamp,r.zone,r.quality,r.source,r.count,r.state])];
+ state.fileName="DWD_Jahreswechsel_"+(region?region+"_":"")+id+"_"+period+"_"+direction;
+ state.newYearStats=["Neujahrstermin 0:00 MEZ · nominaler DWD-Stundenwert","Zeitraum: "+periodLabel+(stats?" · "+stats:"")];
+ if(timeline.length){addChart("rlNYChart",title,timeline.map(r=>String(r.year)),timeline.map(r=>r.value),"°C",direction==="warm"?"#b44e46":"#2d79ad",null,linear&&$("rlNYTrend").checked?linear:null,["1. Januar · 0:00 MEZ (nominal)",periodLabel,...(stats?[stats]:[])]);}
+ else destroyChart();
+ setExportState(ranked.length>0);for(const b of $("rlNewYear").querySelectorAll('[data-rl-export]:not([data-rl-export="csv"])'))b.disabled=timeline.length<2;
+}
 function render(){
  if(state.view==="calendar")calendarRender();
  else if(state.view==="seasons")seasonRender();
@@ -356,7 +408,7 @@ async function initWeather(){
   if(!doc?.ready||!Array.isArray(doc.stations)||!doc.stations.length){
    message("rlChangeMeta","Für die historischen Stundenänderungen ist noch kein vollständig verifiziertes DWD-Stundenarchiv veröffentlicht. Es werden keine Rekorde geschätzt oder erfunden.");
    $("rlChangesCoverage").textContent="DWD-CDC-Originalarchiv noch nicht veröffentlicht. Dieser Bereich zeigt bis zur erfolgreichen Messdatenprüfung bewusst keine Ranglisten.";
-   setExportState(false);return;
+   if(state.view==="changes")setExportState(false);return;
   }
   state.weatherIndex=doc;
   const regions=$("rlChangeState");regions.replaceChildren();
@@ -372,7 +424,7 @@ async function initWeather(){
  }catch(e){message("rlChangeMeta","Stundenarchiv konnte nicht geprüft werden: "+e.message);}
 }
 async function loadWeather(){
- if(!state.weatherIndex)return;
+ if(!state.weatherIndex||state.view!=="changes")return;
  const station=state.weatherIndex.stations.find(x=>x.id===$("rlChangeStation").value);
  if(!station){
   state.weather=null;message("rlChangeMeta","Keine passende Stundenstation gefunden – Suchbegriff oder Bundesland ändern.");
@@ -393,6 +445,7 @@ async function loadWeather(){
  }catch(e){if(id===state.weatherSerial)message("rlChangeMeta","Fehler: "+e.message);}
 }
 function weatherRender(){
+ if(state.view!=="changes")return;
  const doc=state.weather;if(!doc){setExportState(false);return;}
  const metric=$("rlChangeMetric").value,hours=$("rlChangeHours").value;
  const dir=metric==="wind_direction"?"up":$("rlChangeDirection").value;
@@ -439,7 +492,7 @@ function weatherRender(){
   row.addEventListener("click",()=>{state.selectedEvent=Number(row.dataset.event);weatherRender();});
 }
 async function exportChart(type){
- if(!state.chart||!state.csv.length)return;
+ if(!state.csv.length||(!state.chart&&type!=="csv"))return;
  const file=state.fileName;
  if(type==="csv"){
   const q=x=>'"'+String(x??"").replace(/"/g,'""')+'"';
@@ -458,7 +511,7 @@ async function exportChart(type){
    axis:state.chart.options.scales.y.title.text,
    yTicks:state.chartDateAxis?.ticks,yTickFormatter:state.chartDateAxis?.format,
    source:"Quelle: Deutscher Wetterdienst, Climate Data Center",
-   metadata:["Stationsauswertung · "+state.fileName,...(state.view==="seasons"?state.seasonStats||[]:[]),"Nur echte Messwerte; Datenlücken bleiben erhalten",
+   metadata:["Stationsauswertung · "+state.fileName,...(state.view==="seasons"?state.seasonStats||[]:state.view==="newyear"?state.newYearStats||[]:[]),"Nur echte Messwerte; Datenlücken bleiben erhalten",
     "Erstellt: "+new Date().toLocaleString("de-DE")]});
   if(type==="svg")exp.saveSvg([scene],file+".svg");
   else{
@@ -485,6 +538,8 @@ function initDates(){
 }
 async function init(){
  initDates();
+ for(const id of ["rlNYStation","rlNYPeriod","rlNYDirection","rlNYTrend"])$(id).addEventListener("change",newYearRender);
+ $("rlNYState").addEventListener("change",()=>{newYearStationOptions();newYearRender();});
  Object.keys(tabs).forEach(key=>$(tabs[key][0]).addEventListener("click",()=>showTab(key)));
  for(const id of ["rlDay","rlCalMetric","rlCalOrder","rlSeasonMetric","rlSeasonPeriod"])
   $(id).addEventListener("change",render);

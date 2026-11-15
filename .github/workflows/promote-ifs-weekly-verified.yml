@@ -1,0 +1,51 @@
+name: ECMWF IFS · geprüften Erstlauf übernehmen
+on:
+  push:
+    branches: [feature/ifs-weekly-0p1-era5-20261115]
+    paths: ['.github/workflows/promote-ifs-weekly-verified.yml']
+permissions:
+  actions: read
+  contents: write
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /scripts/stage_ifs_weekly.py
+            /tests/test_ifs_pages_stage.py
+            /ifs_weekly_europe/
+            /index.html
+            /mobile_navigation.js
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: 43709220003
+          github-token: ${{ github.token }}
+          name: ifs-weekly-0p1-verified-map
+          path: .ifs-publish
+      - name: Verify exact tested data and navigation
+        run: |
+          set -euo pipefail
+          cd .ifs-publish/ifs_weekly_europe
+          printf '%s\n' 'abcaf34dc912a9484989aa55782f8b73432b3f48b1d0f3cbf201a7d7996c62b1  current.json' 'dbb164a3234f8563c93a511ba9870352551af9916c15234f6640a7286d98b371  forecast.json' '161afae47a4453a1b411523c2a7cfc7540a452ecd51395c279df4459dfc9c580  geography.json' | sha256sum -c -
+          cd ../..
+          python -m unittest discover -s tests -p test_ifs_pages_stage.py -v
+          mkdir -p .ifs-publish/site
+          cp index.html mobile_navigation.js .ifs-publish/site/
+          python scripts/stage_ifs_weekly.py .ifs-publish/ifs_weekly_europe --site .ifs-publish/site
+          node --check .ifs-publish/site/mobile_navigation.js
+      - name: Commit only verified map files to the feature branch
+        run: |
+          set -euo pipefail
+          mkdir -p ifs_weekly_europe
+          cp .ifs-publish/ifs_weekly_europe/{current,forecast,geography}.json ifs_weekly_europe/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f ifs_weekly_europe/{current,forecast,geography}.json
+          git diff --cached --quiet && exit 0
+          git commit -m 'Publish verified IFS 0.1 degree map data from run 43709220003'
+          git push origin HEAD:refs/heads/feature/ifs-weekly-0p1-era5-20261115

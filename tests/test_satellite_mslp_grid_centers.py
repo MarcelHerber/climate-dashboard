@@ -42,6 +42,66 @@ class PressureGridTests(unittest.TestCase):
         field=self.base+0.7*np.exp(-((np.meshgrid(self.lon,self.lat)[0]+25)**2)/30)
         self.assertEqual(detect_pressure_centers(self.lon,self.lat,field),[])
 
+    def test_broad_closed_1030_high_is_not_missed(self):
+        x,y=np.meshgrid(self.lon,self.lat)
+        field=1010+24*np.exp(-((x-21)**2+(y-48)**2)/(2*12**2))
+        highs=[c for c in detect_pressure_centers(self.lon,self.lat,field) if c['type']=='H']
+        self.assertEqual(len(highs),1)
+        self.assertEqual((highs[0]['lon'],highs[0]['lat'],highs[0]['pressure_hpa']),(21,48,1034))
+
+    def test_broad_shallow_closed_1025_high_is_not_lost_to_stronger_high(self):
+        x,y=np.meshgrid(self.lon,self.lat)
+        field=(1020.5+4.84*np.exp(-((x+28)**2+(y-28.5)**2)/(2*8**2))
+               +11.5*np.exp(-((x-30)**2+(y-46)**2)/(2*5**2)))
+        highs=[c for c in detect_pressure_centers(self.lon,self.lat,field) if c['type']=='H']
+        azores=next((c for c in highs if c['lon']==-28 and c['lat']==28.5),None)
+        self.assertIsNotNone(azores)
+        self.assertEqual(azores['pressure_hpa'],1025.3)
+        self.assertTrue(azores['closed_system'])
+        self.assertGreater(azores['closed_area_km2'],50000)
+
+    def test_tiny_shallow_closed_speckle_is_not_labeled(self):
+        x,y=np.meshgrid(self.lon,self.lat)
+        field=1020.5+4.84*np.exp(-((x+28)**2+(y-28.5)**2)/(2*.5**2))
+        self.assertEqual(detect_pressure_centers(self.lon,self.lat,field),[])
+
+    def test_two_extrema_inside_same_closed_975_system_get_one_label(self):
+        x,y=np.meshgrid(self.lon,self.lat)
+        field=(1010-38*np.exp(-((x-5)**2+(y-65)**2)/(2*13**2))
+            -4*np.exp(-(x**2+(y-65)**2)/(2*1.7**2))
+            -3.5*np.exp(-((x-10)**2+(y-65)**2)/(2*1.7**2)))
+        lows=[c for c in detect_pressure_centers(self.lon,self.lat,field) if c['type']=='T']
+        self.assertEqual(len(lows),1)
+        self.assertEqual((lows[0]['lon'],lows[0]['lat'],lows[0]['pressure_hpa']),(0.75,65,970.3))
+
+    def test_two_separate_closed_970_cores_remain_distinct(self):
+        x,y=np.meshgrid(self.lon,self.lat)
+        field=(1010-39*np.exp(-((x-5)**2+(y-65)**2)/(2*13**2))
+            -5*np.exp(-(x**2+(y-65)**2)/(2*1.7**2))
+            -4.5*np.exp(-((x-10)**2+(y-65)**2)/(2*1.7**2)))
+        lows=[c for c in detect_pressure_centers(self.lon,self.lat,field) if c['type']=='T']
+        self.assertEqual(len(lows),2)
+        self.assertEqual(sorted(c['lon'] for c in lows),[0.5,9.25])
+
+    def test_diagonal_saddle_follows_actual_contour_topology(self):
+        import contourpy
+        lon=np.arange(-40,36.01,.25)
+        lat=np.arange(20,66.01,.25)
+        for background,peak,want in [(1029,1033,1),(1027,1031,2)]:
+            with self.subTest(background=background,peak=peak):
+                field=np.full((len(lat),len(lon)),float(background))
+                field[80:100,120:140]=peak
+                field[100:120,140:160]=peak
+                # Independent confirmation of the actual renderer's ring count.
+                generator=contourpy.contour_generator(x=lon,y=lat,z=field,name='serial')
+                rings=generator.lines(1030)
+                self.assertEqual(len(rings),want)
+                self.assertEqual(len([c for c in detect_pressure_centers(lon,lat,field) if c['type']=='H']),want)
+                low_field=2000-field
+                low_rings=contourpy.contour_generator(x=lon,y=lat,z=low_field,name='serial').lines(970)
+                self.assertEqual(len(low_rings),want)
+                self.assertEqual(len([c for c in detect_pressure_centers(lon,lat,low_field) if c['type']=='T']),want)
+
     def test_bad_and_coarse_grids_are_rejected(self):
         with self.assertRaisesRegex(ValueError,"0.25-degree"):
             detect_pressure_centers(self.lon[::2],self.lat,self.base[:,::2])

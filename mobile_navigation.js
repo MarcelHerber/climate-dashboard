@@ -18,13 +18,12 @@
       ["stationHeatwaves","Stations-Hitzewellen"],["maps","Stationskarten"],["records","Stationsrekorde"]]},
     {id:"europe",name:"Europa & Prognosen",items:[
       ["europeHub","Europa-Überblick"],["europeStations","Europa-Stationen"],
-      ["era5Europe","ERA5-Land Europa"],["temperatur_anomalie_europa.html","Aktuelle Temperaturabweichung · NOAA CPC"],["gfs_f003_europe.html","GFS +3 h · CFSR 1991–2020"],["gfs_weekly_europe.html","GFS · 7-Tage-Temperaturanomalie"],["era5Atmosphere","ERA5 Atmosphäre"],
+      ["era5Europe","ERA5-Land Europa"],["temperatur_anomalie_europa.html","Aktuelle Temperaturabweichung · NOAA CPC"],["era5Atmosphere","ERA5 Atmosphäre"],
       ["sst-europe","Meere / SST"],["t850-ensembles","Ensembleprognosen"],
       ["state-monthly-ensemble","Monatsausblick"],["saisonal_europa.html","Saisonale Prognose (SEAS5)"],
       ["wettergefahren.html","ICON-EU Wettergefahren"],["stratosphaere.html","Stratosphäre"],
       ["mosmix.html","MOSMIX"]]},
     {id:"synoptic",name:"Synoptik & Karten",items:[
-      ["satelliten.html","Satelliten · MTG"],
       ["isobaren_original.html","Europa-Isobaren & Fronten"],
       ["weltweite_isobaren.html","Weltweite Isobaren"],
       ["tiefdruck_tracker.html","Tiefdruck-Tracker"]]},
@@ -35,6 +34,8 @@
       ["ace.html","ACE · Tropische Wirbelstürme"]]},
     {id:"tools",name:"Sonstiges",items:[
       ["saharastaub.html","Saharastaub · ICON-ART"],
+      ["gfs_f003_europe.html","GFS +3 h · CFSR 1991–2020"],["gfs_weekly_europe.html","GFS · 7-Tage-Temperaturanomalie"],
+      ["satelliten.html","Satelliten · MTG"],
       ["compare","Vergleiche"],["datenstatus.html","Datenstatus"],["__alpenwetter__","Alpenwetter · geschützt"]]}
   ];
   const START={id:"overview",name:"Übersicht"};
