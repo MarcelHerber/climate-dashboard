@@ -191,7 +191,7 @@ for filename in ("index.html","stratosphaere.html","station_jahresanalyse.html")
     path=Path("_site")/filename
     html=path.read_text(encoding="utf-8")
     scripts=(
-        '<script defer src="t850_vector_export.js?v=20261114-vector-areas-v1"></script>\n'
+        '<script defer src="t850_vector_export.js?v=20261115-compact-exports-v1"></script>\n'
         '<script defer src="scientific_vector_actions.js?v=20261113-science-vector-v1"></script>\n'
     )
     if html.count("</head>")!=1:
@@ -440,7 +440,7 @@ for name in ("dashboard_cleanup.css","monthly_climate_bars.js"):
 # Both HQ chart exports and the model-specific exports use the same
 # readable source/date imprint regardless of desktop/mobile or dark mode.
 html,hq_refs=re.subn(r"dashboard_export_hq[.]js(?:[?]v=[A-Za-z0-9_.-]+)?",
-                      "dashboard_export_hq.js?v=20261112-phase2-print-v1",html)
+                      "dashboard_export_hq.js?v=20261115-compact-exports-v1",html)
 if not hq_refs:
     raise SystemExit("Phase 2: HQ chart exporter is not referenced in the main dashboard")
 page.write_text(html,encoding="utf-8")
@@ -508,9 +508,9 @@ from pathlib import Path
 import re
 path=Path("_site/index.html")
 html=path.read_text(encoding="utf-8")
-for filename in ("monthly_frequency.js","t850_ensembles.js"):
+for filename in ("monthly_frequency.js","t850_ensembles.js","state_monthly_ensemble.js"):
     pattern=re.escape(filename)+r"(?:\?v=[A-Za-z0-9_.-]+)?"
-    version="20261114-vector-areas-v1" if filename=="t850_ensembles.js" else "20261113-phase2-exports-v1"
+    version="20261115-compact-exports-v1"
     html,count=re.subn(pattern,filename+"?v="+version,html)
     if count!=1:
         raise SystemExit(f"Phase 2: missing/duplicate chart asset {filename}: {count}")

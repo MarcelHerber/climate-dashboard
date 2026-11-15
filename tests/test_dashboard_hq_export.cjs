@@ -122,3 +122,29 @@ test("HQ export preserves Date-based UTC axes and typed scientific arrays",()=>{
   assert.ok(exported.options.scales.x.ticks.maxTicksLimit>=17);
   assert.equal(source.config._config.options.scales.x.ticks.maxTicksLimit,5);
 });
+
+test("forecast axis selects each calendar day once and keeps original timestamps",()=>{
+ const {api}=setup(),labels=["15.11. 12Z","15.11. 18Z","16.11. 00Z","16.11. 06Z","17.11. 00Z","17.11. 06Z","18.11. 00Z"];
+ const ticks=api.forecastDateTicks(labels,0,6,2);
+ assert.deepEqual(Array.from(ticks,t=>[t.index,t.text]),[[0,"15.11."],[4,"17.11."]]);
+ assert.deepEqual(Array.from(api.forecastDateTicks(labels,1,5,9),t=>t.index),[1,2,4]);
+ assert.equal(labels[2],"16.11. 00Z");
+});
+test("compact exports have equal desktop/mobile size, preserve zoom and avoid big headers",()=>{
+ const {api,exports,text,images}=setup();
+ const chart={canvas:{width:390,height:240},config:{type:"line",_config:{options:{scales:{x:{ticks:{autoSkip:false}},y:{}},plugins:{title:{display:true}}}}},data:{labels:["15.11.","16.11.","17.11."],datasets:[{data:[1,2,3]}]},scales:{x:{min:1,max:2},y:{min:0,max:4}}};
+ const metadata={compact:true,preserveLimits:true,title:"Frankfurt · T850",subtitle:"GEFS",source:"UTC · DWD"};
+ const mobile=api.renderChart(chart,metadata);
+ chart.canvas.width=1400;chart.canvas.height=700;
+ const desktop=api.renderChart(chart,metadata);
+ assert.equal(mobile.width,desktop.width);assert.equal(mobile.height,desktop.height);
+ assert.equal(mobile.width,2200);assert.equal(mobile.height,1470);
+ assert.equal(exports[0].options.scales.x.min,1);assert.equal(exports[0].options.scales.x.max,2);
+ assert.equal(exports[0].options.plugins.title.display,false);
+ assert.equal(chart.config._config.options.plugins.title.display,true);
+ assert.ok(!text.some(t=>t.startsWith("Erstellt:")));
+ assert.equal(images[0][2],122);assert.equal(images[0][4],1286);
+ const group=api.renderChartGroup(Array.from({length:5},()=>({chart,metadata})));
+ assert.equal(group.width,3600);assert.equal(group.height,3609);
+ assert.ok(group.width*group.height<16777216);
+});

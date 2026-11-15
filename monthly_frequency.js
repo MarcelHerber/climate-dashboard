@@ -277,7 +277,7 @@
   const referenceLinesPlugin={
     id:"monthlyFrequencyReferenceLinesV4",
     afterDatasetsDraw(activeChart){
-      if(activeChart.canvas.id!=="monthlyFrequencyChart"||!activeChart.$frequencyMeta)return;
+      if(!activeChart.$frequencyMeta)return;
       const {ctx,chartArea,scales:{x}}=activeChart,meta=activeChart.$frequencyMeta;
       if(!chartArea||!x)return;
       ctx.save();
@@ -304,32 +304,17 @@
     return {area,period:typeof periodLabel==="function"?periodLabel(selection):selection,param,rangeA:range("A"),rangeB:range("B")};
   }
   async function monthlyFrequencyExportCanvas(){
-    const node=document.getElementById("monthlyFrequencyView");
-    if(!node)throw new Error("Exportbereich nicht gefunden.");
-    if(typeof html2canvas!=="function")throw new Error("html2canvas ist nicht geladen.");
-    node.classList.add("monthly-frequency-exporting");
-    try{
-      // Redraw chart labels for the white export surface before capturing it.
-      chart?.update("none");
-      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-      const captured=await html2canvas(node,{backgroundColor:"#ffffff",scale:2,useCORS:true,logging:false});
-      // Phase 2: both PNG and PDF use the identical white print sheet.
-      // The scientific curves and the original chart's axes/data are not modified.
-      const context=exportContext();
-      const config=parameterConfig(context.param);
-      const hq=window.DashboardExportHQ;
-      return hq?.composeCanvas
-        ?hq.composeCanvas(captured,{
+      if(!chart)throw Error("Bitte zuerst ein Diagramm laden.");
+      const context=exportContext(),config=parameterConfig(context.param),hq=window.DashboardExportHQ;
+      return hq.renderChart(chart,{
+            compact:true,preserveLimits:true,
             title:"Häufigkeitsverteilung · "+config.label+" · "+context.area,
             subtitle:context.period+" · "+context.rangeA.label+" gegenüber "+context.rangeB.label+
               " · Einheit "+config.unit,
             source:"Quelle: DWD · monatliche Gebietsmittel · Referenzzeiträume "+
-              context.rangeA.label+" / "+context.rangeB.label
-          }):captured;
-    }finally{
-      node.classList.remove("monthly-frequency-exporting");
-      chart?.update("none");
-    }
+              context.rangeA.label+" / "+context.rangeB.label,
+            prepareChart:clone=>{clone.$frequencyMeta=hq.copy(chart.$frequencyMeta);}
+          });
   }
   function triggerDownload(href,filename){
     const link=document.createElement("a");link.href=href;link.download=filename;link.style.display="none";
