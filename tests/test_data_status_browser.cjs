@@ -33,8 +33,8 @@ test('monthly and day age use UTC calendar dates, not elapsed hours',()=>{
 test('new live manifests refresh published rows without waiting for Pages',()=>{
  const now=new Date('2026-11-15T19:30:00Z');
  const rows=[{id:'fast_live',latest:'2026-11-15T17:10:00Z',status:'delayed',cadence:'hourly',allowed_delay:.75},{id:'opera_dbzh',latest:'2026-11-15T17:10:00Z',status:'delayed',cadence:'hourly',allowed_delay:.75}];
- const fast={station_count:459,source_file_count:14,latest_measurement_utc:'2026-11-15T19:20:00Z',generated_at_utc:'2026-11-15T19:29:00Z'};
- const radar={updated_utc:'2026-11-15T19:28:00Z',products:{dbzh:{frames:[{utc:'2026-11-15T19:15:00Z'},{utc:'2026-11-15T19:10:00Z'},{utc:'2026-11-15T19:05:00Z'},{utc:'2026-11-15T19:00:00Z'}]}}};
+ const fast={schema_version:1,station_count:459,source_file_count:14,latest_measurement_utc:'2026-11-15T19:20:00Z',generated_at_utc:'2026-11-15T19:29:00Z'};
+ const radar={schema:1,updated_utc:'2026-11-15T19:28:00Z',products:{dbzh:{frames:['15','10','05','00'].map(m=>({utc:`2026-11-15T19:${m}:00Z`,image:`frames/dbzh_2026111519${m}.png`,stats:{coverage:.38,min_physical:-32,max_physical:65,echo_fraction:.08,undetect_fraction:.3}}))}}};
  const updated=context.mergeLiveMetadata(rows,fast,radar,now);
  assert.equal(updated[0].status,'current');assert.equal(updated[0].latest,fast.latest_measurement_utc);
  assert.equal(updated[1].status,'current');assert.equal(updated[1].latest,'2026-11-15T19:15:00Z');
@@ -42,4 +42,8 @@ test('new live manifests refresh published rows without waiting for Pages',()=>{
  assert.equal(older[0].latest,fast.latest_measurement_utc);
  const future=context.mergeLiveMetadata(updated,{...fast,latest_measurement_utc:'2026-11-15T19:40:00Z'},null,now);
  assert.equal(future[0].latest,fast.latest_measurement_utc);
+ const invalid=context.mergeLiveMetadata(rows,{...fast,station_count:1},{...radar,products:{dbzh:{frames:[{utc:'2026-11-15T19:15:00Z'}]}}},now);
+ assert.equal(invalid[0].status,'delayed');assert.equal(invalid[1].status,'delayed');
+ const noZone=context.mergeLiveMetadata(rows,{...fast,latest_measurement_utc:'2026-11-15T19:20:00'},null,now);
+ assert.equal(noZone[0].status,'delayed');
 });
