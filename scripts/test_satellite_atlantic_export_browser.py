@@ -64,7 +64,7 @@ GRID_CENTERS=[
  {"type":"H","lon":10,"lat":51,"pressure_hpa":1029.4,"prominence_hpa":5.4,"score":42},
  {"type":"T","lon":-55,"lat":55,"pressure_hpa":989.8,"prominence_hpa":6.2,"score":43}
 ]
-GRID_METHOD="ifs_mslp_grid_extrema_v2"
+GRID_METHOD="ifs_mslp_grid_extrema_v3"
 
 
 

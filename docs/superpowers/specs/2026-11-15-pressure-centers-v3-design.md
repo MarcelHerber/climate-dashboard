@@ -1,0 +1,3 @@
+# Satellite pressure-center placement
+
+Keep genuine ECMWF MSLP contours unchanged. The user approved prioritizing closed systems, retaining broad shallow highs, placing H/T exactly at their native grid points, moving contour-number labels instead of H/T, and selecting a dynamic number of centers based on available space. Use the same annotation layout for SVG, PNG/GIF and PDF. Preserve old data compatibility and the 2/5 hPa center identity. A pure fixed rank cap or contour centroid would miss real systems or move centers, so use grid topology and collision-aware placement instead. Verify the actual 2026-11-15 10:50 UTC Atlantic frame.

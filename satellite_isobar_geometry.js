@@ -262,12 +262,13 @@ function detectVisiblePressureSystems(contours,viewport,{
 
 // Grid extrema are physically identified in the 0.25° IFS MSLP array before
 // either 2-hPa or 5-hPa contours are drawn.
-const GRID_METHODS=new Set(["ifs_mslp_grid_extrema_v1","ifs_mslp_grid_extrema_v2"]);
+const GRID_METHODS=new Set(["ifs_mslp_grid_extrema_v1","ifs_mslp_grid_extrema_v2","ifs_mslp_grid_extrema_v3"]);
 function modelGridCenters(overlay,viewport,{maxSystems=7,minSeparation=94}={}){
  if(!overlay||!GRID_METHODS.has(overlay.pressure_centers_method)||
     !Array.isArray(overlay.pressure_centers))return null; // legacy run
  if(overlay.pressure_centers.length>40)throw Error("IFS: ungültige Extremaanzahl");
  const proposed=[];
+ const v3=overlay.pressure_centers_method==="ifs_mslp_grid_extrema_v3";
  for(const item of overlay.pressure_centers){
   const lon=Number(item.lon),lat=Number(item.lat),hpa=Number(item.pressure_hpa);
   if(!["T","H"].includes(item.type)||!Number.isFinite(lon)||!Number.isFinite(lat)||
@@ -276,63 +277,83 @@ function modelGridCenters(overlay,viewport,{maxSystems=7,minSeparation=94}={}){
    throw Error("IFS: fehlerhafte Druckgitter-Koordinate");
   const p=project([lon,lat],viewport);
   if(p[0]<35||p[0]>965||p[1]<35||p[1]>965)continue;
+  const closedSystem=overlay.pressure_centers_method!=="ifs_mslp_grid_extrema_v1"&&item.closed_system===true;
+  const area=Number(item.closed_area_km2)||0;
+  if(v3&&closedSystem&&area<15000&&(viewport[2]-viewport[0])>=70&&item.prominence_hpa<5)continue;
+  if(v3&&!closedSystem&&(viewport[2]-viewport[0])>=70&&item.prominence_hpa<3)continue;
   proposed.push({type:item.type,lon,lat,hpa,pressure_hpa:hpa,
    score:item.score,prominence_hpa:item.prominence_hpa,
-   closedSystem:overlay.pressure_centers_method==="ifs_mslp_grid_extrema_v2"&&item.closed_system===true,
+   closedSystem,closedArea:area,
    method:overlay.pressure_centers_method,source:"ifs_grid"});
  }
- proposed.sort((a,b)=>b.score-a.score||a.lon-b.lon);
+ const rank=c=>c.score+(v3&&c.closedSystem?30+Math.sqrt(c.closedArea)/50:0);
+ proposed.sort((a,b)=>rank(b)-rank(a)||a.lon-b.lon);
  const out=[];
  for(const m of proposed){
   const at=project([m.lon,m.lat],viewport);
   if(out.some(q=>distance(project([q.lon,q.lat],viewport),at)<minSeparation&&
-    (!(q.closedSystem&&m.closedSystem)||(q.lon===m.lon&&q.lat===m.lat))))continue;
+    (!(q.closedSystem&&m.closedSystem)||(q.lon===m.lon&&q.lat===m.lat)||
+      (v3&&Math.min(q.closedArea,m.closedArea)<15000))))continue;
   out.push(m);
-  if(out.length>=maxSystems)break;
+  if(!v3&&out.length>=maxSystems)break;
  }
  return out;
 }
-function pressureLabels(centers,viewport,{width=1000,height=1000,fontSize=40.5,
- isobarLabels=[],cityAnchors=[]}={}){
+// Reference dimensions match the actual regional WMS aspect ratios. Select
+// once at reference size, not independently for every export resolution.
+function pressureReferenceHeight(viewport){
+ const ratios={"-27,24,49,73":850/1300,"-70,15,35,75":850/1400,
+  "-37,24,19,53":620/1200,"-2,43,25,58":780/1300,"5,47,16,56":950/1140};
+ return 720*(ratios[viewport.join(",")]||1);
+}
+function pressureLabels(centers,viewport,{width=1000,height=1000,fontSize=40.5}={}){
  const xy=(lon,lat)=>{
   const p=project([lon,lat],viewport);
   return [p[0]*width/1000,p[1]*height/1000];
  };
  const occupied=[];
- for(const v of isobarLabels){
-  if(!Array.isArray(v)||v.length!==2)continue;
-  const [x,y]=xy(v[0],v[1]);occupied.push([x-28,y-12,x+28,y+12]);
- }
- for(const c of cityAnchors){
-  if(!Number.isFinite(c?.lon)||!Number.isFinite(c?.lat))continue;
-  const [x,y]=xy(c.lon,c.lat);
-  occupied.push([x-6,y-19,x+Math.min(width*.23,100),y+7]);
- }
  const overlaps=(a,b)=>a[0]<b[2]&&a[2]>b[0]&&a[1]<b[3]&&a[3]>b[1];
  const out=[];
+ const stable=centers.some(c=>c.method==="ifs_mslp_grid_extrema_v3");
+ const selectionWidth=stable?720:width,selectionHeight=stable?pressureReferenceHeight(viewport):height;
+ const selectionFont=stable?29.16:fontSize;
  for(const m of centers){
   const [px,py]=xy(m.lon,m.lat);
-  const positions=[[0,0],[.9,-.9],[-.9,-.9],[.9,.9],[-.9,.9],
-    [0,-1.25],[0,1.25],[1.25,0],[-1.25,0],
-    [0,-2],[0,2],[-2,0],[2,0],[-1.7,-1.7],[1.7,-1.7],[-1.7,1.7],[1.7,1.7]];
-  let best=null,penalty=Infinity;
-  for(const [ox,oy] of positions){
-   const x=px+ox*fontSize,y=py+oy*fontSize;
-   const box=[x-fontSize*.43,y-fontSize*.58,x+fontSize*.43,y+fontSize*.58];
-   const edge=box[0]<3||box[1]<3||box[2]>width-3||box[3]>height-3;
-   const conflicts=occupied.filter(b=>overlaps(box,b)).length;
-   const p=(edge?100000:0)+conflicts*10000+Math.hypot(ox,oy)*fontSize;
-   if(p<penalty){penalty=p;best={x,y,box,edge,conflicts,ox,oy};}
-  }
-  if(!best||best.edge||best.conflicts)continue;
-  occupied.push(best.box);
-  out.push({...m,anchorX:px,anchorY:py,labelX:best.x,labelY:best.y,
-   leader:Math.hypot(best.ox,best.oy)>.25});
+  const sx=px*selectionWidth/width,sy=py*selectionHeight/height;
+  const box=[sx-selectionFont*.43,sy-selectionFont*.58,sx+selectionFont*.43,sy+selectionFont*.58];
+  if(box[0]<3||box[1]<3||box[2]>selectionWidth-3||box[3]>selectionHeight-3||occupied.some(b=>overlaps(box,b)))continue;
+  occupied.push(box);
+  out.push({...m,anchorX:px,anchorY:py,labelX:px,labelY:py,leader:false});
  }
  return out;
 }
+// Centers never move. Select the closest collision-free point ON the same
+// drawn pressure contour for each numeric annotation; never change the paths.
+function layoutPressureAnnotations(centers,groups,viewport,{width=1000,height=1000,fontSize=40.5,labelWidth=36,labelHeight=17,cityAnchors=[]}={}){
+ const xy=p=>{const q=project(p,viewport);return [q[0]*width/1000,q[1]*height/1000];};
+ const positioned=pressureLabels(centers,viewport,{width,height,fontSize});
+ const occupied=positioned.map(c=>[c.anchorX-fontSize*.53,c.anchorY-fontSize*.68,c.anchorX+fontSize*.53,c.anchorY+fontSize*.68]);
+ for(const c of cityAnchors){if(!Number.isFinite(c?.lon)||!Number.isFinite(c?.lat))continue;
+  const [x,y]=xy([c.lon,c.lat]);occupied.push([x-6,y-19,x+Math.min(width*.23,100),y+7]);}
+ const overlap=(a,b)=>a[0]<b[2]&&a[2]>b[0]&&a[1]<b[3]&&a[3]>b[1];
+ const annotated=groups.map(g=>{
+  if(!g.label)return g;
+  const original=xy(g.label);let best=null,dist=Infinity,bestBox=null;
+  const originalRun=g.runs.find(run=>run.some(p=>p[0]===g.label[0]&&p[1]===g.label[1]));
+  for(const p of [g.label,...(originalRun||[])]){
+   const [x,y]=xy(p),d=distance(original,[x,y]);
+   if(d>=dist)continue;
+   const b=[x-labelWidth/2,y-labelHeight/2,x+labelWidth/2,y+labelHeight/2];
+   if(b[0]<3||b[1]<3||b[2]>width-3||b[3]>height-3||occupied.some(o=>overlap(b,o)))continue;
+   best=p;dist=d;bestBox=b;
+  }
+  if(bestBox)occupied.push(bestBox);
+  return {...g,label:best};
+ });
+ return {centers:positioned,groups:annotated};
+}
 
-window.SatelliteIsobarGeometry={modelGridCenters,pressureLabels,detectVisiblePressureSystems,detectPressureSystems,prepare,clean,smooth,project,
+window.SatelliteIsobarGeometry={modelGridCenters,pressureLabels,pressureReferenceHeight,layoutPressureAnnotations,detectVisiblePressureSystems,detectPressureSystems,prepare,clean,smooth,project,
  settings:{minLoopDiagonal:MIN_LOOP_DIAGONAL,minLoopArea:MIN_LOOP_AREA,
   minOpenLength:MIN_OPEN_LENGTH,smoothing:SMOOTHING,maxShift:MAX_SHIFT}};
 })();
