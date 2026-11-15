@@ -59,10 +59,12 @@
     info:$("weekReference"),metric:$("weekMetric"),projection:$("weekProjection"),region:$("weekRegion"),
     warn:$("weekWarning"),legend:$("weekLegend"),country:$("weekCountries"),
     countryTitle:$("weekCountryHeader"),selected:$("weekSelected"),
-    label:$("weekMapLabel"),png:$("weekPng"),pdf:$("weekPdf"),csv:$("weekCsv")};
+    label:$("weekMapLabel"),png:$("weekPng"),pdf:$("weekPdf"),csv:$("weekCsv"),period:$("weekPeriod")};
   if(!el.map)return;
   let payload=null,temperature=null,anomaly=null,mask=null,countries=[],border=null;
   let shown=null,stats=[],selected=null,mapInfo=null;
+  const PERIODS=[1,3,5,7,10,15];
+  let geography=null,manifest=null;
   function fmtTime(iso){
     return new Date(iso).toLocaleString("de-DE",{timeZone:"UTC",day:"2-digit",
       month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})+" UTC";
@@ -92,13 +94,14 @@
     const ref=main.reference_metadata;
     const verified=main.reference_ready===true;
     const run=Date.parse(main.run_utc), end=Date.parse(main.valid_to_utc);
-    if(main.schema!==1||main.type!=="ifs_0p1_seven_day_forecast"||
+    const days=main.period_days,count=days*4+1;
+    if(main.schema!==1||!PERIODS.includes(days)||main.type!==(days===7?"ifs_0p1_seven_day_forecast":"ifs_0p1_period_forecast")||
        main.grid_degrees!==.1||main.width!==1801||main.height!==601||
        main.lat_north!==85||main.lat_south!==25||main.lon_west!==-80||main.lon_east!==100||
-       main.period_days!==7||main.sample_count!==29||
-       !Number.isFinite(run)||Date.parse(main.valid_from_utc)!==run||end-run!==168*3600000||
-       !Array.isArray(main.lead_hours)||main.lead_hours.length!==29||
-       !Array.isArray(main.sources)||main.sources.length!==29||
+       main.sample_count!==count||
+       !Number.isFinite(run)||Date.parse(main.valid_from_utc)!==run||end-run!==days*86400000||
+       !Array.isArray(main.lead_hours)||main.lead_hours.length!==count||
+       !Array.isArray(main.sources)||main.sources.length!==count||
        main.lead_hours.some((h,i)=>h!==6*i||main.sources[i]?.forecast_hour!==h||
            Date.parse(main.sources[i]?.valid_utc)!==run+h*3600000||
            !/^[a-f0-9]{64}$/.test(main.sources[i]?.sha256)||main.sources[i]?.bytes<1000)||
@@ -113,10 +116,11 @@
        !Array.isArray(cpc.rings)||cpc.rings.length<100)
       throw Error("Geografisches Raster nicht kompatibel");
     GW=main.width;GH=main.height;CELL=GW*GH;NORTH=main.lat_north;WEST=main.lon_west;
-    temperature=unpack(main.forecast_mean_q10_b64);
-    anomaly=verified?unpack(main.anomaly_mean_q10_b64):null;
-    if(temperature.some(v=>!Number.isFinite(v))||anomaly?.some(v=>!Number.isFinite(v)))
+    const nextTemperature=unpack(main.forecast_mean_q10_b64);
+    const nextAnomaly=verified?unpack(main.anomaly_mean_q10_b64):null;
+    if(nextTemperature.some(v=>!Number.isFinite(v))||nextAnomaly?.some(v=>!Number.isFinite(v)))
       throw Error("Unvollständiges IFS-Raster");
+    temperature=nextTemperature;anomaly=nextAnomaly;
     payload=main;mask=parseMask(cpc.country_mask_b64);countries=cpc.countries;
     vectorRings=cpc.rings;extended=true;
     el.metric.querySelector('option[value="anomaly"]').disabled=!verified;
@@ -245,9 +249,8 @@
     }
     ctx.putImageData(image,0,0);
     drawExpandedBorders(ctx);
-    el.map.setAttribute("aria-label",abs?"IFS-Mitteltemperatur nächste 7 Tage in °C":
-      "IFS-Temperaturabweichung nächste 7 Tage in Kelvin gegenüber 1991–2020");
-    el.label.textContent=currentRegion().name+" · "+
+    el.map.setAttribute("aria-label",`IFS-${abs?"Mitteltemperatur":"Temperaturabweichung"} · ${payload.period_days} Tage`);
+    el.label.textContent=currentRegion().name+" · "+payload.period_days+" Tage · "+
       (el.projection.value==="stereo"?"Stereografische Europaansicht":"Breiten-Längen-Ansicht")+" · 0,1° IFS";
     legend(abs);countriesTable();
   }
@@ -359,7 +362,7 @@
     const ctx=out.getContext("2d");ctx.scale(1.5,1.5);
     ctx.fillStyle="#fff";ctx.fillRect(0,0,1400,950);
     ctx.fillStyle="#193a55";ctx.font="bold 29px Arial";
-    ctx.fillText("Europa · IFS Sieben-Tage-"+(absolute?"Mitteltemperatur":"Temperaturabweichung"),32,45);
+    ctx.fillText("Europa · IFS "+payload.period_days+"-Tage-"+(absolute?"Mitteltemperatur":"Temperaturabweichung"),32,45);
     ctx.font="18px Arial";
     ctx.fillText("ECMWF IFS "+fmtTime(payload.run_utc)+" · "+
       (absolute?"2-m-Temperatur °C":"ERA5 1991–2020 (0,25° → 0,1°)")+
@@ -368,14 +371,15 @@
     drawExportLegend(ctx,absolute);
     ctx.fillStyle="#193a55";ctx.font="15px Arial";
     ctx.fillText("Gültig "+fmtTime(payload.valid_from_utc)+" bis "+fmtTime(payload.valid_to_utc),32,895);
-    ctx.fillText("ECMWF IFS 0,1° · +0 bis +168 h · 29 Originalfelder · "+
+    ctx.fillText(`ECMWF IFS 0,1° · +0 bis +${payload.period_days*24} h · ${payload.sample_count} Originalfelder · `+
       el.projection.options[el.projection.selectedIndex].text,32,925);
     return out;
   }
   function savePng(){
     const out=exportMapCanvas();if(!out)return;
+    const name=`ifs_europa_${payload.period_days}tage_${payload.run_utc.slice(0,10)}.png`;
     out.toBlob(blob=>{if(!blob)return;const url=URL.createObjectURL(blob);
-      download(url,"ifs_europa_7tage_"+payload.run_utc.slice(0,10)+".png");
+      download(url,name);
       setTimeout(()=>URL.revokeObjectURL(url),5000);},"image/png");
   }
   function savePdf(){
@@ -385,7 +389,7 @@
     container.id="weekPrintPage";
     container.setAttribute("aria-hidden","true");
     const img=new Image();
-    img.alt="IFS-Sieben-Tage-Karte mit integrierter Farbskala";
+    img.alt=`IFS-${payload.period_days}-Tage-Karte mit integrierter Farbskala`;
     container.appendChild(img);document.body.appendChild(container);
     const cleanup=()=>{
       document.body.classList.remove("weekly-export-print");
@@ -407,7 +411,7 @@
       unit,Math.round(s.coverage*100),payload.run_utc,payload.valid_from_utc,
       payload.valid_to_utc,(unit==="K"?"ERA5 1991-2020 0.25° bilinear":"keine")].join(";"));
     const url=URL.createObjectURL(new Blob(["\ufeff"+rows.join("\r\n")],{type:"text/csv;charset=utf-8"}));
-    download(url,"ifs_europa_7tage_laendermittel.csv");
+    download(url,`ifs_europa_${payload.period_days}tage_laendermittel.csv`);
     setTimeout(()=>URL.revokeObjectURL(url),5000);
   }
   el.metric.addEventListener("change",draw);
@@ -426,26 +430,55 @@
   el.png.addEventListener("click",savePng);
   el.csv.addEventListener("click",saveCsv);
   el.pdf.addEventListener("click",savePdf);
+  function updatePeriod(){
+    const days=payload.period_days;
+    $("weekHeading").textContent=`Temperaturabweichung · ${days===1?"nächster Tag":`nächste ${days} Tage`}`;
+    $("weekSubtitle").textContent=`ECMWF IFS 0,1° · ${payload.sample_count} Originalfelder von +0 bis +${days*24} Stunden · ERA5 1991–2020 (0,25° Referenz)`;
+    $("weekPeriodHeading").textContent=`${days}-Tage-Prognose Europa`;
+    $("weekCountryHeading").textContent=`${days}-Tage-Ländermittel`;
+    el.period.value=String(days);
+    el.run.textContent="Lauf "+fmtTime(payload.run_utc);
+    el.status.textContent="Vorhersage "+fmtTime(payload.valid_from_utc)+" bis "+fmtTime(payload.valid_to_utc)+` · ${payload.sample_count} Originalfelder`;
+    el.info.textContent=payload.reference_ready?
+      "ECMWF IFS 0,1° · ERA5 1991–2020, kalender- und UTC-stundengenau (0,25° bilinear auf 0,1° interpoliert).":
+      "ECMWF IFS 0,1° · ERA5-Klimareferenz noch in Prüfung; nur absolute Temperatur.";
+    draw();
+  }
+  el.period.addEventListener("change",async()=>{
+    const days=Number(el.period.value);
+    if(!manifest?.periods.includes(days))return;
+    el.period.disabled=true;[el.png,el.pdf,el.csv].forEach(b=>b.disabled=true);
+    try{
+      const file=days===7?"current.json":`current_${String(days).padStart(2,"0")}.json`;
+      const response=await fetch("ifs_weekly_europe/"+file,{cache:"no-store"});
+      if(!response.ok)throw Error("Zeitraum momentan nicht verfügbar.");
+      const data=await response.json();
+      if(data.period_days!==days||data.run_utc!==manifest.run_utc||!data.reference_ready)throw Error("Zeitraum gehört nicht zum geprüften Modelllauf.");
+      validate(data,geography);updatePeriod();el.warn.hidden=true;
+    }catch(err){el.period.value=String(payload.period_days);el.warn.hidden=false;el.warn.textContent=String(err.message||err);}
+    finally{el.period.disabled=false;[el.png,el.pdf,el.csv].forEach(b=>b.disabled=false);}
+  });
   async function start(){
     try{
-      const [combined,geoResponse]=await Promise.all([
+      const [combined,geoResponse,periodResponse]=await Promise.all([
         fetch("ifs_weekly_europe/current.json",{cache:"no-store"}),
-        fetch("ifs_weekly_europe/geography.json",{cache:"force-cache"})
+        fetch("ifs_weekly_europe/geography.json",{cache:"force-cache"}),
+        fetch("ifs_weekly_europe/periods.json",{cache:"no-store"}).catch(()=>null)
       ]);
       const response=combined.ok?combined:await fetch("ifs_weekly_europe/forecast.json",{cache:"no-store"});
       if(!response.ok||!geoResponse.ok)throw Error("Geprüfte IFS-0,1°-Daten noch nicht veröffentlicht.");
-      validate(await response.json(),await geoResponse.json());
-      el.run.textContent="Lauf "+fmtTime(payload.run_utc);
-      el.status.textContent="Vorhersage "+fmtTime(payload.valid_from_utc)+" bis "+
-        fmtTime(payload.valid_to_utc)+" · 29 Originalfelder";
-      el.info.textContent=payload.reference_ready?
-        "ECMWF IFS 0,1° · ERA5 1991–2020, kalender- und UTC-stundengenau (0,25° bilinear auf 0,1° interpoliert).":
-        "ECMWF IFS 0,1° · ERA5-Klimareferenz noch in Prüfung; nur absolute Temperatur.";
-      draw();
+      geography=await geoResponse.json();validate(await response.json(),geography);
+      if(periodResponse?.ok){
+        const candidate=await periodResponse.json().catch(()=>null);
+        if(candidate?.schema===1&&candidate.run_utc===payload.run_utc&&JSON.stringify(candidate.periods)===JSON.stringify(PERIODS)){
+          manifest=candidate;el.period.disabled=false;for(const option of el.period.options)option.disabled=false;
+        }
+      }
+      updatePeriod();
       [el.png,el.pdf,el.csv].forEach(btn=>btn.disabled=false);
     }catch(err){
       el.warn.hidden=false;el.warn.textContent=String(err.message||err);
-      el.status.textContent="Keine geprüfte Sieben-Tage-Prognose verfügbar";
+      el.status.textContent="Keine geprüfte IFS-Prognose verfügbar";
       el.country.innerHTML='<tr><td colspan="3">Keine verifizierten Daten verfügbar</td></tr>';
     }
   }

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#153752">
-  <title>ECMWF IFS Sieben-Tage-Anomalie Europa | Climate Dashboard</title>
+  <title>ECMWF IFS Temperaturanomalie Europa | Climate Dashboard</title>
   <meta name="description" content="Originale ECMWF-IFS-Prognose auf 0,1° mit kalender- und UTC-stundengenauer ERA5-Klimareferenz 1991–2020 (0,25°).">
   <link rel="stylesheet" href="cpc_europe.css">
   <link rel="stylesheet" href="gfs_weekly_europe.css">
@@ -12,23 +12,30 @@
   <link rel="stylesheet" href="dashboard_theme.css">
   <script src="dashboard_theme.js" defer></script>
   <script src="mobile_navigation.js" defer></script>
-  <script src="ifs_weekly_europe.js?v=1" defer></script>
+  <script src="ifs_weekly_europe.js?v=2" defer></script>
 </head>
 <body>
   <header class="cpc-header"><div class="cpc-header-inner">
     <a class="cpc-back" href="./index.html">← Climate Dashboard</a>
     <div class="cpc-eyebrow">Europa · ECMWF IFS-Modellprognose, keine Beobachtung</div>
-    <h1>Temperaturabweichung · nächste 7 Tage</h1>
-    <p>ECMWF IFS 0,1° · 29 Originalfelder von +0 bis +168 Stunden · ERA5 1991–2020 (0,25° Referenz)</p>
+    <h1 id="weekHeading">Temperaturabweichung · nächste 7 Tage</h1>
+    <p id="weekSubtitle">ECMWF IFS 0,1° · ERA5 1991–2020 (0,25° Referenz)</p>
   </div></header>
   <main>
     <section class="cpc-panel">
       <div class="cpc-section-head">
-        <div><h2>Sieben-Tage-Prognose Europa</h2><p id="weekStatus" role="status">Prüfe vollständigen Modelllauf und Klimareferenz …</p></div>
+        <div><h2 id="weekPeriodHeading">7-Tage-Prognose Europa</h2><p id="weekStatus" role="status">Prüfe vollständigen Modelllauf und Klimareferenz …</p></div>
         <span class="cpc-status" id="weekRun">Modelllauf wird geladen</span>
       </div>
       <div class="weekly-source-note" id="weekReference">Nur vollständig geprüfte IFS-Originalfelder; ERA5-Anomalien erst nach Referenzprüfung</div>
       <div class="cpc-fields">
+        <label>Vorhersagezeitraum
+          <select id="weekPeriod" disabled>
+            <option value="1" disabled>1 Tag</option><option value="3" disabled>3 Tage</option>
+            <option value="5" disabled>5 Tage</option><option value="7" selected>7 Tage</option>
+            <option value="10" disabled>10 Tage</option><option value="15" disabled>15 Tage</option>
+          </select>
+        </label>
         <label>Darstellung
           <select id="weekMetric">
             <option value="anomaly">Temperaturabweichung 1991–2020 (K)</option>
@@ -74,7 +81,7 @@
     </section>
     <section class="cpc-panel">
       <div class="cpc-section-head">
-        <div><h2>Sieben-Tage-Ländermittel</h2><p>Flächengewichtete Werte im verfügbaren IFS-0,1°-Raster; die Regionsauswahl zoomt ausschließlich die Karte.</p></div>
+        <div><h2 id="weekCountryHeading">7-Tage-Ländermittel</h2><p>Flächengewichtete Werte im verfügbaren IFS-0,1°-Raster; die Regionsauswahl zoomt ausschließlich die Karte.</p></div>
         <span class="cpc-selected" id="weekSelected">Land auswählen</span>
       </div>
       <div class="cpc-country-table-wrap weekly-country-table">
@@ -84,7 +91,7 @@
     </section>
     <section class="cpc-method">
       <h2>Berechnung und Quellen</h2>
-      <p>Das exakte 168-Stunden-Intervall eines IFS-Laufs (00/12 UTC) wird aus 29 Sechs-Stunden-Temperaturfeldern mit halbem Gewicht für die Randzeiten gemittelt. Das Normalklima kommt aus ERA5 1991–2020: für jeden Kalendertag und jede der vier UTC-Stunden (00, 06, 12, 18) werden alle verfügbaren Jahre derselben Zeit gemittelt; am 29. Februar nur die acht Schaltjahre. Der Wochenmittelwert der Referenz wird anschließend bilinear von 0,25° auf das originale 0,1°-IFS-Gitter übertragen.</p>
+      <p>Das ausgewählte Intervall beginnt zur Initialisierung desselben IFS-Laufs (00/12 UTC). Sechs-Stunden-Temperaturfelder werden mit halbem Gewicht für die Randzeiten gemittelt (5 bis 61 Originalfelder). Das Normalklima kommt aus ERA5 1991–2020: für jeden Kalendertag und jede der vier UTC-Stunden (00, 06, 12, 18) werden alle verfügbaren Jahre derselben Zeit gemittelt; am 29. Februar nur die acht Schaltjahre. Der Zeitraum-Mittelwert der Referenz wird anschließend bilinear von 0,25° auf das originale 0,1°-IFS-Gitter übertragen.</p>
       <p>Keine modellinterne, vorlaufabhängig bias-korrigierte ECMWF-M-Klimatologie. Die Anomalien bleiben gesperrt, solange nicht alle für den Vorhersagezeitraum nötigen Referenzwerte geprüft sind.</p>
       <p>Quellen: <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data">ECMWF Open Data (CC BY 4.0)</a>, <a href="https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels">Copernicus Climate Data Store ERA5</a>. <a href="gfs_weekly_europe.html">GFS-Sieben-Tage-Prognose</a>.</p>
     </section>

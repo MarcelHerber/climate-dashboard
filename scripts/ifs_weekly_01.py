@@ -20,6 +20,7 @@ import tempfile
 import numpy as np
 
 LEADS = tuple(range(0, 169, 6))
+PERIODS = (1,3,5,7,10,15)
 HOURS = (0, 6, 12, 18)
 YEARS = tuple(range(1991, 2021))
 NORTH, SOUTH, WEST, EAST = 85., 25., -80., 100.
@@ -30,23 +31,33 @@ REF_LON = np.linspace(WEST, EAST, 721)
 VERSION = 'era5-t2m-calendar-hour-1991-2020-v1'
 
 
-def valid_times(run):
+def leads_for(days):
+    if days not in PERIODS: raise ValueError('Unsupported forecast period')
+    return tuple(range(0,days*24+1,6))
+
+
+def file_stem(days, base='forecast'):
+    return base if days == 7 else f'{base}_{days:02d}'
+
+
+def valid_times(run,days=7):
     if run.tzinfo is None or run.utcoffset() != timedelta(0) or run.hour not in (0, 12) or run.minute or run.second or run.microsecond:
         raise ValueError('Expected a 00 or 12 UTC IFS initialization')
-    return tuple(run + timedelta(hours=h) for h in LEADS)
+    return tuple(run + timedelta(hours=h) for h in leads_for(days))
 
 
-def weekly_mean(fields):
-    if set(fields) != set(LEADS):
-        raise ValueError('All 29 original six-hourly fields are required')
+def weekly_mean(fields,days=7):
+    leads=leads_for(days)
+    if set(fields) != set(leads):
+        raise ValueError('All original six-hourly fields are required')
     first = np.asarray(fields[0], dtype=np.float64)
     total = np.zeros_like(first)
-    for h in LEADS:
+    for h in leads:
         field = np.asarray(fields[h])
         if field.shape != first.shape or not np.isfinite(field).all():
             raise ValueError('Missing/nonfinite or inconsistent field')
-        total += field * (0.5 if h in (0, 168) else 1.)
-    return total / 28.
+        total += field * (0.5 if h in (0, days*24) else 1.)
+    return total / (days*4)
 
 
 def era5_expected(year, month):
@@ -92,15 +103,15 @@ def encode(field):
 
 
 def validate_forecast_metadata(info, run):
-    times=valid_times(run)
-    if (info.get('schema')!=1 or info.get('type')!='ifs_0p1_seven_day_forecast'
+    days=info.get('period_days'); leads=leads_for(days); times=valid_times(run,days)
+    if (info.get('schema')!=1 or info.get('type')!=('ifs_0p1_seven_day_forecast' if days==7 else 'ifs_0p1_period_forecast')
             or (info.get('grid_degrees'),info.get('width'),info.get('height')) != (.1,1801,601)
             or tuple(info.get(k) for k in ('lat_north','lat_south','lon_west','lon_east'))!=(85.,25.,-80.,100.)
-            or info.get('period_days')!=7 or info.get('sample_count')!=29 or info.get('lead_hours')!=list(LEADS)
+            or info.get('sample_count')!=len(leads) or info.get('lead_hours')!=list(leads)
             or info.get('run_utc')!=iso(run) or info.get('valid_from_utc')!=iso(times[0]) or info.get('valid_to_utc')!=iso(times[-1])
-            or len(info.get('sources',[]))!=29):
-        raise ValueError('Forecast metadata does not match native IFS 0.1° seven-day grid')
-    for row,h,t in zip(info['sources'],LEADS,times):
+            or len(info.get('sources',[]))!=len(leads)):
+        raise ValueError('Forecast metadata does not match native IFS 0.1° grid and period')
+    for row,h,t in zip(info['sources'],leads,times):
         if row.get('forecast_hour')!=h or row.get('valid_utc')!=iso(t) or not re.fullmatch(r'[a-f0-9]{64}',row.get('sha256','')) or row.get('bytes',0)<1000:
             raise ValueError('Incomplete or inconsistent original-field provenance')
 
@@ -134,12 +145,14 @@ def decode_ifs(gid, ec, run, lead):
     return crop
 
 
-def fetch_ifs(out, source='ecmwf'):
+def fetch_ifs(out, source='ecmwf', all_periods=False):
     import eccodes as ec
     from ecmwf.opendata import Client
     client = Client(source=source, model='ifs', resol='0p1')
     now = datetime.now(timezone.utc)
     latest = now.replace(hour=(now.hour//12)*12, minute=0, second=0, microsecond=0)
+    periods=PERIODS if all_periods else (7,)
+    leads=leads_for(max(periods)); end=leads[-1]
     fields, sources = {}, []
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder)/'2t.grib2'
@@ -165,26 +178,29 @@ def fetch_ifs(out, source='ecmwf'):
         for lag in (0,1,2,3,4):
             run = latest - timedelta(hours=12*lag)
             try:
-                last, provenance = retrieve(run, 168)
+                last, provenance = retrieve(run, end)
                 break
             except Exception as err:
-                print(f'IFS {run} +168 unavailable: {err}', flush=True)
+                print(f'IFS {run} +{end} unavailable: {err}', flush=True)
         else:
             raise RuntimeError('No complete native 0.1° IFS run available')
-        for h in LEADS:
-            field, record = (last, provenance) if h == 168 else retrieve(run, h)
+        for h in leads:
+            field, record = (last, provenance) if h == end else retrieve(run, h)
             fields[h] = field; sources.append(record)
             print(f'Verified IFS 0.1° {iso(run)} +{h:03d} h', flush=True)
-    mean_c = (weekly_mean(fields) - 273.15).astype(np.float32)
-    info = {'schema':1,'type':'ifs_0p1_seven_day_forecast','provider':'ECMWF IFS Open Data 0.1° (CC BY 4.0)',
-            'grid_degrees':.1,'width':len(LON),'height':len(LAT),'lat_north':NORTH,'lat_south':SOUTH,'lon_west':WEST,'lon_east':EAST,
-            'period_days':7,'sample_count':len(LEADS),'lead_hours':list(LEADS),'run_utc':iso(run),
-            'valid_from_utc':iso(run),'valid_to_utc':iso(run+timedelta(hours=168)),
-            'sources':sources,'forecast_mean_q10_b64':encode(mean_c),'reference_ready':False}
-    validate_forecast_metadata(info,run)
     out.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(out/'forecast.npz', mean_c=mean_c.astype(np.float32), run_utc=iso(run))
-    (out/'forecast.json').write_text(json.dumps(info, separators=(',',':'),ensure_ascii=False),encoding='utf-8')
+    for days in periods:
+        subset=leads_for(days)
+        mean_c = (weekly_mean({h:fields[h] for h in subset},days) - 273.15).astype(np.float32)
+        info = {'schema':1,'type':'ifs_0p1_seven_day_forecast' if days==7 else 'ifs_0p1_period_forecast','provider':'ECMWF IFS Open Data 0.1° (CC BY 4.0)',
+            'grid_degrees':.1,'width':len(LON),'height':len(LAT),'lat_north':NORTH,'lat_south':SOUTH,'lon_west':WEST,'lon_east':EAST,
+            'period_days':days,'sample_count':len(subset),'lead_hours':list(subset),'run_utc':iso(run),
+            'valid_from_utc':iso(run),'valid_to_utc':iso(run+timedelta(hours=days*24)),
+            'sources':sources[:len(subset)],'forecast_mean_q10_b64':encode(mean_c),'reference_ready':False}
+        validate_forecast_metadata(info,run)
+        stem=file_stem(days)
+        np.savez_compressed(out/f'{stem}.npz', mean_c=mean_c, run_utc=iso(run))
+        (out/f'{stem}.json').write_text(json.dumps(info, separators=(',',':'),ensure_ascii=False),encoding='utf-8')
 
 
 def build_month(month, output):
@@ -241,30 +257,31 @@ def validate_reference(path, m):
         return normal, {'month':m,'years':30,'source_fields':sum(s['hours'] for s in meta['sources'])}
 
 
-def reference_week(run, refs):
+def reference_week(run, refs, days=7):
     grid = {}
     loaded = {}
     provenance = []
-    for lead, valid in zip(LEADS,valid_times(run)):
+    for lead, valid in zip(leads_for(days),valid_times(run,days)):
         m = valid.month
         if m not in loaded:
             path = refs/f'era5_{m:02d}.npz'
             loaded[m], record = validate_reference(path,m)
             provenance.append(record)
         grid[lead] = loaded[m][valid.day-1,HOURS.index(valid.hour)]
-    native_mean = weekly_mean(grid)
+    native_mean = weekly_mean(grid,days)
     return interpolate_reference(native_mean,REF_LAT,REF_LON,LAT,LON)-273.15,provenance
 
 
-def combine(forecast, refs, output):
-    info = json.loads((forecast/'forecast.json').read_text())
-    with np.load(forecast/'forecast.npz',allow_pickle=False) as f:
+def combine(forecast, refs, output, days=7):
+    stem=file_stem(days)
+    info = json.loads((forecast/f'{stem}.json').read_text())
+    with np.load(forecast/f'{stem}.npz',allow_pickle=False) as f:
         run = datetime.fromisoformat(f['run_utc'].item().replace('Z','+00:00'))
         mean = f['mean_c']
     validate_forecast_metadata(info,run)
     if mean.shape!=(len(LAT),len(LON)) or info['forecast_mean_q10_b64']!=encode(mean):
         raise ValueError('Inconsistent 0.1° IFS seven-day input')
-    reference, provenance = reference_week(run,refs)
+    reference, provenance = reference_week(run,refs,days)
     info.update(reference_ready=True,reference_version=VERSION,
                 reference_metadata={'period':'1991–2020','years':30,'native_grid_degrees':.25,'interpolation':'bilinear','months':provenance},
                 anomaly_mean_q10_b64=encode(mean-reference))
@@ -272,16 +289,28 @@ def combine(forecast, refs, output):
     tmp=output.with_suffix('.tmp')
     tmp.write_text(json.dumps(info,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
     tmp.replace(output)
+    return info
+
+
+def combine_periods(forecast, refs, out):
+    runs=set()
+    for days in PERIODS:
+        info=combine(forecast,refs,out/f'{file_stem(days,"current")}.json',days)
+        runs.add(info['run_utc'])
+    if len(runs)!=1: raise ValueError('Mixed IFS runs')
+    (out/'periods.json').write_text(json.dumps({'schema':1,'run_utc':runs.pop(),'periods':list(PERIODS)},separators=(',',':')))
 
 
 if __name__ == '__main__':
     p=argparse.ArgumentParser(); sub=p.add_subparsers(dest='command',required=True)
-    f=sub.add_parser('forecast'); f.add_argument('--out',type=Path,required=True); f.add_argument('--source',default='ecmwf')
+    f=sub.add_parser('forecast'); f.add_argument('--out',type=Path,required=True); f.add_argument('--source',default='ecmwf'); f.add_argument('--all-periods',action='store_true')
     m=sub.add_parser('reference'); m.add_argument('--month',type=int,choices=range(1,13),required=True); m.add_argument('--out',type=Path,required=True)
     v=sub.add_parser('validate-reference'); v.add_argument('--month',type=int,choices=range(1,13),required=True); v.add_argument('--path',type=Path,required=True)
     c=sub.add_parser('combine'); c.add_argument('--forecast',type=Path,required=True); c.add_argument('--references',type=Path,required=True); c.add_argument('--out',type=Path,required=True)
+    cp=sub.add_parser('combine-periods'); cp.add_argument('--forecast',type=Path,required=True); cp.add_argument('--references',type=Path,required=True); cp.add_argument('--out',type=Path,required=True)
     a=p.parse_args()
-    if a.command=='forecast': fetch_ifs(a.out,a.source)
+    if a.command=='forecast': fetch_ifs(a.out,a.source,a.all_periods)
     elif a.command=='reference': build_month(a.month,a.out)
     elif a.command=='validate-reference': print(validate_reference(a.path,a.month)[1])
+    elif a.command=='combine-periods': combine_periods(a.forecast,a.references,a.out)
     else: combine(a.forecast,a.references,a.out)

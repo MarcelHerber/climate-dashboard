@@ -1,8 +1,11 @@
-name: ECMWF IFS 0,1° · 7 Tage und ERA5-Referenz
+name: ECMWF IFS 0,1° · 1–15 Tage und ERA5-Referenz
 on:
   schedule:
     - cron: '35 6,18 * * *'
   workflow_dispatch:
+  push:
+    branches: ['feature/ifs-periods-20261115']
+    paths: ['.github/workflows/pilot-ifs-weekly-0p1.yml']
 permissions:
   contents: read
 concurrency:
@@ -28,8 +31,8 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install numpy scipy eccodes ecmwf-opendata cartopy shapely
       - run: python -m unittest discover -s tests -p test_ifs_weekly_01.py -v
-      - name: Download and verify all 29 authentic native IFS fields
-        run: python -m scripts.ifs_weekly_01 forecast --out ifs_weekly_europe
+      - name: Download and verify all 61 authentic native IFS fields
+        run: python -m scripts.ifs_weekly_01 forecast --all-periods --out ifs_weekly_europe
       - name: Generate precise native 0.1° country geography
         run: python scripts/build_ifs_weekly_geography.py
       - name: Determine required ERA5 months from original valid UTC times
@@ -39,7 +42,7 @@ jobs:
           from pathlib import Path
           import os,json
           from datetime import datetime
-          x=json.loads(Path('ifs_weekly_europe/forecast.json').read_text())
+          x=json.loads(Path('ifs_weekly_europe/forecast_15.json').read_text())
           months=sorted({datetime.fromisoformat(s['valid_utc'].replace('Z','+00:00')).month for s in x['sources']})
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('months='+json.dumps(months,separators=(',',':'))+'\n')
           PY
@@ -76,11 +79,11 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch origin main
           git merge --ff-only origin/main
-          if python -c 'import json; from pathlib import Path; p=Path("ifs_weekly_europe/current.json"); print("already current") if p.exists() and json.loads(p.read_text())["run_utc"] >= json.loads(Path(".ifs-publish/ifs_weekly_europe/current.json").read_text())["run_utc"] else exit(1)'; then exit 0; fi
+          if python -c 'import json; from pathlib import Path; p=Path("ifs_weekly_europe/current.json"); q=Path("ifs_weekly_europe/periods.json"); old=json.loads(p.read_text())["run_utc"] if p.exists() else ""; new=json.loads(Path(".ifs-publish/ifs_weekly_europe/current.json").read_text())["run_utc"]; exit(0 if old>new or (old==new and q.exists() and json.loads(q.read_text())["run_utc"]==new) else 1)'; then exit 0; fi
           mkdir -p ifs_weekly_europe
-          cp .ifs-publish/ifs_weekly_europe/{current,forecast,geography}.json ifs_weekly_europe/
-          git add --sparse -f ifs_weekly_europe/{current,forecast,geography}.json
-          git commit -m 'Update verified IFS 0.1 degree seven-day forecast'
+          cp .ifs-publish/ifs_weekly_europe/{current,forecast,geography,periods,current_01,current_03,current_05,current_10,current_15}.json ifs_weekly_europe/
+          git add --sparse -f ifs_weekly_europe/{current,forecast,geography,periods,current_01,current_03,current_05,current_10,current_15}.json
+          git commit -m 'Update verified IFS 0.1 degree 1–15 day forecasts'
           git push origin HEAD:main
   reference:
     needs: forecast
@@ -94,6 +97,7 @@ jobs:
     env:
       CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
       MONTH: ${{ matrix.month }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -110,14 +114,24 @@ jobs:
         with:
           path: .ifs-era5-reference
           key: ifs-era5-hourly-1991-2020-0p25-v1-month-${{ matrix.month }}
-      - name: Build calendar-hour reference from all 30 actual years
-        if: steps.climate-cache.outputs.cache-hit != 'true'
+      - name: Restore permanent reference asset when available
+        run: |
+          mkdir -p .ifs-era5-reference
+          file="era5_$(printf '%02d' "$MONTH").npz"
+          if [ ! -s ".ifs-era5-reference/$file" ]; then
+            gh release download ifs-era5-reference-1991-2020-v1 -R "$GITHUB_REPOSITORY" -p "$file" -D .ifs-era5-reference || true
+          fi
+      - name: Build calendar-hour reference if missing, validate every month
         run: |
           set -euo pipefail
-          test -n "${CDSAPI_KEY:-}"
-          printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "$CDSAPI_KEY" > "$HOME/.cdsapirc"
           MONTH_PAD=$(printf '%02d' "$MONTH")
-          python -m scripts.ifs_weekly_01 reference --month "$MONTH" --out ".ifs-era5-reference/era5_${MONTH_PAD}.npz"
+          path=".ifs-era5-reference/era5_${MONTH_PAD}.npz"
+          if [ ! -s "$path" ]; then
+            test -n "${CDSAPI_KEY:-}"
+            printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "$CDSAPI_KEY" > "$HOME/.cdsapirc"
+            python -m scripts.ifs_weekly_01 reference --month "$MONTH" --out "$path"
+          fi
+          python -m scripts.ifs_weekly_01 validate-reference --month "$MONTH" --path "$path"
       - uses: actions/upload-artifact@v4
         with:
           name: ifs-era5-reference-month-${{ matrix.month }}
@@ -135,6 +149,7 @@ jobs:
           filter: blob:none
           sparse-checkout: |
             scripts/ifs_weekly_01.py
+            scripts/stage_ifs_weekly.py
             tests/test_ifs_weekly_browser.mjs
             ifs_weekly_europe.html
             ifs_weekly_europe.js
@@ -158,8 +173,10 @@ jobs:
           pattern: ifs-era5-reference-month-*
           path: .ifs-era5-reference
           merge-multiple: true
-      - name: Compute anomalies only with exact, complete references
-        run: python -m scripts.ifs_weekly_01 combine --forecast ifs_weekly_europe --references .ifs-era5-reference --out ifs_weekly_europe/current.json
+      - name: Compute all anomalies only with exact, complete references
+        run: |
+          python -m scripts.ifs_weekly_01 combine-periods --forecast ifs_weekly_europe --references .ifs-era5-reference --out ifs_weekly_europe
+          python scripts/stage_ifs_weekly.py ifs_weekly_europe
       - name: Test desktop/mobile maps, selection and PNG/PDF export with actual data
         run: |
           npm install --no-save playwright
@@ -173,6 +190,8 @@ jobs:
             ifs_weekly_europe/current.json
             ifs_weekly_europe/geography.json
             ifs_weekly_europe/forecast.json
+            ifs_weekly_europe/current_*.json
+            ifs_weekly_europe/periods.json
             ifs-test-output/
           if-no-files-found: error
           retention-days: 30
