@@ -24,7 +24,7 @@ test("Meteosat viewer assets included in Pages deployment",()=>{
 test("Meteosat viewer shows only documented official products and honest source status",()=>{
  for(const layer of ["mtg_fd:rgb_geocolour","mtg_fd:rgb_dust","mtg_fd:rgb_cloudtype","mtg_fd:ir105_hrfi","mtg_fd:rgb_firetemperature"])assert.ok(js.includes(layer),layer);
  assert.ok(js.includes('request:"GetCapabilities"'));
- assert.ok(js.includes('layerTimes(xml,description().layer)'));
+ assert.ok(js.includes('layerTimes(xml,layer)'));
  assert.ok(js.includes("Der Aufnahmezeitpunkt ist noch nicht verifiziert"));
  assert.ok(js.includes('source.value==="mtgi2"'));
  assert.ok(html.includes("kein Livestream"));

@@ -50,6 +50,7 @@ const filmProgress=id("satFilmProgress"),filmProgressLabel=id("satFilmProgressLa
 let frames=[],index=-1,frameTimer=null,token=0,imageRequest=0,currentUrl="",loaded=false,verified=false,abort=null,metadataSource="";
 let filmGeneration=0,filmLoading=false,filmPlaying=false,filmItems=[],filmPosition=0;
 let stillTimeout=null,exportBusy=false,cachedImage=null;
+let metadataBusy=false,followLatest=true,timelineDragging=false;
 // Phase 1: bounded LRU for decoded preview frames, keyed by the complete
 // GetMap URL (UTC + WMS layer + region + native WMS output pixel size).
 const PREVIEW_CACHE_LIMIT=((typeof navigator!=="undefined"&&navigator.deviceMemory&&navigator.deviceMemory<=4)?20:48)*1048576;
@@ -144,7 +145,7 @@ function buttons(){
  mp4.disabled=filmItems.length<2||source.value!=="mtgi1"||filmLoading||exportBusy||!exporters?.supportsMP4();
  mp4.title=exporters?.supportsMP4()?"Echten MP4/H.264-Film herunterladen":"MP4/H.264 in diesem Browser nicht unterstützt";
  time.disabled=!frames.length||source.value!=="mtgi1";
- png.disabled=!loaded||source.value!=="mtgi1";
+ png.disabled=!loaded||source.value!=="mtgi1"||exportBusy;
  pngIso.disabled=png.disabled||region.value==="disk"||exportBusy||!window.SatelliteMapExport;
  pdfIso.disabled=pngIso.disabled;
  updateTimeline();
@@ -330,9 +331,11 @@ function layerTimes(xml,layerName){
  }
  return [];
 }
-function fillTimes(){time.replaceChildren();if(!frames.length){const o=new Option("Keine verifizierten UTC-Zeiten","");time.add(o);index=-1;buttons();return;}
+function fillTimes(selected=null){time.replaceChildren();if(!frames.length){const o=new Option("Keine verifizierten UTC-Zeiten","");time.add(o);index=-1;buttons();return;}
  frames.forEach((t,i)=>time.add(new Option(formatUTC(t),String(i))));
- index=frames.length-1;time.value=String(index);buttons();
+ index=selected?frames.indexOf(selected):frames.length-1;
+ if(index<0)index=frames.length-1;
+ time.value=String(index);buttons();
 }
 async function manifestFallback(mine,reason){
  try{
@@ -362,9 +365,8 @@ async function manifestFallback(mine,reason){
   drawFrame(null);
  }
 }
-// Fast start: the small GitHub Pages manifest contains *actual WMS-advertised*
-// observation times. Its map_ok flag is a separate completed-image probe.
-// Never wait for the multi-megabyte EUMETSAT GetCapabilities before showing a map.
+// Fallback: the GitHub Pages manifest contains actual WMS-advertised times,
+// but its cadence must not cap the freshness of the live product.
 async function tryFastManifest(mine){
  const request=new AbortController();
  const timer=setTimeout(()=>request.abort(),2500);
@@ -376,23 +378,17 @@ async function tryFastManifest(mine){
   const age=Date.now()-Date.parse(doc.generated_at);
   const layer=doc.products?.[product.value];
   if(!doc.capabilities_ok||!Number.isFinite(age)||age<0||age>3*3600000||
-     !Array.isArray(layer?.available_times)||layer.available_times.length<1)return false;
+     !layer?.map_ok||!Array.isArray(layer.available_times)||layer.available_times.length<1)return false;
   const values=layer.available_times.filter(x=>Number.isFinite(Date.parse(x))&&Date.parse(x)<=Date.now()+600000);
-  frames=[...new Set(values)].sort().slice(-48);
-  if(!frames.length)return false;
+  const checked=[...new Set(values)].sort().slice(-48);
+  if(!checked.includes(layer.latest_verified_time))return false;
+  frames=checked;
   metadataSource="manifest";
   fillTimes();
-  const verified=Boolean(layer.map_ok&&frames.includes(layer.latest_verified_time));
-  if(verified){
-   index=frames.indexOf(layer.latest_verified_time);
-   time.value=String(index);
-  }
+  index=frames.indexOf(layer.latest_verified_time);
+  time.value=String(index);
   drawFrame(frames[index]);
-  const confirmed=verified;
-  setStatus(confirmed
-    ?"Zeitachse aus dem WMS-Status geladen. Lade die zuletzt tatsächlich bestätigte "+(frames[index]||"")+"-UTC-Aufnahme …"
-    :"Zeitachse aus der echten WMS-Liste geladen. Bildabruf noch nicht bestätigt …",
-    confirmed?"info":"warning");
+  setStatus("Zeitachse aus dem WMS-Status geladen. Lade die zuletzt tatsächlich bestätigte "+(frames[index]||"")+"-UTC-Aufnahme …","info");
   return true;
  }catch(_){return false;}
  finally{clearTimeout(timer);}
@@ -400,7 +396,7 @@ async function tryFastManifest(mine){
 async function refresh(){
  updateProductGuide();
  window.SatelliteHD?.cancel("Satellitenauswahl geändert · keine HD-Kacheln aktiv.");
- stop();token++;const mine=token;abort?.abort();const controller=new AbortController();abort=controller;frames=[];index=-1;loaded=false;metadataSource="";fillTimes();
+ stop();token++;const mine=token;abort?.abort();const controller=new AbortController();abort=controller;frames=[];index=-1;loaded=false;metadataSource="";metadataBusy=false;followLatest=true;fillTimes();
  id("satOfficial").href=source.value==="mtgi2"?"https://www.esa.int/articles/about-us/directorates/earth-observation-programmes/meteorological-missions/meteosat-third-generation/mtg-i2-weather-satellite-delivers-first-images":description().url;
  id("satOfficial").textContent=source.value==="mtgi2"?"MTG-I2-Erstbilder bei ESA öffnen ↗":"Produkt bei EUMETView öffnen ↗";
  product.disabled=source.value==="mtgi2";region.disabled=source.value==="mtgi2";id("satAttribution").textContent=source.value==="mtgi2"?"ESA · erste MTG-I2-Aufnahmen":description().credit;
@@ -418,25 +414,76 @@ async function refresh(){
  setStatus("Lade EUMETSAT-Bild; prüfe verfügbare UTC-Zeitpunkte …");
  // Avoid a concurrent unverified GetMap request while fetching WMS timestamps.
  image.hidden=true;empty.hidden=false;
- empty.textContent="Lade verfügbare UTC-Aufnahmen aus dem lokalen Status …";
- if(await tryFastManifest(mine))return;
- if(mine!==token)return;
- setStatus("Lokale WMS-Zeitliste fehlt oder ist veraltet. Prüfe EUMETSAT direkt …","warning");
  empty.textContent="EUMETSAT-Zeitpunkte werden direkt überprüft …";
+ metadataBusy=true;
+ try{
+  const available=await fetchLiveTimes(controller);
+  if(mine!==token)return;
+  metadataSource="live";frames=available;fillTimes();drawFrame(frames[index]);
+ }catch(e){
+  if(mine!==token)return;
+  setStatus("EUMETSAT-Zeitliste nicht erreichbar. Prüfe den letzten bestätigten GitHub-Status …","warning");
+  if(!await tryFastManifest(mine)&&mine===token)await manifestFallback(mine,"WMS-Metadaten im Browser derzeit nicht lesbar.");
+ }finally{if(mine===token)metadataBusy=false;}
+}
+async function fetchLiveTimes(controller){
  const caps=API+"?"+new URLSearchParams({service:"WMS",version:"1.1.1",request:"GetCapabilities"}).toString();
- const timeout=setTimeout(()=>controller.abort(),8000);
+ const layer=description().layer;
+ const timeout=setTimeout(()=>controller.abort(),25000);
  try{
   const response=await fetch(caps,{signal:controller.signal,mode:"cors",cache:"no-store"});
   if(!response.ok)throw new Error("HTTP "+response.status);
-  const xml=await response.text();if(mine!==token)return;
-  const available=layerTimes(xml,description().layer);
-  if(!available.length){await manifestFallback(mine,"Der WMS-Dienst meldet im Browser keine verwertbaren Zeitpunkte.");return;}
-  metadataSource="live";frames=available;fillTimes();drawFrame(frames[index]);
- }catch(e){if(mine!==token)return;await manifestFallback(mine,"WMS-Metadaten im Browser derzeit nicht lesbar (möglicherweise CORS).");}
- finally{clearTimeout(timeout);}
+  const xml=await response.text();
+  const available=layerTimes(xml,layer);
+  if(!available.length)throw new Error("Keine verwertbaren WMS-Zeitpunkte");
+  return available;
+ }finally{clearTimeout(timeout);}
+}
+async function fetchVerifiedManifest(){
+ const request=new AbortController(),timer=setTimeout(()=>request.abort(),2500);
+ try{
+  const response=await fetch("./data/satellite_wms_times.json",{signal:request.signal,cache:"no-store"});
+  if(!response.ok)throw Error("HTTP "+response.status);
+  const doc=await response.json(),layer=doc.products?.[product.value];
+  const age=Date.now()-Date.parse(doc.generated_at);
+  if(!doc.capabilities_ok||!layer?.map_ok||!Number.isFinite(age)||age<0||age>4*3600000||!Array.isArray(layer.available_times))throw Error("Kein aktueller bestätigter WMS-Status");
+  const available=[...new Set(layer.available_times.filter(t=>Number.isFinite(Date.parse(t))&&Date.parse(t)<=Date.now()+600000).map(t=>new Date(t).toISOString().replace(".000Z","Z")))].sort().slice(-48);
+  const newest=available.find(t=>Date.parse(t)===Date.parse(layer.latest_verified_time));
+  if(!newest)throw Error("Kein bestätigter UTC-Zeitpunkt");
+  return {available,newest};
+ }finally{clearTimeout(timer);}
+}
+function autoRefreshBlocked(){
+ return document.hidden||source.value!=="mtgi1"||filmLoading||filmItems.length>=2||exportBusy||window.SatelliteHD?.isExporting?.()||stillTimeout!==null||timelineDragging;
+}
+// Poll only visible, idle views. Retain historical selections and paused films,
+// and never let a delayed response overwrite a newly selected source/product.
+async function autoRefresh(){
+ if(metadataBusy||autoRefreshBlocked())return;
+ const mine=token,request=imageRequest,controller=new AbortController();
+ abort=controller;metadataBusy=true;
+ try{
+  let available,newest,origin="live";
+  try{available=await fetchLiveTimes(controller);newest=available.at(-1);}
+  catch(_){
+   if(mine!==token||request!==imageRequest||autoRefreshBlocked())return;
+   ({available,newest}=await fetchVerifiedManifest());origin="manifest";
+  }
+  if(mine!==token||request!==imageRequest||autoRefreshBlocked())return;
+  const selected=frames[index];
+  if(selected&&Date.parse(newest)<Date.parse(selected))return;
+  const advance=followLatest&&(!selected||Date.parse(newest)>Date.parse(selected)||!loaded||cachedImage);
+  // Preserve the exact chosen UTC even if it has fallen out of the rolling list.
+  const pinned=advance?newest:selected?(available.find(t=>Date.parse(t)===Date.parse(selected))||selected):null;
+  frames=pinned&&!available.includes(pinned)?[...available,pinned].sort():available;
+  fillTimes(pinned);
+  if(advance){metadataSource=origin;drawFrame(frames[index]);}
+ }catch(_){/* Retain the displayed image and retry on the next interval. */}
+ finally{if(mine===token)metadataBusy=false;}
 }
 function show(i){
  if(i<0||i>=frames.length)return;
+ followLatest=i===frames.length-1;
  index=i;time.value=String(index);
  drawFrame(frames[index]);buttons();
 }
@@ -616,26 +663,28 @@ async function exportFilm(format){
  }finally{exportBusy=false;buttons();}
 }
 async function downloadPNG(){
- if(!loaded||!currentUrl)return;
- png.disabled=true;setStatus("Erstelle PNG mit UTC- und Quellenbeschriftung …");
+ if(!loaded||!currentUrl||exportBusy)return;
+ exportBusy=true;buttons();setStatus("Erstelle PNG mit UTC- und Quellenbeschriftung …");
  try{
-  const selected=exportTime();
+  const selected=exportTime(),archived=Boolean(cachedImage),mine=token,req=imageRequest;
+  const place=region.value,key=product.value,productName=description().name;
   if(!selected)throw Error("Keine bestätigte Satellitenzeit verfügbar.");
   const img=await exportPixels(selected);
+  if(mine!==token||req!==imageRequest)throw Error("Aufnahme oder Karte während des Exports gewechselt");
   const pad=24,header=96,footer=80,c=document.createElement("canvas");c.width=img.naturalWidth;c.height=img.naturalHeight+header+footer;
   const ctx=c.getContext("2d");ctx.fillStyle="#ffffff";ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle="#162f4a";
-  ctx.font="bold 27px Arial";ctx.fillText("MTG / "+description().name+" · "+REGIONS[region.value].name,pad,42);
-  ctx.font="19px Arial";ctx.fillText(cachedImage?"Archivaufnahme: "+formatUTC(cachedImage.time):verified&&frames[index]?"Aufnahme: "+formatUTC(frames[index]):"Aufnahmezeit nicht verifiziert",pad,75);
+  ctx.font="bold 27px Arial";ctx.fillText("MTG / "+productName+" · "+REGIONS[place].name,pad,42);
+  ctx.font="19px Arial";ctx.fillText((archived?"Archivaufnahme: ":"Aufnahme: ")+formatUTC(selected),pad,75);
   ctx.drawImage(img,0,header);ctx.fillStyle="#162f4a";ctx.font="16px Arial";
-  ctx.fillText("© EUMETSAT"+(product.value==="geocolour"?" / NASA":""),pad,c.height-48);
+  ctx.fillText("© EUMETSAT"+(key==="geocolour"?" / NASA":""),pad,c.height-48);
   ctx.fillText("Quelle: EUMETSAT WMS / Archiv · Exportbild "+img.naturalWidth+" px",pad,c.height-22);
   const blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error("Export nicht zulässig")),"image/png"));
   const u=URL.createObjectURL(blob),link=document.createElement("a");link.href=u;
-  link.download="mtg_"+product.value+"_"+region.value+"_"+(cachedImage?cachedImage.time.replace(/[:.]/g,"-"):verified&&frames[index]?frames[index].replace(/[:.]/g,"-"):"zeitpunkt-unbekannt")+".png";
+  link.download="mtg_"+key+"_"+place+"_"+selected.replace(/[:.]/g,"-")+".png";
   document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);
-  setStatus(cachedImage?"Gespeichertes Satellitenbild als beschriftetes PNG exportiert (Archivauflösung, keine aktuelle Aufnahme).":"Beschriftetes PNG erstellt. Herkunft und UTC-Zeit sind im Bild enthalten.",cachedImage?"warning":"info");
+  setStatus(archived?"Gespeichertes Satellitenbild als beschriftetes PNG exportiert (Archivauflösung, keine aktuelle Aufnahme).":"Beschriftetes PNG erstellt. Herkunft und UTC-Zeit sind im Bild enthalten.",archived?"warning":"info");
  }catch(err){setStatus("PNG-Download nicht möglich: "+(err?.message||err)+". Kein falsches Downloadbild erzeugt.","warning");}
- finally{buttons();}
+ finally{exportBusy=false;buttons();}
 }
 // Extra composite exports preserve the original PNG/GIF buttons.
 const composite=window.SatelliteMapExport;
@@ -763,7 +812,10 @@ region.addEventListener("change",()=>{
 id("satReload").addEventListener("click",refresh);
 time.addEventListener("change",()=>{stop();show(Number(time.value));});
 timeline.addEventListener("input",()=>{const i=Number(timeline.value);timelineLabel.textContent=frames[i]?formatUTC(frames[i]):"Keine Beobachtungen";});
-timeline.addEventListener("change",()=>{stop();show(Number(timeline.value));});
+timeline.addEventListener("pointerdown",()=>{timelineDragging=true;});
+window.addEventListener("pointerup",()=>{timelineDragging=false;});
+window.addEventListener("pointercancel",()=>{timelineDragging=false;});
+timeline.addEventListener("change",()=>{timelineDragging=false;stop();show(Number(timeline.value));});
 prev.addEventListener("click",()=>{stop();show(index-1);});
 next.addEventListener("click",()=>{stop();show(index+1);});
 play.addEventListener("click",startPause);
@@ -782,7 +834,7 @@ png.addEventListener("click",downloadPNG);
 gif.addEventListener("click",()=>exportFilm("gif"));
 mp4.addEventListener("click",()=>exportFilm("mp4"));
 window.addEventListener("keydown",event=>{if(document.activeElement?.matches("input,select,textarea,button"))return;if(event.key==="ArrowLeft"&&frames.length){event.preventDefault();stop();show(index-1);}if(event.key==="ArrowRight"&&frames.length){event.preventDefault();stop();show(index+1);}});
-document.addEventListener("visibilitychange",()=>{if(document.hidden)stop();});
+document.addEventListener("visibilitychange",()=>{if(document.hidden){timelineDragging=false;stop();}});
 // Keep a concise, live overview near the controls while the detailed ECMWF
 // message remains in the three disclosures below the satellite image.
 function initIsobarBrief(){
@@ -812,4 +864,5 @@ function initIsobarBrief(){
 initIsobarBrief();
 enableAuditedProducts();
 refresh();
+if(typeof setInterval==="function")setInterval(autoRefresh,5*60*1000);
 })();
