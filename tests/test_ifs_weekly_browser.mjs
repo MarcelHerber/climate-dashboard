@@ -20,6 +20,12 @@ const dataFixture={schema:1,type:'ifs_0p1_seven_day_forecast',grid_degrees:.1,wi
   reference_version:'era5-t2m-calendar-hour-1991-2020-v1',reference_metadata:{period:'1991–2020',years:30,native_grid_degrees:.25,interpolation:'bilinear'}};
 const geoFixture={width:1801,height:601,grid_degrees:.1,countries:[{id:0,name:'Testland',cells}],
   country_mask_b64:packed(0),rings:Array.from({length:101},()=>[[5,46],[5,47],[6,47],[5,46]])};
+const periods=[1,3,5,7,10,15];
+function periodFixture(days){
+  const leads=Array.from({length:days*4+1},(_,i)=>i*6);
+  return {...dataFixture,type:days===7?dataFixture.type:'ifs_0p1_period_forecast',period_days:days,sample_count:leads.length,lead_hours:leads,
+    valid_to_utc:new Date(run+days*86400000).toISOString(),sources:leads.map(h=>({forecast_hour:h,valid_utc:new Date(run+h*3600000).toISOString(),sha256:'a'.repeat(64),bytes:200000}))};
+}
 try{
   for(const [name,viewport] of [['desktop',{width:1440,height:950}],['mobile',{width:390,height:844}]]){
     const page=await browser.newPage({viewport,acceptDownloads:true});
@@ -27,6 +33,8 @@ try{
     if(fixture){
       await page.route('**/ifs_weekly_europe/current.json',r=>r.fulfill({json:dataFixture}));
       await page.route('**/ifs_weekly_europe/geography.json',r=>r.fulfill({json:geoFixture}));
+      await page.route('**/ifs_weekly_europe/periods.json',r=>r.fulfill({json:{schema:1,run_utc:dataFixture.run_utc,periods}}));
+      await page.route('**/ifs_weekly_europe/current_*.json',r=>r.fulfill({json:periodFixture(Number(r.request().url().match(/current_(\d+)\.json/)[1]))}));
     }
     await page.goto(url,{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>!document.querySelector('#weekPng').disabled,{},{timeout:120000});
@@ -34,6 +42,12 @@ try{
     assert.match(await page.locator('#weekMapLabel').innerText(),/0,1°/);
     assert.equal(await page.locator('#weekMap').getAttribute('width'),'2100');
     assert.equal(await page.locator('#weekMetric').inputValue(),'anomaly');
+    for(const days of periods){
+      await page.locator('#weekPeriod').selectOption(String(days));
+      await page.waitForFunction(d=>!document.querySelector('#weekPeriod').disabled&&document.querySelector('#weekSubtitle').textContent.includes(`${d*4+1} Originalfelder`),days,{timeout:120000});
+      assert.match(await page.locator('#weekMapLabel').innerText(),new RegExp(`${days} Tage`));
+    }
+    assert.equal(await page.locator('#weekPeriod').inputValue(),'15');
     await page.locator('#weekRegion').selectOption('germany');
     await page.locator('#weekProjection').selectOption('latlon');
     assert.match(await page.locator('#weekMapLabel').innerText(),/Deutschland/);
@@ -42,6 +56,7 @@ try{
     await page.screenshot({path:`${out}/${name}.png`,fullPage:true});
     const pending=page.waitForEvent('download');await page.locator('#weekPng').click();
     const dl=await pending;await dl.saveAs(`${out}/${name}-download.png`);
+    assert.match(dl.suggestedFilename(),/15tage/);
     const png=await readFile(`${out}/${name}-download.png`);
     assert.equal(png.readUInt32BE(16),2100);assert.equal(png.readUInt32BE(20),1425);
     await page.locator('#weekMetric').selectOption('absolute');

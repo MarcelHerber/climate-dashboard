@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 FILES = ('current.json', 'forecast.json', 'geography.json')
+PERIODS=(1,3,5,7,10,15)
+PERIOD_FILES=('periods.json',)+tuple(f'current_{d:02d}.json' for d in PERIODS if d!=7)
 GRID = (1801, 601, 0.1, 85, 25, -80, 100)
 GRID_KEYS = ('width', 'height', 'grid_degrees', 'lat_north', 'lat_south', 'lon_west', 'lon_east')
 LABEL = 'ECMWF IFS · 7-Tage-Temperaturanomalie'
@@ -34,6 +36,30 @@ def validate(folder):
     assert geo['type'] == 'geographic_country_boundaries_not_temperature' and geo['countries'] and len(geo['rings']) >= 100
     for data, key in ((current, 'forecast_mean_q10_b64'), (current, 'anomaly_mean_q10_b64'), (geo, 'country_mask_b64')):
         assert len(base64.b64decode(data[key], validate=True)) == 1801 * 601 * 2
+    if (folder/'periods.json').exists():
+        manifest=json.loads((folder/'periods.json').read_text())
+        assert manifest=={'schema':1,'run_utc':current['run_utc'],'periods':list(PERIODS)}
+        rows={7:current}
+        for days in PERIODS:
+            if days==7: continue
+            data=json.loads((folder/f'current_{days:02d}.json').read_text())
+            assert data['schema']==1 and tuple(data[k] for k in GRID_KEYS)==GRID
+            assert data['type']=='ifs_0p1_period_forecast' and data['period_days']==days
+            assert data['run_utc']==current['run_utc']==data['valid_from_utc']
+            assert datetime.fromisoformat(data['valid_to_utc'])==run+timedelta(days=days)
+            assert data['sample_count']==days*4+1 and data['lead_hours']==list(range(0,days*24+1,6))
+            assert data['reference_ready'] is True and data['reference_version']==current['reference_version']
+            r=data['reference_metadata']
+            assert (r['period'],r['years'],r['native_grid_degrees'],r['interpolation'])==('1991–2020',30,.25,'bilinear')
+            assert len(data['sources'])==data['sample_count']
+            for h,src in zip(data['lead_hours'],data['sources']):
+                assert src['forecast_hour']==h and datetime.fromisoformat(src['valid_utc'])==run+timedelta(hours=h)
+                assert re.fullmatch(r'[a-f0-9]{64}',src['sha256']) and src['bytes']>=1000
+            for key in ('forecast_mean_q10_b64','anomaly_mean_q10_b64'):
+                assert len(base64.b64decode(data[key],validate=True))==1801*601*2
+            rows[days]=data
+        for days,data in rows.items():
+            assert data['sources']==rows[15]['sources'][:days*4+1], 'Mixed forecast provenance'
     print('Verified IFS 0.1° and ERA5 reference:', current['run_utc'])
 
 
@@ -65,7 +91,7 @@ def main():
     if args.site:
         dest = args.site / 'ifs_weekly_europe'
         dest.mkdir(parents=True, exist_ok=True)
-        for file in FILES:
+        for file in FILES + (PERIOD_FILES if (args.source/'periods.json').exists() else ()):
             shutil.copyfile(args.source / file, dest / file)
         add_navigation(args.site)
 

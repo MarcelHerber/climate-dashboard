@@ -5,6 +5,18 @@ from scripts.ifs_weekly_01 import LEADS, valid_times, weekly_mean, era5_expected
 
 
 class WeeklyTests(unittest.TestCase):
+    def test_all_selectable_periods(self):
+        from scripts.ifs_weekly_01 import PERIODS, leads_for
+        run = datetime(2026, 12, 29, 12, tzinfo=timezone.utc)
+        self.assertEqual(PERIODS, (1,3,5,7,10,15))
+        for days in PERIODS:
+            leads = leads_for(days)
+            self.assertEqual(len(leads), days*4+1)
+            self.assertEqual(leads[-1], days*24)
+            self.assertEqual(valid_times(run,days)[-1].timestamp()-run.timestamp(),days*86400)
+            np.testing.assert_allclose(weekly_mean({h:np.array([[h]]) for h in leads},days),[[days*12.]])
+        with self.assertRaises(ValueError): leads_for(6)
+
     def test_exact_168_hour_trapezoid(self):
         fields = {h: np.array([[float(h)]]) for h in range(0, 169, 6)}
         self.assertEqual(len(LEADS), 29)
