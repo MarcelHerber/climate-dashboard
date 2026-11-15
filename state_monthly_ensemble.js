@@ -537,8 +537,18 @@ function reloadActive(){
 }
 function filename(ext){const reg=(el("stateMonthlyRegion")?.value||"Deutschland").replace(/[^a-z0-9äöüß_-]+/gi,"_");const d=hydroMode()?parameterDoc():data;return `Ensemble_${selectedParameter()}_${selectedPeriod()}_${selectedMetric()}_${d?.year||""}_${String(d?.month||"").padStart(2,"0")}_${reg}.${ext}`;}
 function saveBlob(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);}
-async function exportPng(){try{if(!window.html2canvas)throw new Error("html2canvas fehlt");const c=await window.captureDashboardWithWhiteBackground(el("stateMonthlyExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false});c.toBlob(b=>b&&saveBlob(b,filename("png")),"image/png");}catch(e){alert("PNG konnte nicht erstellt werden: "+e.message);}}
-async function exportPdf(){try{if(!window.html2canvas||!window.jspdf?.jsPDF)throw new Error("PDF-Bibliothek fehlt");const c=await window.captureDashboardWithWhiteBackground(el("stateMonthlyExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false}),J=window.jspdf.jsPDF,p=new J({orientation:"landscape",unit:"mm",format:"a4"}),pw=p.internal.pageSize.getWidth(),ph=p.internal.pageSize.getHeight(),m=7,s=Math.min((pw-2*m)/c.width,(ph-2*m)/c.height),w=c.width*s,h=c.height*s;p.addImage(c.toDataURL("image/jpeg",.93),"JPEG",(pw-w)/2,(ph-h)/2,w,h);p.save(filename("pdf"));}catch(e){alert("PDF konnte nicht erstellt werden: "+e.message);}}
+function exportEntries(){
+  const r=region(),view=el("stateMonthlyView")?.value||"four",title=el("stateMonthlyTitle")?.textContent||"Monatsausblick";
+  const keys=view==="four"?MODEL_ORDER:[view];
+  const entries=keys.map(k=>({chart:charts[k],metadata:{compact:true,preserveLimits:true,showLegend:true,
+    legendFilter:item=>!item.text.endsWith("Untergrenze"),
+    title:title+" · "+(MODEL_LABELS[k]||k),subtitle:"Lauf "+fmtRun(r?.models?.[k]?.run)+" · Beobachtung bis "+dateShort(r?.observed_through),
+    source:"Quelle: "+paramConfig().source+" / Open-Meteo · Klimareferenz 1991–2020 · Climate Dashboard Deutschland"}}));
+  if(!entries.some(e=>e.chart))throw Error("Bitte zuerst ein Diagramm laden.");
+  return entries;
+}
+async function exportPng(){try{const c=window.DashboardExportHQ.renderChartGroup(exportEntries());c.toBlob(b=>b&&saveBlob(b,filename("png")),"image/png");}catch(e){alert("PNG konnte nicht erstellt werden: "+e.message);}}
+async function exportPdf(){try{if(!window.jspdf?.jsPDF)throw new Error("PDF-Bibliothek fehlt");const J=window.jspdf.jsPDF,p=new J({orientation:"landscape",unit:"mm",format:"a4"}),pw=p.internal.pageSize.getWidth(),ph=p.internal.pageSize.getHeight(),m=7;exportEntries().filter(e=>e.chart).forEach((e,i)=>{const c=window.DashboardExportHQ.renderChart(e.chart,e.metadata),s=Math.min((pw-2*m)/c.width,(ph-2*m)/c.height),w=c.width*s,h=c.height*s;if(i)p.addPage("a4","landscape");p.addImage(c.toDataURL("image/png"),"PNG",(pw-w)/2,(ph-h)/2,w,h);});p.save(filename("pdf"));}catch(e){alert("PDF konnte nicht erstellt werden: "+e.message);}}
 function mount(){
   if(!el("state-monthly-ensemble"))return;
   el("stateMonthlyRegion")?.addEventListener("change",render);el("stateMonthlyView")?.addEventListener("change",applyView);

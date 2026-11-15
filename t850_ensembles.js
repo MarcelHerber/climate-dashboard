@@ -352,7 +352,7 @@ function comparisonBounds(results,param,lat,lon,c){
 }
 function options(bounds,param){
   return {responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},
-    scales:{x:{ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:9,font:{size:11}},grid:{display:false}},y:{min:bounds.min,max:bounds.max,title:{display:true,text:param.axis},ticks:{callback:function(v){return v+" "+param.unit;}}}},
+    scales:{x:{afterBuildTicks:function(scale){const ticks=window.DashboardExportHQ?.forecastDateTicks(scale.getLabels(),scale.min,scale.max,9);if(ticks?.length){const indices=new Set(ticks.map(t=>t.index));scale.ticks=scale.ticks.filter(t=>indices.has(t.value));}},ticks:{maxRotation:0,autoSkip:false,font:{size:11},callback:function(v){return String(this.getLabelForValue(v)).replace(/\s+\d{2}Z$/i,"");}},grid:{display:false}},y:{min:bounds.min,max:bounds.max,title:{display:true,text:param.axis},ticks:{callback:function(v){return v+" "+param.unit;}}}},
     plugins:{datalabels:{display:false},legend:{position:"bottom",labels:{boxWidth:16,usePointStyle:true,filter:function(item,data){return !data.datasets[item.datasetIndex]._hideLegend;}}},tooltip:{filter:function(item){return item.dataset._tooltip!==false;},callbacks:{label:function(ctx){return ctx.dataset.label+": "+fmtValue(ctx.parsed.y,param);}}},zoom:{pan:{enabled:true,mode:"x",modifierKey:"shift"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}}};
 }
 function displayMetric(){return el("t850Metric")?.value||"members";}
@@ -507,9 +507,9 @@ function updateModelMeta(r,param){
   setMeta(r.model,r.ensembleCount+" ENS · "+controlText+" · "+fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+" · Horizont "+r.model.forecastDays+" Tage"+climateText,"ok");
 }
 async function enrichWithRunInfo(r,p,c,good,signal,param){
-  const m=r.model;if(r.deterministicFallback){const mainMeta=await fetchModelMeta(m.mainMeta,signal);if(signal.aborted)return;setRun(m,"EPS T850: derzeit nicht verfügbar · Hauptlauf: "+(mainMeta?fmtRun(mainMeta.run)+" · "+m.mainLabel:"neueste verfügbare ICON-EU-Ausgabe"));return;}
+  const m=r.model;if(r.deterministicFallback){const mainMeta=await fetchModelMeta(m.mainMeta,signal);if(signal.aborted)return;r.mainRun=mainMeta?.run||null;setRun(m,"EPS T850: derzeit nicht verfügbar · Hauptlauf: "+(mainMeta?fmtRun(mainMeta.run)+" · "+m.mainLabel:"neueste verfügbare ICON-EU-Ausgabe"));return;}
   const [ensMeta,mainMeta]=await Promise.all([fetchModelMeta(m.ensembleMeta,signal),fetchModelMeta(m.mainMeta,signal)]);if(signal.aborted)return;
-  const ensembleText=ensMeta?fmtRun(ensMeta.run):"neueste verfügbare Ausgabe";setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf wird geladen …");let main=null;
+  r.ensembleRun=ensMeta?.run||null;const ensembleText=ensMeta?fmtRun(ensMeta.run):"neueste verfügbare Ausgabe";setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf wird geladen …");let main=null;
   if(mainMeta&&mainMeta.run){try{main=await fetchMainRunForCycle(m,mainMeta.run,p.latitude,p.longitude,signal,param);}catch(e){if(e.name==="AbortError")throw e;console.warn(m.label+" Hauptlauf",e);}}
   if(signal.aborted)return;r.main=main;r.mainAligned=main?alignSeries(main,r.times):r.times.map(function(){return null;});renderAvailableResults(good,p,c,param);setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf: "+(main?fmtRun(main.run)+" · "+m.mainLabel:"nicht verfügbar"));
 }
@@ -539,80 +539,33 @@ function filename(ext){
   const view=el("t850PanelSelect")?.value||"gefs",param=getParam();
   return "Ensembles_"+param.key+"_"+view+"_"+String(lastPlace&&lastPlace.name||"Ort").replace(/[^a-z0-9äöüß_-]+/gi,"_")+"."+ext;
 }
-function exportMetadata(){
+function exportEntries(){
   const param=getParam(),metric=displayMetric();
   const view=el("t850PanelSelect")?.value||"gefs";
-  const model=MODELS.find(function(m){return m.key===view;});
   const place=lastPlace?placeLabel(lastPlace):String(el("t850LocationInput")?.value||"–").trim();
-  const rows=[
-    "Ort: "+place,
-    "Parameter: "+param.label+" ["+param.unit+"]"
-  ];
+  let detail="";
   if(metric==="prob"){
     const value=Number(el("t850Threshold")?.value||0);
     const threshold=Number.isFinite(value)?value.toLocaleString("de-DE",{maximumFractionDigits:3}):"–";
     const comparator=el("t850ThresholdDirection")?.value==="below"?"≤":"≥";
-    rows.push("Auswertung: Schwellenwert-Wahrscheinlichkeit");
-    rows.push("Schwellenwert: "+param.label+" "+comparator+" "+threshold+" "+param.unit);
+    detail="P("+comparator+" "+threshold+" "+param.unit+")";
   }else if(metric==="spread"){
-    rows.push("Auswertung: Ensemble-Spread (Standardabweichung)");
-  }else{
-    rows.push("Auswertung: Ensemble-Member, Mittelwert und Perzentile");
+    detail="Ensemble-Spread (σ)";
   }
-  rows.push("Ansicht: "+(view==="four"?"4er-Tafel und Modellvergleich":model?.label||"GFS / GEFS"));
-  // Match the site-wide PNG/PDF provenance conventions; preserve all plotted
-  // member series, their legend and independent model time axes.
-  rows.push("Zeitachse: UTC (Z) · exakter Prognosezeitpunkt siehe Diagramm");
-  rows.push("Quelle: Open-Meteo Ensemble API / zugrunde liegende Wettermodelle");
-  rows.push("Erstellt: "+new Date().toLocaleString("de-DE")+
-    " · Climate Dashboard Deutschland · Werte und Einheiten unverändert");
-  return rows;
-}
-function wrapExportLine(ctx,text,maxWidth){
-  const words=String(text).split(/\s+/),out=[];
-  let line="";
-  for(const word of words){
-    const candidate=line?line+" "+word:word;
-    if(line&&ctx.measureText(candidate).width>maxWidth){
-      out.push(line);line=word;
-    }else{line=candidate;}
-  }
-  if(line)out.push(line);
-  return out;
-}
-function withExportHeader(source){
-  // Draw into the generated PNG/PDF bitmap, leaving the live Chart.js layout untouched.
-  const host=el("t850ExportArea");
-  const hostWidth=host?.getBoundingClientRect().width||source.width/2;
-  const scale=source.width/Math.max(1,hostWidth);
-  const padding=20*scale,availableWidth=Math.max(1,source.width-2*padding);
-  const measure=document.createElement("canvas").getContext("2d");
-  if(!measure)return source;
-  measure.font="700 "+(24*scale)+"px Arial, sans-serif";
-  const titleLines=wrapExportLine(measure,"Ensemblevorhersage",availableWidth);
-  measure.font=(15*scale)+"px Arial, sans-serif";
-  const bodyLines=exportMetadata().flatMap(function(row){return wrapExportLine(measure,row,availableWidth);});
-  const titleHeight=29*scale,lineHeight=21*scale;
-  const headerHeight=Math.ceil(16*scale+titleLines.length*titleHeight+9*scale+bodyLines.length*lineHeight+18*scale);
-  const combined=document.createElement("canvas");
-  combined.width=source.width;combined.height=source.height+headerHeight;
-  const ctx=combined.getContext("2d");
-  if(!ctx)return source;
-  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,combined.width,combined.height);
-  let y=padding;
-  ctx.textBaseline="top";ctx.fillStyle="#172033";ctx.font="700 "+(24*scale)+"px Arial, sans-serif";
-  titleLines.forEach(function(line){ctx.fillText(line,padding,y);y+=titleHeight;});
-  y+=9*scale;ctx.fillStyle="#475569";ctx.font=(15*scale)+"px Arial, sans-serif";
-  bodyLines.forEach(function(line){ctx.fillText(line,padding,y);y+=lineHeight;});
-  ctx.strokeStyle="#cbd5e1";ctx.lineWidth=Math.max(1,scale);
-  ctx.beginPath();ctx.moveTo(padding,headerHeight-8*scale);ctx.lineTo(source.width-padding,headerHeight-8*scale);ctx.stroke();
-  ctx.drawImage(source,0,headerHeight);
-  return combined;
+  const models=view==="four"?[...MODELS,{key:"comparison",label:"Modellvergleich"}]:MODELS.filter(m=>m.key===view);
+  return models.map(m=>{
+    const r=lastResults.find(r=>r.model.key===m.key);
+    const chart=m.key==="comparison"?(lastResults.length?comparison:null):r?charts[m.key]:null;
+    const run=r?.deterministicFallback?"Nur Hauptlauf · EPS nicht verfügbar"+(r.mainRun?" · "+fmtRun(r.mainRun):""):m.key==="comparison"?"Modellabhängige Läufe":r?.ensembleRun?"ENS "+fmtRun(r.ensembleRun):"ENS · aktueller verfügbarer Lauf";
+    const subtitle=[detail,run,r?.main?.run?"Hauptlauf "+fmtRun(r.main.run):null].filter(Boolean).join(" · ");
+    const climateSource=chart?.data?.datasets?.some(d=>d.label==="1991–2020 ERA5")?" / ERA5 1991–2020":"";
+    return {key:m.key,chart,metadata:{compact:true,preserveLimits:true,title:place+" · "+param.label+" · "+m.label,subtitle,source:"Quelle: Open-Meteo Ensemble API"+climateSource+" · UTC · Climate Dashboard Deutschland"}};
+  });
 }
 async function exportCanvas(){
-  if(!window.html2canvas)throw new Error("html2canvas ist nicht geladen.");
-  const captured=await window.captureDashboardWithWhiteBackground(el("t850ExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false});
-  return withExportHeader(captured);
+  const entries=exportEntries();
+  if(!entries.some(e=>e.chart))throw Error("Bitte zuerst ein Diagramm laden.");
+  return window.DashboardExportHQ.renderChartGroup(entries);
 }
 function saveBlob(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},1000);}
 async function png(){try{const c=await exportCanvas();c.toBlob(function(b){if(b)saveBlob(b,filename("png"));},"image/png");}catch(e){alert("PNG konnte nicht erstellt werden: "+e.message);}}
@@ -621,7 +574,7 @@ function ensureT850Vectors(){
   if(window.T850VectorExport)return Promise.resolve(window.T850VectorExport);
   if(!t850VectorPromise)t850VectorPromise=new Promise(function(resolve,reject){
     const script=document.createElement("script");
-    script.src="t850_vector_export.js?v=20261114-vector-areas-v1";
+    script.src="t850_vector_export.js?v=20261115-compact-exports-v1";
     script.async=true;
     script.onload=function(){
       if(window.T850VectorExport)resolve(window.T850VectorExport);
@@ -633,20 +586,14 @@ function ensureT850Vectors(){
   return t850VectorPromise;
 }
 function vectorScenes(exporter){
-  const view=el("t850PanelSelect")?.value||"gefs";
-  const options=view==="four"?MODELS.map(function(m){return {key:m.key,title:m.label};}):
-    [{key:view,title:MODELS.find(function(m){return m.key===view;})?.label||view}];
-  if(view==="four")options.push({key:"comparison",title:"Ensemble-Mittel · Modellvergleich"});
-  const valid=new Set(lastResults.map(function(r){return r.model.key;}));
-  const metadata=exportMetadata();
   const scenes=[];
-  options.forEach(function(item){
-    if(item.key!=="comparison"&&!valid.has(item.key))return;
-    const chart=item.key==="comparison"?comparison:charts[item.key];
+  exportEntries().forEach(function(item){
+    const chart=item.chart;
     if(!chart||!chart.data?.datasets?.length)return;
     try{
       scenes.push(exporter.buildScene(chart,{
-        title:item.title,model:item.key,axis:metricParam(getParam()).axis,metadata:metadata
+        ...item.metadata,model:item.key,axis:metricParam(getParam()).axis,
+        xTicks:window.DashboardExportHQ.forecastDateTicks(chart.data.labels,chart.scales.x.min,chart.scales.x.max,9)
       }));
     }catch(error){console.warn("T850-Vektorexport: ",item.key,error);}
   });

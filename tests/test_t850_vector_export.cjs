@@ -47,6 +47,18 @@ test("SVG uses true named Inkscape layers, no images, and independent member pat
  assert.match(svg,/clip-path="url\(#plotclip0\)"/);
  assert.ok(svg.match(/<path /g).length>=5);
 });
+test("compact vector export increases plot height and uses date-only ticks",()=>{
+ const {a,chart,info}=harness();
+ const old=a.buildScene(chart,info);
+ const scene=a.buildScene(chart,{...info,metadata:[],compact:true,xTicks:[{index:0,text:"13.11."},{index:4,text:"14.11."}]});
+ assert.ok(scene.plot.h>old.plot.h);
+ assert.deepEqual(Array.from(scene.dates,d=>d.text),["13.11.","14.11."]);
+ assert.equal(scene.dates[0].px,scene.plot.x);
+ assert.equal(scene.dates[1].px,scene.plot.x+scene.plot.w);
+ const svg=a.toSvg([scene]);assert.doesNotMatch(svg,/00Z|06Z|12Z|18Z|Erstellt:/);
+ assert.match(svg,/13.11\./);assert.match(svg,/height="652"/);
+ assert.equal(scene.series.length,old.series.length);
+});
 test("four-panel SVG retains unique group/clip identities and one panel per chart",()=>{
  const {a,chart,info}=harness();
  const scene=a.buildScene(chart,info);

@@ -2,7 +2,7 @@
    Source: existing Chart.js data and visible axis limits; never rasterize plots. */
 (function(root){
 "use strict";
-const W=1440,H=930,P={x:115,y:259,w:1210,h:543};
+const W=1440,H=930,DEFAULT_P={x:115,y:259,w:1210,h:543},COMPACT_P={x:115,y:150,w:1210,h:652};
 const XMLNS="http://www.inkscape.org/namespaces/inkscape";
 const finite=v=>typeof v==="number"&&Number.isFinite(v);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -24,7 +24,7 @@ function color(v){
 }
 function rgb(hex){const s=hex.replace("#","");return [0,2,4].map(i=>parseInt(s.slice(i,i+2),16));}
 function value(d){if(finite(d))return d;if(d&&typeof d==="object"&&finite(d.y))return d.y;return null;}
-function clip(a,b){
+function clip(a,b,P=DEFAULT_P){
   const xmin=P.x,xmax=P.x+P.w,ymin=P.y,ymax=P.y+P.h;
   let t0=0,t1=1;const dx=b[0]-a[0],dy=b[1]-a[1];
   for(const [p,q] of [[-dx,a[0]-xmin],[dx,xmax-a[0]],[-dy,a[1]-ymin],[dy,ymax-a[1]]]){
@@ -35,7 +35,7 @@ function clip(a,b){
   }
   return [[a[0]+t0*dx,a[1]+t0*dy],[a[0]+t1*dx,a[1]+t1*dy]];
 }
-function segments(ds,xa,ya){
+function segments(ds,xa,ya,P=DEFAULT_P){
   const raw=[],out=[];const data=ds.data||[];
   for(let i=0;i<data.length;i++){
     const v=value(data[i]);
@@ -45,7 +45,7 @@ function segments(ds,xa,ya){
   let chain=[];
   function flush(){
     if(chain.length>1)for(let i=1;i<chain.length;i++){
-      const pair=clip(chain[i-1],chain[i]);
+      const pair=clip(chain[i-1],chain[i],P);
       if(pair)out.push(pair);
     }
     chain=[];
@@ -66,7 +66,7 @@ function segments(ds,xa,ya){
 // Chart.js filler geometry: retain the original series/target values.
 // Explicit polygons preserve gaps, clip at plot boundaries, and split where
 // a daily value crosses a reference curve (red/blue anomaly areas).
-function clipPolygon(points){
+function clipPolygon(points,P=DEFAULT_P){
  const edges=[
   {inside:p=>p[0]>=P.x,intersection:(a,b)=>interpolate(a,b,(P.x-a[0])/(b[0]-a[0]))},
   {inside:p=>p[0]<=P.x+P.w,intersection:(a,b)=>interpolate(a,b,(P.x+P.w-a[0])/(b[0]-a[0]))},
@@ -103,7 +103,7 @@ function resolveFillTarget(fill,index,total){
  else return null;
  return Number.isInteger(dest)&&dest>=0&&dest<total&&dest!==index?dest:null;
 }
-function fillAreas(chart,xAt,yAt,xmin,xmax){
+function fillAreas(chart,xAt,yAt,xmin,xmax,P=DEFAULT_P){
  const datasets=chart.data.datasets||[],fills=[];
  datasets.forEach((ds,index)=>{
   const visible=i=>typeof chart.isDatasetVisible==="function"?
@@ -136,7 +136,7 @@ function fillAreas(chart,xAt,yAt,xmin,xmax){
     const s0=a0+(a1-a0)*t0,s1=a0+(a1-a0)*t1;
     const v0=b0+(b1-b0)*t0,v1=b0+(b1-b0)*t1;
     const polygon=clipPolygon([plotPoint(x0,s0),plotPoint(x1,s1),
-      plotPoint(x1,v1),plotPoint(x0,v0)]);
+      plotPoint(x1,v1),plotPoint(x0,v0)],P);
     if(polygon.length)areas.push({points:polygon,hex:paint.hex,
       opacity:paint.opacity,side:gap>0?"above":"below"});
    }
@@ -153,12 +153,13 @@ function buildScene(chart,info){
   if(!chart?.data?.datasets?.length||!chart.scales?.x||!chart.scales?.y)
     throw Error("Bitte zuerst ein gültiges Ensemble-Diagramm laden.");
   const labels=chart.data.labels||[],x=chart.scales.x,y=chart.scales.y;
+  const P=info?.compact?COMPACT_P:DEFAULT_P;
   const xmin=finite(x.min)?x.min:0,xmax=finite(x.max)?x.max:labels.length-1;
   const ymin=y.min,ymax=y.max;
   if(!finite(ymin)||!finite(ymax)||ymax<=ymin||xmax<=xmin)throw Error("Ungültige Diagrammachsen.");
   const xa=i=>P.x+(i-xmin)/(xmax-xmin)*P.w;
   const ya=v=>P.y+P.h-(v-ymin)/(ymax-ymin)*P.h;
-  const fills=fillAreas(chart,xa,ya,xmin,xmax);
+  const fills=fillAreas(chart,xa,ya,xmin,xmax,P);
   const series=[];
   chart.data.datasets.forEach((ds,i)=>{
     const visible=typeof chart.isDatasetVisible==="function"?chart.isDatasetVisible(i):!ds.hidden;
@@ -173,7 +174,7 @@ function buildScene(chart,info){
     if(percentile)paint={hex:/^(25|75)\./.test(label)?"#5599d2":"#8aa9d6",opacity:.85};
     // Mobile Chart.js opacity is often 0.2; keep members legible on white paper.
     if(label.startsWith("Member "))paint.opacity=.50;
-    const points=segments(ds,xa,ya);
+    const points=segments(ds,xa,ya,P);
     const radius=Number(ds.pointRadius)||0,markers=[];
     if(radius>0)for(let j=0;j<(ds.data||[]).length;j++){
       const v=value(ds.data[j]);if(v===null)continue;
@@ -199,11 +200,14 @@ function buildScene(chart,info){
     py:ya(ymin+(ymax-ymin)*i/6)});
   const dates=[];
   const count=Math.max(1,Math.ceil((xmax-xmin)/8));
-  for(let i=Math.ceil(xmin);i<=Math.floor(xmax);i+=count)
+  if(Array.isArray(info?.xTicks)&&info.xTicks.length){
+    for(const t of info.xTicks)if(finite(t.index)&&t.index>=xmin&&t.index<=xmax)
+      dates.push({text:String(t.text),px:xa(t.index)});
+  }else for(let i=Math.ceil(xmin);i<=Math.floor(xmax);i+=count)
     dates.push({text:String(labels[i]||""),px:xa(i)});
   const metadata=(info?.metadata||[]).map(String);
   return {title:String(info?.title||"Ensemblevorhersage"),metadata,
-    axis:String(info?.axis||""),series,fills,ticks,dates,plot:P,model:String(info?.model||""),
+    axis:String(info?.axis||""),series,fills,ticks,dates,plot:P,compact:Boolean(info?.compact),model:String(info?.model||""),
     subtitle:String(info?.subtitle||"Ensemble-Vektorexport"),
     source:String(info?.source||"Quelle: Open-Meteo Ensemble API / zugrunde liegende Modelle")};
 }
@@ -234,25 +238,26 @@ function svgText(x,y,t,size=17,fill="#334155",anchor="start"){
 }
 function svgScene(scene,index){
  const dy=index*H,clipid="plotclip"+index;
+ const P=scene.plot||DEFAULT_P,legendY=scene.compact?121:242;
  const prefix="panel"+index+"_";
  let s='<defs><clipPath id="'+clipid+'"><rect x="'+P.x+'" y="'+(P.y+dy)+'" width="'+P.w+'" height="'+P.h+'"/></clipPath></defs>';
  s+='<g id="'+prefix+'metadata" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Angaben')+'">';
- s+=svgText(65,62+dy,scene.title,31,"#152c43");
- s+=svgText(66,95+dy,scene.axis+" · "+scene.subtitle,19,"#41566a");
+ s+=svgText(65,(scene.compact?49:62)+dy,scene.title,31,"#152c43");
+ s+=svgText(66,(scene.compact?82:95)+dy,scene.axis+" · "+scene.subtitle,19,"#41566a");
  scene.metadata.slice(0,5).forEach((v,i)=>s+=svgText(66,127+dy+i*23,v,16,"#475569"));
  const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
  if(created)s+=svgText(P.x,863+dy,created,15);
  s+=svgText(P.x,887+dy,scene.source,15);
- s+=svgText(P.x,911+dy,"UTC (Z) · Mess- und Prognosewerte unverändert · Kurven als benannte Vektorebenen",15);
+ if(!scene.compact)s+=svgText(P.x,911+dy,"UTC (Z) · Mess- und Prognosewerte unverändert · Kurven als benannte Vektorebenen",15);
  s+="</g>";
  s+='<g id="'+prefix+'legend" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Legende')+'">';
- let lx=585;
+ let lx=scene.compact?P.x:585;
  for(const item of legend(scene)){
    const width=Math.max(115,Math.min(205,item.label.length*9+33));
    if(lx+width>W-75)break;
-   s+='<path d="M'+lx+" "+(242+dy)+" h22"+'" stroke="'+item.hex+'" stroke-width="3" fill="none"'+
+   s+='<path d="M'+lx+" "+(legendY+dy)+" h22"+'" stroke="'+item.hex+'" stroke-width="3" fill="none"'+
       (item.dash?.length?' stroke-dasharray="'+item.dash.join(",")+'"':"")+'/>';
-   s+=svgText(lx+28,248+dy,item.label,13);
+   s+=svgText(lx+28,legendY+6+dy,item.label,13);
    lx+=width;
  }
  s+="</g>";
@@ -293,6 +298,7 @@ function toSvg(scenes){
  scenes.map(svgScene).join("")+"</svg>";
 }
 function drawPdf(pdf,scene){
+ const P=scene.plot||DEFAULT_P,legendY=scene.compact?121:242;
  const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
  const s=Math.min((pw-12)/W,(ph-12)/H),ox=(pw-W*s)/2,oy=(ph-H*s)/2;
  const X=x=>ox+x*s,Y=y=>oy+y*s;
@@ -302,25 +308,25 @@ function drawPdf(pdf,scene){
    pdf.setTextColor(...ink(colorValue));pdf.text(String(str),X(x),Y(y),{align});
  };
  pdf.setFillColor(255,255,255);pdf.rect(0,0,pw,ph,"F");
- text(scene.title,65,62,31,"#152c43");
- text(scene.axis+" · "+scene.subtitle,66,95,19,"#41566a");
+ text(scene.title,65,scene.compact?49:62,31,"#152c43");
+ text(scene.axis+" · "+scene.subtitle,66,scene.compact?82:95,19,"#41566a");
  scene.metadata.slice(0,5).forEach((m,i)=>text(m,66,127+i*23,16,"#475569"));
- let lx=585;
+ let lx=scene.compact?P.x:585;
  for(const item of legend(scene)){
    const width=Math.max(115,Math.min(205,item.label.length*9+33));
    if(lx+width>W-75)break;
    pdf.setDrawColor(...ink(item.hex));pdf.setLineWidth(3*s);
    if(typeof pdf.setLineDashPattern==="function"&&item.dash?.length)
      pdf.setLineDashPattern(item.dash.map(n=>n*s),0);
-   pdf.line(X(lx),Y(242),X(lx+22),Y(242));
+   pdf.line(X(lx),Y(legendY),X(lx+22),Y(legendY));
    if(typeof pdf.setLineDashPattern==="function")pdf.setLineDashPattern([],0);
-   text(item.label,lx+28,248,13);
+   text(item.label,lx+28,legendY+6,13);
    lx+=width;
  }
  const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
  if(created)text(created,P.x,863,15);
  text(scene.source,P.x,887,15);
- text("UTC (Z) · einzelne Kurven als Vektorpfade · Daten unverändert",P.x,911,15);
+ if(!scene.compact)text("UTC (Z) · einzelne Kurven als Vektorpfade · Daten unverändert",P.x,911,15);
  pdf.setLineWidth(.5);pdf.setDrawColor(196,208,219);pdf.rect(X(P.x),Y(P.y),P.w*s,P.h*s,"S");
  for(const t of scene.ticks){
    pdf.setDrawColor(226,232,239);pdf.setLineWidth(.25);

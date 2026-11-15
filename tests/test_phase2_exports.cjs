@@ -18,7 +18,9 @@ test("temperature, sunshine and precipitation frequency PNG/PDF share HQ export"
  const block=monthly.slice(start,end);
  assert.ok(start>0 && end>start);
  assert.match(block,/window\.DashboardExportHQ/);
- assert.match(block,/hq\.composeCanvas\(captured/);
+ assert.match(block,/hq\.renderChart\(chart/);
+ assert.match(block,/compact:true,preserveLimits:true/);
+ assert.match(block,/prepareChart:clone=>\{clone\.\$frequencyMeta=hq\.copy/);
  assert.match(block,/config\.unit/);
  assert.match(block,/Quelle: DWD/);
  for(const kind of ["Png","Pdf"]){
@@ -29,17 +31,18 @@ test("temperature, sunshine and precipitation frequency PNG/PDF share HQ export"
  assert.doesNotMatch(block,/\.data\.datasets\s*=/);
 });
 
-test("ensemble PNG retains metadata-bearing screenshots; PDF and SVG are independent vectors",()=>{
- const start=ensemble.indexOf("function exportMetadata()");
- const end=ensemble.indexOf("function wrapExportLine",start);
+test("ensemble PNG uses fixed charts and compact metadata; PDF and SVG are independent vectors",()=>{
+ const start=ensemble.indexOf("function exportEntries()");
+ const end=ensemble.indexOf("async function exportCanvas()",start);
  const meta=ensemble.slice(start,end);
- for(const term of ["UTC (Z)","Quelle: Open-Meteo Ensemble API","Erstellt: ","Climate Dashboard Deutschland"]){
+ for(const term of ["UTC","Quelle: Open-Meteo Ensemble API","compact:true","Climate Dashboard Deutschland"]){
   assert.ok(meta.includes(term),term);
  }
- const first=ensemble.indexOf("function withExportHeader(source)");
- const second=ensemble.indexOf("async function exportCanvas()",first);
- assert.ok(first>0 && second>first);
- assert.match(ensemble.slice(second,second+500),/withExportHeader\(captured\)/);
+ assert.ok(start>0 && end>start);
+ assert.match(ensemble.slice(end,end+500),/renderChartGroup\(entries\)/);
+ assert.match(ensemble,/forecastDateTicks\(scale.getLabels\(\),scale.min,scale.max,9\)/);
+ assert.match(ensemble,/xTicks:window.DashboardExportHQ.forecastDateTicks/);
+ assert.doesNotMatch(ensemble,/captureDashboardWithWhiteBackground/);
  assert.match(ensemble,/async function png\(\).*?exportCanvas\(\)/s);
  assert.match(ensemble,/async function pdf\(\).*?ensureT850Vectors\(\)/s);
  assert.match(ensemble,/async function svg\(\).*?ensureT850Vectors\(\)/s);
@@ -77,8 +80,8 @@ test("responsive scientific modules keep download controls within mobile viewpor
 });
 
 test("Pages includes cache-busted presentation assets and all mobile pages",()=>{
- assert.match(builder,/for filename in \("monthly_frequency\.js","t850_ensembles\.js"\)/);
- assert.match(builder,/version="20261114-vector-areas-v1" if filename=="t850_ensembles.js"/);
+ assert.match(builder,/for filename in \("monthly_frequency\.js","t850_ensembles\.js","state_monthly_ensemble\.js"\)/);
+ assert.match(builder,/version="20261115-compact-exports-v1"/);
  assert.match(builder,/filename\+"\?v="\+version/);
  assert.match(builder,/t850_vector_export\.js/);
  assert.match(builder,/mosmix\.js\?v=20261113-mosmix-mobile-exports-v2/);

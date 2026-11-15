@@ -3,6 +3,31 @@
 (function(root){
   "use strict";
   const WIDTH=2200, HEIGHT=1470, MARGIN=72, HEADER=168, FOOTER=118;
+  // Select one timestamp per UTC day. Prefer midnight, but never change
+  // the original categorical coordinates or forecast/tooltip timestamps.
+  function forecastDateTicks(labels,min=0,max=labels.length-1,limit=9){
+    const days=[];
+    for(let i=Math.max(0,Math.ceil(min));i<=Math.min(labels.length-1,Math.floor(max));i++){
+      const match=String(labels[i]??"").match(/^(\d{1,2}\.\d{1,2}\.)\s+(\d{2})Z$/i);
+      if(!match)continue;
+      const last=days[days.length-1];
+      if(last?.text===match[1]){if(match[2]==="00")last.index=i;}
+      else days.push({index:i,text:match[1]});
+    }
+    const step=Math.max(1,Math.ceil(days.length/Math.max(1,limit)));
+    return days.filter((_,i)=>i%step===0);
+  }
+  function compactCanvas(source,metadata){
+    const out=document.createElement("canvas");out.width=WIDTH;out.height=HEIGHT;
+    const ctx=out.getContext("2d",{alpha:false});
+    if(!ctx)throw Error("Export-Canvas konnte nicht erstellt werden.");
+    ctx.fillStyle="#fff";ctx.fillRect(0,0,WIDTH,HEIGHT);ctx.textBaseline="top";
+    ctx.fillStyle="#19324a";line(ctx,metadata.title,MARGIN,30,WIDTH-2*MARGIN,37,true);
+    ctx.fillStyle="#58697c";line(ctx,metadata.subtitle,MARGIN,83,WIDTH-2*MARGIN,21,false);
+    ctx.drawImage(source,MARGIN,122,WIDTH-2*MARGIN,HEIGHT-184);
+    ctx.fillStyle="#52677b";line(ctx,metadata.source||"Climate Dashboard Deutschland",MARGIN,HEIGHT-42,WIDTH-2*MARGIN,18,false);
+    return out;
+  }
   function copy(value,seen){
     if(value===null || typeof value!=="object")return value;
     seen=seen||new WeakMap();
@@ -77,7 +102,7 @@
   function renderChart(chart,metadata){
     if(!chart || !chart.data || !root.Chart)throw Error("Diagramm nicht verfügbar.");
     const canvas=document.createElement("canvas");
-    canvas.width=WIDTH-MARGIN*2;canvas.height=HEIGHT-HEADER-FOOTER;
+    canvas.width=WIDTH-MARGIN*2;canvas.height=metadata.compact?HEIGHT-184:HEIGHT-HEADER-FOOTER;
     const originalOptions=chart.config?._config?.options || chart.config?.options || {};
     const options=copy(originalOptions);
     options.responsive=false;
@@ -89,7 +114,9 @@
     options.plugins.climateMobileLegibilityV1=false;
     options.plugins.zoom=false;
     options.plugins.datalabels={display:false};
+    if(metadata.compact){options.plugins.title={display:false};options.plugins.subtitle={display:false};}
     const legend=options.plugins.legend||{};
+    if(metadata.showLegend){legend.display=true;legend.position="bottom";legend.labels=legend.labels||{};if(metadata.legendFilter)legend.labels.filter=metadata.legendFilter;}
     if(legend.display!==false){
       legend.display=true;
       legend.labels=legend.labels||{};
@@ -104,6 +131,12 @@
       if(config.ticks.display!==false && config.ticks.autoSkip!==false){
         config.ticks.maxTicksLimit=Math.max(Number(config.ticks.maxTicksLimit)||0,axis==="x"?17:10);
         config.ticks.maxRotation=axis==="x"?35:0;
+      }
+      if(metadata.preserveLimits){
+        const scale=chart.scales?.[axis];
+        if(Number.isFinite(scale?.min)&&Number.isFinite(scale?.max)){
+          config.min=scale.min;config.max=scale.max;
+        }
       }
       config.ticks.font={...(config.ticks.font||{}),size:19};
       config.ticks.color="#24384d";
@@ -135,11 +168,26 @@
     let cloneChart;
     try{
       cloneChart=new root.Chart(canvas,config);
+      if(typeof metadata.prepareChart==="function")metadata.prepareChart(cloneChart);
       cloneChart.update("none");
-      return composeCanvas(canvas,metadata);
+      return metadata.compact?compactCanvas(canvas,metadata):composeCanvas(canvas,metadata);
     }finally{
       if(cloneChart)cloneChart.destroy();
     }
   }
-  root.DashboardExportHQ=Object.freeze({copy,composeCanvas,renderChart,WIDTH,HEIGHT});
+  function renderChartGroup(entries){
+    if(!entries.length)throw Error("Keine Diagramme verfügbar.");
+    if(entries.length===1)return renderChart(entries[0].chart,entries[0].metadata);
+    // Stay below mobile canvas area limits even for five panels.
+    const panelWidth=1800,panelHeight=Math.round(HEIGHT*panelWidth/WIDTH);
+    const out=document.createElement("canvas");out.width=panelWidth*2;out.height=panelHeight*Math.ceil(entries.length/2);
+    const ctx=out.getContext("2d",{alpha:false});ctx.fillStyle="#fff";ctx.fillRect(0,0,out.width,out.height);
+    entries.forEach((entry,i)=>{
+      const x=i===entries.length-1&&entries.length%2?panelWidth/2:(i%2)*panelWidth,y=Math.floor(i/2)*panelHeight;
+      if(entry.chart)ctx.drawImage(renderChart(entry.chart,entry.metadata),x,y,panelWidth,panelHeight);
+      else{ctx.fillStyle="#52677b";line(ctx,entry.metadata.title+" · keine Daten verfügbar",x+MARGIN,y+60,panelWidth-2*MARGIN,30,true);}
+    });
+    return out;
+  }
+  root.DashboardExportHQ=Object.freeze({copy,composeCanvas,renderChart,renderChartGroup,forecastDateTicks,WIDTH,HEIGHT});
 })(window);
