@@ -278,13 +278,15 @@ function modelGridCenters(overlay,viewport,{maxSystems=7,minSeparation=94}={}){
   if(p[0]<35||p[0]>965||p[1]<35||p[1]>965)continue;
   proposed.push({type:item.type,lon,lat,hpa,pressure_hpa:hpa,
    score:item.score,prominence_hpa:item.prominence_hpa,
+   closedSystem:overlay.pressure_centers_method==="ifs_mslp_grid_extrema_v2"&&item.closed_system===true,
    method:overlay.pressure_centers_method,source:"ifs_grid"});
  }
  proposed.sort((a,b)=>b.score-a.score||a.lon-b.lon);
  const out=[];
  for(const m of proposed){
   const at=project([m.lon,m.lat],viewport);
-  if(out.some(q=>distance(project([q.lon,q.lat],viewport),at)<minSeparation))continue;
+  if(out.some(q=>distance(project([q.lon,q.lat],viewport),at)<minSeparation&&
+    (!(q.closedSystem&&m.closedSystem)||(q.lon===m.lon&&q.lat===m.lat))))continue;
   out.push(m);
   if(out.length>=maxSystems)break;
  }

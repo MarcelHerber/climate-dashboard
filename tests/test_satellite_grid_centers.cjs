@@ -46,6 +46,13 @@ test("Contour-validated IFS grid centers are used unchanged in both display inte
  assert.equal(exporter.pressureCenters(a,"europe")[0].hpa,994.7);
  assert.equal(exporter.pressureCenters(b,"europe")[1].hpa,1030.2);
 });
+test("Two independently closed IFS cores survive viewport deduplication",()=>{
+ const {geo,exporter}=context();
+ const overlay={...make(5),pressure_centers_method:"ifs_mslp_grid_extrema_v2",
+  pressure_centers:[{...raw[0],closed_system:true},{...raw[0],lon:-15,pressure_hpa:995,closed_system:true,score:48}]};
+ assert.equal(geo.modelGridCenters(overlay,BBOX).length,2);
+ assert.equal(exporter.pressureCenters(overlay,"europe").length,2);
+});
 test("Single grid center remains visible even when neither 2- nor 5-hPa loops close",()=>{
  const {exporter}=context();
  assert.equal(exporter.pressureCenters(make(5),"europe").length,2);
