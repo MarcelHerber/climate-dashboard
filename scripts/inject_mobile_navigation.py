@@ -9,34 +9,11 @@ import argparse
 from pathlib import Path
 import re
 
-VERSION="20261030-mobile-categories-v2"
+VERSION="20261115-mobile-categories-v3"
 CONTENT_VERSION="20261113-phase2-responsive-v2"
 STYLE=f'<link rel="stylesheet" href="mobile_navigation.css?v={VERSION}">'
 CONTENT_STYLE=f'<link rel="stylesheet" href="mobile_content.css?v={CONTENT_VERSION}">'
 SCRIPT=f'<script defer src="mobile_navigation.js?v={VERSION}"></script>'
-SATELLITE_SHORTCUT=(
-    '<nav class="cdm-satellite-quicknav" aria-label="Direktzugang zu Satellitenbildern">'
-    '<a id="cdSatelliteShortcut" class="cdm-satellite-shortcut" href="./satelliten.html">'
-    '🛰 Satellitenbilder öffnen</a></nav>'
-)
-
-
-def inject_satellite_shortcut(content: str) -> str:
-    """Insert a visible, functional homepage link even with JavaScript disabled.
-
-    Only the generated Pages copy is modified; the enormous source index.html
-    remains untouched and the injection is idempotent.
-    """
-    if 'id="cdSatelliteShortcut"' in content:
-        return content
-    header = re.search(r"</header\s*>", content, re.I)
-    if header:
-        return content[:header.end()] + "\n" + SATELLITE_SHORTCUT + content[header.end():]
-    body = re.search(r"<body\b[^>]*>", content, re.I)
-    if not body:
-        raise ValueError("Could not add satellite homepage shortcut: missing body")
-    return content[:body.end()] + "\n" + SATELLITE_SHORTCUT + content[body.end():]
-
 CONTENT_SCRIPT=f'<script defer src="mobile_content.js?v={CONTENT_VERSION}"></script>'
 
 
@@ -77,8 +54,6 @@ def deploy(output: Path) -> list[str]:
     for path in pages:
         content=path.read_text(encoding="utf-8")
         published=inject(content)
-        if path.name=="index.html":
-            published=inject_satellite_shortcut(published)
         staged.append((path,published))
     for path,content in staged:
         if path.read_text(encoding="utf-8")!=content:
