@@ -67,7 +67,7 @@ footer{max-width:1260px;margin:auto;padding:0 20px 30px;color:var(--muted);font-
 <header><div class="nav"><a href="index.html"><strong>Climate Dashboard</strong></a><a href="index.html">Startseite</a><a href="datenstatus.html" aria-current="page"><strong>Datenstatus</strong></a></div></header>
 <main>
 <h1>Datenstatus-Zentrale</h1>
-<p class="intro">Hier siehst du, <strong>bis wann Messdaten und Analysen tatsächlich vorliegen</strong>, wann die zugrunde liegenden Archive zuletzt erstellt wurden und welche historischen Daten noch fehlen. Die Bewertung beruht auf den veröffentlichten Archiv-Metadaten – nicht allein auf erfolgreich abgeschlossenen Aktualisierungsläufen. Der Status wird bei der nächsten Website-Veröffentlichung neu berechnet.</p>
+<p class="intro">Hier siehst du, <strong>bis wann Messdaten und Analysen tatsächlich vorliegen</strong>, wann die zugrunde liegenden Archive zuletzt erstellt wurden und welche historischen Daten noch fehlen. Die Bewertung beruht auf den veröffentlichten Archiv-Metadaten – nicht allein auf erfolgreich abgeschlossenen Aktualisierungsläufen. Das Datenalter wird beim Aufruf und danach jede Minute neu bewertet.</p>
 <div class="cards" aria-label="Statusübersicht">
 <div class="card"><span>Aktuell</span><strong id="countCurrent">–</strong></div>
 <div class="card"><span>Archiv unvollständig</span><strong id="countIncomplete">–</strong></div>
@@ -98,7 +98,8 @@ const STATUS={
  unknown:["Nicht prüfbar","unknown"]
 };
 const pages={
- dmi_arctic:"arktis_temperatur.html",era5_arctic_maps:"arktis_temperatur.html",
+ dmi_arctic:"arktis_temperatur.html",era5_arctic_maps:"arktis_temperatur.html",dmi_greenland:"groenland_stationen.html",
+ snow_eurasia:"eurasia_snow.html",snow_europe:"eurasia_snow.html",snow_maps:"eurasia_snow.html",
  dwd_monthly:"index.html",dwd_daily:"index.html",station_records:"index.html",
  station_precip:"index.html",station_climate_days:"index.html",station_heatwaves:"index.html",
  snow:"index.html",fast_live:"index.html",era5_monthly:"index.html",era5_strat:"stratosphaere.html",
@@ -123,6 +124,26 @@ function textCell(tr,txt,cls){
 function formatted(ts){
  if(!ts)return"–";
  const d=new Date(ts);return Number.isNaN(d.valueOf())?"–":d.toLocaleString("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})+" UTC";
+}
+function refreshAge(entry,now=new Date()){
+ if(entry.status==="unknown"||!entry.latest||!Number.isFinite(entry.allowed_delay))return entry;
+ const d=new Date(entry.latest);if(!Number.isFinite(d.valueOf()))return {...entry,status:"unknown",lag:null};
+ const midnight=t=>Date.UTC(t.getUTCFullYear(),t.getUTCMonth(),t.getUTCDate());
+ let age;
+ if(entry.cadence==="monthly")age=(now.getUTCFullYear()-d.getUTCFullYear())*12+now.getUTCMonth()-d.getUTCMonth();
+ else if(entry.cadence==="hourly")age=(now-d)/3600000;
+ else age=(midnight(now)-midnight(d))/86400000;
+ if(age<(entry.cadence==="hourly"?-1:0))return {...entry,status:"unknown",lag:null};
+ const lag=entry.cadence==="hourly"?Math.round(Math.max(0,age)*10)/10:age;
+ const expired=entry.expires_utc&&now>=new Date(entry.expires_utc);
+ return {...entry,lag,status:expired||age>entry.allowed_delay?"delayed":entry.incomplete?"incomplete":"current"};
+}
+function refreshAges(){
+ items=items.map(entry=>refreshAge(entry));
+ for(const key of ["current","incomplete","delayed","unknown"]){
+  $("count"+key[0].toUpperCase()+key.slice(1)).textContent=items.filter(x=>x.status===key).length;
+ }
+ render();
 }
 function render(){
  const tbody=$("rows");tbody.replaceChildren();
@@ -161,11 +182,8 @@ async function refresh(){
   const select=$("filterGroup"),original=select.value;select.replaceChildren(new Option("Alle Bereiche",""));
   for(const group of groups)select.add(new Option(group,group));
   if(groups.includes(original))select.value=original;
-  for(const key of ["current","incomplete","delayed","unknown"]){
-   $("count"+key[0].toUpperCase()+key.slice(1)).textContent=items.filter(x=>x.status===key).length;
-  }
   $("updated").textContent="Metadaten erstellt: "+formatted(payload.created_utc)+" · "+items.length+" Produkte";
-  render();
+  refreshAges();
  }catch(e){
   items=[];
   $("updated").textContent="Datenstände derzeit nicht verfügbar: "+e.message;
@@ -175,6 +193,7 @@ async function refresh(){
 }
 for(const id of ["filterGroup","filterStatus","filterSearch"])$(id).addEventListener(id==="filterSearch"?"input":"change",render);
 $("refresh").addEventListener("click",refresh);
+setInterval(()=>{if(items.length)refreshAges();},60000);
 refresh();
 </script>
 </body>

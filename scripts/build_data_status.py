@@ -12,6 +12,8 @@ import argparse
 import base64
 import math
 import re
+import time
+from http.client import HTTPException
 from concurrent.futures import ThreadPoolExecutor
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
@@ -41,7 +43,7 @@ def valid_date(value):
 
 
 def result(id, label, group, date_value, updated, coverage, note="", cadence="daily",
-           allowed_delay=5, incomplete=False):
+           allowed_delay=5, incomplete=False, expires_utc=None):
     today = datetime.now(timezone.utc).date()
     latest = valid_date(date_value)
     if not latest:
@@ -56,7 +58,7 @@ def result(id, label, group, date_value, updated, coverage, note="", cadence="da
                 timestamp = timestamp.replace(tzinfo=timezone.utc)
             delta = (datetime.now(timezone.utc) - timestamp).total_seconds() / 3600
             lag = round(max(0, delta), 1)
-            status = "unknown" if delta < -1 else ("delayed" if lag > allowed_delay else "current")
+            status = "unknown" if delta < -1 else ("delayed" if delta > allowed_delay else "current")
         except ValueError:
             lag, status = None, "unknown"
     elif cadence == "monthly":
@@ -65,6 +67,8 @@ def result(id, label, group, date_value, updated, coverage, note="", cadence="da
     else:
         lag = (today - latest).days
         status = "delayed" if lag > allowed_delay else "current"
+    if expires_utc and status != "unknown" and datetime.now(timezone.utc) >= datetime.fromisoformat(expires_utc):
+        status = "delayed"
     if incomplete and status == "current":
         status = "incomplete"
     return {
@@ -73,7 +77,32 @@ def result(id, label, group, date_value, updated, coverage, note="", cadence="da
         "updated": updated if isinstance(updated, str) else None,
         "coverage": str(coverage), "note": note,
         "cadence": cadence, "lag": lag, "status": status,
+        "allowed_delay": allowed_delay, "incomplete": bool(incomplete), "expires_utc": expires_utc,
     }
+
+
+def fetch_archive_json(url):
+    """Retry transient source/network failures, but not missing or private archives."""
+    for attempt in range(3):
+        try:
+            req = Request(url, headers={"User-Agent": "ClimateDashboard-Status/1"})
+            with urlopen(req, timeout=12) as response:
+                data = response.read(24 * 1024 * 1024 + 1)
+            if not data or len(data) > 24 * 1024 * 1024:
+                raise ValueError("Archive size not supported")
+            obj = json.loads(data)
+            if not isinstance(obj, dict):
+                raise ValueError("Archive metadata is not an object")
+            return obj
+        except HTTPError as exc:
+            if exc.code != 429 and not 500 <= exc.code < 600:
+                raise
+            if attempt == 2:
+                raise
+        except (OSError, URLError, TimeoutError, HTTPException):
+            if attempt == 2:
+                raise
+        time.sleep(2 ** attempt)
 
 
 def external_archives():
@@ -104,18 +133,10 @@ def external_archives():
     def fetch(item):
         name, suffix = item
         try:
-            req = Request(base + suffix, headers={"User-Agent": "ClimateDashboard-Status/1"})
-            with urlopen(req, timeout=12) as response:
-                # Reject unexpectedly huge or empty payloads, without breaking deployment.
-                data = response.read(24 * 1024 * 1024 + 1)
-            if not data or len(data) > 24 * 1024 * 1024:
-                raise ValueError("Archive size not supported")
-            obj = json.loads(data)
-            if not isinstance(obj, dict):
-                raise ValueError("Archive metadata is not an object")
-            print(f"Externer Datenbestand {name}: geladen ({len(data)} Bytes)")
+            obj = fetch_archive_json(base + suffix)
+            print(f"Externer Datenbestand {name}: geladen")
             return name, obj
-        except (OSError, ValueError, HTTPError, URLError, TimeoutError) as exc:
+        except (OSError, ValueError, HTTPError, URLError, TimeoutError, HTTPException) as exc:
             print(f"Externer Datenbestand {name}: nicht prüfbar ({type(exc).__name__})")
             return name, None
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -252,13 +273,14 @@ def add_external(items, remote):
         last = days[-1].get("date") if days and isinstance(days[-1], dict) else "–"
         missing_note = (f" · Fehlende Stadtwerte: {', '.join(missing[:5])}" +
                         (" …" if len(missing) > 5 else "")) if missing else ""
+        expires_utc = (datetime.fromisoformat(cycle_date.replace("Z", "+00:00")) + timedelta(hours=18)).isoformat() if mode == "tmin" and cycle_date else None
         items.append(result("europe_" + mode, title, "Vorhersagen",
             cycle_date, archive.get("built_utc"),
             f"{len(days)}/5 Tage · {min(valid_counts, default=0)}–{max(valid_counts, default=0)}/31 Städte · "
             f"Raster mindestens {min((round(day.get('coverage', 0)*100) for day in days if isinstance(day, dict)), default=0)} %",
             f"ICON-Modelllauf {cycle or '–'} · Prognosen {first} bis {last}{missing_note} · "
             "Datenbranch-Manifest, kein Browser-Bildtest",
-            cadence="hourly", allowed_delay=24, incomplete=not good))
+            cadence="hourly", allowed_delay=24, incomplete=not good, expires_utc=expires_utc))
 
     fast = remote.get("fast_live")
     if isinstance(fast, dict) and fast.get("station_count", 0) > 0:
@@ -447,6 +469,34 @@ def add_extended_products(items, remote):
                 if obj(products.get(p)).get("map_ok") is True and genuine_timestamp(obj(products.get(p)).get("latest_verified_time"))]
     emit("satellite_mtg", "EUMETSAT · MTG-Satellitenbilder", "Europa", data, min(verified, key=genuine_timestamp) if verified else None,
          f"{len(verified)}/4 Kernprodukte bestätigt", "Älteste bestätigte Bildzeit der vier Produkte, nicht Prüfzeit", len(verified)==4, cadence="hourly", delay=3)
+
+    for key, path, title in (
+        ("snow_eurasia", "eurasia_snow/index.json", "Schneebedeckung Eurasien"),
+        ("snow_europe", "eurasia_snow/europe_index.json", "Schneebedeckung Europa"),
+    ):
+        data = obj(read_json(path))
+        daily = {d: v for d, v in obj(data.get("daily")).items() if valid_date(d) and finite(v)}
+        latest = max(daily, default=None)
+        emit(key, title, "Schnee", data, latest, f"{len(daily)} Beobachtungstage",
+             "NOAA/NSIDC IMS · beobachtete Schneefläche", data.get("schema")==1 and latest is not None and latest == data.get("observed_latest"), delay=3)
+    data = obj(read_json("eurasia_snow/maps/index.json"))
+    maps = [m for m in arr(data.get("maps")) if isinstance(m,dict) and valid_date(m.get("date"))
+            and all(isinstance(m.get(k),str) and m[k] for k in ("cover","anomaly","europe_cover","europe_anomaly"))]
+    latest = max((m["date"] for m in maps),default=None)
+    emit("snow_maps", "Schneebedeckung · Karten und Abweichung", "Schnee", data, latest,
+         f"{len(maps)} vollständige Kartentage · Europa und Eurasien", "IMS-Schneefläche und Abweichung · Datenstand der vollständigen vier Karten",
+         data.get("schema")==1 and latest is not None and latest == data.get("latest"), delay=3)
+
+    data = obj(read_json("data/dmi_greenland_stations.json"))
+    active = {s.get("id") for s in arr(data.get("stations")) if isinstance(s,dict) and s.get("status")=="Active" and isinstance(s.get("id"),str) and s.get("id")}
+    observed = {sid: max((v["date"] for v in obj(values).values() if isinstance(v,dict) and valid_date(v.get("date")) and finite(v.get("value"))),default=None)
+                for sid,values in obj(data.get("latest")).items() if sid in active}
+    latest = max((v for v in observed.values() if v), default=None)
+    cutoff = (datetime.now(timezone.utc).date()-timedelta(days=3)).isoformat()
+    fresh = sum(v is not None and v>=cutoff for v in observed.values())
+    emit("dmi_greenland", "DMI · Grönland-Stationen", "Arktis", data, latest,
+         f"{fresh}/{len(active)} aktive Stationen mit Werten der letzten drei Tage",
+         "Tatsächliche Stationsbeobachtungen, nicht Ende des Abfragefensters", bool(active) and fresh/len(active)>=.8 and not data.get("fetch_errors"), delay=3)
 
     data = obj(remote.get("strato_ifs")); runs = [r for r in arr(data.get("runs")) if isinstance(r, dict)]
     run = max(runs, key=lambda r: str(r.get("cycle_utc", "")), default={})

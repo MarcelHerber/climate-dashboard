@@ -63,7 +63,16 @@ class EuropeTminTests(unittest.TestCase):
             self.assertEqual(fetch.call_count,2)
             sleep.assert_called_once_with(600)
 
-    def test_wait_for_cycle_stops_after_three_attempts(self):
+    def test_wait_for_cycle_tolerates_dwd_full_run_appearing_after_40_minutes(self):
+        now=datetime(2026,11,15,14,54,tzinfo=timezone.utc)
+        with patch.object(app,"datetime",wraps=datetime) as clock, \
+                patch.object(app,"request_bytes",side_effect=[RuntimeError("HTTP 404")]*5+[b"BZhready"]), \
+                patch.object(app.time,"sleep") as sleep:
+            clock.now.return_value=now
+            self.assertEqual(app.wait_for_cycle(),datetime(2026,11,15,12,tzinfo=timezone.utc))
+            self.assertEqual(sleep.call_count,5)
+
+    def test_wait_for_cycle_stops_after_twelve_attempts(self):
         now=datetime(2026,10,24,16,tzinfo=timezone.utc)
         with patch.object(app,"datetime",wraps=datetime) as clock, \
                 patch.object(app,"request_bytes",side_effect=RuntimeError("HTTP 404")) as fetch, \
@@ -71,8 +80,8 @@ class EuropeTminTests(unittest.TestCase):
             clock.now.return_value=now
             with self.assertRaises(RuntimeError):
                 app.wait_for_cycle()
-            self.assertEqual(fetch.call_count,3)
-            self.assertEqual(sleep.call_count,2)
+            self.assertEqual(fetch.call_count,12)
+            self.assertEqual(sleep.call_count,11)
 
     def test_wait_for_cycle_stops_when_first_morning_elapses(self):
         early=datetime(2026,10,24,5,55,tzinfo=timezone.utc)
