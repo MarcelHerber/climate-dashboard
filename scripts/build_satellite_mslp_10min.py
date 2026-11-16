@@ -158,7 +158,7 @@ def frame_from_grids(grids, run, forecast_minute):
     }
 
 
-def build_10min(grids, run, generated_at, root):
+def build_10min(grids, run, generated_at, root, advection_grids=None):
     """Commit immutable run directory first, then index atomically as last write."""
     if set(grids) != set(MODEL_STEPS_HOURS):
         raise ValueError("All verified ECMWF IFS source steps are required")
@@ -173,6 +173,10 @@ def build_10min(grids, run, generated_at, root):
         fine_frames = []
         for minute in range(hour*60, min((hour+1)*60, MAX_HOURS*60+1), 10):
             full = frame_from_grids(grids, run, minute)
+            if advection_grids is not None:
+                from satellite_temperature_advection import METHOD, frame_markers
+                full['temperature_advection'] = frame_markers(advection_grids, minute)
+                full['advection_method'] = METHOD
             fine = full.pop("fine_contours")
             frames.append(full)
             fine_frames.append({**full, "contours": fine})
@@ -224,6 +228,11 @@ def build_10min(grids, run, generated_at, root):
         "fine_regions": list(FINE_REGIONS),
         "fine_bbox": list(EUROPE_BBOX),
     }
+    if advection_grids is not None:
+        from satellite_temperature_advection import METHOD, LEVELS
+        index.update(advection_algorithm=METHOD, advection_levels=list(LEVELS),
+                     advection_units='K/6h (instantaneous tendency)',
+                     advection_threshold=2)
     tmp = root/"index.tmp"
     tmp.write_text(json.dumps(index, separators=(",", ":"), ensure_ascii=False)+"\n", encoding="utf-8")
     tmp.replace(root/"index.json")

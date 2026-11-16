@@ -688,6 +688,7 @@ async function downloadPNG(){
 }
 // Extra composite exports preserve the original PNG/GIF buttons.
 const composite=window.SatelliteMapExport;
+function selectedAdvectionLevel(){return document.querySelector?.('#satShowAdvection')?.checked?Number(document.querySelector('#satAdvectionLevel')?.value)||850:null;}
 function exportTime(){
  if(!filmImage.hidden&&filmItems[filmPosition])return filmItems[filmPosition].time;
  if(cachedImage?.time)return cachedImage.time;
@@ -756,7 +757,7 @@ async function downloadComposite(format){
  exportBusy=true;buttons();
  try{
   setStatus("Erzeuge "+format.toUpperCase()+" mit pinken Isobaren und UTC-Kennzeichnung …","info");
-  const overlay=await window.SatelliteIsobars.exportAt(t,place,Number(id("satIsobarSpacing").value)||5);
+  const overlay=await window.SatelliteIsobars.exportAt(t,place,Number(id("satIsobarSpacing").value)||5,{advectionLevel:selectedAdvectionLevel()});
   const fronts=window.SatelliteFrontsPaused===true?null:(await window.SatelliteNOAAFronts?.exportAt?.(t,place)||null);
   const img=await exportPixels(t);
   const arg={image:img,overlay,fronts,region:place,regionName:REGIONS[place].name,product:product.value,
@@ -776,11 +777,11 @@ async function downloadGIFIsobars(){
  if(filmPlaying)stop(false);
  exportBusy=true;buttons();
  try{
-  const selected=filmItems.slice(),place=region.value,overlays=[],frontOverlays=[];
+  const selected=filmItems.slice(),place=region.value,overlays=[],frontOverlays=[],advectionLevel=selectedAdvectionLevel();
   for(let i=0;i<selected.length;i++){
    setStatus("Lade 10-Minuten-Isobaren für GIF: "+(i+1)+"/"+selected.length,"info");
    overlays.push(await window.SatelliteIsobars.exportAt(
-    selected[i].time,place,Number(id("satIsobarSpacing").value)||5,{strictTenMinute:true}));
+    selected[i].time,place,Number(id("satIsobarSpacing").value)||5,{strictTenMinute:true,advectionLevel}));
    frontOverlays.push(window.SatelliteFrontsPaused===true?null:(await window.SatelliteNOAAFronts?.exportAt?.(selected[i].time,place)||null));
   }
   const withFronts=window.SatelliteFrontsPaused!==true&&frontOverlays.some(Boolean);
@@ -790,7 +791,7 @@ async function downloadGIFIsobars(){
    width:Math.min(480,Number(filmQuality.value)||320),delayMs:Number(filmSpeed.value)||750,
    progress:(n,total)=>setStatus("GIF mit pinken Isobaren: "+n+"/"+total,"info")
   });
-  result.name=result.name.replace(/\.gif$/,withFronts?"_isobaren_noaa_fronten.gif":"_isobaren.gif");
+  result.name=result.name.replace(/\.gif$/,(withFronts?"_isobaren_noaa_fronten":"_isobaren")+(advectionLevel?"_wla_kla_"+advectionLevel+"hpa":"")+".gif");
   const size=exporters.download(result);
   setStatus("GIF mit echten zeitlich zugeordneten Isobaren"+(withFronts?" und NOAA-WPC-Frontlinien":"")+
    " gespeichert ("+selected.length+" Bilder · "+(size/1048576).toFixed(1)+" MB).","info");

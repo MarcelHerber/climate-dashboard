@@ -189,6 +189,7 @@ def main():
     now = dt.datetime.now(UTC)
     errors = []
     from build_satellite_mslp_10min import build_10min
+    from satellite_temperature_advection import METHOD as ADVECTION_METHOD, retrieve as retrieve_advection
     for run in candidate_runs(now):
         try:
             # Re-running an unchanged cycle must not waste compute or commits.
@@ -199,6 +200,7 @@ def main():
                 if (previous.get("run_utc")==valid_run and manifest.get("run_utc")==valid_run
                         and manifest.get("schema_version")==2
                         and manifest.get("pressure_centers_algorithm")==ALGORITHM
+                        and manifest.get("advection_algorithm")==ADVECTION_METHOD
                         and previous.get("pressure_centers_algorithm")==ALGORITHM
                         and len(manifest.get("hours", {}))==19
                         and manifest.get("fine_interval_hpa")==2
@@ -213,11 +215,17 @@ def main():
                 path = Path(tmp)/"ifs_msl.grib2"
                 fetch_grib(run, path)
                 grids = decode_grib(path, run)
+                try:
+                    advection_grids = retrieve_advection(run, Path(tmp)/"ifs_advection.grib2")
+                except Exception as exc:
+                    # Preserve the pressure product when the additional fields fail.
+                    logging.warning("Advection not available for pressure run %s: %s", run, exc)
+                    advection_grids = None
             payload = build_payload(grids, run, now)
             age_h = (now-run).total_seconds()/3600
             if age_h > MAX_AGE_HOURS:
                 raise ValueError("Selected model run too old")
-            ten_index = build_10min(grids, run, now, args.ten_minute_dir)
+            ten_index = build_10min(grids, run, now, args.ten_minute_dir, advection_grids=advection_grids)
             args.out.parent.mkdir(parents=True, exist_ok=True)
             target = args.out.with_suffix(".tmp")
             target.write_text(json.dumps(payload, ensure_ascii=False, separators=(",",":"), allow_nan=False)+"\n", encoding="utf-8")

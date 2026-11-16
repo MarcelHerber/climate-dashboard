@@ -36,6 +36,7 @@ function loaded(){
   console
  };
  vm.runInNewContext(geometry,scope,{timeout:5000});
+ vm.runInNewContext(fs.readFileSync('satellite_advection.js','utf8'),scope,{timeout:5000});
  vm.runInNewContext(content,scope,{timeout:5000});
  vm.runInNewContext(film,scope,{timeout:5000});
  return {api:scope.window.SatelliteMapExport,film:scope.window.SatelliteFilmExport,calls,textCalls,pressurePaint,ctx};
@@ -43,6 +44,27 @@ function loaded(){
 const options={image:{naturalWidth:180,naturalHeight:100},
  overlay:sourceOverlay,region:"southwest",regionName:"Südwesteuropa",
  product:"geocolour",productName:"GeoColour",credit:"EUMETSAT"};
+
+test('WLA and KLA are shared editable vector labels and colored canvas arrows',async()=>{
+ const {api,film,calls,textCalls,ctx}=loaded();
+ const overlay={...sourceOverlay,advectionLevel:850,advectionMarkers:[
+  {lon:-7,lat:36,advection:6,u:5,v:10},{lon:-26,lat:47,advection:-4,u:10,v:-6}]};
+ api.paintIsobars(ctx,overlay,'southwest',{width:900,height:600});
+ assert.ok(calls.some(x=>x.color==='#ff515d'));
+ assert.ok(calls.some(x=>x.color==='#53b9ff'));
+ assert.ok(textCalls.includes('WLA')&&textCalls.includes('KLA'));
+ const result=await api.renderPDF({...options,image:{naturalWidth:900,naturalHeight:600},overlay});
+ const pdf=Buffer.from(await result.blob.arrayBuffer()).toString('latin1');
+ assert.match(pdf,/\(WLA\) Tj/);assert.match(pdf,/\(KLA\) Tj/);
+ assert.match(pdf,/850 hPa/);assert.match(result.name,/_wla_kla_850hpa.pdf$/);
+ const png=await api.renderPNG({...options,image:{naturalWidth:900,naturalHeight:600},overlay});
+ assert.match(png.name,/_wla_kla_850hpa.png$/);
+ const t2='2026-11-12T03:30:00Z';
+ const resultGif=await film.exportGIF({frames:[overlay.satelliteUTC,t2].map(time=>({time,img:{naturalWidth:900,naturalHeight:600}})),
+  isobarOverlays:[overlay,{...overlay,validUTC:t2,satelliteUTC:t2}],region:'southwest',product:'geocolour',productName:'GeoColour',width:480,delayMs:400});
+ assert.equal(Buffer.from(await resultGif.blob.arrayBuffer()).subarray(0,6).toString(),'GIF89a');
+ assert.ok(textCalls.filter(x=>x==='WLA').length>=4&&textCalls.filter(x=>x==='KLA').length>=4);
+});
 
 test("Only 1015 hPa is bold; all visible isobars remain pink with a dark halo",()=>{
  const {api,calls}=loaded();
@@ -236,8 +258,8 @@ test("Only H/T font sizes are exactly +50% on desktop/mobile, Canvas, GIF and ed
  assert.match(css,/sat-pressure-center\{\s*font-family:[^}]*font-size:40\.5px;font-weight:750/);
  assert.match(css,/@media\(max-width:650px\)\{\.sat-pressure-center\{font-size:37\.5px\}/);
  assert.match(css,/font-size:40\.5px;font-weight:750;\s*stroke:#15283b;stroke-width:2\.1px/);
- assert.match(html,/satelliten\.css\?v=20261114-info-accordions1/);
- assert.match(html,/satellite_map_export\.js\?v=20261116-grid-centers4/);
+ assert.match(html,/satelliten\.css\?v=20261116-advection1/);
+ assert.match(html,/satellite_map_export\.js\?v=20261116-advection1/);
  const {api,ctx,pressurePaint}=loaded();
  const fixture=JSON.parse(fs.readFileSync(
   "tests/fixtures/satellite_mslp_20261114_1040_missing_low.json","utf8"));

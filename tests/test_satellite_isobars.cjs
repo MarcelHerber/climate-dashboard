@@ -18,9 +18,10 @@ class FakeElement{
  appendChild(item){this.children.push(item);}
  replaceChildren(...items){this.children=items;}
 }
-function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=13,fineMode=false,holdFine=false,centerMethod}={}){
+function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=13,fineMode=false,holdFine=false,centerMethod,advection=false}={}){
  const names=["satIsobarSvg","satShowIsobars","satIsobarSpacing","satIsobarStatus","satRetryIsobars","satRegion","satSource"];
  const map=new Map(names.map(x=>[x,new FakeElement()]));
+ if(advection){for(const name of ['satShowAdvection','satAdvectionLevel','satAdvectionSvg','satAdvectionStatus'])map.set(name,new FakeElement());map.get('satAdvectionLevel').value='850';}
  map.get("satRegion").value="southwest";
  map.get("satSource").value="mtgi1";
  map.get("satIsobarSpacing").value="5";
@@ -38,7 +39,7 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
   frames:[0,3,6,9,12].map(frame)};
  let calls=0,releaseFine;const chunkUrls=[];
  const fineGate=holdFine?new Promise(resolve=>{releaseFine=resolve;}):null;
- const sandbox={document:{getElementById:x=>{assert.ok(map.has(x),"missing node "+x);return map.get(x);},
+ const sandbox={document:{getElementById:x=>{assert.ok(map.has(x),"missing node "+x);return map.get(x);},querySelector:s=>map.get(s.slice(1)),
   createElementNS:()=>new FakeElement(),createDocumentFragment:()=>new FakeElement()},
   window:{},Date,console:{warn(){}},fetch:async(url)=>{
    calls++;
@@ -49,6 +50,7 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
      time_resolution_minutes:10,source_interval_hours:3,
      run_utc:iso(run),generated_at:iso(now),
      ...(centerMethod?{pressure_centers_algorithm:centerMethod}:{}),
+     ...(advection?{advection_algorithm:'ifs_temperature_advection_v1'}:{}),
      hours:Object.fromEntries(Array.from({length:tenHours},(_,h)=>[
       "h"+String(h).padStart(2,"0"),
       "r"+run.toISOString().slice(0,13).replace(/[-T:]/g,"")+"/h"+String(h).padStart(2,"0")+".json"
@@ -74,6 +76,7 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
      return {valid_utc:iso(new Date(run.getTime()+minute*60000)),
       forecast_minute:minute,interpolated:minute%180!==0,
       ...(centerMethod?{pressure_centers_method:centerMethod,pressure_centers:[{type:"H",lon:-18,lat:45,pressure_hpa:1032,prominence_hpa:7,score:50}]}:{}),
+      ...(advection?{advection_method:'ifs_temperature_advection_v1',temperature_advection:{850:[{lon:-8,lat:38,advection:6,u:5,v:10}],925:[],700:[]}}:{}),
       contours:fine?[
        {hpa:1000,lines:frame(3).contours[0].lines},
        {hpa:1002,lines:frame(3).contours[1].lines},
@@ -91,9 +94,22 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
    return {ok:true,json:async()=>data};
   }};
  vm.runInNewContext(geom,sandbox,{timeout:1000});
+ vm.runInNewContext(fs.readFileSync('satellite_advection.js','utf8'),sandbox,{timeout:1000});
  vm.runInNewContext(src,sandbox,{timeout:1000});
  return {map,data,api:sandbox.window.SatelliteIsobars,run,getCalls:()=>calls,releaseFine:()=>releaseFine?.(),chunkUrls,setCenterMethod:m=>{centerMethod=m;}};
 }
+test('selected advection is taken from the same ten-minute pressure frame and draws independently',async()=>{
+ const {api,map,run}=fixture({tenMinutes:true,advection:true});
+ const at=new Date(run.getTime()+200*60000).toISOString();
+ await ready(api);api.sync({time:at,region:'southwest',source:'mtgi1'});
+ const overlay=await api.exportAt(at,'southwest',5,{advectionLevel:850});
+ assert.equal(overlay.advectionLevel,850);
+ assert.equal(overlay.advectionMarkers[0].advection,6);
+ map.get('satShowIsobars').checked=false;map.get('satShowIsobars').emit('change');
+ assert.equal(map.get('satAdvectionSvg').hidden,false);
+ assert.equal(map.get('satIsobarSvg').hidden,true);
+ await assert.rejects(api.exportAt(at,'southwest',5,{advectionLevel:999}),/Advektion/);
+});
 async function ready(api){
  for(let i=0;i<20;i++){if(api.frameFor(new Date().toISOString()))return;await new Promise(resolve=>setTimeout(resolve,3));}
  throw Error("MSLP fixture not loaded");

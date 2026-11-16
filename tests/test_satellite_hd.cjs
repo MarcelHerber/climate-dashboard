@@ -140,6 +140,18 @@ test("HD raster and vector PDF apply chosen layers only after all exact-time til
  for(const id of ["satHDExportBorders","satHDExportCities","satHDExportIsobars"])
   assert.ok(html.includes('id="'+id+'"'));
 });
+test('HD sends the selected advection level to the UTC-matched composite and can paint only advection',async()=>{
+ const a=setup(),q=a.els.get('satStillQuality');q.value='hd';
+ a.els.set('satShowAdvection',{checked:true});a.els.set('satAdvectionLevel',{value:'700'});
+ let requested,painted=0;
+ a.context.window.SatelliteIsobars.exportAt=async(time,place,spacing,opts)=>{requested=opts;return {satelliteUTC:time,validUTC:time,advectionLevel:700,advectionMarkers:[]};};
+ a.context.window.SatelliteMapExport.paintAdvection=()=>painted++;
+ a.context.window.SatelliteHD.sync(live());
+ await until(()=>a.els.get('satHDTiles').children.length===6,'HD ready');
+ await a.context.window.SatelliteHD.exportImage('png');
+ assert.equal(requested?.advectionLevel,700);assert.equal(painted,1);
+ assert.equal(a.alerts.paintIsobars,0);
+});
 test("Non-divisible edge tile geographic coordinates match exact pixel raster",async()=>{
  const a=setup(),q=a.els.get("satStillQuality");q.value="hd";
  a.context.window.SatelliteHD.sync(live());

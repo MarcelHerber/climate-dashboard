@@ -81,7 +81,8 @@ function renderer(input,width){
  const ratio=(first?.naturalHeight||first?.height)/(first?.naturalWidth||first?.width);
  if(!Number.isFinite(ratio)||ratio<=0)throw new Error("Filmbilder nicht bereit");
  const fullHD=Boolean(input.fullHD);
- const header=44,footer=input.isobarOverlays?(input.frontOverlays?68:52):32;
+ const hasAdvection=input.isobarOverlays?.some(layer=>layer?.advectionLevel);
+ const header=44,footer=input.isobarOverlays?(input.frontOverlays?68:52)+(hasAdvection?18:0):32;
  const mapWidth=fullHD?Math.min(width,Math.floor((1080-header-footer)/ratio)):width;
  const mapHeight=Math.round(mapWidth*ratio);
  const mapX=fullHD?Math.round((width-mapWidth)/2):0;
@@ -122,11 +123,12 @@ function renderer(input,width){
    const layer=input.isobarOverlays[frameIndex];
    ctx.fillStyle="#c6a2bb";
    ctx.fillText("ECMWF IFS · "+(layer.spacing||5)+" hPa · "+layer.method+" · "+new Date(layer.validUTC).toISOString().slice(11,16)+" UTC",12,header+mapHeight+39,width-24);
+   if(layer.advectionLevel){ctx.fillStyle='#ffffff';ctx.fillText('WLA/KLA · '+layer.advectionLevel+' hPa · ab 2 K/6h',12,header+mapHeight+54,width-24);}
   }
   const front=input.frontOverlays?.[frameIndex];
   if(front){
    ctx.fillStyle="#aee4ff";
-   ctx.fillText("NOAA WPC · Analyse "+new Date(front.valid_utc).toISOString().slice(11,16)+" UTC · Symbolseiten schematisch",12,header+mapHeight+56,width-24);
+   ctx.fillText("NOAA WPC · Analyse "+new Date(front.valid_utc).toISOString().slice(11,16)+" UTC · Symbolseiten schematisch",12,header+mapHeight+56+(hasAdvection?18:0),width-24);
   }
  }
  return {canvas,ctx,draw};
