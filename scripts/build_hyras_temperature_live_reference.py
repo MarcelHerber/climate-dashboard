@@ -12,6 +12,10 @@ from matplotlib.patches import Rectangle
 import numpy as np
 from PIL import Image
 import requests, xarray as xr
+try:
+    from scripts.hyras_temperature_raster import publish as publish_raster
+except ModuleNotFoundError:
+    from hyras_temperature_raster import publish as publish_raster
 
 REF_START=1991; REF_END=2020; MISSING=-32768; SCALE=100
 UA="climate-dashboard-hyras-live-reference/1.0 (+GitHub Actions; DWD Open Data)"
@@ -226,10 +230,11 @@ def process(root,cache,work,c,reference_only=False,month_override=None):
         if end!=through: continue
         if c.key=="tmean" and not bool(p.get("live")): continue
         mi=maps.setdefault("periods",{}).setdefault(key,{"label":p.get("label",key)})
-        if c.key!="tmean" and mi.get("anomaly"): continue
+        if c.key!="tmean" and mi.get("anomaly") and mi.get("raster_by_reference",{}).get("1991-2020"): continue
         start=str(p["start_date"]); cur,x,y=current_mean(current,c,start,end)
         if not same_grid(x,y,ex,ey): raise RuntimeError(f"{c.key}: aktuelles Raster passt nicht")
         ref=period_ref(c,start,end,daily_ref,work,ex,ey); anomaly=cur-ref; rel=f"download_maps/{key}_anomaly.png"; render(anomaly,root/c.key/rel,c,str(p.get("label",key)),start,end,ov); mi["anomaly"]=rel; mi["reference_exact"]=True; mi["reference_note"]="Tagesgenauer Vergleich mit demselben Kalenderabschnitt des HYRAS-Mittels 1991–2020."
+        publish_raster(root/c.key,mi,key,"1991-2020",anomaly,start,end)
         if c.key=="tmean":
             arel=f"current/{key}_anomaly.i16.gz"; qwrite(root/"tmean"/arel,anomaly); p["anomaly"]=arel; p["reference_exact"]=True; p["reference_note"]=mi["reference_note"]; p.setdefault("stats",{})["reference_mean_c"]=round(float(np.nanmean(ref)),2); p["stats"]["anomaly_mean_k"]=round(float(np.nanmean(anomaly)),2)
         print(f"{c.label}: Live-Anomalie {key}",flush=True)
@@ -245,3 +250,4 @@ def main():
     return 0
 
 if __name__=="__main__": raise SystemExit(main())
+

@@ -12,6 +12,7 @@ from matplotlib.patches import Rectangle
 import numpy as np
 from PIL import Image
 import requests, xarray as xr
+from hyras_temperature_raster import publish as publish_raster
 from build_hyras_tmax_regions import DAILY_BASE, USER_AGENT, download, latest_daily_files, pick_var, prepare_da, to_celsius
 
 CLIM_BASE="https://opendata.dwd.de/climate_environment/CDC/grids_germany/multi_annual/hyras_de/air_temperature_max"
@@ -118,7 +119,8 @@ def main():
     if not nc.exists(): download(f"{DAILY_BASE}/{fn}",nc)
     with xr.open_dataset(nc,decode_times=True) as ds: daily,td,x,y=prepare_da(ds); daily=daily.load()
     out=troot/"download_maps"; out.mkdir(parents=True,exist_ok=True)
-    for old in out.glob("*.png"): old.unlink()
+    previous_path=regions/"map_downloads.json"
+    previous=json.loads(previous_path.read_text(encoding="utf-8")).get("periods",{}) if previous_path.exists() else {}
     climtext=listing(CLIM_BASE); overlay=boundary_overlay(root); result={}
     for p in idx.get("periods",[]):
         key=str(p["key"]); label=str(p.get("label",key)); start=str(p["start_date"]); end=str(p["end_date"]); cur=period_current_mean(daily,td,start,end)
@@ -126,10 +128,21 @@ def main():
         item={"label":label,"absolute":arel,"start_date":start,"end_date":end}; months=complete_reference_months(p)
         if months:
             ref=reference_for_months(months,year,work,climtext,x,y); anomaly=cur-ref; rel=f"download_maps/{key}_anomaly.png"; render_map(north_up_for_display(anomaly,x,y),overlay,troot/rel,f"HYRAS Tmax · {label}",f"Abweichung zum Mittel 1991–2020 · {start} bis {end}","anomaly"); item["anomaly"]=rel; item["reference_exact"]=True
+            publish_raster(troot,item,key,"1991-2020",north_up_for_display(anomaly,x,y),start,end)
         else:
             item["reference_exact"]=False; item["reference_note"]="Für laufende Teilmonate/-jahreszeiten wird keine Rasteranomalie veröffentlicht; die Gebietskurve nutzt weiterhin die tagesgenaue 1991–2020-Referenz."
+        old=previous.get(key,{})
+        if old.get("start_date")==start and old.get("end_date")==end:
+            old_png=old.get("anomaly_by_reference",{}).get("1961-1990")
+            if old_png and (troot/old_png).exists(): item.setdefault("anomaly_by_reference",{})["1961-1990"]=old_png
+            old_raster=old.get("raster_by_reference",{}).get("1961-1990")
+            if old_raster and (troot/old_raster).exists() and old.get("raster_dates_by_reference",{}).get("1961-1990")==[start,end]:
+                item.setdefault("raster_by_reference",{})["1961-1990"]=old_raster
+                item.setdefault("raster_dates_by_reference",{})["1961-1990"]=[start,end]
+                item.setdefault("raster_grid",old["raster_grid"])
         result[key]=item; print(f"Tmax Downloadkarte {key}: absolut"+(" + Anomalie" if "anomaly" in item else ""),flush=True)
     manifest={"schema_version":1,"parameter":"tmax","reference":"1991-2020","data_through":idx.get("data_through"),"periods":result}; mp=regions/"map_downloads.json"; mp.write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding="utf-8"); idx["map_downloads_file"]=mp.name; ip.write_text(json.dumps(idx,ensure_ascii=False,indent=2),encoding="utf-8")
     print("Tmax-Kartendownloads fertig.",flush=True); print("Perioden:",len(result),flush=True); print("Mit exakter Anomaliekarte:",sum(1 for i in result.values() if i.get("anomaly")),flush=True); return 0
 
 if __name__=="__main__": raise SystemExit(main())
+
