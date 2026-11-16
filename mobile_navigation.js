@@ -35,6 +35,7 @@
     {id:"tools",name:"Sonstiges",items:[
       ["saharastaub.html","Saharastaub · ICON-ART"],
       ["gfs_f003_europe.html","GFS +3 h · CFSR 1991–2020"],["gfs_weekly_europe.html","GFS · 7-Tage-Temperaturanomalie"],["ifs_weekly_europe.html","ECMWF IFS · 7-Tage-Temperaturanomalie"],
+      ["ifs_weekly_arctic.html","ECMWF IFS · Arktis / Nordpol"],
       ["satelliten.html","Satelliten · MTG"],
       ["compare","Vergleiche"],["datenstatus.html","Datenstatus"],["__alpenwetter__","Alpenwetter · geschützt"]]}
   ];
