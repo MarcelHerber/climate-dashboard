@@ -18,6 +18,7 @@ import xarray as xr
 
 import scripts.update_hyras_maps as precip
 import scripts.build_hyras_temperature_live_reference as temp
+from scripts.hyras_temperature_raster import publish as publish_raster
 
 REFERENCE_PERIODS = ((1991, 2020), (1961, 1990))
 DEFAULT_REFERENCE = (1991, 2020)
@@ -528,6 +529,7 @@ def build_temperature_reference(
         by_ref[label] = rel
         map_info["anomaly_by_reference"] = by_ref
         map_info["references"] = [reference_label(x) for x in REFERENCE_PERIODS]
+        publish_raster(data_root / c.key, map_info, key, label, anomaly, start_s, end_s)
 
         if c.key == "tmean":
             raster_rel = f"current/{key}_anomaly_{reference_slug(reference)}.i16.gz"
@@ -609,3 +611,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

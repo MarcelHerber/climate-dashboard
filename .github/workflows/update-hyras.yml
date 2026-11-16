@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/update-hyras.yml"
       - "scripts/build_monthly_provisional.py"
+      - "scripts/hyras_temperature_raster.py"
       - "scripts/add_monthly_provisional_sun.py"
       - "tests/test_monthly_provisional.py"
   workflow_dispatch:
@@ -155,6 +156,7 @@ jobs:
 
       - name: Tagesgenaue Temperatur-Live-Anomalien bauen
         run: |
+          python -m unittest discover -s tests -p test_hyras_temperature_raster.py
           python scripts/build_hyras_temperature_live_reference.py \
             --data-root /tmp/hyras-data \
             --reference-cache /tmp/hyras-temperature-reference-cache \
@@ -301,3 +303,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh workflow run update-data.yml --ref main
+

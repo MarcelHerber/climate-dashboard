@@ -7,6 +7,7 @@ on:
     paths:
       - "scripts/build_hyras_tmax_maps.py"
       - "scripts/build_hyras_tmin_maps.py"
+      - "scripts/hyras_temperature_raster.py"
       - ".github/workflows/rebuild-hyras-temperature-download-maps.yml"
 
 permissions:
@@ -34,6 +35,7 @@ jobs:
             scripts/build_hyras_tmin_maps.py
             scripts/build_hyras_tmin_regions.py
             scripts/build_hyras_tmean_regions.py
+            scripts/hyras_temperature_raster.py
 
       - name: Python einrichten
         uses: actions/setup-python@v5
@@ -100,8 +102,8 @@ jobs:
           cd /tmp/hyras-data
           git config user.name "climate-dashboard-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tmax/download_maps tmax/regions/index.json tmax/regions/map_downloads.json
-          git add tmin/download_maps tmin/regions/index.json tmin/regions/map_downloads.json
+          git add tmax/download_maps tmax/current tmax/regions/index.json tmax/regions/map_downloads.json
+          git add tmin/download_maps tmin/current tmin/regions/index.json tmin/regions/map_downloads.json
           if git diff --cached --quiet; then
             echo "Temperatur-Downloadkarten sind bereits aktuell."
             exit 0
@@ -109,3 +111,4 @@ jobs:
           git commit -m "HYRAS Temperaturkarten nordorientiert aktualisieren"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin HEAD:hyras-data
+

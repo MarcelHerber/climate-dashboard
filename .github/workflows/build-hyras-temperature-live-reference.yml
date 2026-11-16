@@ -3,6 +3,7 @@ name: HYRAS Temperatur Tagesreferenz 1991-2020 bauen
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     paths:
       - "scripts/build_hyras_temperature_live_reference.py"
       - ".github/workflows/build-hyras-temperature-live-reference.yml"
@@ -98,3 +99,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh workflow run update-hyras.yml --ref main --repo "$GITHUB_REPOSITORY"
+

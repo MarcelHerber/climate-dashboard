@@ -166,6 +166,7 @@ required_root_files=(
   dwd_station_daily_map.js
   dwd_station_daily_map.css
   hyras_historical_temperature_1km.js
+  hyras_temperature_interactive.js
   dekadenrekorde.html
   jahresextremwerte.html
   feiertagsextremwerte.html
@@ -1769,4 +1770,5 @@ if [ -s data/rekordlabor/contrast/index.json ]; then
   cp -a data/rekordlabor/contrast/. _site/data/rekordlabor/contrast/
 fi
 du -sh _site
+
 

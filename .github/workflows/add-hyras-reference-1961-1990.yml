@@ -3,8 +3,10 @@ name: HYRAS Referenz 1961-1990 ergänzen
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     paths:
       - "scripts/build_hyras_reference_1961_1990.py"
+      - "scripts/hyras_temperature_raster.py"
       - "scripts/build_hyras_precip_reference_1961_1990_cache.py"
       - "scripts/patch_hyras_reference_period_frontend.py"
       - "tests/test_hyras_reference_periods.py"
@@ -40,7 +42,7 @@ jobs:
           pip install pytest
 
       - name: Referenzlogik testen
-        run: pytest -q tests/test_hyras_reference_periods.py
+        run: pytest -q tests/test_hyras_reference_periods.py tests/test_hyras_temperature_raster.py
 
   reference-cache:
     needs: tests
@@ -269,3 +271,4 @@ jobs:
           git commit -m "HYRAS Referenz 1961-1990 auswählbar machen"
           git pull --rebase origin main
           git push origin HEAD:main
+

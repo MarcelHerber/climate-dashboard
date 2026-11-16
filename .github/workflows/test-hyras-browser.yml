@@ -7,6 +7,9 @@ on:
       - "index.html"
       - "dashboard_theme.css"
       - "tests/test_hyras_browser.py"
+      - "hyras_temperature_interactive.js"
+      - "tests/test_hyras_temperature_map.py"
+      - "tests/test_hyras_temperature_map.cjs"
       - ".github/workflows/test-hyras-browser.yml"
 
 permissions:
@@ -32,6 +35,10 @@ jobs:
           curl --fail http://127.0.0.1:8765/index.html -o /dev/null
       - name: Desktop- und Smartphone-Ansichten prüfen
         run: python tests/test_hyras_browser.py
+      - name: Temperaturkarten-Raster und mobile Bedienung prüfen
+        run: |
+          node --test tests/test_hyras_temperature_map.cjs
+          python tests/test_hyras_temperature_map.py
       - name: Screenshots bereitstellen
         if: always()
         uses: actions/upload-artifact@v4
@@ -40,3 +47,4 @@ jobs:
           path: hyras-browser-snapshots/*.png
           if-no-files-found: warn
           retention-days: 14
+
