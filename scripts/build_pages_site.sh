@@ -151,6 +151,7 @@ required_root_files=(
   gfs_weekly_europe.js
   gfs_weekly_europe.css
   ifs_weekly_europe.html
+  ifs_weekly_arctic.html
   ifs_weekly_europe.js
   gfs_analysis_europe.css
   era5_synoptic.js
@@ -289,6 +290,11 @@ node --check _site/gfs_weekly_europe.js
 # Only publish ECMWF after the exact complete original data are validated.
 python -m unittest discover -s tests -p test_ifs_pages_stage.py -v
 python scripts/stage_ifs_weekly.py ifs_weekly_europe --site _site
+python scripts/stage_ifs_weekly.py ifs_weekly_arctic --domain arctic --site _site
+test -s _site/ifs_weekly_arctic.html
+for file in current.json forecast.json geography.json periods.json current_01.json current_03.json current_05.json current_10.json current_15.json; do
+  test -s "_site/ifs_weekly_arctic/$file"
+done
 node --check _site/ifs_weekly_europe.js
 
 # 30-year-verified wider GFS f003–f165 week: only use exact NOAA field and

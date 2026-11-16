@@ -1,11 +1,27 @@
 import tempfile
 import unittest
+import subprocess
+import re
 from pathlib import Path
 
 from scripts import stage_ifs_weekly
 
 
 class StageTests(unittest.TestCase):
+    def test_arctic_html_is_copied_into_pages_artifact(self):
+        # Exercise the real root-file staging loop with a minimal site.
+        script = (Path(__file__).resolve().parents[1] / 'scripts/build_pages_site.sh').read_text()
+        block = script.split('# Phase 2: add source-specific', 1)[0]
+        root_files = re.search(r'required_root_files=\(\n(.*?)\n\)', block, re.S).group(1).split()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            for name in root_files:
+                (root / name).write_text('stub')
+            (root / 'ifs_weekly_arctic.html').write_text('Arctic map page')
+            subprocess.run(['bash', '-c', block], cwd=root, check=True, capture_output=True)
+            self.assertTrue((root / '_site/ifs_weekly_arctic.html').is_file(),
+                            'Arctic page must be included in the public artifact')
+
     def test_nav_link_only_once_in_desktop_and_mobile(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
