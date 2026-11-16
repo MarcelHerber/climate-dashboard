@@ -22,13 +22,13 @@ permissions:
 
 concurrency:
   group: state-monthly-precip-data
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 105
     steps:
       - name: Repository laden
         uses: actions/checkout@v6
@@ -56,7 +56,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin hyras-data --depth=1
+          git fetch origin +refs/heads/hyras-data:refs/remotes/origin/hyras-data --depth=1
           mkdir -p /tmp/state-monthly-precip
           if ! git show origin/hyras-data:monthly_outlook/observed_precip.json > /tmp/state-monthly-precip/observed_precip.json; then
             echo "HYRAS-Monatsbeobachtungen noch nicht veröffentlicht."
@@ -64,17 +64,30 @@ jobs:
             exit 0
           fi
           export TZ=Europe/Berlin
-          CURRENT_MONTH=$(date +%Y-%m)
-          OBS_MONTH=$(python - <<'PY'
-          import json
-          print(json.load(open('/tmp/state-monthly-precip/observed_precip.json'))['month'])
+          READY=$(python - <<'PY'
+          import calendar, json
+          from datetime import date, timedelta
+          doc=json.load(open('/tmp/state-monthly-precip/observed_precip.json'))
+          today=date.today()
+          previous_end=today.replace(day=1)-timedelta(days=1)
+          current=today.strftime('%Y-%m')
+          previous=previous_end.strftime('%Y-%m')
+          print('true' if doc['month']==current or (doc['month']==previous and doc['data_through']==previous_end.isoformat()) else 'false')
           PY
           )
-          if [ "$CURRENT_MONTH" != "$OBS_MONTH" ]; then
-            echo "Keine aktuellen HYRAS-Monatsbeobachtungen: $OBS_MONTH, heute $CURRENT_MONTH."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "ready=$READY" >> "$GITHUB_OUTPUT"
+
+      - name: Vorherige Prognosen und Tagesmember laden
+        if: steps.observation.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin state-monthly-precip >/dev/null 2>&1; then
+            git fetch origin +refs/heads/state-monthly-precip:refs/remotes/origin/state-monthly-precip --depth=1
+            git show origin/state-monthly-precip:state_monthly_precip.json > /tmp/state-monthly-precip/previous.json
+            if git cat-file -e origin/state-monthly-precip:member_cache.json 2>/dev/null; then
+              git show origin/state-monthly-precip:member_cache.json > /tmp/state-monthly-precip/member_cache.json
+            fi
           fi
 
       - name: Niederschlags-Ensembles berechnen
@@ -82,6 +95,8 @@ jobs:
         run: |
           python scripts/build_state_monthly_precip_outlook.py \
             --observed /tmp/state-monthly-precip/observed_precip.json \
+            --previous /tmp/state-monthly-precip/previous.json \
+            --cache /tmp/state-monthly-precip/member_cache.json \
             --output /tmp/state-monthly-precip/state_monthly_precip.json
 
       - name: Ausgabe prüfen
@@ -94,7 +109,7 @@ jobs:
           doc=json.loads(p.read_text())
           assert doc['schema_version']==1 and doc['parameter']=='precipitation'
           assert len(doc['regions_order'])==17
-          assert len(doc['models_order'])>=1
+          assert isinstance(doc['models_order'],list)
           for name in doc['regions_order']:
               region=doc['regions'][name]
               assert region['observed_current']>=0
@@ -112,12 +127,24 @@ jobs:
         run: |
           set -euo pipefail
           cd /tmp/state-monthly-precip
-          rm -f observed_precip.json
+          rm -f observed_precip.json previous.json
           git init
           git checkout -b state-monthly-precip
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add state_monthly_precip.json
+          git add state_monthly_precip.json member_cache.json
           git commit -m "Monatsausblick HYRAS Niederschlags-Ensembles aktualisiert"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin state-monthly-precip
+
+      - name: Vollständigkeit der Modellläufe prüfen
+        if: steps.observation.outputs.ready == 'true'
+        run: |
+          python - <<'PY'
+          import json
+          doc=json.load(open('/tmp/state-monthly-precip/state_monthly_precip.json'))
+          missing=set(('gefs','ifs','aifs','icon_eu'))-set(doc['models_order'])
+          retained=doc.get('retained_models',[])
+          if not doc.get('observation_complete') and (missing or retained):
+              raise SystemExit(f'Nur Teilprodukt veröffentlicht: fehlend={sorted(missing)}, ältere Läufe={retained}')
+          PY
