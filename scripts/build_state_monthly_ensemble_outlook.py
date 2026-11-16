@@ -22,9 +22,8 @@ ENSEMBLE_API = "https://ensemble-api.open-meteo.com/v1/ensemble"
 STATES_URL = "https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json"
 USER_AGENT = "climate-dashboard-state-monthly-ensemble/1.0 (+GitHub Actions)"
 
-# Hourly sunshine ensemble queries are expensive and share a provider rate
-# limit. Keep their request budget process-wide; daily temperature and
-# precipitation paths preserve their previous performance.
+# Hourly sunshine and precipitation queries are expensive and share a
+# provider rate limit. Keep their request budget process-wide.
 _SUNSHINE_API_LOCK = Lock()
 _SUNSHINE_NEXT_REQUEST = 0.0
 _SUNSHINE_REQUEST_GAP_SECONDS = 20.0
@@ -82,7 +81,7 @@ REGION_ORDER = ["Deutschland", *EXPECTED_STATES]
 
 def fetch_json(url: str, *, params: dict[str, Any] | None = None, timeout: int = 120, retries: int = 4) -> Any:
     last: Exception | None = None
-    sunshine_request = url == ENSEMBLE_API and (params or {}).get("hourly") == "sunshine_duration"
+    sunshine_request = url == ENSEMBLE_API and (params or {}).get("hourly") in {"sunshine_duration", "precipitation"}
     for attempt in range(retries):
         try:
             if sunshine_request:
@@ -411,7 +410,7 @@ def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str =
         # komplette Modell zu verlieren.
         data = fetch_json(
             ENSEMBLE_API, params=params, timeout=90,
-            retries=4 if variable == "sunshine_duration" else 2,
+            retries=4 if time_resolution == "hourly" and variable in {"sunshine_duration", "precipitation"} else 2,
         )
     except Exception as exc:
         if "HTTP 429" in str(exc):
@@ -472,14 +471,20 @@ def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], ba
     # IFS ist bei großen Multi-Location-Abfragen deutlich empfindlicher.
     # Kleinere Start-Batches plus die rekursive Teilung oben sind stabiler.
     model_batch_size = min(batch_size, 10) if model_key == "ifs" else batch_size
-    workers = 2 if model_key == "ifs" else 3
+    workers = 1 if variable == "precipitation" else 2 if model_key == "ifs" else 3
     batches = list(chunks(refs, model_batch_size))
     print(f"{model_key}: {len(refs)} Stützpunkte in {len(batches)} API-Batches", flush=True)
-    with ThreadPoolExecutor(max_workers=min(workers, len(batches))) as pool:
-        futures = [pool.submit(request_model_chunk, model_key, batch, variable, time_resolution=time_resolution) for batch in batches]
-        for future in as_completed(futures):
-            batch_refs, locations = future.result()
+    if workers == 1:
+        # Do not queue more expensive requests after a persistent rate limit.
+        for batch in batches:
+            batch_refs, locations = request_model_chunk(model_key, batch, variable, time_resolution=time_resolution)
             responses.extend(zip(batch_refs, locations))
+    else:
+        with ThreadPoolExecutor(max_workers=min(workers, len(batches))) as pool:
+            futures = [pool.submit(request_model_chunk, model_key, batch, variable, time_resolution=time_resolution) for batch in batches]
+            for future in as_completed(futures):
+                batch_refs, locations = future.result()
+                responses.extend(zip(batch_refs, locations))
 
     by_region: dict[str, list[tuple[LocationRef, dict[str, Any]]]] = defaultdict(list)
     for ref, payload in responses:

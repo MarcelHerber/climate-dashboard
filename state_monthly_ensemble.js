@@ -149,7 +149,11 @@ function chartBounds(datasets){
 }
 function bandDataset(label,dataArr,bg,fill,target,borderWidth=0){return{label,data:dataArr,borderColor:"rgba(0,0,0,0)",backgroundColor:bg,borderWidth,pointRadius:0,fill:fill?target:false,tension:.15,spanGaps:false};}
 function datasetsFor(modelKey,r){
-  const m=r.models?.[modelKey];if(!m)return[];
+  const m=r.models?.[modelKey];
+  if(!m)return selectedParameter()==="precipitation"?[
+    {label:"Beobachtete Monatssumme",data:r.observed_running||[],borderColor:"#f57c00",borderWidth:2.2,pointRadius:0,spanGaps:false},
+    ...hydroReferenceDatasets()
+  ]:[];
   const s=m.stats||{},p=palette(modelKey),obs=r.observed_running||[],clim=r.climatology_running||[];
   const p05=connectForecast(s.p05,r),p95=connectForecast(s.p95,r),p20=connectForecast(s.p20,r),p80=connectForecast(s.p80,r);
   const min=connectForecast(s.min,r),max=connectForecast(s.max,r),avg=connectForecast(s.mean,r),ctl=connectForecast(m.control,r);
@@ -257,12 +261,14 @@ function render(){
     return;
   }
   const labs=labels();
+  const observedOnly=selectedParameter()==="precipitation"&&!Object.keys(r.models||{}).length;
   MODEL_ORDER.forEach(k=>{
     const canvas=el("stateMonthlyChart_"+k),card=canvas?.closest(".state-monthly-card"),m=r.models?.[k];if(!canvas||!card)return;
-    card.hidden=!m;const title=card.querySelector("h3");if(title)title.textContent=MODEL_LABELS[k]||k;
+    const obsCard=observedOnly&&k===MODEL_ORDER[0];
+    card.hidden=!m&&!obsCard;const title=card.querySelector("h3");if(title)title.textContent=obsCard?"Beobachtete Monatssumme":MODEL_LABELS[k]||k;
     const meta=card.querySelector(".state-monthly-model-meta");
-    if(meta)meta.textContent=m?`${m.member_count} Member · Prognose bis ${dateShort(m.forecast_through)} · ${m.support_points} Stützpunkte · Lauf ${fmtRun(m.run)}`:"nicht verfügbar";
-    if(m){
+    if(meta)meta.textContent=m?`${m.member_count} Member · Prognose bis ${dateShort(m.forecast_through)} · ${m.support_points} Stützpunkte · Lauf ${fmtRun(m.run)}${m.retained?" · älterer Lauf (API-Störung)":""}`:obsCard?"Nur HYRAS-Beobachtungen":"nicht verfügbar";
+    if(m||obsCard){
       const datasets=displayDatasets(k,r);
       charts[k]=new Chart(canvas,{type:"line",data:{labels:labs,datasets},options:chartOptions(chartBounds(datasets))});
     }
@@ -316,7 +322,9 @@ function renderHeader(r){
       chip.textContent=`Stationsvergleich: Differenz ${qcWarning.difference_h>=0?"+":""}${fmt(qcWarning.difference_h,1)} h (nur Qualitätskontrolle)`;
       info.appendChild(chip);
     }
-    setStatus(`Datenstand ${config.source}: ${d.observation_data_through} · Generiert ${label} · ${Object.keys(r.models||{}).length}/4 Ensemblemodelle${qcText}`,Object.keys(r.models||{}).length===4&&!qcWarning?"ok":"warn");
+    const retained=Object.values(r.models||{}).filter(m=>m.retained).length;
+    const complete=selectedParameter()==="precipitation"&&d.observation_complete;
+    setStatus(`Datenstand ${config.source}: ${d.observation_data_through} · Generiert ${label} · ${complete?"Monat vollständig beobachtet":`${Object.keys(r.models||{}).length}/4 Ensemblemodelle`}${retained?` · ${retained} aus vorherigen Läufen`:""}${qcText}`,complete||Object.keys(r.models||{}).length===4&&!qcWarning&&!retained?"ok":"warn");
     const note=el("stateMonthlyDataNote");
     if(note){
       const dayAvailable=dailyHydroRunning(reg)?.some(v=>v!=null);
@@ -485,6 +493,13 @@ async function fetchDailySunReference(force=false){
 }
 function syncParameterControls(){
   const monthly=hydroMode(),period=el("stateMonthlyPeriod"),metric=el("stateMonthlyMetric");
+  const view=el("stateMonthlyView"),models=monthly?region()?.models:null;
+  if(view){
+    view.querySelectorAll("option").forEach(option=>{
+      option.disabled=!!models&&option.value!=="four"&&!models[option.value];
+    });
+    if(view.querySelector(`option[value="${view.value}"]`)?.disabled)view.value="four";
+  }
   if(period){
     period.querySelectorAll("option").forEach(option=>{option.disabled=monthly&&option.value!=="month";});
     if(monthly)period.value="month";

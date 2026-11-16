@@ -12,6 +12,20 @@ from recover_live_data import needs_recovery, can_dispatch, SOURCES
 class RecoveryTests(unittest.TestCase):
     now = datetime(2026, 11, 15, 17, 30, tzinfo=timezone.utc)
 
+    def test_monthly_precip_restarts_partial_or_stale_valid_product(self):
+        import copy
+        self.assertIn(('monthly_precip','state-monthly-precip/state_monthly_precip.json','update-state-monthly-precip.yml',180),SOURCES)
+        models={k:{'run':'2026-11-15T12:00:00Z','forecast_from':'2026-11-15','forecast_through':'2026-11-20','member_count':30,'stats':{'mean':[None]*14+[1]*6+[None]*10}} for k in ('gefs','ifs','aifs','icon_eu')}
+        manifest={'schema_version':1,'parameter':'precipitation','unit':'mm','year':2026,'month':11,'generated_at':'2026-11-15T17:00:00Z','observation_data_through':'2026-11-14','dates':[f'2026-11-{x:02}' for x in range(1,31)],'regions':{'Deutschland':{'observed_current':12.,'models':models}},'models_order':list(models)}
+        self.assertFalse(needs_recovery('monthly_precip',manifest,self.now))
+        missing=copy.deepcopy(manifest);del missing['regions']['Deutschland']['models']['gefs'];missing['models_order'].remove('gefs')
+        self.assertTrue(needs_recovery('monthly_precip',missing,self.now))
+        retained=copy.deepcopy(manifest);retained['regions']['Deutschland']['models']['ifs']['retained']=True
+        self.assertTrue(needs_recovery('monthly_precip',retained,self.now))
+        old=copy.deepcopy(manifest);old['regions']['Deutschland']['models']['aifs']['run']='2026-11-14T12:00:00Z'
+        self.assertTrue(needs_recovery('monthly_precip',old,self.now))
+        self.assertFalse(needs_recovery('monthly_precip',dict(manifest, generated_at='2026-11-16T00:00:00Z'),self.now))
+
     def test_fast_live_uses_measurement_not_build_time(self):
         manifest = {'station_count': 100, 'latest_measurement_utc': '2026-11-15T10:30:00Z',
                     'generated_at_utc': '2026-11-15T17:29:00Z'}

@@ -17,6 +17,7 @@ SOURCES = (
     ('icon_hazards', 'icon-hazards-data/data/icon-hazards/current.json', 'update-icon-eu-hazards.yml', 180),
     ('mosmix', 'mosmix-data/data/mosmix/manifest.json', 'update-mosmix.yml', 180),
     ('europe_tmax', 'europe-tmax-lab-data/data/europe-tmax-lab/current.json', 'update-europe-tmax-lab.yml', 180),
+    ('monthly_precip', 'state-monthly-precip/state_monthly_precip.json', 'update-state-monthly-precip.yml', 180),
     ('snow_eurasia', 'main/eurasia_snow/index.json', 'update-eurasia-snow.yml', 480),
     ('snow_europe', 'main/eurasia_snow/europe_index.json', 'update-europe-snow-area.yml', 480),
     ('snow_maps', 'main/eurasia_snow/maps/index.json', 'update-snow-maps.yml', 480),
@@ -82,6 +83,37 @@ def needs_recovery(kind, manifest, now):
     if kind == 'mosmix':
         count = manifest.get('station_count')
         return type(count) is int and count >= 100 and stale(manifest.get('issue_time'), 12)
+    if kind == 'monthly_precip':
+        if (manifest.get('schema_version') != 1 or manifest.get('parameter') != 'precipitation'
+                or manifest.get('unit') != 'mm' or not timestamp(manifest.get('generated_at'), now)):
+            return False
+        obs = day(manifest.get('observation_data_through'))
+        regions, dates = manifest.get('regions'), manifest.get('dates')
+        if not obs or not isinstance(regions, dict) or not isinstance(dates, list):
+            return False
+        region = regions.get('Deutschland')
+        if not isinstance(region, dict) or not finite(region.get('observed_current')) or region['observed_current'] < 0:
+            return False
+        if (manifest.get('year'), manifest.get('month')) != (now.year, now.month):
+            return now.day >= 3 and obs < now.date().replace(day=1)
+        if (now.date()-obs).days > 2:
+            return True
+        if obs.isoformat() not in dates:
+            return False
+        index = dates.index(obs.isoformat()) + 1
+        if index == len(dates):
+            return False  # All days observed; no further forecast needed.
+        models = region.get('models')
+        if not isinstance(models, dict):
+            return True
+        for key in ('gefs','ifs','aifs','icon_eu'):
+            model = models.get(key)
+            if not isinstance(model, dict) or model.get('retained') or not timestamp(model.get('run'), now) or stale(model.get('run'), 18):
+                return True
+            mean = model.get('stats', {}).get('mean') if isinstance(model.get('stats'), dict) else None
+            if not isinstance(mean, list) or len(mean) != len(dates) or not finite(mean[index]) or model.get('forecast_from') != dates[index]:
+                return True
+        return False
     if kind == 'europe_tmax':
         # This product deliberately uses only the 00 UTC cycle and five complete future days.
         # Do not start before the morning input files can be available.

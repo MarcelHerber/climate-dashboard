@@ -31,7 +31,9 @@ jobs:
           python scripts/patch_state_monthly_ensemble_frontend.py
           grep -q 'id="stateMonthlyMetric"' index.html
           grep -q 'value="percent"' index.html
-          grep -q 'state_monthly_ensemble.js?v=20261112-hydro-metrics-1' index.html
+          EXPECTED_TAG=$(python -c 'from scripts.patch_state_monthly_ensemble_frontend import JS_TAG; print(JS_TAG)')
+          test -n "$EXPECTED_TAG"
+          grep -Fq "$EXPECTED_TAG" index.html
           cp index.html /tmp/hydro-metrics-index.html
           cp scripts/build_pages_site.sh /tmp/hydro-metrics-build.sh
           python scripts/patch_state_monthly_ensemble_frontend.py

@@ -19,6 +19,7 @@ const nodes={
   stateMonthlyRegion:select("Deutschland",["Deutschland","Hessen","Saarland"]),
   stateMonthlyMetric:select("absolute",["absolute","anomaly","percent"]),
   stateMonthlyPeriod:select("month",["month","season","year"]),
+  stateMonthlyView:select("ifs",["four","gefs","ifs","aifs","icon_eu"]),
   stateMonthlyExportDescription:{textContent:""}
 };
 const document={
@@ -74,11 +75,19 @@ for(const param of ["precipitation","sunshine"]){
   const r=fixture(param),unit=param==="sunshine"?"h":"mm";
   nodes.stateMonthlyMetric.value="absolute";
   api.syncParameterControls();
+  assert.equal(nodes.stateMonthlyView.value,"four");
+  assert.equal(nodes.stateMonthlyView.options.find(x=>x.value==="ifs").disabled,true);
+  assert.equal(nodes.stateMonthlyView.options.find(x=>x.value==="gefs").disabled,false);
   assert.equal(nodes.stateMonthlyMetric.disabled,false);
   assert.equal(nodes.stateMonthlyMetric.options.find(x=>x.value==="percent").disabled,false);
   assert.equal(nodes.stateMonthlyMetric.options.find(x=>x.value==="anomaly").disabled,false);
   assert.equal(nodes.stateMonthlyMetric.options.find(x=>x.value==="absolute").textContent,`Gesamtsumme (${unit})`);
   const abs=api.displayDatasets("gefs",r);
+  if(param==="precipitation"){
+    const obsOnly=api.displayDatasets("gefs",{...r,models:{}});
+    assert.equal(obsOnly[0].data[1],3);
+    assert.ok(!obsOnly.some(d=>d.label==="Ensemble-Mittel"));
+  }
   assert.equal(abs[0].data[1],3);
   assert.equal(abs.filter(d=>d.isDailyClimate).length,1);
   assert.ok(abs.some(d=>d.label.includes("vollständiger Monat")));
@@ -133,6 +142,7 @@ for(const param of ["precipitation","sunshine"]){
 nodes.stateMonthlyParameter.value="temperature";
 nodes.stateMonthlyMetric.value="percent";
 api.syncParameterControls();
+assert.equal(nodes.stateMonthlyView.options.find(x=>x.value==="ifs").disabled,false);
 assert.equal(nodes.stateMonthlyMetric.value,"absolute");
 assert.equal(nodes.stateMonthlyMetric.options.find(x=>x.value==="anomaly").disabled,false);
 assert.equal(nodes.stateMonthlyMetric.options.find(x=>x.value==="percent").disabled,true);
