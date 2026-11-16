@@ -4,7 +4,10 @@
   const colors=['#6B03C6','#5E4FFC','#187DFD','#70B1FB','#C6E4FB','#DDEBF9','#EDF4FA','#FDFCFC','#FDF0BC','#FDE47C','#FDBD3E','#FC691C','#F93A19','#E51B75','#FC579B'];
   const rgb=colors.map(c=>[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]);
   const boundaries=levels.slice(1).map((v,i)=>(v+levels[i])/2);
-  function mapForReference(entry,ref){return entry?.anomaly_by_reference?.[ref]||(ref==='1991-2020'?entry?.anomaly:null)||null;}
+  function mapForReference(entry,ref,start,end){
+    if((entry?.start_date&&start&&entry.start_date!==start)||(entry?.end_date&&end&&entry.end_date!==end))return null;
+    return entry?.anomaly_by_reference?.[ref]||(ref==='1991-2020'?entry?.anomaly:null)||null;
+  }
   function decodePlane(buffer,width,height){
     if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1||buffer.byteLength!==2*width*height)throw Error('HYRAS-Rastergröße stimmt nicht');
     return {view:new DataView(buffer),width,height};

@@ -12,7 +12,7 @@ from matplotlib.patches import Rectangle
 import numpy as np
 from PIL import Image
 import requests, xarray as xr
-from hyras_temperature_raster import publish as publish_raster
+from hyras_temperature_raster import publish as publish_raster, preserve as preserve_raster
 from build_hyras_tmin_regions import DAILY_BASE, USER_AGENT, download, latest_daily_files, pick_var, prepare_da, to_celsius
 
 CLIM_BASE="https://opendata.dwd.de/climate_environment/CDC/grids_germany/multi_annual/hyras_de/air_temperature_min"
@@ -131,15 +131,7 @@ def main():
             publish_raster(troot,item,key,"1991-2020",north_up_for_display(anomaly,x,y),start,end)
         else:
             item["reference_exact"]=False; item["reference_note"]="Für laufende Teilmonate/-jahreszeiten wird keine Rasteranomalie veröffentlicht; die Gebietskurve nutzt weiterhin die tagesgenaue 1991–2020-Referenz."
-        old=previous.get(key,{})
-        if old.get("start_date")==start and old.get("end_date")==end:
-            old_png=old.get("anomaly_by_reference",{}).get("1961-1990")
-            if old_png and (troot/old_png).exists(): item.setdefault("anomaly_by_reference",{})["1961-1990"]=old_png
-            old_raster=old.get("raster_by_reference",{}).get("1961-1990")
-            if old_raster and (troot/old_raster).exists() and old.get("raster_dates_by_reference",{}).get("1961-1990")==[start,end]:
-                item.setdefault("raster_by_reference",{})["1961-1990"]=old_raster
-                item.setdefault("raster_dates_by_reference",{})["1961-1990"]=[start,end]
-                item.setdefault("raster_grid",old["raster_grid"])
+        preserve_raster(troot,item,previous.get(key,{}))
         result[key]=item; print(f"Tmin Downloadkarte {key}: absolut"+(" + Anomalie" if "anomaly" in item else ""),flush=True)
     manifest={"schema_version":1,"parameter":"tmin","reference":"1991-2020","data_through":idx.get("data_through"),"periods":result}; mp=regions/"map_downloads.json"; mp.write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding="utf-8"); idx["map_downloads_file"]=mp.name; ip.write_text(json.dumps(idx,ensure_ascii=False,indent=2),encoding="utf-8")
     print("Tmin-Kartendownloads fertig.",flush=True); print("Perioden:",len(result),flush=True); print("Mit exakter Anomaliekarte:",sum(1 for i in result.values() if i.get("anomaly")),flush=True); return 0

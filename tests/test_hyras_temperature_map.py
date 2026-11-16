@@ -36,6 +36,7 @@ def run():
                 const HYRAS_DATA_BASE='https://example.test',hyrasIndex={};
                 let ref='1991-2020'; function hyrasReferencePeriod(){return ref;}
                 function hyrasReferenceDisplay(){return ref;}
+                function hyrasDate(d){return d;}
                 function hyrasDailyAnomalyPanelHtml(){return '<div class="daily-animation"></div>';}
                 function hyrasTemperaturePreviewHref(url){return url;}
                 const entry={anomaly:'modern.png',anomaly_by_reference:{'1961-1990':'old.png'},raster_grid:{width:2,height:2},raster_by_reference:{'1991-2020':'modern.gz','1961-1990':'old.gz'},raster_dates_by_reference:{'1991-2020':['2026-11-01','2026-11-14'],'1961-1990':['2026-11-01','2026-11-14']}};

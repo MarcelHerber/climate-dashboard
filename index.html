@@ -4210,6 +4210,13 @@ let hyrasTmeanMapDownloads=null;
 // HYRAS_TMEAN_DAILY_RECORDS_V1
 let hyrasTmeanRegionsRecords=null;
 let hyrasTmeanRegionChart=null;
+let hyrasTemperatureRenderGeneration=0;
+function hyrasTemperatureRenderStart(parameter){
+  const generation=++hyrasTemperatureRenderGeneration,reference=hyrasReferencePeriod();
+  const frame=document.getElementById("hyrasMapFrame");
+  if(frame)frame.innerHTML='<div class="hyras-loading">Temperaturdaten werden geladen …</div>';
+  return ()=>generation===hyrasTemperatureRenderGeneration&&hyrasParameter()===parameter&&hyrasReferencePeriod()===reference;
+}
 let hyrasTmeanRegionsLoading=null;
 let hyrasPointChart=null;
 let hyrasClickSeriesManifest=null;
@@ -13643,8 +13650,10 @@ async function hyrasTmeanEnsureClimateReference(){
     ||(reference==="1991-2020"?hyrasTmeanRegionsIndex?.climate_file:null);
   if(!path)throw new Error(`Tmean-Gebietskurve für Referenz ${hyrasReferenceDisplay()} ist noch nicht veröffentlicht.`);
   const climate=await hyrasTmeanRegionsFetch(path);
-  hyrasTmeanRegionsClimate=climate;
-  hyrasTmeanRegionsClimateReference=reference;
+  if(hyrasReferencePeriod()===reference&&hyrasParameter()==="tmean"){
+    hyrasTmeanRegionsClimate=climate;
+    hyrasTmeanRegionsClimateReference=reference;
+  }
   return climate;
 }
 function hyrasTmeanPopulateRegions(){
@@ -13832,7 +13841,7 @@ async function hyrasTmeanExportCurvePdf(event,region,period){
 function hyrasTmeanRenderCurveChart(region,period,rows){
   const frame=document.getElementById("hyrasMapFrame");if(!frame)return;
   if(hyrasTmeanRegionChart){hyrasTmeanRegionChart.destroy();hyrasTmeanRegionChart=null;}
-  const mapsBase=hyrasTmeanMapDownloads?.periods?.[period.map_key]||{},maps={...mapsBase,anomaly:(window.HyrasTemperatureInteractive?HyrasTemperatureInteractive.mapForReference(mapsBase, hyrasReferencePeriod()):(hyrasReferencePeriod()==='1991-2020'?mapsBase.anomaly:null))};
+  const mapsBase=hyrasTmeanMapDownloads?.periods?.[period.map_key]||{},maps={...mapsBase,anomaly:(window.HyrasTemperatureInteractive?HyrasTemperatureInteractive.mapForReference(mapsBase, hyrasReferencePeriod(),period.start_date,period.end_date):(hyrasReferencePeriod()==='1991-2020'?mapsBase.anomaly:null))};
   const absClass=maps.absolute?"hyras-tmean-download":"hyras-tmean-download disabled";
   const anomClass=maps.anomaly?"hyras-tmean-download":"hyras-tmean-download disabled";
   frame.innerHTML=`<div class="hyras-tmean-region-panel">
@@ -13840,7 +13849,7 @@ function hyrasTmeanRenderCurveChart(region,period,rows){
       <div class="hyras-tmean-anomaly-preview-head">
         <div>
           <h4>2-m-Temperaturabweichung</h4>
-          <p>${period.label} · Abweichung gegenüber ${hyrasReferenceDisplay()}</p>
+          <p>${period.label} · ${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)} · Abweichung gegenüber ${hyrasReferenceDisplay()}</p>
         </div>
       </div>
       <a class="hyras-tmean-anomaly-preview-link" href="${hyrasTemperaturePreviewHref(hyrasTmeanDownloadHref(maps.anomaly),hyrasTmeanRegionsIndex?.data_through)}" target="_blank" rel="noopener">
@@ -13947,8 +13956,10 @@ async function hyrasTmaxEnsureClimateReference(){
     ||(reference==="1991-2020"?hyrasTmaxRegionsIndex?.climate_file:null);
   if(!path)throw new Error(`Tmax-Gebietskurve für Referenz ${hyrasReferenceDisplay()} ist noch nicht veröffentlicht.`);
   const climate=await hyrasTmaxRegionsFetch(path);
-  hyrasTmaxRegionsClimate=climate;
-  hyrasTmaxRegionsClimateReference=reference;
+  if(hyrasReferencePeriod()===reference&&hyrasParameter()==="tmax"){
+    hyrasTmaxRegionsClimate=climate;
+    hyrasTmaxRegionsClimateReference=reference;
+  }
   return climate;
 }
 function hyrasTmaxPopulateRegions(){
@@ -14213,7 +14224,7 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
   const frame=document.getElementById("hyrasMapFrame");
   if(!frame)return;
 
-  const mapsBase=hyrasTmaxMapDownloads?.periods?.[period.key]||{},maps={...mapsBase,anomaly:(window.HyrasTemperatureInteractive?HyrasTemperatureInteractive.mapForReference(mapsBase, hyrasReferencePeriod()):(hyrasReferencePeriod()==='1991-2020'?mapsBase.anomaly:null))};
+  const mapsBase=hyrasTmaxMapDownloads?.periods?.[period.key]||{},maps={...mapsBase,anomaly:(window.HyrasTemperatureInteractive?HyrasTemperatureInteractive.mapForReference(mapsBase, hyrasReferencePeriod(),period.start_date,period.end_date):(hyrasReferencePeriod()==='1991-2020'?mapsBase.anomaly:null))};
   const absClass=maps.absolute?"hyras-tmean-download":"hyras-tmean-download disabled";
   const anomClass=maps.anomaly?"hyras-tmean-download":"hyras-tmean-download disabled";
 
@@ -14231,7 +14242,7 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
       <div class="hyras-tmean-anomaly-preview-head">
         <div>
           <h4>2-m-Tmax-Abweichung</h4>
-          <p>${period.label} · Abweichung gegenüber ${hyrasReferenceDisplay()}</p>
+          <p>${period.label} · ${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)} · Abweichung gegenüber ${hyrasReferenceDisplay()}</p>
         </div>
       </div>
       <a class="hyras-tmean-anomaly-preview-link" href="${hyrasTemperaturePreviewHref(hyrasTmaxMapHref(maps.anomaly),hyrasTmaxRegionsIndex?.data_through)}" target="_blank" rel="noopener">
@@ -14398,9 +14409,12 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
   );
 }
 async function renderHyrasTmax(){
+  const current=hyrasTemperatureRenderStart("tmax");
   try{
     await hyrasTmaxRegionsEnsureLoaded();
+    if(!current())return;
     await hyrasTmaxEnsureClimateReference();
+    if(!current())return;
     const region=hyrasTmaxRegionName();
     const period=hyrasTmaxCurvePeriod();
     if(!period)return;
@@ -14408,6 +14422,7 @@ async function renderHyrasTmax(){
     hyrasTmaxSetCurveKpis(region,period,rows);
     hyrasTmaxRenderCurveChart(region,period,rows);
   }catch(error){
+    if(!current())return;
     console.error("HYRAS Tmax Gebietskurven:",error);
     const frame=document.getElementById("hyrasMapFrame");
     if(frame)frame.innerHTML=`<div class="hyras-loading">${error.message}</div>`;
@@ -14415,14 +14430,15 @@ async function renderHyrasTmax(){
 }
 
 async function renderHyrasTmean(){
+  const current=hyrasTemperatureRenderStart("tmean");
   if(hyrasTmaxRegionChart){
     hyrasTmaxRegionChart.destroy();
     hyrasTmaxRegionChart=null;
   }
   try{
-    await hyrasTmeanRegionsEnsureLoaded();await hyrasTmeanEnsureClimateReference();if(hyrasParameter()!=="tmean")return;const region=hyrasTmeanRegionName(),period=hyrasTmeanCurvePeriod();if(!period)return;
+    await hyrasTmeanRegionsEnsureLoaded();if(!current())return;await hyrasTmeanEnsureClimateReference();if(!current())return;const region=hyrasTmeanRegionName(),period=hyrasTmeanCurvePeriod();if(!period)return;
     const rows=hyrasTmeanCurveRows(region,period);hyrasTmeanSetCurveKpis(region,period,rows);hyrasTmeanRenderCurveChart(region,period,rows);
-  }catch(error){console.error("HYRAS Tmean Gebietskurven:",error);const frame=document.getElementById("hyrasMapFrame");if(frame)frame.innerHTML=`<div class="hyras-loading">${error.message}</div>`;}
+  }catch(error){if(!current())return;console.error("HYRAS Tmean Gebietskurven:",error);const frame=document.getElementById("hyrasMapFrame");if(frame)frame.innerHTML=`<div class="hyras-loading">${error.message}</div>`;}
 }
 
 
@@ -17407,8 +17423,10 @@ async function hyrasTminEnsureClimateReference(){
     ||(reference==="1991-2020"?hyrasTminRegionsIndex?.climate_file:null);
   if(!path)throw new Error(`Tmin-Gebietskurve für Referenz ${hyrasReferenceDisplay()} ist noch nicht veröffentlicht.`);
   const climate=await hyrasTminRegionsFetch(path);
-  hyrasTminRegionsClimate=climate;
-  hyrasTminRegionsClimateReference=reference;
+  if(hyrasReferencePeriod()===reference&&hyrasParameter()==="tmin"){
+    hyrasTminRegionsClimate=climate;
+    hyrasTminRegionsClimateReference=reference;
+  }
   return climate;
 }
 function hyrasTminPopulateRegions(){
@@ -17662,7 +17680,7 @@ function hyrasTminRenderCurveChart(region,period,rows){
   const frame=document.getElementById("hyrasMapFrame");
   if(!frame)return;
 
-  const mapsBase=hyrasTminMapDownloads?.periods?.[period.key]||{},maps={...mapsBase,anomaly:(window.HyrasTemperatureInteractive?HyrasTemperatureInteractive.mapForReference(mapsBase, hyrasReferencePeriod()):(hyrasReferencePeriod()==='1991-2020'?mapsBase.anomaly:null))};
+  const mapsBase=hyrasTminMapDownloads?.periods?.[period.key]||{},maps={...mapsBase,anomaly:(window.HyrasTemperatureInteractive?HyrasTemperatureInteractive.mapForReference(mapsBase, hyrasReferencePeriod(),period.start_date,period.end_date):(hyrasReferencePeriod()==='1991-2020'?mapsBase.anomaly:null))};
   const absClass=maps.absolute?"hyras-tmean-download":"hyras-tmean-download disabled";
   const anomClass=maps.anomaly?"hyras-tmean-download":"hyras-tmean-download disabled";
 
@@ -17684,7 +17702,7 @@ function hyrasTminRenderCurveChart(region,period,rows){
       <div class="hyras-tmean-anomaly-preview-head">
         <div>
           <h4>2-m-Tmin-Abweichung</h4>
-          <p>${period.label} · Abweichung gegenüber ${hyrasReferenceDisplay()}</p>
+          <p>${period.label} · ${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)} · Abweichung gegenüber ${hyrasReferenceDisplay()}</p>
         </div>
       </div>
       <a class="hyras-tmean-anomaly-preview-link" href="${hyrasTemperaturePreviewHref(hyrasTminMapHref(maps.anomaly),hyrasTminRegionsIndex?.data_through)}" target="_blank" rel="noopener">
@@ -17852,9 +17870,12 @@ function hyrasTminRenderCurveChart(region,period,rows){
   );
 }
 async function renderHyrasTmin(){
+  const current=hyrasTemperatureRenderStart("tmin");
   try{
     await hyrasTminRegionsEnsureLoaded();
+    if(!current())return;
     await hyrasTminEnsureClimateReference();
+    if(!current())return;
     const region=hyrasTminRegionName();
     const period=hyrasTminCurvePeriod();
     if(!period)return;
@@ -17863,6 +17884,7 @@ async function renderHyrasTmin(){
     hyrasTminSetCurveKpis(region,period,rows);
     hyrasTminRenderCurveChart(region,period,rows);
   }catch(error){
+    if(!current())return;
     console.error("HYRAS Tmin Gebietskurven:",error);
     const frame=document.getElementById("hyrasMapFrame");
     if(frame)frame.innerHTML=`<div class="hyras-loading">${error.message}</div>`;
@@ -17881,6 +17903,7 @@ renderHyras=function(){
 
 const hyrasSwitchBeforeTmin=hyrasSwitchParameter;
 hyrasSwitchParameter=async function(){
+  ++hyrasTemperatureRenderGeneration;
   if(hyrasParameter()!=="tmin"){
     if(hyrasTminRegionChart){
       hyrasTminRegionChart.destroy();
@@ -17906,8 +17929,11 @@ hyrasSwitchParameter=async function(){
 
   const status=document.getElementById("hyrasStatus");
   if(status)status.textContent="HYRAS Tmin Gebietskurven werden geladen …";
+  const frame=document.getElementById("hyrasMapFrame");
+  if(frame)frame.innerHTML='<div class="hyras-loading">Temperaturdaten werden geladen …</div>';
 
   await hyrasTminRegionsEnsureLoaded();
+  if(hyrasParameter()!=="tmin")return;
   hyrasTminPopulateRegions();
   hyrasTminPopulateCurvePeriods();
 

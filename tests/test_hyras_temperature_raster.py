@@ -28,6 +28,20 @@ class TestRaster(unittest.TestCase):
             self.assertEqual(len(set(entry["raster_by_reference"].values())), 2)
             self.assertEqual(set(entry["raster_by_reference"]), {"1991-2020", "1961-1990"})
 
+    def test_preserve_live_anomaly_only_for_same_dates(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            old={"start_date":"2026-11-01","end_date":"2026-11-14","anomaly":"live.png","reference_exact":True}
+            (root/'live.png').touch()
+            raster.publish(root,old,'month_11','1991-2020',np.array([[1.0]]),'2026-11-01','2026-11-14')
+            changed={"start_date":"2026-11-01","end_date":"2026-11-15"}
+            raster.preserve(root,changed,old)
+            self.assertNotIn('anomaly',changed)
+            same={"start_date":"2026-11-01","end_date":"2026-11-14"}
+            raster.preserve(root,same,old)
+            self.assertEqual(same['anomaly'],'live.png')
+            self.assertEqual(same['raster_by_reference'],old['raster_by_reference'])
+
 
 if __name__ == "__main__":
     unittest.main()
