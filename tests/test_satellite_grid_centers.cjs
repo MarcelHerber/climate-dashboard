@@ -113,6 +113,24 @@ test("V3 uses the same fixed center subset for SVG, PNG and very small GIF",()=>
  assert.deepEqual(ids(screen),[['T',-25,60],['H',30.5,45.75]]);
  for(const [w,h] of [[720,437],[320,194],[1920,1166]])assert.deepEqual(ids(exporter.placedCenters(overlay,'atlantic',w,h)),ids(screen));
 });
+test("Relative IFS centers and verified open systems survive the broad Europe view in V4",()=>{
+ const {geo,exporter}=context();
+ const items=[
+  {type:"T",lon:12.75,lat:67.75,pressure_hpa:979.4,prominence_hpa:.6,score:25,closed_system:true,closed_area_km2:16410},
+  {type:"H",lon:-15,lat:65,pressure_hpa:1007.7,prominence_hpa:2.7,score:16,closed_system:true,closed_area_km2:195579},
+  {type:"T",lon:8.5,lat:57.5,pressure_hpa:991.2,prominence_hpa:2.2,score:16,closed_system:false},
+  {type:"H",lon:43,lat:46.75,pressure_hpa:1032.3,prominence_hpa:2.3,score:24,closed_system:true,closed_area_km2:890645},
+  {type:"T",lon:-38.25,lat:54,pressure_hpa:964.1,prominence_hpa:30.9,score:122,closed_system:true,closed_area_km2:224678}
+ ];
+ const overlay={...make(5),pressure_centers_method:"ifs_mslp_grid_extrema_v4",pressure_centers:items};
+ const ids=a=>normalized(a.map(c=>[c.type,c.lon,c.lat]).sort());
+ const wanted=ids(items.slice(0,4));
+ const screen=geo.modelGridCenters(overlay,BBOX);
+ assert.ok(screen);
+ assert.deepEqual(ids(screen),wanted);
+ for(const spacing of [2,5])for(const [w,h] of [[720,471],[320,209],[1920,1255]])
+  assert.deepEqual(ids(exporter.placedCenters({...overlay,spacing},"europe",w,h)),wanted);
+});
 test("Number label cannot jump onto a disconnected same-pressure contour",()=>{
  const {geo}=context(),centers=geo.modelGridCenters(make(5),BBOX);
  const group={hpa:1000,label:[-17.5,49.75],runs:[[[-17.5,49.75],[-17,49.75],[-10,49.75]], [[-18,52.5],[-17,52.5]] ]};

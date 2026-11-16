@@ -272,8 +272,8 @@ function update(){
   return;
  }
  const lines=draw(frame,BBOX[context.region],gap);
- const gridCenters=["ifs_mslp_grid_extrema_v1","ifs_mslp_grid_extrema_v2","ifs_mslp_grid_extrema_v3"].includes(frame.pressure_centers_method);
- const contourChecked=["ifs_mslp_grid_extrema_v2","ifs_mslp_grid_extrema_v3"].includes(frame.pressure_centers_method);
+ const gridCenters=["ifs_mslp_grid_extrema_v1","ifs_mslp_grid_extrema_v2","ifs_mslp_grid_extrema_v3","ifs_mslp_grid_extrema_v4"].includes(frame.pressure_centers_method);
+ const contourChecked=["ifs_mslp_grid_extrema_v2","ifs_mslp_grid_extrema_v3","ifs_mslp_grid_extrema_v4"].includes(frame.pressure_centers_method);
  if(!lines){note("ECMWF-Daten vorhanden, aber keine sichtbaren "+spacing.value+"-hPa-Isobaren in diesem Ausschnitt.");return;}
  svg.toggleAttribute("hidden",false);
  const interpolated=Boolean(ten?.interpolated);
