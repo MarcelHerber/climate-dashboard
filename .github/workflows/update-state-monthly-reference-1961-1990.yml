@@ -1,0 +1,211 @@
+name: Monatsausblick Klimareferenz 1961-1990 erstellen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_monthly_outlook_climatology.py"
+      - "scripts/build_monthly_outlook_daily_precip_reference.py"
+      - "scripts/build_monthly_outlook_daily_sun_reference.py"
+      - ".github/workflows/update-state-monthly-reference-1961-1990.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: monthly-outlook-reference-1961-1990
+  cancel-in-progress: false
+
+jobs:
+  monthly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-hyras.txt
+      - run: |
+          python -m pip install -r requirements-hyras.txt
+          python -m pip install shapely
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/state-monthly-climate-cache-1961-1990
+          key: state-monthly-dwd-normals-1961-1990-v1
+      - name: Amtliche DWD-Monatsnormalwerte für alle 17 Gebiete
+        run: |
+          python -m unittest discover -s tests -p test_monthly_outlook_climatology.py -v
+          python scripts/build_monthly_outlook_climatology.py \
+            --reference-period 1961-1990 --months all \
+            --cache /tmp/state-monthly-climate-cache-1961-1990 \
+            --output /tmp/monthly-reference-61/monthly_reference_1961_1990.json
+          mkdir -p /tmp/monthly-reference-61/grid
+          cp /tmp/state-monthly-climate-cache-1961-1990/pr_hyras_1_1961_1990_*_de_JAN.nc /tmp/monthly-reference-61/grid/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: monthly-reference-1961-1990
+          path: /tmp/monthly-reference-61/
+          if-no-files-found: error
+
+  precipitation:
+    needs: monthly
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-hyras.txt
+      - run: |
+          python -m pip install -r requirements-hyras.txt
+          python -m pip install shapely
+      - uses: actions/download-artifact@v4
+        with:
+          name: monthly-reference-1961-1990
+          path: /tmp/monthly-reference-61
+      - name: Geprüften HYRAS-Tagesreferenzcache wiederverwenden
+        uses: actions/cache@v4
+        with:
+          path: /tmp/monthly-hyras-daily-reference-1961-1990
+          key: monthly-hyras-daily-1961-1990-v2
+      - name: Tagesgenaue HYRAS Niederschlagskurven
+        run: |
+          python -m unittest discover -s tests -p test_monthly_outlook_daily_precip_reference.py -v
+          python scripts/build_monthly_outlook_daily_precip_reference.py \
+            --reference-period 1961-1990 \
+            --build-cache \
+            --cache /tmp/monthly-hyras-daily-reference-1961-1990/hyras_daily_reference_1961_1990_web2_v2.npz \
+            --monthly-grid-dir /tmp/monthly-reference-61/grid \
+            --monthly /tmp/monthly-reference-61/monthly_reference_1961_1990.json \
+            --work /tmp/monthly-reference-61-pr-work \
+            --output /tmp/monthly-reference-61-pr/daily_precip_reference_1961_1990.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daily-precip-reference-1961-1990
+          path: /tmp/monthly-reference-61-pr/daily_precip_reference_1961_1990.json
+          if-no-files-found: error
+
+  sunshine:
+    needs: monthly
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-hyras.txt
+      - run: |
+          python -m pip install -r requirements-hyras.txt
+          python -m pip install shapely
+      - uses: actions/download-artifact@v4
+        with:
+          name: monthly-reference-1961-1990
+          path: /tmp/monthly-reference-61
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/monthly-daily-sun-cache-1961-1990
+          key: dwd-kl-sdk-daily-1961-1990-station-v1
+      - name: Historische DWD SDK-Tagesklimatologie
+        run: |
+          python -m unittest discover -s tests -p test_monthly_outlook_daily_sun_reference.py -v
+          python scripts/build_monthly_outlook_daily_sun_reference.py \
+            --reference-period 1961-1990 \
+            --monthly /tmp/monthly-reference-61/monthly_reference_1961_1990.json \
+            --cache /tmp/monthly-daily-sun-cache-1961-1990 \
+            --work /tmp/monthly-reference-61-sun-work \
+            --output /tmp/monthly-reference-61-sun/daily_sun_reference_1961_1990.json \
+            --workers 12
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daily-sun-reference-1961-1990
+          path: /tmp/monthly-reference-61-sun/daily_sun_reference_1961_1990.json
+          if-no-files-found: error
+
+  publish:
+    needs: [monthly, precipitation, sunshine]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: monthly-reference-1961-1990
+          path: /tmp/monthly-reference-61
+      - uses: actions/download-artifact@v4
+        with:
+          name: daily-precip-reference-1961-1990
+          path: /tmp/monthly-reference-61
+      - uses: actions/download-artifact@v4
+        with:
+          name: daily-sun-reference-1961-1990
+          path: /tmp/monthly-reference-61
+      - name: Referenzzeitraum, Rasterabdeckung und alle Tageswerte prüfen
+        run: |
+          python - <<'PY'
+          import calendar, json, math
+          from pathlib import Path
+          p = Path("/tmp/monthly-reference-61")
+          normal = json.loads((p / "monthly_reference_1961_1990.json").read_text())
+          regions = set(normal["regions_order"])
+          assert len(regions) == 17 and "Deutschland" in regions
+          expected = {f"{m:02d}" for m in range(1, 13)}
+          assert normal["reference_period"] == "1961-1990"
+          assert set(normal["months"]) == expected
+          for month in normal["months"].values():
+              for parameter in ("precipitation", "sunshine"):
+                  assert set(month[parameter]) == regions
+                  assert all(math.isfinite(v["month_total"]) and v["month_total"] > 0 and v["coverage"] >= 0.9 for v in month[parameter].values())
+          for file, parameter, suffix, upper in (
+              ("daily_precip_reference_1961_1990.json", "precipitation", "mm", 100),
+              ("daily_sun_reference_1961_1990.json", "sunshine", "h", 24),
+          ):
+              d = json.loads((p / file).read_text())
+              assert d["schema_version"] == 1 and d["reference_period"] == "1961-1990"
+              assert d["parameter"] == parameter and d["daily_climatology_available"] is True
+              if parameter == "sunshine":
+                  assert d["quality"]["stations"] >= 60
+              assert set(d["months"]) == expected and set(d["regions_order"]) == regions
+              for m, month in d["months"].items():
+                  dates = [f"{m}-{day:02d}" for day in range(1, calendar.monthrange(2000, int(m))[1] + 1)]
+                  assert month["dates"] == dates and set(month["regions"]) == regions
+                  for region, v in month["regions"].items():
+                      vals, running = v[f"daily_{suffix}"], v[f"running_{suffix}"]
+                      assert len(vals) == len(running) == len(dates)
+                      assert all(math.isfinite(x) and 0 <= x <= upper for x in vals)
+                      assert all(math.isfinite(x) for x in running)
+                      assert abs(sum(vals) - running[-1]) < 0.02
+                      assert all(a <= b + 0.001 for a, b in zip(running, running[1:]))
+          print("1961–1990: 12 Monate, 17 Gebiete, 366 Tage für Niederschlag und Sonne geprüft.")
+          PY
+      - name: Geprüfte Referenz gemeinsam veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch=state-monthly-reference-1961-1990
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git init /tmp/monthly-reference-61-publish
+          cd /tmp/monthly-reference-61-publish
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git fetch origin "$branch" --depth=1
+            git checkout -b "$branch" FETCH_HEAD
+          else
+            git checkout --orphan "$branch"
+          fi
+          cp /tmp/monthly-reference-61/*_1961_1990.json .
+          git add monthly_reference_1961_1990.json daily_precip_reference_1961_1990.json daily_sun_reference_1961_1990.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Geprüfte Monatsausblick-Klimareferenz 1961–1990"
+            git push origin "$branch"
+          fi

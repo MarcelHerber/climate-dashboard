@@ -16,6 +16,7 @@ function select(value,options){
 }
 const nodes={
   stateMonthlyParameter:select("precipitation",["temperature","precipitation","sunshine"]),
+  stateMonthlyReference:select("1991-2020",["1991-2020","1961-1990"]),
   stateMonthlyRegion:select("Deutschland",["Deutschland","Hessen","Saarland"]),
   stateMonthlyMetric:select("absolute",["absolute","anomaly","percent"]),
   stateMonthlyPeriod:select("month",["month","season","year"]),
@@ -38,12 +39,24 @@ const injected=source.replace(/\}\)\(\);\s*$/,
       if(param==="sunshine")dailySunReference=reference;
       monthlyNormals=monthly;
     },
+    setOldReference(kind,doc){oldReferences[kind]=doc;},
+    setTemperature(doc){data=doc;},
     transformHydroValue,dailyHydroRunning,hydroReferenceDatasets,
-    displayDatasets,chartBounds,chartOptions,syncParameterControls
+    displayDatasets,chartBounds,chartOptions,syncParameterControls,temperatureRunning,filename,fetchOldReference,exportPng,exportPdf
   };})();`);
 vm.runInNewContext(injected,context,{filename:"state_monthly_ensemble.js"});
 const api=context.window.__metricTest;
 assert.ok(api);
+const ALL_REGIONS=["Deutschland","Baden-Württemberg","Bayern","Berlin","Brandenburg","Bremen","Hamburg","Hessen","Mecklenburg-Vorpommern","Niedersachsen","Nordrhein-Westfalen","Rheinland-Pfalz","Saarland","Sachsen","Sachsen-Anhalt","Schleswig-Holstein","Thüringen"];
+function oldDailyFixture(){
+  const months={};
+  for(let month=1;month<=12;month++){
+    const key=String(month).padStart(2,"0"),dates=Array.from({length:new Date(Date.UTC(2000,month,0)).getUTCDate()},(_,i)=>`${key}-${String(i+1).padStart(2,"0")}`);
+    const running=dates.map((_,i)=>i===0?1:2*i+2),daily=running.map((value,i)=>value-(running[i-1]??0));
+    months[key]={dates,regions:Object.fromEntries(ALL_REGIONS.map(name=>[name,{daily_mm:daily.slice(),running_mm:running.slice()}]))};
+  }
+  return {schema_version:1,reference_period:"1961-1990",product:"state_monthly_daily_precip_climatology",parameter:"precipitation",unit:"mm",daily_climatology_available:true,regions_order:ALL_REGIONS.slice(),months};
+}
 
 function monthlyNormal(param,month,region,value){
   return {reference_period:"1991-2020",months:{
@@ -147,6 +160,64 @@ assert.equal(nodes.stateMonthlyMetric.value,"absolute");
 assert.equal(nodes.stateMonthlyMetric.options.find(x=>x.value==="anomaly").disabled,false);
 assert.equal(nodes.stateMonthlyMetric.options.find(x=>x.value==="percent").disabled,true);
 
+// The old reference must never use cached 1991-2020 data while loading.
+for(const param of ["precipitation","sunshine"]){
+  const r=fixture(param);
+  nodes.stateMonthlyReference.value="1961-1990";
+  nodes.stateMonthlyMetric.value="anomaly";
+  api.syncParameterControls();
+  assert.equal(nodes.stateMonthlyMetric.value,"absolute");
+  assert.equal(api.dailyHydroRunning("Deutschland"),null);
+  assert.equal(api.displayDatasets("gefs",r)[0].data[1],3);
+  assert.equal(api.hydroReferenceDatasets().length,0);
+  api.setOldReference(param,{reference_period:"1961-1990",months:{"11":{
+    dates:["11-01","11-02","11-03","11-04"],regions:{Deutschland:param==="precipitation"?{running_mm:[1,4,6,8]}:{running_h:[1,4,6,8]}}
+  }}});
+  api.setOldReference("monthly",{reference_period:"1961-1990",months:{"11":{[param]:{Deutschland:{month_total:80}}}}});
+  nodes.stateMonthlyMetric.value="anomaly";
+  api.syncParameterControls();
+  const old=api.displayDatasets("gefs",r);
+  assert.equal(old[0].data[1],-1);
+  assert.equal(old.find(d=>d.label==="Ensemble-Mittel").data[2],2);
+  assert.match(old.find(d=>d.isDailyClimate).label,/1961–1990/);
+  assert.match(nodes.stateMonthlyExportDescription.textContent,/1961–1990/);
+  assert.match(api.filename("png"),/1961-1990/);
+  nodes.stateMonthlyMetric.value="percent";
+  assert.equal(api.displayDatasets("gefs",r)[0].data[1],75);
+  nodes.stateMonthlyMetric.value="absolute";
+  assert.equal(api.displayDatasets("gefs",r)[0].data[1],3);
+  assert.equal(api.displayDatasets("gefs",r).find(d=>d.label==="Ensemble-Mittel").data[2],8);
+  assert.ok(api.hydroReferenceDatasets().some(d=>d.label.includes("80,0")));
+  nodes.stateMonthlyReference.value="1991-2020";
+  nodes.stateMonthlyMetric.value="anomaly";
+  assert.equal(api.displayDatasets("gefs",r)[0].data[1],1);
+  api.setOldReference("monthly",null);
+}
+
+// Temperature day normals must be averaged over the actual calendar dates,
+// not approximated by the full-month baseline or an old year constant.
+nodes.stateMonthlyParameter.value="temperature";
+nodes.stateMonthlyPeriod.value="season";
+const temp={climatology_running:[4,6,8,10],climatology_month_mean:10,
+  observed_running:[2,4,null,null],models:{gefs:{stats:modelStats(),control:[null,null,7,11]}}};
+api.setTemperature({year:2024,month:2,periods:{season:{dates:["2024-02-28","2024-02-29","2024-03-01","2024-03-02"]}},regions:{Deutschland:{periods:{season:temp}}}});
+nodes.stateMonthlyReference.value="1961-1990";
+nodes.stateMonthlyMetric.value="anomaly";
+api.syncParameterControls();
+assert.equal(nodes.stateMonthlyMetric.value,"absolute");
+assert.equal(api.displayDatasets("gefs",temp).some(d=>d.isTemperatureClimate),false);
+api.setOldReference("temperature",{reference:"1961-1990",regions:{Deutschland:{"02-28":2,"02-29":4,"03-01":6,"03-02":8}}});
+assert.deepEqual(Array.from(api.temperatureRunning(temp)),[2,3,4,5]);
+nodes.stateMonthlyMetric.value="anomaly";
+api.syncParameterControls();
+assert.equal(api.displayDatasets("gefs",temp)[0].data[1],1);
+assert.equal(api.displayDatasets("gefs",temp).find(d=>d.label==="Ensemble-Mittel").data[2],4);
+assert.match(api.chartOptions({min:-5,max:5}).scales.y.title.text,/1961–1990/);
+assert.match(nodes.stateMonthlyExportDescription.textContent,/1961–1990/);
+nodes.stateMonthlyReference.value="1991-2020";
+assert.equal(api.displayDatasets("gefs",temp)[0].data[1],-2);
+nodes.stateMonthlyPeriod.value="month";
+
 function testLiveFiles(args){
   if(!args.length)return;
   assert.equal(args.length,4,"Usage: test JS [rain_forecast.json rain_reference.json sun_forecast.json sun_reference.json]");
@@ -190,5 +261,123 @@ function testLiveFiles(args){
     console.log("LIVE monthly outlook:",param,"17 real regions, day-aligned anomalies and percentages OK");
   }
 }
-testLiveFiles(process.argv.slice(2));
-console.log("Monthly outlook hydro metric tests passed");
+async function testTemperatureReference(file){
+  const ref=JSON.parse(fs.readFileSync(file,"utf8"));
+  const names=Object.keys(ref.regions),dates=Array.from({length:30},(_,i)=>`2026-11-${String(i+1).padStart(2,"0")}`);
+  assert.equal(ref.reference,"1961-1990");
+  assert.equal(names.length,17);
+  // Exercise the actual fetch/validation code, not only manually injected mocks.
+  context.fetch=async(url)=>{
+    assert.match(url,/hyras-data\/tmean\/regions\/climate_1961_1990\.json/);
+    return {ok:true,json:async()=>ref};
+  };
+  nodes.stateMonthlyParameter.value="temperature";
+  nodes.stateMonthlyPeriod.value="month";
+  nodes.stateMonthlyReference.value="1961-1990";
+  api.setTemperature({year:2026,month:11,dates,regions:{}});
+  api.setOldReference("temperature",null);
+  assert.ok(await api.fetchOldReference("temperature"));
+  for(const name of names){
+    const days=ref.regions[name];
+    assert.equal(Object.keys(days).length,366);
+    nodes.stateMonthlyRegion.value=name;
+    const running=api.temperatureRunning({});
+    assert.equal(running.length,30);
+    assert.equal(running[0],days["11-01"]);
+    assert.ok(running.every(Number.isFinite));
+    const mean=dates.reduce((total,date)=>total+days[date.slice(5)],0)/30;
+    assert.ok(Math.abs(running.at(-1)-mean)<1e-8);
+    if(name==="Deutschland")assert.ok(Math.abs(running.at(-1)-3.9719)<.001,`DE November 1961-1990 is ${running.at(-1)} °C`);
+  }
+  console.log("LIVE 1961–1990 HYRAS temperature reference: 17 regions, 366 days, November running means OK");
+}
+async function testReferenceFetchRace(){
+  const oldDaily=oldDailyFixture();
+  nodes.stateMonthlyReference.value="1991-2020";
+  fixture("precipitation");
+  api.setOldReference("precipitation",null);
+  let release;
+  context.fetch=async()=>await new Promise(resolve=>{release=()=>resolve({ok:true,json:async()=>oldDaily});});
+  nodes.stateMonthlyReference.value="1961-1990";
+  const request=api.fetchOldReference("precipitation");
+  nodes.stateMonthlyReference.value="1991-2020";
+  release();
+  await request;
+  assert.equal(api.dailyHydroRunning("Deutschland")[1],2,"old reference fetched in background must not overwrite current baseline");
+  nodes.stateMonthlyReference.value="1961-1990";
+  assert.equal(api.dailyHydroRunning("Deutschland")[1],4);
+  nodes.stateMonthlyReference.value="1991-2020";
+}
+async function testMalformedOldReference(){
+  nodes.stateMonthlyReference.value="1961-1990";
+  // Expected rejection warnings must not obscure unexpected test failures.
+  context.console={...console,warn(){}};
+  for(const mutate of [
+    doc=>{doc.reference_period="1991-2020";},
+    doc=>{doc.regions_order[0]="Nirgendwo";},
+    doc=>{doc.months["02"].dates.pop();},
+    doc=>{delete doc.months["11"].regions.Deutschland;},
+    doc=>{doc.months["11"].regions.Deutschland.running_mm[2]=0;},
+    doc=>{doc.months["11"].regions.Deutschland.daily_mm[2]=null;}
+  ]){
+    const doc=oldDailyFixture();mutate(doc);
+    api.setOldReference("precipitation",null);
+    context.fetch=async()=>({ok:true,json:async()=>doc});
+    assert.equal(await api.fetchOldReference("precipitation"),null,"wrong or incomplete reference must be rejected");
+    assert.equal(api.dailyHydroRunning("Deutschland"),null);
+  }
+  // No anomaly when the selected calendar has only partial valid coverage.
+  api.setOldReference("precipitation",{months:{"11":{dates:["11-01","11-02","11-03","11-04"],regions:{Deutschland:{running_mm:[1,2,null,3]}}}}});
+  nodes.stateMonthlyMetric.value="anomaly";
+  api.syncParameterControls();
+  assert.equal(nodes.stateMonthlyMetric.value,"absolute");
+  nodes.stateMonthlyReference.value="1991-2020";
+  context.console=console;
+}
+async function testExportReferenceSnapshot(){
+  const downloads=[];
+  context.URL={createObjectURL:()=>"blob:fixture",revokeObjectURL(){}};
+  context.setTimeout=fn=>fn();
+  document.body={appendChild(){}};
+  document.createElement=()=>({click(){downloads.push(this.download);},remove(){}});
+  context.window.html2canvas=true;
+  let finish;
+  context.window.captureDashboardWithWhiteBackground=()=>new Promise(resolve=>{finish=resolve;});
+  fixture("precipitation");
+  nodes.stateMonthlyReference.value="1961-1990";
+  nodes.stateMonthlyMetric.value="absolute";
+  const png=api.exportPng();
+  assert.equal(nodes.stateMonthlyReference.disabled,true);
+  nodes.stateMonthlyReference.value="1991-2020"; // programmatic change bypasses the UI lock
+  finish({toBlob(callback){callback({});}});
+  await png;
+  assert.match(downloads[0],/1961-1990.*\.png$/);
+  assert.equal(nodes.stateMonthlyReference.disabled,false);
+  context.window.jspdf={jsPDF:class{
+    internal={pageSize:{getWidth:()=>297,getHeight:()=>210}};
+    addImage(){}
+    save(name){downloads.push(name);}
+  }};
+  nodes.stateMonthlyReference.value="1961-1990";
+  const pdf=api.exportPdf();
+  assert.equal(nodes.stateMonthlyReference.disabled,true);
+  nodes.stateMonthlyReference.value="1991-2020";
+  finish({width:1000,height:800,toDataURL:()=>"fixture"});
+  await pdf;
+  assert.match(downloads[1],/1961-1990.*\.pdf$/);
+  assert.equal(nodes.stateMonthlyReference.disabled,false);
+}
+(async()=>{
+  const args=process.argv.slice(2),tempIndex=args.indexOf("--temp-reference");
+  if(tempIndex!==-1){
+    const [,file]=args.splice(tempIndex,2);
+    assert.ok(file,"--temp-reference requires path to real HYRAS JSON");
+    await testTemperatureReference(file);
+    nodes.stateMonthlyReference.value="1991-2020";
+  }
+  testLiveFiles(args);
+  await testReferenceFetchRace();
+  await testMalformedOldReference();
+  await testExportReferenceSnapshot();
+  console.log("Monthly outlook hydro metric tests passed");
+})().catch(error=>{console.error(error);process.exitCode=1;});

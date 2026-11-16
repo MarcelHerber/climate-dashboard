@@ -15,6 +15,18 @@ import build_monthly_outlook_climatology as climate
 
 
 class MonthlyClimatologyTests(unittest.TestCase):
+    def test_old_reference_selects_only_1961_1990_files(self):
+        html = '\n'.join([
+            '<a href="pr_hyras_1_1961_1990_v6-0_de_NOV.nc">',
+            '<a href="pr_hyras_1_1961_1990_v6-1_de_NOV.nc">',
+            '<a href="pr_hyras_1_1991_2020_v9-0_de_NOV.nc">',
+        ])
+        self.assertEqual(climate.precipitation_filename(html, 11, "1961-1990"),
+                         "pr_hyras_1_1961_1990_v6-1_de_NOV.nc")
+        with self.assertRaises(RuntimeError):
+            climate.precipitation_filename(html.splitlines()[-1], 11, "1961-1990")
+        self.assertEqual(climate.sunshine_filename(11, "1961-1990"),
+                         "grids_germany_multi_annual_sunshine_duration_1961-1990_11.asc.gz")
     def test_precip_selects_latest_official_1991_2020_version(self):
         html = '\n'.join([
             '<a href="pr_hyras_1_1961_1990_v6-1_de_NOV.nc">',

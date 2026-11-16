@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Official DWD 1991–2020 monthly normals for DE and all 16 states.
+"""Official DWD monthly normals for DE and all 16 states.
 
 Precipitation: HYRAS-DE-PR v6.1 monthly reference NetCDF, EPSG:3035.
-Sunshine: DWD CDC monthly sunshine 1991-2020 ESRI-ASCII, EPSG:31467.
+Sunshine: DWD CDC monthly sunshine ESRI-ASCII, EPSG:31467.
 Both are historical *monthly totals*, not daily climatological trajectories.
 The historical sunshine station interpolation is methodologically different
 from the current DUETT satellite+stations product.
@@ -31,6 +31,8 @@ from update_hyras_maps import grid_xy, pick_precip_var
 PRECIP_URL = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/multi_annual/hyras_de/precipitation/"
 SUN_URL = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/multi_annual/sunshine_duration/"
 SUN_FILE = "grids_germany_multi_annual_sunshine_duration_1991-2020_{month:02d}.asc.gz"
+SUPPORTED_REFERENCES = ("1991-2020", "1961-1990")
+DEFAULT_REFERENCE = "1991-2020"
 MONTH_ABBR = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 REGIONS = ("Deutschland", *EXPECTED_STATES)
 UA = "climate-dashboard-monthly-reference/1.0 (DWD CDC)"
@@ -52,17 +54,26 @@ def download(url: str, cache: Path) -> Path:
     return cache
 
 
-def precipitation_filename(listing: str, month: int) -> str:
-    """Prefer DWD 1991–2020 HYRAS v6.1; never pick another normal period."""
+def precipitation_filename(listing: str, month: int, reference_period: str = DEFAULT_REFERENCE) -> str:
+    """Prefer latest HYRAS version for the requested normal period only."""
+    if reference_period not in SUPPORTED_REFERENCES:
+        raise ValueError(f"Unsupported reference period: {reference_period}")
     abbr = MONTH_ABBR[month - 1]
+    period_slug = reference_period.replace("-", "_")
     pattern = re.compile(
-        rf'href="(pr_hyras_1_1991_2020_v(\d+)-(\d+)_de_{abbr}\.nc)"'
+        rf'href="(pr_hyras_1_{period_slug}_v(\d+)-(\d+)_de_{abbr}\.nc)"'
     )
     matches = [(int(major), int(minor), name)
                for name, major, minor in pattern.findall(listing)]
     if not matches:
-        raise RuntimeError(f"1991–2020 HYRAS precipitation reference missing: {abbr}")
+        raise RuntimeError(f"{reference_period} HYRAS precipitation reference missing: {abbr}")
     return max(matches)[2]
+
+
+def sunshine_filename(month: int, reference_period: str = DEFAULT_REFERENCE) -> str:
+    if reference_period not in SUPPORTED_REFERENCES:
+        raise ValueError(f"Unsupported reference period: {reference_period}")
+    return SUN_FILE.replace(DEFAULT_REFERENCE, reference_period).format(month=month)
 
 
 def ascii_grid(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -111,7 +122,7 @@ def ascii_grid(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     y = y0 + np.arange(nrows - 1, -1, -1, dtype=np.float64) * step
     data[~np.isfinite(data) | np.isclose(data, no_data) | (data < 0)] = np.nan
     if not (math.isfinite(float(np.nanmean(data))) and 0 <= float(np.nanmax(data)) <= 550):
-        raise ValueError("Unphysical 1991–2020 sunshine monthly hours")
+        raise ValueError("Unphysical sunshine monthly hours")
     return x, y, data
 
 
@@ -144,9 +155,9 @@ def sun_masks(features: dict, x: np.ndarray, y: np.ndarray) -> dict[str, np.ndar
 
 
 def reference_month(month: int, cache_root: Path, features: dict, precip_listing: str,
-                    state: dict) -> dict:
+                    state: dict, reference_period: str = DEFAULT_REFERENCE) -> dict:
     abbr = MONTH_ABBR[month - 1]
-    filename = precipitation_filename(precip_listing, month)
+    filename = precipitation_filename(precip_listing, month, reference_period)
     nc_path = download(PRECIP_URL + filename, cache_root / filename)
     with xr.open_dataset(nc_path, mask_and_scale=True) as ds:
         field = pick_precip_var(ds).squeeze(drop=True)
@@ -171,7 +182,7 @@ def reference_month(month: int, cache_root: Path, features: dict, precip_listing
             raise ValueError("HYRAS monthly reference grid changed between months")
         rain = area_total(grid, masks)
 
-    sunfile = SUN_FILE.format(month=month)
+    sunfile = sunshine_filename(month, reference_period)
     sunpath = download(SUN_URL + sunfile, cache_root / sunfile)
     sx, sy, sunshine_grid = ascii_grid(sunpath)
     masks = state.get("sun_masks")
@@ -189,7 +200,10 @@ def reference_month(month: int, cache_root: Path, features: dict, precip_listing
     }
 
 
-def build(months: list[int], cache_root: Path, work: Path) -> dict:
+def build(months: list[int], cache_root: Path, work: Path,
+          reference_period: str = DEFAULT_REFERENCE) -> dict:
+    if reference_period not in SUPPORTED_REFERENCES:
+        raise ValueError(f"Unsupported reference period: {reference_period}")
     work.mkdir(parents=True, exist_ok=True)
     features = load_states(work)
     listing = requests.get(PRECIP_URL, timeout=100, headers={"User-Agent": UA})
@@ -199,25 +213,25 @@ def build(months: list[int], cache_root: Path, work: Path) -> dict:
     for month in months:
         if month < 1 or month > 12:
             raise ValueError("Months must be 1..12")
-        output[f"{month:02d}"] = reference_month(month, cache_root, features, listing.text, state)
-        print("Referenz 1991–2020 berechnet:", MONTH_ABBR[month-1],
+        output[f"{month:02d}"] = reference_month(month, cache_root, features, listing.text, state, reference_period)
+        print(f"Referenz {reference_period} berechnet:", MONTH_ABBR[month-1],
               "Niederschlag", output[f"{month:02d}"]["precipitation"]["Deutschland"]["month_total"],
               "mm · Sonne", output[f"{month:02d}"]["sunshine"]["Deutschland"]["month_total"], "h", flush=True)
     return {
         "schema_version": 1,
         "product": "state_monthly_hydro_sun_climatology",
-        "reference_period": "1991-2020",
+        "reference_period": reference_period,
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "months": output,
         "regions_order": list(REGIONS),
         "parameter_meta": {
             "precipitation": {
                 "unit": "mm", "source": "DWD HYRAS-DE-PR v6 monthly 1-km climate grid",
-                "method": "1991-2020 mean monthly precipitation total, averaged across equal-area 1km cells (EPSG:3035)",
+                "method": f"{reference_period} mean monthly precipitation total, averaged across equal-area 1km cells (EPSG:3035)",
             },
             "sunshine": {
-                "unit": "h", "source": "DWD CDC 1991–2020 monthly sunshine duration 1-km station-interpolated grid",
-                "method": "1991–2020 mean monthly sunshine hours (EPSG:31467), not DUETT-specific reference",
+                "unit": "h", "source": f"DWD CDC {reference_period} monthly sunshine duration 1-km station-interpolated grid",
+                "method": f"{reference_period} mean monthly sunshine hours (EPSG:31467), not DUETT-specific reference",
                 "comparability_note": "Station-interpolated historical climatology and current blended satellite+station DUETT are methodologically distinct.",
             },
         },
@@ -229,15 +243,16 @@ def build(months: list[int], cache_root: Path, work: Path) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--months", default="all", help="Comma-separated 1-12 or 'all'")
+    ap.add_argument("--reference-period", choices=SUPPORTED_REFERENCES, default=DEFAULT_REFERENCE)
     ap.add_argument("--cache", type=Path, default=Path("/tmp/state-monthly-climate-cache"))
     ap.add_argument("--work", type=Path, default=Path("/tmp/state-monthly-climate-work"))
     ap.add_argument("--output", type=Path, required=True)
     args = ap.parse_args()
     months = list(range(1, 13)) if args.months == "all" else sorted(set(int(x) for x in args.months.split(",")))
-    out = build(months, args.cache, args.work)
+    out = build(months, args.cache, args.work, args.reference_period)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    print("DWD 1991–2020 monthly climatologies ready:", len(out["months"]), "months")
+    print(f"DWD {args.reference_period} monthly climatologies ready:", len(out["months"]), "months")
 
 
 if __name__ == "__main__":

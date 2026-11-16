@@ -6,6 +6,7 @@ on:
       - "state_monthly_ensemble.js"
       - "scripts/patch_state_monthly_ensemble_frontend.py"
       - "tests/test_state_monthly_hydro_metrics.cjs"
+      - "tests/test_state_monthly_reference_browser.cjs"
       - ".github/workflows/test-state-monthly-hydro-metrics.yml"
   workflow_dispatch:
 
@@ -55,6 +56,9 @@ jobs:
           for branch in state-monthly-precip state-monthly-sun state-monthly-daily-reference state-monthly-daily-sun; do
             git fetch origin "$branch" --depth=1
           done
+          curl --retry 3 --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/hyras-data/tmean/regions/climate_1961_1990.json \
+            -o /tmp/monthly-metrics-live/temp_reference_61.json
           git show origin/state-monthly-precip:state_monthly_precip.json > /tmp/monthly-metrics-live/precip.json
           git show origin/state-monthly-sun:state_monthly_sun.json > /tmp/monthly-metrics-live/sun.json
           git show origin/state-monthly-daily-reference:daily_precip_reference_1991_2020.json > /tmp/monthly-metrics-live/precip_reference.json
@@ -65,4 +69,10 @@ jobs:
             /tmp/monthly-metrics-live/precip.json \
             /tmp/monthly-metrics-live/precip_reference.json \
             /tmp/monthly-metrics-live/sun.json \
-            /tmp/monthly-metrics-live/sun_reference.json
+            /tmp/monthly-metrics-live/sun_reference.json \
+            --temp-reference /tmp/monthly-metrics-live/temp_reference_61.json
+      - name: Referenzwahl im Desktop- und Handy-Browser testen
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          node tests/test_state_monthly_reference_browser.cjs /tmp/monthly-metrics-live/temp_reference_61.json

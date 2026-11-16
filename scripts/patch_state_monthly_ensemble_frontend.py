@@ -7,7 +7,7 @@ INDEX=ROOT/"index.html"
 BUILD=ROOT/"scripts/build_pages_site.sh"
 
 CSS_TAG='<link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">'
-JS_TAG='<script src="state_monthly_ensemble.js?v=20261112-hydro-metrics-1"></script>'
+JS_TAG='<script src="state_monthly_ensemble.js?v=20261116-reference-61-1"></script>'
 NAV_ANCHOR='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">Ensembles</button>'
 NAV_BUTTON='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'state-monthly-ensemble\')">Monatsausblick</button>'
 MARKER='<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -->'
@@ -20,6 +20,15 @@ PARAM_SELECTOR='''    <div class="control-group">
       </select>
     </div>
 '''
+REFERENCE_SELECTOR='''    <div class="control-group">
+      <label for="stateMonthlyReference">Klimareferenz</label>
+      <select id="stateMonthlyReference">
+        <option value="1991-2020" selected>1991–2020</option>
+        <option value="1961-1990">1961–1990</option>
+      </select>
+    </div>
+'''
+METRIC_ANCHOR='    <div class="control-group">\n      <label for="stateMonthlyMetric">Darstellung</label>'
 NEW_SELECTORS=PARAM_SELECTOR+'''    <div class="control-group">
       <label for="stateMonthlyPeriod">Zeitraum</label>
       <select id="stateMonthlyPeriod">
@@ -28,7 +37,7 @@ NEW_SELECTORS=PARAM_SELECTOR+'''    <div class="control-group">
         <option value="year">Laufendes Jahr</option>
       </select>
     </div>
-    <div class="control-group">
+'''+REFERENCE_SELECTOR+'''    <div class="control-group">
       <label for="stateMonthlyMetric">Darstellung</label>
       <select id="stateMonthlyMetric">
         <option value="absolute" selected>Temperaturmittel (°C)</option>
@@ -151,6 +160,11 @@ def patch_index(text: str) -> str:
         if VIEW_ANCHOR not in text:
             raise RuntimeError("Monats-Ensemble-Auswahl für Zeitraum nicht gefunden")
         text=text.replace(VIEW_ANCHOR,NEW_SELECTORS+VIEW_ANCHOR,1)
+
+    if 'id="stateMonthlyReference"' not in text:
+        if METRIC_ANCHOR not in text:
+            raise RuntimeError("Monatsausblick Darstellungsanker für Klimareferenz fehlt")
+        text=text.replace(METRIC_ANCHOR,REFERENCE_SELECTOR+METRIC_ANCHOR,1)
 
     # Existing published panel: insert the third selector option once.
     # The original static HTML is also upgraded by this idempotent patch.
