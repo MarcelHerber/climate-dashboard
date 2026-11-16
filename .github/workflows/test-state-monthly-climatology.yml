@@ -24,6 +24,7 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
+          cache-dependency-path: requirements-hyras.txt
       - name: Pakete
         run: |
           python -m pip install -r requirements-hyras.txt
@@ -45,4 +46,22 @@ jobs:
               r=d["months"]["11"][parameter]
               assert len(r)==17 and r["Deutschland"]["month_total"]>0
               print(parameter,"Deutschland November-Normal:",r["Deutschland"]["month_total"])
+          PY
+      - name: Echte DWD-Referenzdaten für November 1961-1990 prüfen
+        run: |
+          python scripts/build_monthly_outlook_climatology.py \
+            --reference-period 1961-1990 --months 11 --output /tmp/climate-smoke-november-61.json
+          python - <<'PY'
+          import json
+          a=json.load(open("/tmp/climate-smoke-november.json"))
+          b=json.load(open("/tmp/climate-smoke-november-61.json"))
+          assert b["reference_period"]=="1961-1990"
+          assert set(b["months"])=={"11"}
+          for parameter in ("sunshine","precipitation"):
+              old=b["months"]["11"][parameter]
+              new=a["months"]["11"][parameter]
+              assert set(old)==set(new) and len(old)==17
+              assert all(v["month_total"]>0 and v["coverage"]>=0.9 for v in old.values())
+              assert any(old[r]["month_total"]!=new[r]["month_total"] for r in old)
+              print(parameter, "November 1961–1990 Deutschland:",old["Deutschland"]["month_total"])
           PY
