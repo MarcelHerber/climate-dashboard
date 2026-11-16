@@ -5,14 +5,14 @@
   "renderer_version": 2,
   "boundaries": "Natural Earth 1:50m offline country boundaries and coasts",
   "border_segments": 418,
-  "analysis_date": "2026-11-09",
-  "generated_utc": "2026-11-15T17:54:13+00:00",
+  "analysis_date": "2026-11-10",
+  "generated_utc": "2026-11-16T21:08:55+00:00",
   "dates_used": [
-    "2026-11-05",
     "2026-11-06",
     "2026-11-07",
     "2026-11-08",
-    "2026-11-09"
+    "2026-11-09",
+    "2026-11-10"
   ],
   "pressure_hpa": 500,
   "parameter": "geopotential_height",
@@ -27,15 +27,15 @@
   "blocking_method": "Tibaldi-Molteni-type 1D 500-hPa gradients, phi=60N plus offsets -5/0/+5; GHGS>0, GHGN<-10 gpm/degree; >=10 degrees width; persistent >=5 consecutive days",
   "instantaneous_sectors": [
     {
-      "west": -33.0,
-      "east": -14.0,
-      "width_degrees": 20.0
+      "west": -30.0,
+      "east": -17.0,
+      "width_degrees": 14.0
     }
   ],
   "persistent_sectors": [],
   "history_complete": true,
   "days_analysed": 5,
-  "min_gpm": 5027.3,
-  "max_gpm": 5909.4,
+  "min_gpm": 4989.3,
+  "max_gpm": 5912.7,
   "note": "Diagnostic sectors in longitude only; not a 2D blocking footprint. No positive signal does not exclude all types of blocking."
 }
