@@ -3,7 +3,7 @@ import json
 import os
 import subprocess
 import argparse
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 
 from build_data_status import fetch_archive_json, MTG_PRODUCTS, finite
@@ -16,6 +16,7 @@ SOURCES = (
     ('satellite_mtg', 'main/data/satellite_wms_times.json', 'check-satellite-wms.yml', 45),
     ('icon_hazards', 'icon-hazards-data/data/icon-hazards/current.json', 'update-icon-eu-hazards.yml', 180),
     ('mosmix', 'mosmix-data/data/mosmix/manifest.json', 'update-mosmix.yml', 180),
+    ('europe_tmax', 'europe-tmax-lab-data/data/europe-tmax-lab/current.json', 'update-europe-tmax-lab.yml', 180),
     ('snow_eurasia', 'main/eurasia_snow/index.json', 'update-eurasia-snow.yml', 480),
     ('snow_europe', 'main/eurasia_snow/europe_index.json', 'update-europe-snow-area.yml', 480),
     ('snow_maps', 'main/eurasia_snow/maps/index.json', 'update-snow-maps.yml', 480),
@@ -81,6 +82,25 @@ def needs_recovery(kind, manifest, now):
     if kind == 'mosmix':
         count = manifest.get('station_count')
         return type(count) is int and count >= 100 and stale(manifest.get('issue_time'), 12)
+    if kind == 'europe_tmax':
+        # This product deliberately uses only the 00 UTC cycle and five complete future days.
+        # Do not start before the morning input files can be available.
+        if now.hour < 5 or manifest.get('schema') != 2:
+            return False
+        try:
+            cycle = datetime.strptime(manifest.get('icon_cycle'), '%Y%m%d%H').replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            return False
+        days, stations = manifest.get('days'), manifest.get('stations_catalog_count')
+        if (cycle.hour != 0 or cycle >= now or now - cycle <= timedelta(hours=24)
+                or type(stations) is not int or stations < 1000 or not isinstance(days, list) or len(days) != 5):
+            return False
+        return all(isinstance(d, dict) and d.get('date') == (cycle + timedelta(days=i)).date().isoformat()
+                   and finite(d.get('coverage')) and d['coverage'] >= .8
+                   and d.get('icon_png') and d.get('icon_raw_png')
+                   and isinstance(d.get('stations'), list)
+                   and sum(isinstance(s, dict) and finite(s.get('tmax_c')) for s in d['stations']) >= 25
+                   for i, d in enumerate(days))
     if kind in ('snow_europe', 'snow_eurasia'):
         daily = manifest.get('daily')
         if not isinstance(daily, dict):

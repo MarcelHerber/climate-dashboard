@@ -3,12 +3,14 @@ name: Arctic status and viewport quality checks
 on:
   push:
     branches:
+      - main
       - improve/arctic-status-mobile-qa-20261109
     paths:
       - scripts/build_data_status.py
       - datenstatus.html
       - arktis_era5_maps.js
       - tests/test_arctic_status_extension.py
+      - tests/test_data_status_browser.cjs
       - .github/workflows/test-arctic-status-20261109.yml
   pull_request:
     paths:
@@ -16,6 +18,7 @@ on:
       - datenstatus.html
       - arktis_era5_maps.js
       - tests/test_arctic_status_extension.py
+      - tests/test_data_status_browser.cjs
       - .github/workflows/test-arctic-status-20261109.yml
   workflow_dispatch:
 
@@ -44,3 +47,4 @@ jobs:
           Path("/tmp/status-page.js").write_text(js)
           PY
           node --check /tmp/status-page.js
+          node --test tests/test_data_status_browser.cjs
