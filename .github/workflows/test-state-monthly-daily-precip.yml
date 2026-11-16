@@ -34,7 +34,9 @@ jobs:
           node --check state_monthly_ensemble.js
           python scripts/patch_state_monthly_ensemble_frontend.py
           grep -q "stateMonthlyParameter" index.html
-          grep -q 'state_monthly_ensemble.js?v=20261112-daily-precip-1' index.html
+          EXPECTED_TAG=$(python -c 'from scripts.patch_state_monthly_ensemble_frontend import JS_TAG; print(JS_TAG)')
+          test -n "$EXPECTED_TAG"
+          grep -Fq "$EXPECTED_TAG" index.html
 
   live-cache:
     runs-on: ubuntu-latest
