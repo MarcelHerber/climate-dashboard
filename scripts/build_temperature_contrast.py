@@ -84,7 +84,9 @@ def inventory(mode, start,end):
     prefix='stundenwerte_TU' if hourly else 'tageswerte_KL'
     desc='TU_Stundenwerte_Beschreibung_Stationen.txt' if hourly else 'KL_Tageswerte_Beschreibung_Stationen.txt'
     cat={}; urls={}
-    for folder in ('recent','historical'):
+    # CDC recent/ covers only the rolling last 500 days.
+    folders=('recent','historical') if end>=(dt.date.today()-dt.timedelta(days=500)).strftime('%Y%m%d') else ('historical',)
+    for folder in folders:
         directory=base+folder+'/'
         listing=fetch(directory).decode('utf8','replace')
         cat.update(catalogue(fetch(directory+desc).decode('latin1')))
@@ -97,6 +99,7 @@ def inventory(mode, start,end):
 def read_station(station, urls, days, hourly):
     steps=24 if hourly else 1; n=len(days)*steps
     hot=np.full(n,MISSING,np.int16); cold=hot.copy()
+    exact=set()
     for url in urls: # Recent first, validated historical last.
         with ZipFile(io.BytesIO(fetch(url))) as z:
             periods=[]
@@ -107,7 +110,14 @@ def read_station(station, urls, days, hourly):
                         p=[v.strip() for v in line.split(';')]
                         if len(p)>=9 and p[0].zfill(5)==station['id'] and p[4].upper()=='TT_TU':
                             periods.append((p[1].replace('-',''),p[2].replace('-','') or '99999999',p[8]))
-                utc_days={d for d in days if {zone for first,last,zone in periods if first<=d<=last}=={'Stundenwerte in UTC'}}
+                next_day=(dt.datetime.strptime(max(days),'%Y%m%d')+dt.timedelta(days=1)).strftime('%Y%m%d')
+                zone_days={}
+                for d in (*days,next_day):
+                    zones={zone for first,last,zone in periods if first<=d<=last}
+                    if zones=={'Stundenwerte in UTC'}: zone_days[d]=0
+                    # Documented eMD archive, fixed standard time UTC+1 (no DST).
+                    # Plain MEZ is excluded: historical metadata can mislabel UTC stamps.
+                    elif zones=={'Stundenwerte in MEZ (MD)'} and d<='19920101': zone_days[d]=1
             found=False
             for name in z.namelist():
                 if not re.search(r'produkt.*\.txt$',name,re.I): continue
@@ -119,14 +129,25 @@ def read_station(station, urls, days, hourly):
                         p=line.split(';')
                         if len(p)<=max(indexes): continue
                         sid,stamp,q,a,b=(p[i].strip() for i in indexes); day=stamp[:8]
-                        if sid.zfill(5)!=station['id'] or day not in days or (hourly and day not in utc_days): continue
+                        if sid.zfill(5)!=station['id'] or (hourly and day not in zone_days) or (not hourly and day not in days): continue
                         try:
                             if int(q) not in QUALITY: continue
                             hour=int(stamp[8:]) if hourly else 0
                             if len(stamp)!=(10 if hourly else 8) or not 0<=hour<steps: continue
                             va,vb=float(a),float(b)
+                            offset=zone_days[day] if hourly else 0
+                            if offset:
+                                hour-=offset
+                                if hour<0:
+                                    day=(dt.datetime.strptime(day,'%Y%m%d')-dt.timedelta(days=1)).strftime('%Y%m%d')
+                                    hour+=24
                         except ValueError: continue
+                        if offset and day>'19911231': continue
+                        if day not in days: continue
                         ix=days[day]*steps+hour
+                        if hourly:
+                            if offset and ix in exact: continue
+                            if not offset and -70<=va<=65: exact.add(ix)
                         if -70<=va<=65: hot[ix]=round(va*10)
                         if -70<=vb<=65: cold[ix]=round(vb*10)
             if not found: raise ValueError(f'No product in {url}')
@@ -140,8 +161,9 @@ def build(out,mode,first,last,limit=0):
     start=dt.date(first,1,1); end=min(dt.date(last,12,31),dt.date.today()-dt.timedelta(days=1))
     days={(start+dt.timedelta(days=i)).strftime('%Y%m%d'):i for i in range((end-start).days+1)}
     hourly=mode=='hourly'; steps=24 if hourly else 1
-    early_hourly=hourly and last<1991 and not limit
-    inv=inventory(mode,min(days),max(days))
+    early_hourly=hourly and last<=1991 and not limit
+    early_daily=not hourly and last<1961 and not limit
+    inv=inventory(mode,min(days),(end+dt.timedelta(days=1)).strftime('%Y%m%d') if hourly else max(days))
     if limit: inv=inv[:limit]
     if not inv or (len(inv)<2 and not early_hourly): raise ValueError('Too few stations')
     hot=np.full((len(days)*steps,len(inv)),MISSING,np.int16); cold=hot.copy()
@@ -150,7 +172,7 @@ def build(out,mode,first,last,limit=0):
             hot[:,j]=a; cold[:,j]=b
             if j%50==0: print(mode,j+1,'/',len(inv),flush=True)
     stations=[s for s,_ in inv]; active=np.any(hot!=MISSING,axis=0)|np.any(cold!=MISSING,axis=0)
-    if not early_hourly and active.sum()<(2 if limit else 80): raise ValueError('Insufficient valid stations')
+    if not early_hourly and active.sum()<(2 if limit or early_daily else 80): raise ValueError('Insufficient valid stations')
     lat=np.radians([s['lat'] for s in stations]); lon=np.radians([s['lon'] for s in stations]); height=np.array([s['height'] for s in stations])
     distances=6371*2*np.arcsin(np.sqrt(np.clip(np.sin((lat[:,None]-lat)/2)**2+np.cos(lat[:,None])*np.cos(lat)*np.sin((lon[:,None]-lon)/2)**2,0,1)))
     differences=np.abs(height[:,None]-height)
@@ -163,7 +185,7 @@ def build(out,mode,first,last,limit=0):
             p=out/mode/str(year)/'unavailable.json'
             if (p.parent/'ready.json').exists(): raise ValueError(f'Previously published data missing for {year}')
             p.parent.mkdir(parents=True,exist_ok=True)
-            p.write_text(json.dumps(dict(year=year,stations=int(year_active.sum()),reason='no_simultaneous_documented_utc_pair')))
+            p.write_text(json.dumps(dict(year=year,stations=int(year_active.sum()),reason='no_simultaneous_documented_utc_pair',time_reference='utc-md-v2')))
             print('No simultaneous documented UTC pairs in',year,flush=True)
             continue
         national_days=0
@@ -191,7 +213,7 @@ def build(out,mode,first,last,limit=0):
         print('Verified year',mode,year,national_days,'valid days of',len(dates),'stations',int(year_active.sum()),flush=True)
         if not national_days: raise ValueError(f'No valid national pairs for {mode} {year}')
         if not limit:
-            p=out/mode/str(year)/'ready.json'; p.write_text(json.dumps(dict(start=dates[0],end=dates[-1],stations=int(year_active.sum()),days=national_days,year=year)))
+            p=out/mode/str(year)/'ready.json'; p.write_text(json.dumps(dict(start=dates[0],end=dates[-1],stations=int(year_active.sum()),days=national_days,year=year,**({'time_reference':'utc-md-v2'} if hourly else {}))))
             (p.parent/'unavailable.json').unlink(missing_ok=True)
 
 if __name__=='__main__':

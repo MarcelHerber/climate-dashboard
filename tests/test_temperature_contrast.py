@@ -10,6 +10,37 @@ from scripts.build_temperature_contrast import build, read_station, scan, MISSIN
 
 
 class ContrastTests(unittest.TestCase):
+    def test_east_german_mez_md_shift_crosses_year_boundary(self):
+        data=io.BytesIO()
+        with ZipFile(data,'w') as z:
+            z.writestr('Metadaten_Parameter_TU.txt','Header\n00001;1989-12-31;1990-01-01;;TT_TU;;;;Stundenwerte in MEZ (MD)\n')
+            z.writestr('produkt_tu_stunde.txt','STATIONS_ID;MESS_DATUM;QN_9;TT_TU\n1;1989123101;5;1.0\n1;1990010100;5;2.0\n')
+        with patch('scripts.build_temperature_contrast.fetch',return_value=data.getvalue()):
+            a,b=read_station({'id':'00001'},['test'],{'19891231':0},True)
+        self.assertEqual((a[0],a[23]),(10,20))
+        np.testing.assert_array_equal(a,b)
+
+    def test_mez_md_cutoff_is_applied_to_normalized_utc_date(self):
+        data=io.BytesIO()
+        with ZipFile(data,'w') as z:
+            z.writestr('Metadaten_Parameter_TU.txt','Header\n00001;1991-12-31;1992-01-01;;TT_TU;;;;Stundenwerte in MEZ (MD)\n')
+            z.writestr('produkt_tu_stunde.txt','STATIONS_ID;MESS_DATUM;QN_9;TT_TU\n1;1992010100;5;2.0\n1;1992010101;5;3.0\n')
+        with patch('scripts.build_temperature_contrast.fetch',return_value=data.getvalue()):
+            a,_=read_station({'id':'00001'},['test'],{'19911231':0,'19920101':1},True)
+        self.assertEqual((a[23],a[24]),(20,MISSING))
+
+    def test_native_utc_survives_shifted_overlap_across_archives(self):
+        def archive(zone,stamp,value):
+            data=io.BytesIO()
+            with ZipFile(data,'w') as z:
+                z.writestr('Metadaten_Parameter_TU.txt',f'Header\n00001;1989-12-31;1990-01-01;;TT_TU;;;;{zone}\n')
+                z.writestr('produkt_tu_stunde.txt',f'STATIONS_ID;MESS_DATUM;QN_9;TT_TU\n1;{stamp};5;{value}\n')
+            return data.getvalue()
+        blobs={'a':archive('Stundenwerte in UTC','1989123123',2.0),'b':archive('Stundenwerte in MEZ (MD)','1990010100',9.0)}
+        with patch('scripts.build_temperature_contrast.fetch',side_effect=blobs.__getitem__):
+            a,b=read_station({'id':'00001'},['a','b'],{'19891231':0},True)
+        self.assertEqual(a[23],20)
+
     def test_historical_time_reference_metadata_is_applied_per_day(self):
         data=io.BytesIO()
         with ZipFile(data,'w') as z:

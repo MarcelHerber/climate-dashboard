@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       first:
-        description: Erstes Jahr (leer = alle Archivlücken ab 1961)
+        description: Erstes Jahr (leer = alle Archivlücken ab 1901; Stundenwerte ab 1951)
         required: false
         type: string
       last:
@@ -80,21 +80,34 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           ready() {
-            [ -f "$root/daily/$1/ready.json" ] && { [ -f "$root/hourly/$1/ready.json" ] || { (( $1 < 1991 )) && [ -f "$root/hourly/$1/unavailable.json" ]; }; }
+            [ -f "$root/daily/$1/ready.json" ] || return 1
+            (( $1 < 1951 )) && return 0
+            local marker="$root/hourly/$1/ready.json"
+            if [ ! -f "$marker" ] && (( $1 < 1991 )); then marker="$root/hourly/$1/unavailable.json"; fi
+            [ -f "$marker" ] || return 1
+            if (( $1 <= 1991 )); then grep -Eq '"time_reference"[[:space:]]*:[[:space:]]*"utc-md-v2"' "$marker"; fi
           }
           run_batch() {
             local first=$1 last=$2
             echo "::group::Archive $first–$last"
-            for mode in hourly daily; do
-              python -u scripts/build_temperature_contrast.py --mode "$mode" --first "$first" --last "$last" --out "$root"
+            if ((last>=1951)); then
+              local hour_first=$first
+              ((hour_first>=1951)) || hour_first=1951
+              python -u scripts/build_temperature_contrast.py --mode hourly --first "$hour_first" --last "$last" --out "$root"
+            fi
+            local need_daily=0
+            if ((last>=current-1)) || [[ -n "${INPUT_FIRST:-}" || -n "${INPUT_LAST:-}" ]]; then need_daily=1; fi
+            for y in $(seq "$first" "$last"); do
+              [ -f "$root/daily/$y/ready.json" ] || need_daily=1
             done
+            if ((need_daily)); then python -u scripts/build_temperature_contrast.py --mode daily --first "$first" --last "$last" --out "$root"; fi
             for y in $(seq "$first" "$last"); do ready "$y" || return 1; done
             python - <<'PY'
           import json
           from pathlib import Path
           root=Path('data/rekordlabor/contrast')
           result={m:[json.loads(p.read_text()) for p in sorted((root/m).glob('*/ready.json'))] for m in ('hourly','daily')}
-          result['hourlyUnavailable']=[json.loads(p.read_text()) for p in sorted((root/'hourly').glob('*/unavailable.json')) if not (p.parent/'ready.json').exists()]
+          result['hourlyUnavailable']=[d for p in sorted((root/'hourly').glob('*/unavailable.json')) if not (p.parent/'ready.json').exists() for d in [json.loads(p.read_text())] if d.get('time_reference')=='utc-md-v2']
           (root/'index.json').write_text(json.dumps(result,indent=2))
           PY
             git add "$root"
@@ -115,12 +128,12 @@ jobs:
           last=${INPUT_LAST:-}
           if [[ -n "$first" || -n "$last" ]]; then
             if [[ -z "$first" ]]; then
-              for y in $(seq 1961 "$current"); do
+              for y in $(seq 1901 "$current"); do
                 if ! ready "$y"; then first=$y; break; fi
               done
               first=${first:-$current}
             fi
-            [[ "$first" =~ ^[0-9]{4}$ ]] && ((first>=1961 && first<=current)) || exit 1
+            [[ "$first" =~ ^[0-9]{4}$ ]] && ((first>=1901 && first<=current)) || exit 1
             last=${last:-$((first+4))}
             [[ "$last" =~ ^[0-9]{4}$ ]] && ((last>=first)) || exit 1
             ((last<=current)) || last=$current
@@ -142,7 +155,7 @@ jobs:
             run_batch "$current" "$current"
             refreshed_current=1
           fi
-          y=1961
+          y=1901
           while ((y<current)); do
             if ready "$y"; then
               y=$((y+1))
