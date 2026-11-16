@@ -15,7 +15,7 @@ ROOT = Path('data/rekordlabor/contrast')
 
 
 class Backfill(unittest.TestCase):
-    def fixture(self, years, first='', last='', fail='', weekday='7', old_years=range(1961,1991), unavailable=(), ancient=range(1901,1961), stale=()):
+    def fixture(self, years, first='', last='', fail='', weekday='7', old_years=range(1961,1991), unavailable=(), ancient=range(1901,1961), stale=(), qc_stale=()):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         base = Path(tmp.name)
@@ -34,7 +34,7 @@ class Backfill(unittest.TestCase):
                 name = 'unavailable.json' if mode == 'hourly' and year in unavailable else 'ready.json'
                 p = work / ROOT / mode / str(year) / name
                 p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text(json.dumps({'year': year, **({'time_reference':'utc-md-v2'} if mode=='hourly' and year not in stale else {})}))
+                p.write_text(json.dumps({'year': year, **({'quality_version':'contrast-qc-v1'} if year not in qc_stale else {}), **({'time_reference':'utc-md-v2'} if mode=='hourly' and year not in stale else {})}))
         git('add', '.')
         git('commit', '--allow-empty', '-m', 'fixture')
         git('remote', 'add', 'origin', str(base / 'remote.git'))
@@ -55,7 +55,7 @@ if os.environ.get('FAIL') == f'{mode} {first}': sys.exit(42)
 for year in range(first,last+1):
     p=Path(arg('--out')) / mode / str(year) / 'ready.json'
     p.parent.mkdir(parents=True,exist_ok=True)
-    p.write_text(json.dumps({'year':year, 'fresh':True, 'time_reference':'utc-md-v2'}))
+    p.write_text(json.dumps({'year':year, 'fresh':True, 'time_reference':'utc-md-v2','quality_version':'contrast-qc-v1'}))
 ''')
         python.chmod(0o755)
         env = dict(os.environ, PATH=str(tools)+os.pathsep+os.environ['PATH'], INPUT_FIRST=first, INPUT_LAST=last, CALLS=str(base/'calls'), FAIL=fail, WEEKDAY=weekday)
@@ -123,6 +123,12 @@ for year in range(first,last+1):
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(calls,['hourly 2026 2026','daily 2026 2026'])
         self.assertEqual(commits,1)
+
+    def test_quality_migration_rebuilds_existing_daily_and_hourly_archives(self):
+        result,calls,commits,index=self.fixture(range(1991,2027),qc_stale=(1901,1991))
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(calls,['daily 1901 1901','hourly 1991 1991','daily 1991 1991','hourly 2026 2026','daily 2026 2026'])
+        self.assertTrue(all(x.get('quality_version')=='contrast-qc-v1' for m in ('daily','hourly') for x in index[m]))
 
     def test_add_historical_years_and_skip_documented_unavailable_hours(self):
         result,calls,commits,index = self.fixture(range(1991,2027),old_years=range(1961,1986),unavailable=(1961,))

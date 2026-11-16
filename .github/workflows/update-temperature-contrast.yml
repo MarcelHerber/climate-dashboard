@@ -11,12 +11,13 @@ on:
         required: false
         type: string
   pull_request:
-    paths: [scripts/build_temperature_contrast.py, tests/test_temperature_contrast.py, tests/audit_temperature_contrast.py, tests/test_temperature_contrast_backfill.py, stations_temperaturgegensatz.js, stations_temperaturgegensatz.html, .github/workflows/update-temperature-contrast.yml]
+    paths: [scripts/build_temperature_contrast.py, tests/test_temperature_contrast.py, tests/test_temperature_contrast_quality.py, tests/audit_temperature_contrast.py, tests/test_temperature_contrast_backfill.py, stations_temperaturgegensatz.js, stations_temperaturgegensatz.html, .github/workflows/update-temperature-contrast.yml]
   push:
     branches: [main]
     paths: [scripts/build_temperature_contrast.py, .github/workflows/update-temperature-contrast.yml]
   schedule:
     - cron: '24 2 * * *'
+    - cron: '24 5,8,11,14,17,20,23 * * *'
 permissions:
   contents: read
 concurrency:
@@ -37,6 +38,7 @@ jobs:
           sparse-checkout: |
             scripts/build_temperature_contrast.py
             tests/test_temperature_contrast.py
+            tests/test_temperature_contrast_quality.py
             tests/audit_temperature_contrast.py
             tests/test_temperature_contrast_backfill.py
             .github/workflows/update-temperature-contrast.yml
@@ -54,6 +56,7 @@ jobs:
       - name: Exact pair selection tests
         run: |
           python -m unittest discover -s tests -p test_temperature_contrast.py -v
+          python -m unittest discover -s tests -p test_temperature_contrast_quality.py -v
           node --check stations_temperaturgegensatz.js
           python -m unittest discover -s tests -p test_temperature_contrast_backfill.py -v
       - name: Verify original archive ZIPs on PR
@@ -73,6 +76,7 @@ jobs:
         env:
           INPUT_FIRST: ${{ inputs.first }}
           INPUT_LAST: ${{ inputs.last }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
         run: |
           set -euo pipefail
           root=data/rekordlabor/contrast
@@ -80,12 +84,27 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           ready() {
-            [ -f "$root/daily/$1/ready.json" ] || return 1
+            daily_ready "$1" || return 1
             (( $1 < 1951 )) && return 0
             local marker="$root/hourly/$1/ready.json"
             if [ ! -f "$marker" ] && (( $1 < 1991 )); then marker="$root/hourly/$1/unavailable.json"; fi
             [ -f "$marker" ] || return 1
-            if (( $1 <= 1991 )); then grep -Eq '"time_reference"[[:space:]]*:[[:space:]]*"utc-md-v2"' "$marker"; fi
+            grep -Eq '"quality_version"[[:space:]]*:[[:space:]]*"contrast-qc-v1"' "$marker" || return 1
+            if (( $1 <= 1991 )); then grep -Eq '"time_reference"[[:space:]]*:[[:space:]]*"utc-md-v2"' "$marker" || return 1; fi
+            return 0
+          }
+          daily_ready() {
+            local marker="$root/daily/$1/ready.json"
+            [ -f "$marker" ] && grep -Eq '"quality_version"[[:space:]]*:[[:space:]]*"contrast-qc-v1"' "$marker"
+          }
+          current_stale() {
+            local expected actual mode
+            expected=$(date -u -d yesterday +%Y%m%d)
+            for mode in hourly daily; do
+              actual=$(python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("end", ""))' "$root/$mode/$current/ready.json")
+              if [[ -n "$actual" && "$actual" < "$expected" ]]; then return 0; fi
+            done
+            return 1
           }
           run_batch() {
             local first=$1 last=$2
@@ -98,7 +117,7 @@ jobs:
             local need_daily=0
             if ((last>=current-1)) || [[ -n "${INPUT_FIRST:-}" || -n "${INPUT_LAST:-}" ]]; then need_daily=1; fi
             for y in $(seq "$first" "$last"); do
-              [ -f "$root/daily/$y/ready.json" ] || need_daily=1
+              daily_ready "$y" || need_daily=1
             done
             if ((need_daily)); then python -u scripts/build_temperature_contrast.py --mode daily --first "$first" --last "$last" --out "$root"; fi
             for y in $(seq "$first" "$last"); do ready "$y" || return 1; done
@@ -107,7 +126,7 @@ jobs:
           from pathlib import Path
           root=Path('data/rekordlabor/contrast')
           result={m:[json.loads(p.read_text()) for p in sorted((root/m).glob('*/ready.json'))] for m in ('hourly','daily')}
-          result['hourlyUnavailable']=[d for p in sorted((root/'hourly').glob('*/unavailable.json')) if not (p.parent/'ready.json').exists() for d in [json.loads(p.read_text())] if d.get('time_reference')=='utc-md-v2']
+          result['hourlyUnavailable']=[d for p in sorted((root/'hourly').glob('*/unavailable.json')) if not (p.parent/'ready.json').exists() for d in [json.loads(p.read_text())] if d.get('time_reference')=='utc-md-v2' and d.get('quality_version')=='contrast-qc-v1']
           (root/'index.json').write_text(json.dumps(result,indent=2))
           PY
             git add "$root"
@@ -147,11 +166,16 @@ jobs:
           fi
           # Historical work is checkpointed before moving to the next gap.
           # A failed or timed-out run resumes at the first unfinished year.
+          if [[ -n "${EVENT_SCHEDULE:-}" && "$EVENT_SCHEDULE" != '24 2 * * *' ]]; then
+            pending=0
+            for y in $(seq 1901 "$current"); do if ! ready "$y"; then pending=1; break; fi; done
+            ((pending)) || exit 0
+          fi
           refreshed_current=0
           if ! ready "$((current-1))"; then
             run_batch "$((current-1))" "$current"
             refreshed_current=1
-          elif ! ready "$current" || [ "$(date -u +%u)" = 1 ]; then
+          elif ! ready "$current" || [ "$(date -u +%u)" = 1 ] || current_stale; then
             run_batch "$current" "$current"
             refreshed_current=1
           fi

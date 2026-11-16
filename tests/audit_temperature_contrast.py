@@ -19,7 +19,9 @@ with tempfile.TemporaryDirectory() as directory:
     for mode in ('hourly','daily'):
         p=json.loads(gzip.decompress((data/mode/'2025/DE.json.gz').read_bytes()))
         assert p['results']['9999-9999-9999'],mode
-        manifest[mode]=[dict(year=2025,start=p['start'],end=p['end'])]
+        manifest[mode]=[dict(year=2025,start=p['start'],end=p['end'],quality_version='contrast-qc-v1')]
+        audit=json.loads(gzip.decompress((data/mode/'2025/quality.json.gz').read_bytes()))
+        assert audit['version']=='contrast-qc-v1'
     (data/'index.json').write_text(json.dumps(manifest))
     server=ThreadingHTTPServer(('127.0.0.1',0),partial(SimpleHTTPRequestHandler,directory=directory))
     Thread(target=server.serve_forever,daemon=True).start()
@@ -32,6 +34,8 @@ with tempfile.TemporaryDirectory() as directory:
             page.locator('#ranking tr').first.wait_for(timeout=60000)
             assert page.locator('#region option').count()==17
             assert page.locator('#ranking tr').count()<=100
+            assert 'Plausibilitätsprüfung: 1/1' in page.locator('#status').inner_text()
+            assert page.locator('#qcAudit').is_visible()
             page.wait_for_function("!document.querySelector('#hourPanel').hidden")
             assert page.locator('#detail').inner_text().endswith('UTC')
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')

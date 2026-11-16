@@ -5,6 +5,7 @@ import datetime as dt
 import gzip
 import io
 import json
+import math
 import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -23,6 +24,78 @@ RADII = np.array([9999.,25.,50.,100.,200.])
 DELTAS = np.array([9999.,200.])
 HEIGHTS = [9999,1000,500]
 QUALITY = {1,2,3,5,7,8,9,10}
+QC_VERSION = 'contrast-qc-v1'
+
+@njit
+def series_flags(values, neighbors, hourly):
+    """Conservative flags, in tenths of a degree; no temperature replacement."""
+    flags=np.zeros(values.shape,np.uint8)
+    residuals=np.zeros(values.shape,np.int16)
+    span=6 if hourly else 2
+    for t in range(values.shape[0]):
+        for s in range(values.shape[1]):
+            v=int(values[t,s])
+            if v==MISSING: continue
+            if v>500 or v<-500:
+                flags[t,s]=1; continue
+            low=10000; high=-10000; n=0
+            for j in neighbors[s]:
+                if j<0: break
+                w=int(values[t,j])
+                if w==MISSING or w>500 or w<-500: continue
+                low=min(low,w); high=max(high,w); n+=1
+                if n>=16: break
+            residual=max(0,low-v,v-high) if n>=3 else 0
+            residuals[t,s]=residual
+            if residual>=300: flags[t,s]=2
+    # Never use an already strongly implausible reading as evidence against
+    # its valid neighboring hours (e.g. valid recovery between sensor faults).
+    baseline=flags.copy()
+    for t in range(values.shape[0]):
+        for s in range(values.shape[1]):
+            v=int(values[t,s]); residual=int(residuals[t,s])
+            if v==MISSING or flags[t,s]: continue
+            # Search both time directions, including short missing intervals.
+            before=False; after=False
+            threshold=200 if hourly else 250
+            same=1
+            for k in range(1,span+1):
+                if t-k>=0:
+                    w=int(values[t-k,s])
+                    if w!=MISSING and not baseline[t-k,s] and abs(v-w)>=threshold: before=True
+                    if w==v: same+=1
+                if t+k<values.shape[0]:
+                    w=int(values[t+k,s])
+                    if w!=MISSING and not baseline[t+k,s] and abs(v-w)>=threshold: after=True
+                    if w==v: same+=1
+            if residual>=250 and (before or after or (hourly and same>=8)):
+                flags[t,s]=2
+            elif hourly and before and after:
+                # Require a return to the same level and a very large jump
+                # when there is no spatial evidence (sparse old networks).
+                if t>0 and t+1<values.shape[0]:
+                    a=int(values[t-1,s]); b=int(values[t+1,s])
+                    if a!=MISSING and b!=MISSING and not baseline[t-1,s] and not baseline[t+1,s] and abs(a-b)<=50:
+                        jump=min(abs(v-a),abs(v-b))
+                        if residual>=160 and jump>=200: flags[t,s]=3
+                        elif jump>=250: flags[t,s]=4
+    return flags
+
+def quality_flags(hot,cold,distances,differences,hourly):
+    """Use nearby, comparable-height stations; preserve isolated mountain sites."""
+    active=np.any(hot!=MISSING,axis=0)|np.any(cold!=MISSING,axis=0)
+    lists=[]
+    for i in range(hot.shape[1]):
+        eligible=np.flatnonzero(active&(distances[i]<=150)&(differences[i]<=400)&(np.arange(hot.shape[1])!=i))
+        lists.append(eligible[np.argsort(distances[i,eligible],kind='stable')])
+    neighbors=np.full((hot.shape[1],max(1,max(map(len,lists),default=0))),-1,np.int32)
+    for i,order in enumerate(lists): neighbors[i,:len(order)]=order
+    h=series_flags(hot,neighbors,hourly)
+    if hourly: return h,h
+    c=series_flags(cold,neighbors,False)
+    impossible=(hot!=MISSING)&(cold!=MISSING)&(hot<cold)
+    h[impossible]=5; c[impossible]=5
+    return h,c
 
 @njit
 def scan(hot, cold, distances, differences, radii, heights, steps):
@@ -145,11 +218,15 @@ def read_station(station, urls, days, hourly):
                         if offset and day>'19911231': continue
                         if day not in days: continue
                         ix=days[day]*steps+hour
+                        # Retain even implausible finite numeric readings for
+                        # the separate QC audit. -999 is the DWD missing code.
+                        good_a=math.isfinite(va) and va!=-999 and -3276.7<=va<=3276.7
+                        good_b=math.isfinite(vb) and vb!=-999 and -3276.7<=vb<=3276.7
                         if hourly:
                             if offset and ix in exact: continue
-                            if not offset and -70<=va<=65: exact.add(ix)
-                        if -70<=va<=65: hot[ix]=round(va*10)
-                        if -70<=vb<=65: cold[ix]=round(vb*10)
+                            if not offset and good_a: exact.add(ix)
+                        if good_a: hot[ix]=round(va*10)
+                        if good_b: cold[ix]=round(vb*10)
             if not found: raise ValueError(f'No product in {url}')
     return hot,cold
 
@@ -176,8 +253,18 @@ def build(out,mode,first,last,limit=0):
     lat=np.radians([s['lat'] for s in stations]); lon=np.radians([s['lon'] for s in stations]); height=np.array([s['height'] for s in stations])
     distances=6371*2*np.arcsin(np.sqrt(np.clip(np.sin((lat[:,None]-lat)/2)**2+np.cos(lat[:,None])*np.cos(lat)*np.sin((lon[:,None]-lon)/2)**2,0,1)))
     differences=np.abs(height[:,None]-height)
+    # Audit raw observations before selecting any winner, including the hourly
+    # drill-down. Unflagged readings are left bit-identical.
+    hf,cf=quality_flags(hot,cold,distances,differences,hourly)
     for year in range(first,end.year+1):
         dates=[d for d in days if d.startswith(str(year))]; lo=days[dates[0]]*steps; hi=(days[dates[-1]]+1)*steps
+        audit=[]
+        for label,values,flags in [('TT_TU' if hourly else 'TXK',hot,hf)]+([] if hourly else [('TNK',cold,cf)]):
+            for t,i in zip(*np.nonzero(flags[lo:hi])):
+                audit.append([dates[t//steps],int(t%steps) if hourly else None,stations[i]['id'],label,int(values[lo+t,i]),int(flags[lo+t,i])])
+        dump(out/mode/str(year)/'quality.json.gz',dict(version=QC_VERSION,unit='0.1 °C',columns=['date','hour_utc','station_id','parameter','original','reason'],reasons={'1':'physical range','2':'strong spatial inconsistency','3':'spatial and temporal inconsistency','4':'isolated extreme spike','5':'TXK below TNK'},excluded=audit))
+        hot[lo:hi][hf[lo:hi]!=0]=MISSING
+        cold[lo:hi][cf[lo:hi]!=0]=MISSING
         year_active=np.any(hot[lo:hi]!=MISSING,axis=0)|np.any(cold[lo:hi]!=MISSING,axis=0)
         # Older hourly records can have no documented overlapping UTC measurements.
         # Record this explicitly, without putting an empty year in the public index.
@@ -185,7 +272,7 @@ def build(out,mode,first,last,limit=0):
             p=out/mode/str(year)/'unavailable.json'
             if (p.parent/'ready.json').exists(): raise ValueError(f'Previously published data missing for {year}')
             p.parent.mkdir(parents=True,exist_ok=True)
-            p.write_text(json.dumps(dict(year=year,stations=int(year_active.sum()),reason='no_simultaneous_documented_utc_pair',time_reference='utc-md-v2')))
+            p.write_text(json.dumps(dict(year=year,stations=int(year_active.sum()),reason='no_simultaneous_documented_utc_pair',time_reference='utc-md-v2',quality_version=QC_VERSION,excluded=len(audit))))
             print('No simultaneous documented UTC pairs in',year,flush=True)
             continue
         national_days=0
@@ -201,7 +288,7 @@ def build(out,mode,first,last,limit=0):
                             if row[1]<0: continue
                             v,i,j,h,a,b=map(int,row); rows.append([day,v,int(ids[i]),int(ids[j]),h,a,b])
                         results[f'{ceiling}-{int(r)}-{int(d)}']=rows
-            dump(out/mode/str(year)/(('DE' if region=='DE' else str(STATES.index(region)))+'.json.gz'),dict(start=dates[0],end=dates[-1],stations=stations,results=results))
+            dump(out/mode/str(year)/(('DE' if region=='DE' else str(STATES.index(region)))+'.json.gz'),dict(start=dates[0],end=dates[-1],quality_version=QC_VERSION,stations=stations,results=results))
             if region=='DE': national_days=len(results['9999-9999-9999'])
         # Hourly raw station values, separately compressed for detailed day analysis.
         if hourly:
@@ -213,7 +300,7 @@ def build(out,mode,first,last,limit=0):
         print('Verified year',mode,year,national_days,'valid days of',len(dates),'stations',int(year_active.sum()),flush=True)
         if not national_days: raise ValueError(f'No valid national pairs for {mode} {year}')
         if not limit:
-            p=out/mode/str(year)/'ready.json'; p.write_text(json.dumps(dict(start=dates[0],end=dates[-1],stations=int(year_active.sum()),days=national_days,year=year,**({'time_reference':'utc-md-v2'} if hourly else {}))))
+            p=out/mode/str(year)/'ready.json'; p.write_text(json.dumps(dict(start=dates[0],end=dates[-1],stations=int(year_active.sum()),days=national_days,year=year,quality_version=QC_VERSION,excluded=len(audit),**({'time_reference':'utc-md-v2'} if hourly else {}))))
             (p.parent/'unavailable.json').unlink(missing_ok=True)
 
 if __name__=='__main__':
