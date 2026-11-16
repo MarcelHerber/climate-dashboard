@@ -12555,6 +12555,8 @@ function hyrasSelectedPeriod(){
   return periods.find(period=>period.key===selected)||periods.find(period=>period.key===hyrasIndex?.default_period)||periods[0]||null;
 }
 function populateHyrasPeriods(){
+  // A delayed precipitation refresh must not replace the temperature options.
+  if(hyrasParameter()!=="precipitation")return;
   const select=document.getElementById("hyrasPeriodSelect");
   if(!select || !hyrasIndex) return;
   const periods=hyrasIndex.periods||[];
@@ -13676,9 +13678,22 @@ function hyrasTmeanPopulateCurvePeriods(){
   const preferred=periods.filter(p=>p.key.startsWith("month_")).sort((a,b)=>String(b.end_date).localeCompare(String(a.end_date)))[0]||periods[0];
   if(previous&&periods.some(p=>p.key===previous))select.value=previous;else if(preferred)select.value=preferred.key;
 }
+function hyrasTemperatureResolvePeriod(index,populate){
+  const select=document.getElementById("hyrasPeriodSelect"),periods=index?.periods||[];
+  const key=select?.value,exact=periods.find(p=>p.key===key);
+  if(exact)return exact;
+  // Recover a selector populated by an earlier precipitation request. Never
+  // silently render the first (year-to-date) period for an unknown key.
+  const previous=hyrasIndex?.periods?.find(p=>p.key===key);
+  const mapped=periods.find(p=>p.map_key===key&&key)||
+    (previous?.period_type?.startsWith("month")?periods.find(p=>p.key.startsWith("month_")&&p.start_date===previous.start_date):null)||
+    (previous?periods.find(p=>p.start_date===previous.start_date&&p.end_date===previous.end_date):null);
+  populate();
+  if(mapped&&select)select.value=mapped.key;
+  return periods.find(p=>p.key===select?.value)||null;
+}
 function hyrasTmeanCurvePeriod(){
-  const key=document.getElementById("hyrasPeriodSelect")?.value;
-  return (hyrasTmeanRegionsIndex?.periods||[]).find(p=>p.key===key)||(hyrasTmeanRegionsIndex?.periods||[])[0]||null;
+  return hyrasTemperatureResolvePeriod(hyrasTmeanRegionsIndex,hyrasTmeanPopulateCurvePeriods);
 }
 function hyrasTmeanRegionName(){return document.getElementById("hyrasTmeanRegionSelect")?.value||"Deutschland";}
 function hyrasTmeanCurveRows(region,period){
@@ -13996,10 +14011,7 @@ function hyrasTmaxPopulateCurvePeriods(){
   }
 }
 function hyrasTmaxCurvePeriod(){
-  const key=document.getElementById("hyrasPeriodSelect")?.value;
-  return (hyrasTmaxRegionsIndex?.periods||[]).find(period=>period.key===key)
-    ||(hyrasTmaxRegionsIndex?.periods||[])[0]
-    ||null;
+  return hyrasTemperatureResolvePeriod(hyrasTmaxRegionsIndex,hyrasTmaxPopulateCurvePeriods);
 }
 function hyrasTmaxRegionName(){
   return document.getElementById("hyrasTmeanRegionSelect")?.value||"Deutschland";
@@ -17456,10 +17468,7 @@ function hyrasTminPopulateCurvePeriods(){
   else if(preferred)select.value=preferred.key;
 }
 function hyrasTminCurvePeriod(){
-  const key=document.getElementById("hyrasPeriodSelect")?.value;
-  return (hyrasTminRegionsIndex?.periods||[]).find(period=>period.key===key)
-    ||(hyrasTminRegionsIndex?.periods||[])[0]
-    ||null;
+  return hyrasTemperatureResolvePeriod(hyrasTminRegionsIndex,hyrasTminPopulateCurvePeriods);
 }
 function hyrasTminRegionName(){
   return document.getElementById("hyrasTmeanRegionSelect")?.value||"Deutschland";
