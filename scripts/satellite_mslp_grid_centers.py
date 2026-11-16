@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 from scipy import ndimage
 
-ALGORITHM = "ifs_mslp_grid_extrema_v3"
+ALGORITHM = "ifs_mslp_grid_extrema_v4"
 MODEL_BBOX = (-70.5, 14.5, 49.5, 75.5)
 _OFFSETS = ((4, 0), (-4, 0), (0, 4), (0, -4),
             (3, 3), (3, -3), (-3, 3), (-3, -3))
@@ -73,7 +73,9 @@ def _closed_systems(z, type_, latitudes):
     direction = 1 if type_ == "H" else -1
     values = direction * z
     top = int(np.floor((values.max() - 1e-6) / 5) * 5)
-    bottom = 1015 if type_ == "H" else -1015
+    # A pressure system is a relative extremum, not an absolute pressure
+    # category. Search every potentially closed 5-hPa level.
+    bottom = int(np.floor(values.min() / 5) * 5)
     selected = []
     covered = np.zeros(z.shape, dtype=bool)
     # Area of each 0.25° latitude/longitude cell, latitude corrected.
@@ -97,16 +99,17 @@ def _closed_systems(z, type_, latitudes):
             area = float(np.sum(mask * cell_area[region[0]][:, None]))
             # Broad flat highs often exceed their innermost isobar by only
             # a few tenths of a hPa. Area distinguishes them from speckles.
-            if depth < .6 and not (depth >= .15 and area >= 50000):
+            if depth < .6 and not (depth >= .4 and area >= 15000) and not (depth >= .15 and area >= 50000):
                 continue
             row, col = region[0].start + iy, region[1].start + ix
             members = [m for m in selected if labels[m[0], m[1]] == label_id]
             if not members:
-                selected.append([row, col, depth, area])
+                selected.append([row, col, depth, area, area])
             elif len(members) == 1:
                 # A broader closed ring confirms the same center's prominence.
                 m = members[0]
                 m[2] = max(m[2], float(values[m[0], m[1]] - level))
+                m[4] = max(m[4], area)
     return selected, covered
 
 
@@ -148,13 +151,16 @@ def detect_pressure_centers(lons, lats, pressure):
     high &= strict_high & (core >= 1017)
     choices = []
 
-    def add(type_, iy, ix, prominence, closed, area=0):
+    def add(type_, iy, ix, prominence, closed, area=0, extent=0):
         lon, lat = float(xx[ix]), float(yy[iy])
         if not (MODEL_BBOX[0] + 1 <= lon <= MODEL_BBOX[2] - 1
                 and MODEL_BBOX[1] + 1 <= lat <= MODEL_BBOX[3] - 1):
             return
         value = float(z[iy, ix])
-        if (type_ == "T" and value > 1014) or (type_ == "H" and value < 1017):
+        relative = (type_ == "T" and value > 1014) or (type_ == "H" and value < 1017)
+        # Within the opposite large-scale pressure regime require broader
+        # or more prominent independent cores to avoid small terrain bumps.
+        if relative and not (closed and (extent >= 50000 or (extent >= 15000 and prominence >= 3))):
             return
         departure = (1013.25 - value) if type_ == "T" else (value - 1013.25)
         score = min(300, prominence * 3 + max(0, departure) * .45 + (8 if closed else 0))
@@ -165,8 +171,8 @@ def detect_pressure_centers(lons, lats, pressure):
 
     for type_, selector in (("T", low), ("H", high)):
         systems, covered = _closed_systems(z, type_, yy)
-        for row, col, prominence, area in systems:
-            add(type_, row, col, prominence, True, area)
+        for row, col, prominence, area, extent in systems:
+            add(type_, row, col, prominence, True, area, extent)
         for row_, col_ in np.argwhere(selector):
             row, col = int(row_ + radius), int(col_ + radius)
             lon, lat = float(xx[col]), float(yy[row])

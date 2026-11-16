@@ -262,13 +262,14 @@ function detectVisiblePressureSystems(contours,viewport,{
 
 // Grid extrema are physically identified in the 0.25° IFS MSLP array before
 // either 2-hPa or 5-hPa contours are drawn.
-const GRID_METHODS=new Set(["ifs_mslp_grid_extrema_v1","ifs_mslp_grid_extrema_v2","ifs_mslp_grid_extrema_v3"]);
+const GRID_METHODS=new Set(["ifs_mslp_grid_extrema_v1","ifs_mslp_grid_extrema_v2","ifs_mslp_grid_extrema_v3","ifs_mslp_grid_extrema_v4"]);
 function modelGridCenters(overlay,viewport,{maxSystems=7,minSeparation=94}={}){
  if(!overlay||!GRID_METHODS.has(overlay.pressure_centers_method)||
     !Array.isArray(overlay.pressure_centers))return null; // legacy run
  if(overlay.pressure_centers.length>40)throw Error("IFS: ungültige Extremaanzahl");
  const proposed=[];
- const v3=overlay.pressure_centers_method==="ifs_mslp_grid_extrema_v3";
+ const v4=overlay.pressure_centers_method==="ifs_mslp_grid_extrema_v4";
+ const v3=v4||overlay.pressure_centers_method==="ifs_mslp_grid_extrema_v3";
  for(const item of overlay.pressure_centers){
   const lon=Number(item.lon),lat=Number(item.lat),hpa=Number(item.pressure_hpa);
   if(!["T","H"].includes(item.type)||!Number.isFinite(lon)||!Number.isFinite(lat)||
@@ -280,7 +281,7 @@ function modelGridCenters(overlay,viewport,{maxSystems=7,minSeparation=94}={}){
   const closedSystem=overlay.pressure_centers_method!=="ifs_mslp_grid_extrema_v1"&&item.closed_system===true;
   const area=Number(item.closed_area_km2)||0;
   if(v3&&closedSystem&&area<15000&&(viewport[2]-viewport[0])>=70&&item.prominence_hpa<5)continue;
-  if(v3&&!closedSystem&&(viewport[2]-viewport[0])>=70&&item.prominence_hpa<3)continue;
+  if(v3&&!closedSystem&&(viewport[2]-viewport[0])>=70&&item.prominence_hpa<(v4?2:3))continue;
   proposed.push({type:item.type,lon,lat,hpa,pressure_hpa:hpa,
    score:item.score,prominence_hpa:item.prominence_hpa,
    closedSystem,closedArea:area,
@@ -314,7 +315,7 @@ function pressureLabels(centers,viewport,{width=1000,height=1000,fontSize=40.5}=
  const occupied=[];
  const overlaps=(a,b)=>a[0]<b[2]&&a[2]>b[0]&&a[1]<b[3]&&a[3]>b[1];
  const out=[];
- const stable=centers.some(c=>c.method==="ifs_mslp_grid_extrema_v3");
+ const stable=centers.some(c=>["ifs_mslp_grid_extrema_v3","ifs_mslp_grid_extrema_v4"].includes(c.method));
  const selectionWidth=stable?720:width,selectionHeight=stable?pressureReferenceHeight(viewport):height;
  const selectionFont=stable?29.16:fontSize;
  for(const m of centers){

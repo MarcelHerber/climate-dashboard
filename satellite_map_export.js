@@ -158,7 +158,7 @@ function pressureCenters(overlay,region){
  return model??geo.detectVisiblePressureSystems(overlay.contours,b,opts);
 }
 function pressureFontSize(overlay,region,width,height,previous){
- if(overlay?.pressure_centers_method!=="ifs_mslp_grid_extrema_v3")return previous;
+ if(!["ifs_mslp_grid_extrema_v3","ifs_mslp_grid_extrema_v4"].includes(overlay?.pressure_centers_method))return previous;
  const ref=window.SatelliteIsobarGeometry.pressureReferenceHeight(BBOX[region]);
  return Math.min(previous,29.16*width/720,29.16*height/ref);
 }

@@ -65,6 +65,44 @@ class PressureGridTests(unittest.TestCase):
         field=1020.5+4.84*np.exp(-((x+28)**2+(y-28.5)**2)/(2*.5**2))
         self.assertEqual(detect_pressure_centers(self.lon,self.lat,field),[])
 
+    def test_relative_closed_high_below_1015(self):
+        x,y=np.meshgrid(self.lon,self.lat)
+        field=1000+7.7*np.exp(-((x+15)**2/36+(y-65)**2/9)/2)
+        highs=[c for c in detect_pressure_centers(self.lon,self.lat,field) if c['type']=='H']
+        self.assertEqual(len(highs),1)
+        self.assertEqual((highs[0]['lon'],highs[0]['lat'],highs[0]['pressure_hpa']),(-15,65,1007.7))
+        self.assertTrue(highs[0]['closed_system'])
+
+    def test_relative_closed_low_above_1015(self):
+        x,y=np.meshgrid(self.lon,self.lat)
+        field=1030-7.7*np.exp(-((x-15)**2+(y-50)**2)/32)
+        lows=[c for c in detect_pressure_centers(self.lon,self.lat,field) if c['type']=='T']
+        self.assertEqual(len(lows),1)
+        self.assertEqual((lows[0]['lon'],lows[0]['lat'],lows[0]['pressure_hpa']),(15,50,1022.3))
+        self.assertTrue(lows[0]['closed_system'])
+
+    def test_small_weak_relative_high_is_not_a_synoptic_center(self):
+        x,y=np.meshgrid(self.lon,self.lat)
+        field=992+4.4*np.exp(-((x-6.5)**2/4+(y-60)**2)/2)
+        self.assertEqual(detect_pressure_centers(self.lon,self.lat,field),[])
+
+    def test_relative_high_with_small_inner_and_broad_outer_ring(self):
+        x,y=np.meshgrid(self.lon,self.lat)
+        # A broad 1000-hPa closed system with a sharp, compact 1005 core.
+        r2=(x+15)**2+(y-65)**2
+        field=995+10.8*np.exp(-r2/8)
+        highs=[c for c in detect_pressure_centers(self.lon,self.lat,field) if c['type']=='H']
+        self.assertEqual(len(highs),1)
+        self.assertEqual((highs[0]['lon'],highs[0]['lat'],highs[0]['pressure_hpa']),(-15,65,1005.8))
+
+    def test_compact_deep_closed_low_just_below_980(self):
+        x,y=np.meshgrid(self.lon,self.lat)
+        field=984-4.55*np.exp(-((x-12.75)**2/9+(y-67.75)**2/2.25)/2)
+        lows=[c for c in detect_pressure_centers(self.lon,self.lat,field) if c['type']=='T']
+        self.assertEqual(len(lows),1)
+        self.assertEqual((lows[0]['lon'],lows[0]['lat'],lows[0]['pressure_hpa']),(12.75,67.75,979.5))
+        self.assertTrue(lows[0]['closed_system'])
+
     def test_two_extrema_inside_same_closed_975_system_get_one_label(self):
         x,y=np.meshgrid(self.lon,self.lat)
         field=(1010-38*np.exp(-((x-5)**2+(y-65)**2)/(2*13**2))
