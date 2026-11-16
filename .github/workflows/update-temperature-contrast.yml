@@ -11,7 +11,7 @@ on:
         required: false
         type: string
   pull_request:
-    paths: [scripts/build_temperature_contrast.py, tests/test_temperature_contrast.py, tests/test_temperature_contrast_quality.py, tests/audit_temperature_contrast.py, tests/test_temperature_contrast_backfill.py, stations_temperaturgegensatz.js, stations_temperaturgegensatz.html, .github/workflows/update-temperature-contrast.yml]
+    paths: [scripts/build_temperature_contrast.py, tests/test_temperature_contrast.py, tests/test_temperature_contrast_quality.py, tests/test_temperature_contrast_combined.py, tests/audit_temperature_contrast.py, tests/test_temperature_contrast_backfill.py, stations_temperaturgegensatz.js, stations_temperaturgegensatz.html, .github/workflows/update-temperature-contrast.yml]
   push:
     branches: [main]
     paths: [scripts/build_temperature_contrast.py, .github/workflows/update-temperature-contrast.yml]
@@ -39,6 +39,7 @@ jobs:
             scripts/build_temperature_contrast.py
             tests/test_temperature_contrast.py
             tests/test_temperature_contrast_quality.py
+            tests/test_temperature_contrast_combined.py
             tests/audit_temperature_contrast.py
             tests/test_temperature_contrast_backfill.py
             .github/workflows/update-temperature-contrast.yml
@@ -49,6 +50,7 @@ jobs:
             dashboard_theme.js
             t850_vector_export.js
             data/rekordlabor/contrast/
+            data/dwd_decade_records.json
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -57,13 +59,14 @@ jobs:
         run: |
           python -m unittest discover -s tests -p test_temperature_contrast.py -v
           python -m unittest discover -s tests -p test_temperature_contrast_quality.py -v
+          python -m unittest discover -s tests -p test_temperature_contrast_combined.py -v
           node --check stations_temperaturgegensatz.js
           python -m unittest discover -s tests -p test_temperature_contrast_backfill.py -v
       - name: Verify original archive ZIPs on PR
         if: github.event_name == 'pull_request'
         run: |
-          for mode in hourly daily; do
-            python -u scripts/build_temperature_contrast.py --mode "$mode" --first 2025 --last 2025 --limit 8 --out /tmp/contrast-pilot
+          for mode in daily hourly; do
+            python -u scripts/build_temperature_contrast.py --mode "$mode" --first 2025 --last 2025 --limit 8 --out /tmp/contrast-pilot --reference /tmp/contrast-pilot-ref.npz --decade-records data/dwd_decade_records.json
           done
       - name: Verify desktop and mobile against original DWD pilot
         if: github.event_name == 'pull_request'
@@ -89,13 +92,13 @@ jobs:
             local marker="$root/hourly/$1/ready.json"
             if [ ! -f "$marker" ] && (( $1 < 1991 )); then marker="$root/hourly/$1/unavailable.json"; fi
             [ -f "$marker" ] || return 1
-            grep -Eq '"quality_version"[[:space:]]*:[[:space:]]*"contrast-qc-v1"' "$marker" || return 1
+            grep -Eq '"quality_version"[[:space:]]*:[[:space:]]*"contrast-qc-v2"' "$marker" || return 1
             if (( $1 <= 1991 )); then grep -Eq '"time_reference"[[:space:]]*:[[:space:]]*"utc-md-v2"' "$marker" || return 1; fi
             return 0
           }
           daily_ready() {
             local marker="$root/daily/$1/ready.json"
-            [ -f "$marker" ] && grep -Eq '"quality_version"[[:space:]]*:[[:space:]]*"contrast-qc-v1"' "$marker"
+            [ -f "$marker" ] && grep -Eq '"quality_version"[[:space:]]*:[[:space:]]*"contrast-qc-v2"' "$marker"
           }
           current_stale() {
             local expected actual mode
@@ -109,24 +112,20 @@ jobs:
           run_batch() {
             local first=$1 last=$2
             echo "::group::Archive $first–$last"
+            local reference="${RUNNER_TEMP:-/tmp}/contrast-daily-reference.npz"
+            python -u scripts/build_temperature_contrast.py --mode daily --first "$first" --last "$last" --out "$root" --reference "$reference" --decade-records data/dwd_decade_records.json
             if ((last>=1951)); then
               local hour_first=$first
               ((hour_first>=1951)) || hour_first=1951
-              python -u scripts/build_temperature_contrast.py --mode hourly --first "$hour_first" --last "$last" --out "$root"
+              python -u scripts/build_temperature_contrast.py --mode hourly --first "$hour_first" --last "$last" --out "$root" --reference "$reference" --decade-records data/dwd_decade_records.json
             fi
-            local need_daily=0
-            if ((last>=current-1)) || [[ -n "${INPUT_FIRST:-}" || -n "${INPUT_LAST:-}" ]]; then need_daily=1; fi
-            for y in $(seq "$first" "$last"); do
-              daily_ready "$y" || need_daily=1
-            done
-            if ((need_daily)); then python -u scripts/build_temperature_contrast.py --mode daily --first "$first" --last "$last" --out "$root"; fi
             for y in $(seq "$first" "$last"); do ready "$y" || return 1; done
             python - <<'PY'
           import json
           from pathlib import Path
           root=Path('data/rekordlabor/contrast')
           result={m:[json.loads(p.read_text()) for p in sorted((root/m).glob('*/ready.json'))] for m in ('hourly','daily')}
-          result['hourlyUnavailable']=[d for p in sorted((root/'hourly').glob('*/unavailable.json')) if not (p.parent/'ready.json').exists() for d in [json.loads(p.read_text())] if d.get('time_reference')=='utc-md-v2' and d.get('quality_version')=='contrast-qc-v1']
+          result['hourlyUnavailable']=[d for p in sorted((root/'hourly').glob('*/unavailable.json')) if not (p.parent/'ready.json').exists() for d in [json.loads(p.read_text())] if d.get('time_reference')=='utc-md-v2' and d.get('quality_version')=='contrast-qc-v2']
           (root/'index.json').write_text(json.dumps(result,indent=2))
           PY
             git add "$root"

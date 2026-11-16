@@ -24,7 +24,7 @@ RADII = np.array([9999.,25.,50.,100.,200.])
 DELTAS = np.array([9999.,200.])
 HEIGHTS = [9999,1000,500]
 QUALITY = {1,2,3,5,7,8,9,10}
-QC_VERSION = 'contrast-qc-v1'
+QC_VERSION = 'contrast-qc-v2'
 
 @njit
 def series_flags(values, neighbors, hourly):
@@ -81,7 +81,73 @@ def series_flags(values, neighbors, hourly):
                         elif jump>=250: flags[t,s]=4
     return flags
 
-def quality_flags(hot,cold,distances,differences,hourly):
+@njit
+def combined_flags(values, flags, neighbors, distances, daily_hi, daily_lo, decade_hi, decade_lo, hourly):
+    """Independent temporal, spatial and climatological evidence; tenths of °C."""
+    baseline=flags.copy()
+    steps=24 if hourly else 1
+    for t in range(values.shape[0]):
+        day=t//steps
+        for s in range(values.shape[1]):
+            v=int(values[t,s])
+            if v==MISSING or baseline[t,s]: continue
+            # A documented daily extreme is allowed a full adjacent-day buffer
+            # because the historical climate day is not necessarily UTC.
+            excess=0; national=0; daily_confirmed=False
+            if hourly and 0<day<daily_hi.shape[0]-1:
+                for col in (s,values.shape[1]):
+                    if col>=daily_hi.shape[1]: continue
+                    hi=-10000; lo=10000; nh=0; nl=0
+                    for d in range(day-1,day+2):
+                        a=int(daily_hi[d,col]); b=int(daily_lo[d,col])
+                        if a!=MISSING: hi=max(hi,a); nh+=1
+                        if b!=MISSING: lo=min(lo,b); nl+=1
+                    e=max(0,v-hi if nh==3 else 0,lo-v if nl==3 else 0)
+                    if col==s:
+                        excess=e
+                        daily_confirmed=nh==3 and nl==3 and lo-20<=v<=hi+20
+                    else: national=e
+            # A large inconsistency with the same station's own max/min is
+            # sufficient even where the old hourly network is sparse.
+            if excess>=80:
+                flags[t,s]=6; continue
+            clim=0
+            if day<decade_hi.shape[0]:
+                a=int(decade_hi[day,s]); b=int(decade_lo[day,s])
+                clim=max(0,v-a if a!=MISSING else 0,b-v if b!=MISSING else 0)
+            # Use the nearest radius with at least three comparable stations.
+            # Require disagreement with the entire envelope, not merely its mean.
+            n=0; lo=10000; hi=-10000; radius=25.
+            for j in neighbors[s]:
+                if j<0: break
+                w=int(values[t,j]); dist=distances[s,j]
+                if dist>radius:
+                    if n>=3: break
+                    while dist>radius:
+                        if radius==25.: radius=50.
+                        elif radius==50.: radius=100.
+                        else: radius=150.
+                if w==MISSING or baseline[t,j]: continue
+                lo=min(lo,w); hi=max(hi,w); n+=1
+                if n>=16: break
+            # A sparse network can still corroborate a very large independent
+            # nationwide daily contradiction using two close stations.
+            if n<3 and not (n>=2 and national>=80): continue
+            spatial=max(lo-v,v-hi,0)
+            if spatial>=60 and (excess>=30 or national>=50):
+                flags[t,s]=6; continue
+            if spatial>=100 and clim>=40 and not daily_confirmed:
+                flags[t,s]=7; continue
+            if not hourly or spatial<120 or daily_confirmed: continue
+            # A single-hour spike returning to the previous level is stronger
+            # evidence than a real multi-hour cold pool or frontal passage.
+            if 0<t<values.shape[0]-1:
+                a=int(values[t-1,s]); b=int(values[t+1,s]); direction=1 if v>hi else -1
+                if a!=MISSING and b!=MISSING and not baseline[t-1,s] and not baseline[t+1,s] and abs(a-b)<=50 and min(direction*(v-a),direction*(v-b))>=120:
+                    flags[t,s]=8
+    return flags
+
+def quality_flags(hot,cold,distances,differences,hourly,daily=None,decade=None,cold_decade=None):
     """Use nearby, comparable-height stations; preserve isolated mountain sites."""
     active=np.any(hot!=MISSING,axis=0)|np.any(cold!=MISSING,axis=0)
     lists=[]
@@ -91,8 +157,11 @@ def quality_flags(hot,cold,distances,differences,hourly):
     neighbors=np.full((hot.shape[1],max(1,max(map(len,lists),default=0))),-1,np.int32)
     for i,order in enumerate(lists): neighbors[i,:len(order)]=order
     h=series_flags(hot,neighbors,hourly)
+    empty=np.empty((0,hot.shape[1]),np.int16)
+    h=combined_flags(hot,h,neighbors,distances,*(daily or (empty,empty)),*(decade or (empty,empty)),hourly)
     if hourly: return h,h
     c=series_flags(cold,neighbors,False)
+    c=combined_flags(cold,c,neighbors,distances,empty,empty,*(cold_decade or (empty,empty)),False)
     impossible=(hot!=MISSING)&(cold!=MISSING)&(hot<cold)
     h[impossible]=5; c[impossible]=5
     return h,c
@@ -234,7 +303,54 @@ def dump(path,obj):
     path.parent.mkdir(parents=True,exist_ok=True)
     path.write_bytes(gzip.compress(json.dumps(obj,ensure_ascii=False,separators=(',',':')).encode(),mtime=0))
 
-def build(out,mode,first,last,limit=0):
+def decade_bounds(path, days, stations, hourly):
+    """Read the independent DWD Dekadenrekorde product, aligned by station ID."""
+    source=json.loads(path.read_text()); records=source['station_records']; meta=source['stations']
+    metrics=('txk_high','tnk_low') if hourly else ('txk_high','txk_low','tnk_high','tnk_low')
+    sid_to_col={str(s['id']).zfill(5):i for i,s in enumerate(stations)}
+    periods=[f'month-{d[4:6]}-d{min(3,(int(d[6:])-1)//10+1)}' for d in days]
+    result=[]
+    for metric in metrics:
+        raw=records[metric]['Deutschland']; lookup={}
+        for period in set(periods):
+            row=np.full(len(stations),MISSING,np.int16); rr=raw.get(period,{}); national=[]
+            for entry in (rr.values() if isinstance(rr,dict) else rr):
+                if not entry or len(entry)<3: continue
+                key=entry[2]
+                st=meta.get(str(key)) if isinstance(meta,dict) else meta[key] if isinstance(key,int) and 0<=key<len(meta) else None
+                sid=str((st or {}).get('id',str(key).split(':')[0])).zfill(5)
+                col=sid_to_col.get(sid)
+                try: val=round(float(entry[0])*10)
+                except (ValueError,TypeError,OverflowError): continue
+                if not -500<=val<=500: continue
+                national.append(val)
+                if col is None: continue
+                old=int(row[col]); row[col]=val if old==MISSING else (max(old,val) if metric.endswith('_high') else min(old,val))
+            if national: row[row==MISSING]=max(national) if metric.endswith('_high') else min(national)
+            lookup[period]=row
+        result.append(np.stack([lookup[p] for p in periods]))
+    if not any(np.any(a!=MISSING) for a in result):
+        print('No station-specific decade matches for this archive batch',flush=True)
+    else: print('Decade reference:',sum(np.count_nonzero(a!=MISSING) for a in result),'matched station-days',flush=True)
+    return result
+
+def daily_reference(path,days,stations):
+    """Align the QC-clean daily arrays to hourly station IDs and add DE bounds."""
+    with np.load(path,allow_pickle=False) as ref:
+        dates={str(d):i for i,d in enumerate(ref['dates'])}; ids={str(s):i for i,s in enumerate(ref['ids'])}
+        source_hi=ref['hot']; source_lo=ref['cold']
+        out_hi=np.full((len(days),len(stations)+1),MISSING,np.int16); out_lo=out_hi.copy()
+        sel=[dates[d] for d in days]
+        for i,s in enumerate(stations):
+            j=ids.get(str(s['id']))
+            if j is not None: out_hi[:,i]=source_hi[sel,j]; out_lo[:,i]=source_lo[sel,j]
+        a=source_hi[sel]; b=source_lo[sel]
+        ok=np.count_nonzero(a!=MISSING,axis=1)>=20; out_hi[ok,-1]=a[ok].max(axis=1)
+        ok=np.count_nonzero(b!=MISSING,axis=1)>=20; out_lo[ok,-1]=np.where(b[ok]==MISSING,32767,b[ok]).min(axis=1)
+    print('Daily reference:',np.count_nonzero(out_hi[:,:-1]!=MISSING),'matching Tmax station-days',flush=True)
+    return out_hi,out_lo
+
+def build(out,mode,first,last,limit=0,reference=None,decade_path=None):
     start=dt.date(first,1,1); end=min(dt.date(last,12,31),dt.date.today()-dt.timedelta(days=1))
     days={(start+dt.timedelta(days=i)).strftime('%Y%m%d'):i for i in range((end-start).days+1)}
     hourly=mode=='hourly'; steps=24 if hourly else 1
@@ -255,14 +371,18 @@ def build(out,mode,first,last,limit=0):
     differences=np.abs(height[:,None]-height)
     # Audit raw observations before selecting any winner, including the hourly
     # drill-down. Unflagged readings are left bit-identical.
-    hf,cf=quality_flags(hot,cold,distances,differences,hourly)
+    bounds=decade_bounds(decade_path,days,stations,hourly) if decade_path else None
+    daily=daily_reference(reference,days,stations) if hourly and reference else None
+    hf,cf=quality_flags(hot,cold,distances,differences,hourly,daily=daily,decade=tuple(bounds[:2]) if bounds else None,cold_decade=tuple(bounds[2:]) if bounds and not hourly else None)
+    if not hourly and reference:
+        np.savez_compressed(reference,dates=np.array(list(days)),ids=np.array([s['id'] for s in stations]),hot=np.where(hf==0,hot,MISSING).astype(np.int16),cold=np.where(cf==0,cold,MISSING).astype(np.int16))
     for year in range(first,end.year+1):
         dates=[d for d in days if d.startswith(str(year))]; lo=days[dates[0]]*steps; hi=(days[dates[-1]]+1)*steps
         audit=[]
         for label,values,flags in [('TT_TU' if hourly else 'TXK',hot,hf)]+([] if hourly else [('TNK',cold,cf)]):
             for t,i in zip(*np.nonzero(flags[lo:hi])):
                 audit.append([dates[t//steps],int(t%steps) if hourly else None,stations[i]['id'],label,int(values[lo+t,i]),int(flags[lo+t,i])])
-        dump(out/mode/str(year)/'quality.json.gz',dict(version=QC_VERSION,unit='0.1 °C',columns=['date','hour_utc','station_id','parameter','original','reason'],reasons={'1':'physical range','2':'strong spatial inconsistency','3':'spatial and temporal inconsistency','4':'isolated extreme spike','5':'TXK below TNK'},excluded=audit))
+        dump(out/mode/str(year)/'quality.json.gz',dict(version=QC_VERSION,unit='0.1 °C',columns=['date','hour_utc','station_id','parameter','original','reason'],reasons={'1':'physical range','2':'strong spatial inconsistency','3':'spatial and temporal inconsistency','4':'isolated extreme spike','5':'TXK below TNK','6':'contradiction with daily extremes','7':'spatial and decade inconsistency','8':'local and temporal inconsistency'},excluded=audit))
         hot[lo:hi][hf[lo:hi]!=0]=MISSING
         cold[lo:hi][cf[lo:hi]!=0]=MISSING
         year_active=np.any(hot[lo:hi]!=MISSING,axis=0)|np.any(cold[lo:hi]!=MISSING,axis=0)
@@ -304,6 +424,6 @@ def build(out,mode,first,last,limit=0):
             (p.parent/'unavailable.json').unlink(missing_ok=True)
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser(); p.add_argument('--out',type=Path,required=True); p.add_argument('--mode',choices=['hourly','daily'],required=True); p.add_argument('--first',type=int,required=True); p.add_argument('--last',type=int,required=True); p.add_argument('--limit',type=int,default=0)
-    a=p.parse_args(); build(a.out,a.mode,a.first,a.last,a.limit)
+    p=argparse.ArgumentParser(); p.add_argument('--out',type=Path,required=True); p.add_argument('--mode',choices=['hourly','daily'],required=True); p.add_argument('--first',type=int,required=True); p.add_argument('--last',type=int,required=True); p.add_argument('--limit',type=int,default=0); p.add_argument('--reference',type=Path); p.add_argument('--decade-records',type=Path)
+    a=p.parse_args(); build(a.out,a.mode,a.first,a.last,a.limit,a.reference,a.decade_records)
 
