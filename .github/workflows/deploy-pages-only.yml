@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -39,13 +40,16 @@ jobs:
     timeout-minutes: 30
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment_retry.outputs.page_url || steps.deployment.outputs.page_url }}
 
     steps:
       - name: Repository auschecken
         uses: actions/checkout@v6
         with:
           ref: main
+
+      - name: Artefakt-Wiederholungslogik testen
+        run: node --test tests/test_pages_artifact.cjs
 
       - name: Schlanken Veröffentlichungsordner erstellen
         run: bash scripts/build_pages_site.sh
@@ -54,15 +58,43 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Website-Artefakt hochladen
+        id: upload
         uses: actions/upload-pages-artifact@v4
         with:
           path: "_site"
           name: "github-pages-${{ github.run_attempt }}"
 
+      - name: Artefakt-Verfügbarkeit prüfen (mit Wiederholungen)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
+          PAGES_ARTIFACT_NAME: github-pages-${{ github.run_attempt }}
+        run: node scripts/wait_pages_artifact.cjs
+
       - name: GitHub Pages veröffentlichen
         id: deployment
+        continue-on-error: true
         uses: actions/deploy-pages@v5
         with:
           reporting_interval: "10000"
-          timeout: 1200000
+          timeout: 600000
+          artifact_name: "github-pages-${{ github.run_attempt }}"
+
+      # deploy-pages uses a separate artifact service; REST visibility alone
+      # does not guarantee that service has caught up. Retry only once.
+      - name: Artefakt nach fehlgeschlagenem Deployment erneut prüfen
+        if: steps.deployment.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
+          PAGES_ARTIFACT_NAME: github-pages-${{ github.run_attempt }}
+        run: node scripts/wait_pages_artifact.cjs
+
+      - name: GitHub Pages erneut veröffentlichen
+        id: deployment_retry
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        with:
+          reporting_interval: "10000"
+          timeout: 600000
           artifact_name: "github-pages-${{ github.run_attempt }}"
