@@ -7,6 +7,8 @@
 const $=id=>document.getElementById(id);
 const svg=$("satIsobarSvg"),toggle=$("satShowIsobars"),spacing=$("satIsobarSpacing");
 const status=$("satIsobarStatus"),retry=$("satRetryIsobars"),region=$("satRegion"),source=$("satSource");
+const advToggle=document.querySelector?.('#satShowAdvection'),advLevel=document.querySelector?.('#satAdvectionLevel'),
+ advSvg=document.querySelector?.('#satAdvectionSvg'),advStatus=document.querySelector?.('#satAdvectionStatus');
 const BBOX={
  europe:[-27,24,49,73],atlantic:[-70,15,35,75],
  southwest:[-37,24,19,53],central:[-2,43,25,58],
@@ -74,7 +76,7 @@ async function loadTenIndex(force=false){
       ![13,19].includes(Object.keys(fine).length)||
       !Object.values(fine).every(x=>typeof x==="string"&&/^r\d{10}\/h\d{2}_2hpa\.json$/.test(x))))
        throw Error("Ungültige 2-hPa-Metadaten");
-   if(tenIndex?.run_utc!==idx.run_utc||tenIndex?.pressure_centers_algorithm!==idx.pressure_centers_algorithm){tenChunks.clear();tenFailed.clear();}
+   if(tenIndex?.run_utc!==idx.run_utc||tenIndex?.pressure_centers_algorithm!==idx.pressure_centers_algorithm||tenIndex?.advection_algorithm!==idx.advection_algorithm){tenChunks.clear();tenFailed.clear();}
    tenIndex=idx;
   }catch(err){console.warn("Optional ECMWF ten-minute pressure overlay",err?.message||err);}
   finally{tenLoading=null;update();}
@@ -98,7 +100,8 @@ function tenFrameAt(target,gap=5){
  const expected=fine?/^r\d{10}\/h\d{2}_2hpa\.json$/:/^r\d{10}\/h\d{2}\.json$/;
  if(typeof file!=="string"||!expected.test(file))return null;
  const method=tenIndex.pressure_centers_algorithm||"";
- const cacheKey=tenIndex.run_utc+"|"+(fine?"2":"5")+"|"+key+"|"+method;
+ const advMethod=tenIndex.advection_algorithm||"";
+ const cacheKey=tenIndex.run_utc+"|"+(fine?"2":"5")+"|"+key+"|"+method+"|"+advMethod;
  const chunk=tenChunks.get(cacheKey);
  if(chunk){
   const f=chunk.frames[slot%6];
@@ -109,7 +112,8 @@ function tenFrameAt(target,gap=5){
  if(!tenPending.has(cacheKey)){
   const task=(async()=>{
    try{
-    const d=await fetchTenJson("./data/satellite_mslp/ten_minute/"+file+(method?"?centers="+encodeURIComponent(method.split("_").pop()):""));
+    const params=[method?"centers="+encodeURIComponent(method.split("_").pop()):"",advMethod?"advection="+encodeURIComponent(advMethod):""].filter(Boolean);
+    const d=await fetchTenJson("./data/satellite_mslp/ten_minute/"+file+(params.length?"?"+params.join("&"):""));
     if(d.schema_version!==2||d.run_utc!==tenIndex?.run_utc||
        (fine&&(d.interval_hpa!==2||
         !Array.isArray(d.regions)||
@@ -117,9 +121,11 @@ function tenFrameAt(target,gap=5){
         !d.regions.every(place=>isFineRegion(place))))||
        d.hour!==hour||!Array.isArray(d.frames)||
        d.frames.length!==(hour===lastHour?1:6)||
-       method!==(tenIndex?.pressure_centers_algorithm||"")||
+       method!==(tenIndex?.pressure_centers_algorithm||"")||advMethod!==(tenIndex?.advection_algorithm||"")||
        d.frames.some((f,i)=>!Array.isArray(f.contours)||!f.contours.length||
         (method&&f.pressure_centers_method!==method)||
+        (advMethod&&(f.advection_method!==advMethod||!window.SatelliteAdvection||
+         !window.SatelliteAdvection.levels.every(level=>window.SatelliteAdvection.frameMarkers(f,level,f.valid_utc)!==null)))||
         (fine&&f.contours.some(group=>group.hpa%2!==0))||
         Date.parse(f.valid_utc)!==run+(hour*6+i)*TEN_MS||
         f.interpolated!==((hour*6+i)%18!==0))){
@@ -241,12 +247,42 @@ function refreshSpacing(){
  if(fineOption){fineOption.hidden=!permitted;fineOption.disabled=!permitted;}
  if(!permitted&&spacing.value==="2")spacing.value="5";
 }
+function drawAdvection(frame,time,place){
+ const api=window.SatelliteAdvection;
+ if(!advToggle?.checked||!advSvg||!advStatus||!api)return;
+ const level=Number(advLevel.value)||850,marks=api.frameMarkers(frame,level,time);
+ if(marks===null||tenIndex?.advection_algorithm!==api.METHOD){advStatus.textContent='WLA / KLA: zeitlich passendes IFS-Advektionsfeld fehlt oder wird geladen.';return;}
+ const width=advSvg.parentElement?.clientWidth||1000,height=advSvg.parentElement?.clientHeight||650;
+ advSvg.setAttribute('viewBox',`0 0 ${width} ${height}`);
+ const bbox=BBOX[place], [west,south,east,north]=bbox;
+ const blocked=(frame.pressure_centers||[]).map(m=>[(m.lon-west)/(east-west)*width,(north-m.lat)/(north-south)*height]);
+ const arrows=api.layout(marks,bbox,width,height,api.limits[place],toggle.checked?blocked:[]);
+ const batch=document.createDocumentFragment();
+ for(const a of arrows){
+  const path=`M ${a.start.join(' ')} L ${a.end.join(' ')} M ${a.wing1.join(' ')} L ${a.end.join(' ')} L ${a.wing2.join(' ')}`;
+  for(const [color,sw] of [['#172333',Math.max(4,a.font*.34)], [a.color,Math.max(2,a.font*.2)]]){
+   const line=document.createElementNS(ns,'path');
+   for(const [k,v] of Object.entries({d:path,fill:'none',stroke:color,'stroke-width':sw,'stroke-linejoin':'round','stroke-linecap':'round'}))line.setAttribute(k,String(v));
+   batch.appendChild(line);
+  }
+  const label=document.createElementNS(ns,'text');
+  for(const [k,v] of Object.entries({x:a.labelX,y:a.labelY,fill:a.color,stroke:'#172333','stroke-width':Math.max(2,a.font*.17),'paint-order':'stroke','font-size':a.font,'font-weight':'bold','text-anchor':'middle','dominant-baseline':'middle'}))label.setAttribute(k,String(v));
+  label.textContent=a.label;label.setAttribute('aria-label',`${a.label} ${a.advection} K/6h`);batch.appendChild(label);
+ }
+ advSvg.replaceChildren(batch);advSvg.toggleAttribute('hidden',false);
+ advStatus.textContent=`ECMWF IFS · ${level} hPa · ${utc(frame.valid_utc)} · ${arrows.length} markante WLA/KLA-Gebiete · räumlich geglättete Advektionstendenz ab 2 K/6h (keine gemessene Temperaturänderung).`;
+}
 function update(){
  refreshSpacing();
  const supported=context.source==="mtgi1"&&Boolean(BBOX[context.region]);
  toggle.disabled=!supported;
  spacing.disabled=!supported||!toggle.checked;
- const active=supported&&toggle.checked;
+ const advActive=supported&&Boolean(advToggle?.checked);
+ if(advToggle)advToggle.disabled=!supported;
+ if(advLevel)advLevel.disabled=!advActive;
+ if(advSvg){advSvg.toggleAttribute('hidden',true);advSvg.replaceChildren();}
+ if(advStatus)advStatus.textContent=advActive?'WLA / KLA: prüfe zeitlich passendes IFS-Advektionsfeld …':supported?'WLA / KLA ausgeschaltet.':'WLA / KLA für diese Projektion nicht verfügbar.';
+ const active=supported&&(toggle.checked||advActive);
  if(retry)retry.disabled=!active||Boolean(loading);
  svg.toggleAttribute("hidden",true);
  if(!active){svg.replaceChildren();note(!supported?"Isobaren für Erdscheibe/MTG-I2 nicht verfügbar (andere Projektion).":"Isobaren ausgeblendet.");return;}
@@ -259,7 +295,7 @@ function update(){
  }
  const requested=Number.isFinite(Date.parse(context.time))?context.time:new Date().toISOString();
  const satelliteTime=Number.isFinite(Date.parse(context.time))?context.time:null;
- const gap=Number(spacing.value)||5;
+ const gap=toggle.checked?(Number(spacing.value)||5):5;
  const ten=tenFrameAt(requested,gap);
  let frame=ten||(gap===2?null:
   ((satelliteTime?frameFor(satelliteTime):null)||latestIndependentFrame()));
@@ -271,6 +307,8 @@ function update(){
    "Kein ausreichend aktuelles ECMWF-Druckfeld verfügbar. Letzter gültiger Modelllauf bleibt angegeben, statt falsche Isobaren zu zeigen.");
   return;
  }
+ if(advActive&&satelliteTime)drawAdvection(ten,satelliteTime,context.region);
+ if(!toggle.checked){svg.replaceChildren();note('Isobaren ausgeblendet.');return;}
  const lines=draw(frame,BBOX[context.region],gap);
  const gridCenters=["ifs_mslp_grid_extrema_v1","ifs_mslp_grid_extrema_v2","ifs_mslp_grid_extrema_v3","ifs_mslp_grid_extrema_v4"].includes(frame.pressure_centers_method);
  const contourChecked=["ifs_mslp_grid_extrema_v2","ifs_mslp_grid_extrema_v3","ifs_mslp_grid_extrema_v4"].includes(frame.pressure_centers_method);
@@ -342,7 +380,7 @@ async function load(force=false){
 }
 // Expose only genuine, time-provenanced grid-derived lines for map exports.
 // Await the correct ten-minute chunk; never silently export an empty overlay.
-async function exportAt(time,place,gap=5,{strictTenMinute=false}={}){
+async function exportAt(time,place,gap=5,{strictTenMinute=false,advectionLevel=null}={}){
  gap=Number(gap)||5;
  if(gap===2&&!isFineRegion(place))
   throw Error("2-hPa-Isobaren gibt es nur für Europa, Südwesteuropa, Mitteleuropa und Deutschland.");
@@ -355,7 +393,7 @@ async function exportAt(time,place,gap=5,{strictTenMinute=false}={}){
  if(!frame&&tenIndex){
   const run=Date.parse(tenIndex.run_utc),slot=Math.round((Date.parse(time)-run)/TEN_MS);
   const hour=Math.floor(slot/6),key="h"+String(hour).padStart(2,"0");
-  const promise=tenPending.get(tenIndex.run_utc+"|"+(gap===2?"2":"5")+"|"+key+"|"+(tenIndex.pressure_centers_algorithm||""));
+  const promise=tenPending.get(tenIndex.run_utc+"|"+(gap===2?"2":"5")+"|"+key+"|"+(tenIndex.pressure_centers_algorithm||"")+"|"+(tenIndex.advection_algorithm||""));
   if(promise)await promise;
   frame=tenFrameAt(time,gap);
  }
@@ -368,18 +406,25 @@ async function exportAt(time,place,gap=5,{strictTenMinute=false}={}){
  const run=exact10?tenIndex.run_utc:data.run_utc;
  const method=exact10?(frame.interpolated?"10-Minuten-Interpolation des MSLP-Gitterfeldes":"Original-IFS-Druckfeld"):"3-h-IFS-Druckfeld (Ersatz)";
  if(!Array.isArray(frame.contours)||!frame.contours.length)throw Error("Isobaren-Konturen fehlen.");
+ const adv=advectionLevel?window.SatelliteAdvection?.frameMarkers(frame,advectionLevel,time):null;
+ if(advectionLevel&&(!exact10||!adv||tenIndex?.advection_algorithm!==window.SatelliteAdvection?.METHOD))
+  throw Error('Zeitlich passende ECMWF-Advektion fehlt; kein unvollständiger Export.');
  return {contours:frame.contours,
   pressure_centers:frame.pressure_centers,
   pressure_centers_method:frame.pressure_centers_method,
   validUTC:frame.valid_utc,runUTC:run,
   satelliteUTC:time,method,interpolated:exact10&&Boolean(frame.interpolated),
-  spacing:gap,region:place,exact10};
+  spacing:gap,region:place,exact10,
+  ...(advectionLevel?{advectionLevel:Number(advectionLevel),advectionMarkers:adv}:{})};
 }
 function sync(next){
  context={time:next?.time||null,region:next?.region||region.value,source:next?.source||source.value};
  update();
 }
 toggle.addEventListener("change",update);
+advToggle?.addEventListener('change',update);
+advLevel?.addEventListener('change',update);
+if(advSvg&&typeof ResizeObserver==='function'&&advSvg.parentElement)new ResizeObserver(()=>{if(advToggle?.checked)update();}).observe(advSvg.parentElement);
 if(retry)retry.addEventListener("click",()=>{if(loading)return;failed=false;errorDetail="";tenFailed.clear();void load(true);void loadTenIndex(true);});
 spacing.addEventListener("change",update);
 region.addEventListener("change",()=>{context.region=region.value;update();});
@@ -389,7 +434,7 @@ sync({time:null,region:region.value,source:source.value});
 // during transient network errors or downgrading to an older model cycle.
 if(typeof setInterval==="function"){
  setInterval(()=>{
-  if(source.value==="mtgi1"&&toggle.checked&&!document.hidden&&!loading){
+  if(source.value==="mtgi1"&&(toggle.checked||advToggle?.checked)&&!document.hidden&&!loading){
    failed=false;void loadTenIndex(true);
    if(!tenIndex)void load(true);
   }

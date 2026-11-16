@@ -13,6 +13,8 @@ on:
       - "tests/test_satellite_mslp_grid_centers.py"
       - "tests/test_satellite_ecmwf_isobars.py"
       - "scripts/build_satellite_mslp_10min.py"
+      - "scripts/satellite_temperature_advection.py"
+      - "tests/test_satellite_temperature_advection.py"
       - "tests/test_satellite_mslp_10min.py"
       - ".github/workflows/update-satellite-ecmwf-isobars.yml"
 
@@ -43,6 +45,7 @@ jobs:
           python -m unittest discover -s tests -p test_satellite_ecmwf_isobars.py -v
           python -m unittest discover -s tests -p test_satellite_mslp_10min.py -v
           python -m unittest discover -s tests -p test_satellite_mslp_grid_centers.py -v
+          python -m unittest discover -s tests -p test_satellite_temperature_advection.py -v
       - name: Download genuine ECMWF Open Data IFS sea-level pressure
         run: python scripts/build_satellite_ecmwf_isobars.py --out data/satellite_mslp/latest.json --ten-minute-dir data/satellite_mslp/ten_minute
       - name: Validate output and UTC provenance
@@ -108,6 +111,16 @@ jobs:
               assert fine["pressure_centers_method"]=="ifs_mslp_grid_extrema_v4"
               assert coarse["pressure_centers"]==fine["pressure_centers"], "2/5 hPa H/T must be identical"
               assert len(coarse["pressure_centers"])<=40
+              if index.get("advection_algorithm"):
+                  assert coarse["advection_method"]==fine["advection_method"]=="ifs_temperature_advection_v1"
+                  assert coarse["temperature_advection"]==fine["temperature_advection"]
+                  assert set(coarse["temperature_advection"])=={"925","850","700"}
+                  for markers in coarse["temperature_advection"].values():
+                      assert len(markers)<=220
+                      for m in markers:
+                          assert -75<=m["lon"]<=55 and 12<=m["lat"]<=80
+                          assert 2<=abs(m["advection"])<100
+                          assert abs(m["u"])<=150 and abs(m["v"])<=150
           for i,frame in enumerate(allframes):
               assert dt.datetime.fromisoformat(frame["valid_utc"].replace("Z","+00:00"))==run+dt.timedelta(minutes=i*10)
               assert frame["forecast_minute"]==i*10
@@ -143,5 +156,10 @@ jobs:
           for f in d["frames"]:
               print("*",f["valid_utc"],"forecast +"+str(f["forecast_hour"])+"h",len(f["contours"]),"pressure levels")
           print("Ten-minute pressure interpolation: +0 through +18 h, 109 frames for 5 hPa + 109 European 2-hPa frames")
+          index=json.load(open("data/satellite_mslp/ten_minute/index.json"))
+          if index.get("advection_algorithm"):
+              print("WLA/KLA: 925/850/700 hPa from same-run T/U/V and surface pressure, interpolated before diagnosis (K/6h)")
+          else:
+              print("WLA/KLA unavailable; pressure vectors remain available independently.")
           print("© ECMWF · CC BY 4.0 · interpolated forecast, not observation")
           PY

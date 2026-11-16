@@ -286,6 +286,7 @@ function stamp(ctx,sceneData,grid,options,fronts){
  ctx.fillStyle="#ffffff";ctx.font="700 "+size+"px Arial,sans-serif";
  const title="MTG · "+sceneData.product+" · "+fmt(sceneData.time)+
    " · "+grid.width+" × "+grid.height+" px · © EUMETSAT"+
+   (options.advectionLevel?" · ECMWF IFS WLA/KLA "+options.advectionLevel+" hPa (K/6h)":"")+
    (fronts?" · NOAA WPC Analyse "+fmt(fronts.valid_utc):"");
  ctx.fillText(title,Math.round(h*.32),grid.height-Math.round(h*.40),grid.width-h*.64);
  ctx.restore();
@@ -301,16 +302,18 @@ async function compositeLayers(ctx,sceneData,grid,choice){
   if(!window.SatelliteOverlay?.paintCities)throw Error("Städtefunktion ist nicht bereit.");
   window.SatelliteOverlay.paintCities(ctx,sceneData.region,area);
  }
- if(choice.isobars){
+ if(choice.isobars||choice.advectionLevel){
   if(!window.SatelliteIsobars?.exportAt||!window.SatelliteMapExport?.paintIsobars)
    throw Error("ECMWF-Vektorisobaren sind für den Download nicht geladen.");
-  const spacing=Number(byId("satIsobarSpacing")?.value)||5;
-  overlay=await window.SatelliteIsobars.exportAt(sceneData.time,sceneData.region,spacing);
+  const spacing=choice.isobars?(Number(byId("satIsobarSpacing")?.value)||5):5;
+  overlay=await window.SatelliteIsobars.exportAt(sceneData.time,sceneData.region,spacing,{advectionLevel:choice.advectionLevel});
   if(overlay?.satelliteUTC!==sceneData.time||!overlay?.validUTC)
    throw Error("Die ECMWF-Isobaren passen nicht zum ausgewählten Satellitenzeitpunkt.");
-  if(choice.format==="png")
+  if(choice.format==="png"&&choice.isobars)
    window.SatelliteMapExport.paintIsobars(ctx,overlay,sceneData.region,area,
     choice.cities?(window.SatelliteOverlay?.cityAnchors?.(sceneData.region)||[]):[]);
+  else if(choice.format==="png"&&choice.advectionLevel)
+   window.SatelliteMapExport.paintAdvection(ctx,overlay,sceneData.region,area);
  }
  const fronts=window.SatelliteFrontsPaused===true?null:(await window.SatelliteNOAAFronts?.exportAt?.(sceneData.time,sceneData.region)||null);
  if(fronts&&choice.format==="png"){
@@ -327,7 +330,8 @@ async function exportImage(format="png"){
   setInfo("Für den Download bitte zunächst das gewählte HD-/4K-Bild laden.");return;
  }
  const choice={format,borders:Boolean(borderChoice?.checked),cities:Boolean(cityChoice?.checked),
-  isobars:Boolean(isobarChoice?.checked)};
+  isobars:Boolean(isobarChoice?.checked),
+  advectionLevel:byId('satShowAdvection')?.checked?Number(byId('satAdvectionLevel')?.value)||850:null};
  if(format==="pdf"&&!choice.isobars){
   setInfo("Für ein PDF mit echten Vektor-Isobaren bitte die Isobaren im HD-Export aktivieren.");return;
  }
@@ -347,9 +351,9 @@ async function exportImage(format="png"){
    const exported=await window.SatelliteMapExport.renderPDF({
     image:canvas,overlay,fronts,includeCities:choice.cities,region:ctxScene.region,regionName,product:ctxScene.product,productName});
    window.SatelliteMapExport.download({
-    blob:exported.blob,name:exported.name.replace(/_isobaren(?:_noaa_fronten)?\.pdf$/,"_"+grid.width+"px_hd_vektoren"+(fronts?"_noaa_fronten":"")+".pdf")});
+    blob:exported.blob,name:exported.name.replace(/_isobaren(?:_noaa_fronten)?(?:_wla_kla_\d+hpa)?\.pdf$/,"_"+grid.width+"px_hd_vektoren"+(fronts?"_noaa_fronten":"")+(choice.advectionLevel?"_wla_kla_"+choice.advectionLevel+"hpa":"")+".pdf")});
    setInfo("HD-/4K-PDF aus vollständigen WMS-Kacheln · ECMWF-Isobaren"+
-     (fronts?" und NOAA-WPC-Fronten":"")+" als bearbeitbare Vektorpfade · "+fmt(ctxScene.time));
+     (fronts?" und NOAA-WPC-Fronten":"")+(choice.advectionLevel?" und WLA/KLA "+choice.advectionLevel+" hPa":"")+" als bearbeitbare Vektorpfade · "+fmt(ctxScene.time));
   }else{
    stamp(ctx,ctxScene,grid,choice,fronts);
    const blob=await new Promise((resolve,reject)=>{
@@ -358,11 +362,11 @@ async function exportImage(format="png"){
    });
    const url=URL.createObjectURL(blob),a=document.createElement("a");
    a.href=url;a.download="mtg_"+ctxScene.product+"_"+ctxScene.region+"_"+grid.width+"px_"+
-    ctxScene.time.replace(/[:.]/g,"-")+(choice.isobars?"_isobaren":"")+(fronts?"_noaa_fronten":"")+".png";
+    ctxScene.time.replace(/[:.]/g,"-")+(choice.isobars?"_isobaren":"")+(fronts?"_noaa_fronten":"")+(choice.advectionLevel?"_wla_kla_"+choice.advectionLevel+"hpa":"")+".png";
    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
    setInfo("Echte "+grid.width+" × "+grid.height+" px WMS-Kacheln exportiert · "+
     (choice.isobars?"ECMWF-Isobaren · ":"")+(fronts?"NOAA-WPC-Fronten · ":"")+(choice.borders?"Grenzen · ":"")+
-    (choice.cities?"Städte · ":"")+fmt(ctxScene.time));
+    (choice.cities?"Städte · ":"")+(choice.advectionLevel?"WLA/KLA "+choice.advectionLevel+" hPa · ":"")+fmt(ctxScene.time));
   }
  }catch(error){
   setInfo("HD-/4K-"+format.toUpperCase()+" nicht möglich: "+(error?.message||String(error)));

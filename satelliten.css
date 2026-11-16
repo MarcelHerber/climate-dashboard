@@ -79,6 +79,9 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 .sat-isobar-status{font-size:12px;line-height:1.5;color:var(--sat-muted);margin:7px 0 0!important;max-width:100%!important;font-variant-numeric:tabular-nums}
 #satIsobarSvg{position:absolute;inset:0;z-index:4;width:100%;height:100%;display:block;pointer-events:none;overflow:hidden;filter:drop-shadow(0 1px 1px rgba(0,0,0,.78))}
 #satIsobarSvg[hidden]{display:none}
+#satAdvectionSvg{position:absolute;inset:0;z-index:5;width:100%;height:100%;pointer-events:none;overflow:hidden;display:block}
+#satAdvectionSvg[hidden]{display:none}
+.sat-advection-key{font-size:.8rem;line-height:1.4}
 #satCitiesLayer{z-index:5}
 .sat-isobar-label{font-family:Arial,sans-serif;font-weight:800;font-size:13px;fill:#fff;stroke:rgba(10,24,40,.95);stroke-width:3px;paint-order:stroke;dominant-baseline:middle;text-anchor:middle}
 @media(max-width:650px){.sat-isobar-label{font-size:11px}.sat-isobar-status{font-size:11px}.sat-overlay-controls{gap:9px 12px}}

@@ -233,8 +233,32 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height},cityAnchors=[]){
   ctx.fillStyle="#ffffff";ctx.fillText(label,p[0],p[1]);
  }
  paintPressureCenters(ctx,overlay,region,{x,y,width,height},groups,cityAnchors,centers);
+ paintAdvection(ctx,overlay,region,{x,y,width,height});
  ctx.restore();
  return groups;
+}
+function advectionLayout(overlay,region,w,h){
+ if(!overlay.advectionLevel)return [];
+ const api=window.SatelliteAdvection;
+ if(!api||!api.levels.includes(overlay.advectionLevel)||!Array.isArray(overlay.advectionMarkers))throw Error('Verifizierte Advektion für den Export fehlt.');
+ const blocked=(overlay.pressure_centers||[]).map(m=>project([m.lon,m.lat],region,0,0,w,h));
+ return api.layout(overlay.advectionMarkers,BBOX[region],w,h,api.limits[region],blocked);
+}
+function paintAdvection(ctx,overlay,region,{x=0,y=0,width,height}){
+ const arrows=advectionLayout(overlay,region,width,height);
+ if(!arrows.length)return;
+ ctx.save();ctx.globalAlpha=1;ctx.lineJoin='round';ctx.lineCap='round';
+ const at=p=>[p[0]+x,p[1]+y];
+ for(const a of arrows){
+  for(const [color,sw] of [['#172333',Math.max(4,a.font*.34)],[a.color,Math.max(2,a.font*.2)]]){
+   ctx.beginPath();ctx.moveTo(...at(a.start));ctx.lineTo(...at(a.end));ctx.moveTo(...at(a.wing1));ctx.lineTo(...at(a.end));ctx.lineTo(...at(a.wing2));
+   ctx.strokeStyle=color;ctx.lineWidth=sw;ctx.stroke();
+  }
+  ctx.font='bold '+a.font+'px Arial,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.strokeStyle='#172333';ctx.lineWidth=Math.max(2,a.font*.17);ctx.fillStyle=a.color;
+  ctx.strokeText(a.label,x+a.labelX,y+a.labelY);ctx.fillText(a.label,x+a.labelX,y+a.labelY);
+ }
+ ctx.restore();
 }
 function utc(t){return new Date(t).toISOString().slice(0,16).replace("T"," ")+" UTC";}
 function titleLine(options){return "MTG "+options.productName+" | "+options.regionName;}
@@ -243,6 +267,7 @@ function provenance(options){const o=options.overlay;
   " | Isobaren: "+utc(o.validUTC)+" | Abstand "+o.spacing+" hPa | "+o.method+
   (options.fronts?" | NOAA WPC Analyse "+utc(options.fronts.valid_utc):"");}
 function footerLine(o){return "Bild: EUMETSAT | Druck: ECMWF CC BY 4.0 (Modell, keine Messung)"+
+ (o.overlay.advectionLevel?" | WLA/KLA: "+o.overlay.advectionLevel+" hPa, Tendenz ab 2 K/6h":"")+
  (o.fronts?" | NOAA WPC: Symbolseiten schematisch":"");}
 function rasterCanvas(image){
  const w=image.naturalWidth||image.width,h=image.naturalHeight||image.height;
@@ -276,7 +301,7 @@ async function renderPNG(options){
  return {blob,name:filename(options,"png")};
 }
 function filename(o,type){
- return "mtg_"+o.product+"_"+o.region+"_"+o.overlay.satelliteUTC.replace(/[-:]/g,"").replace("T","_").replace(".000Z","Z")+"_isobaren"+(o.fronts?"_noaa_fronten":"")+"."+type;
+ return "mtg_"+o.product+"_"+o.region+"_"+o.overlay.satelliteUTC.replace(/[-:]/g,"").replace("T","_").replace(".000Z","Z")+"_isobaren"+(o.fronts?"_noaa_fronten":"")+(o.overlay.advectionLevel?"_wla_kla_"+o.overlay.advectionLevel+"hpa":"")+"."+type;
 }
 const ascii=new TextEncoder();
 function concat(items){
@@ -337,6 +362,13 @@ function drawPDFVectors(overlay,region,w,h,bottom,cityAnchors=[]){
     fmt(cx-fs*.35)+" "+fmt(cy-fs*.34)+" Td ("+m.type+") Tj ET",
    "Q");
  }
+ for(const a of advectionLayout(overlay,region,w,h)){
+  const pp=p=>fmt(p[0])+" "+fmt(bottom+h-p[1]);
+  const path=pp(a.start)+" m "+pp(a.end)+" l "+pp(a.wing1)+" m "+pp(a.end)+" l "+pp(a.wing2)+" l";
+  out.push(pdfRGB('#172333')+' RG',fmt(Math.max(4,a.font*.34))+' w',path,'S',pdfRGB(a.color)+' RG',fmt(Math.max(2,a.font*.2))+' w',path,'S');
+  out.push('q',pdfRGB(a.color)+' rg',pdfRGB('#172333')+' RG',fmt(Math.max(1,a.font*.10))+' w',
+   'BT /F1 '+fmt(a.font)+' Tf 2 Tr '+fmt(a.labelX-a.font*.98)+' '+fmt(bottom+h-a.labelY-a.font*.34)+' Td ('+a.label+') Tj ET','Q');
+ }
  out.push("Q");
  return out.join("\n");
 }
@@ -392,5 +424,5 @@ function download(result){
  setTimeout(()=>URL.revokeObjectURL(u),60000);
  return result.blob.size;
 }
-window.SatelliteMapExport={paintIsobars,paintFronts,frontLayout,frontFeatures,paintPressureCenters,pressureCenters,placedCenters,annotationLayout,pathsFor,renderPNG,renderPDF,download};
+window.SatelliteMapExport={paintIsobars,paintAdvection,paintFronts,frontLayout,frontFeatures,paintPressureCenters,pressureCenters,placedCenters,annotationLayout,pathsFor,renderPNG,renderPDF,download};
 })();
