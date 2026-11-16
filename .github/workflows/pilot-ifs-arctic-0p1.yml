@@ -1,0 +1,225 @@
+name: ECMWF IFS 0,1° · Arktis Nordpol 1–15 Tage
+on:
+  schedule:
+    - cron: '50 6,18 * * *'
+  workflow_dispatch:
+  push:
+    branches: ['feature/ifs-arctic-20261115', main]
+    paths: ['.github/workflows/pilot-ifs-arctic-0p1.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ifs-arctic-0p1-pilot-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  browser-fixture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            ifs_weekly_arctic.html
+            ifs_weekly_europe.html
+            ifs_weekly_europe.js
+            tests/test_ifs_weekly_browser.mjs
+            gfs_weekly_europe.css
+            cpc_europe.css
+            mobile_navigation.css
+            mobile_navigation.js
+            dashboard_theme.css
+            dashboard_theme.js
+      - run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          python -m http.server 8765 --bind 127.0.0.1 > /tmp/ifs-http.log 2>&1 &
+          node tests/test_ifs_weekly_browser.mjs --fixture --arctic
+          node tests/test_ifs_weekly_browser.mjs --fixture
+  forecast:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      months: ${{ steps.months.outputs.months }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts/ifs_weekly_01.py
+            scripts/build_ifs_weekly_geography.py
+            tests/test_ifs_weekly_01.py
+            tests/test_ifs_arctic.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy scipy eccodes ecmwf-opendata cartopy shapely
+      - run: python -m unittest discover -s tests -p 'test_ifs_*.py' -v
+      - name: Download and verify all 61 authentic native IFS fields
+        run: python -m scripts.ifs_weekly_01 --domain arctic forecast --all-periods --out ifs_weekly_arctic
+      - name: Generate precise native 0.1° country geography
+        run: python scripts/build_ifs_weekly_geography.py --domain arctic --output ifs_weekly_arctic/geography.json
+      - name: Determine required ERA5 months from original valid UTC times
+        id: months
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os,json
+          from datetime import datetime
+          x=json.loads(Path('ifs_weekly_arctic/forecast_15.json').read_text())
+          months=sorted({datetime.fromisoformat(s['valid_utc'].replace('Z','+00:00')).month for s in x['sources']})
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('months='+json.dumps(months,separators=(',',':'))+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ifs-arctic-0p1-verified-forecast
+          path: ifs_weekly_arctic/
+          retention-days: 30
+  publish:
+    needs: [verify, browser-fixture]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /scripts/stage_ifs_weekly.py
+            /ifs_weekly_arctic/
+      - uses: actions/download-artifact@v4
+        with:
+          name: ifs-arctic-0p1-verified-map
+          path: .ifs-publish
+      - name: Publish only the newer fully verified original data
+        run: |
+          set -euo pipefail
+          python scripts/stage_ifs_weekly.py --domain arctic .ifs-publish/ifs_weekly_arctic
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git merge --ff-only origin/main
+          if python -c 'import json; from pathlib import Path; p=Path("ifs_weekly_arctic/current.json"); q=Path("ifs_weekly_arctic/periods.json"); old=json.loads(p.read_text())["run_utc"] if p.exists() else ""; new=json.loads(Path(".ifs-publish/ifs_weekly_arctic/current.json").read_text())["run_utc"]; exit(0 if old>new or (old==new and q.exists() and json.loads(q.read_text())["run_utc"]==new) else 1)'; then exit 0; fi
+          mkdir -p ifs_weekly_arctic
+          cp .ifs-publish/ifs_weekly_arctic/{current,forecast,geography,periods,current_01,current_03,current_05,current_10,current_15}.json ifs_weekly_arctic/
+          git add --sparse -f ifs_weekly_arctic/{current,forecast,geography,periods,current_01,current_03,current_05,current_10,current_15}.json
+          git commit -m 'Update verified Arctic IFS 0.1 degree 1–15 day forecasts'
+          git push origin HEAD:main
+  reference:
+    needs: forecast
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        month: ${{ fromJSON(needs.forecast.outputs.months) }}
+    env:
+      MONTH: ${{ matrix.month }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts/ifs_weekly_01.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy scipy cdsapi xarray netCDF4
+      - uses: actions/cache@v4
+        id: climate-cache
+        with:
+          path: .ifs-era5-arctic-reference
+          key: ifs-era5-arctic-hourly-1991-2020-0p25-v1-month-${{ matrix.month }}
+      - name: Restore permanent reference asset when available
+        run: |
+          mkdir -p .ifs-era5-arctic-reference
+          file="era5_$(printf '%02d' "$MONTH").npz"
+          if [ ! -s ".ifs-era5-arctic-reference/$file" ]; then
+            gh release download ifs-era5-arctic-reference-1991-2020-v1 -R "$GITHUB_REPOSITORY" -p "$file" -D .ifs-era5-arctic-reference || true
+          fi
+      - name: Wait for independent verified Arctic reference month
+        run: |
+          set -euo pipefail
+          file="era5_$(printf '%02d' "$MONTH").npz"
+          path=".ifs-era5-arctic-reference/$file"
+          for attempt in $(seq 1 180); do
+            if [ -s "$path" ]; then break; fi
+            gh release download ifs-era5-arctic-reference-1991-2020-v1 -R "$GITHUB_REPOSITORY" -p "$file" -D .ifs-era5-arctic-reference || true
+            if [ -s "$path" ]; then break; fi
+            sleep 60
+          done
+          test -s "$path"
+          python -m scripts.ifs_weekly_01 --domain arctic validate-reference --month "$MONTH" --path "$path"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ifs-era5-arctic-reference-month-${{ matrix.month }}
+          path: .ifs-era5-arctic-reference/*.npz
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+  verify:
+    needs: [forecast, reference]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            scripts/ifs_weekly_01.py
+            scripts/stage_ifs_weekly.py
+            tests/test_ifs_weekly_browser.mjs
+            ifs_weekly_arctic.html
+            ifs_weekly_europe.html
+            ifs_weekly_europe.js
+            gfs_weekly_europe.css
+            cpc_europe.css
+            mobile_navigation.css
+            mobile_navigation.js
+            dashboard_theme.css
+            dashboard_theme.js
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy scipy
+      - uses: actions/download-artifact@v4
+        with:
+          name: ifs-arctic-0p1-verified-forecast
+          path: ifs_weekly_arctic
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ifs-era5-arctic-reference-month-*
+          path: .ifs-era5-arctic-reference
+          merge-multiple: true
+      - name: Compute all anomalies only with exact, complete references
+        run: |
+          python -m scripts.ifs_weekly_01 --domain arctic combine-periods --forecast ifs_weekly_arctic --references .ifs-era5-arctic-reference --out ifs_weekly_arctic
+          python scripts/stage_ifs_weekly.py --domain arctic ifs_weekly_arctic
+      - name: Test desktop/mobile maps, selection and PNG/PDF export with actual data
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          python -m http.server 8765 --bind 127.0.0.1 > /tmp/ifs-http.log 2>&1 &
+          node tests/test_ifs_weekly_browser.mjs --arctic
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ifs-arctic-0p1-verified-map
+          path: |
+            ifs_weekly_arctic/current.json
+            ifs_weekly_arctic/geography.json
+            ifs_weekly_arctic/forecast.json
+            ifs_weekly_arctic/current_*.json
+            ifs_weekly_arctic/periods.json
+            ifs-arctic-test-output/
+          if-no-files-found: error
+          retention-days: 30

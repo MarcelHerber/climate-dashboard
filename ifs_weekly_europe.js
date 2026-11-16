@@ -1,7 +1,9 @@
 /* ECMWF IFS native 0.1°: 29 original 6-hourly 2m temperature fields. ERA5 1991–2020, native 0.25° reference bilinearly remapped. */
 (() => {
   "use strict";
-  const W=2100,H=1140,LON0=12;
+  const ARCTIC=document.body.dataset.ifsDomain==="arctic";
+  const DATA=ARCTIC?"ifs_weekly_arctic":"ifs_weekly_europe";
+  const W=2100,H=ARCTIC?2100:1140,LON0=ARCTIC?0:12;
   let GW=1801,GH=601,CELL=GW*GH,NORTH=85,WEST=-80;
   let extended=true,vectorRings=[];
   const PI=Math.PI,RAD=PI/180;
@@ -33,17 +35,22 @@
     iceland:{name:"Island und Nordatlantik",west:-45,east:8,south:54,north:77},
     eurasia:{name:"Eurasien bis Ural",west:-23,east:97,south:34,north:78}
   });
+  const POLAR_REGIONS=Object.freeze(Object.fromEntries([60,70,80].map(s=>[
+    "polar"+s,{name:"Nordpol · "+s+"–90°N",west:-180,east:180,south:s,north:90}
+  ])));
   function currentRegion(){
+    if(ARCTIC)return POLAR_REGIONS[el.region.value]||POLAR_REGIONS.polar60;
     const regions=extended?WIDE_REGIONS:REGIONS;
     return regions[el.region.value]||regions.europe;
   }
   function configureRegions(){
     if(!extended)return;
     const selected=el.region.value;
-    const options=Object.entries(WIDE_REGIONS).map(([id,region])=>
+    const regions=ARCTIC?POLAR_REGIONS:WIDE_REGIONS;
+    const options=Object.entries(regions).map(([id,region])=>
       '<option value="'+id+'">'+region.name+'</option>').join("");
     el.region.innerHTML=options;
-    el.region.value=WIDE_REGIONS[selected]?selected:"europe";
+    el.region.value=regions[selected]?selected:(ARCTIC?"polar60":"europe");
   }
 
   // Match the established Climate Dashboard / ERA5 Europe anomaly palette.
@@ -96,8 +103,8 @@
     const run=Date.parse(main.run_utc), end=Date.parse(main.valid_to_utc);
     const days=main.period_days,count=days*4+1;
     if(main.schema!==1||!PERIODS.includes(days)||main.type!==(days===7?"ifs_0p1_seven_day_forecast":"ifs_0p1_period_forecast")||
-       main.grid_degrees!==.1||main.width!==1801||main.height!==601||
-       main.lat_north!==85||main.lat_south!==25||main.lon_west!==-80||main.lon_east!==100||
+       main.grid_degrees!==.1||main.width!==(ARCTIC?3600:1801)||main.height!==(ARCTIC?301:601)||
+       main.lat_north!==(ARCTIC?90:85)||main.lat_south!==(ARCTIC?60:25)||main.lon_west!==(ARCTIC?-180:-80)||main.lon_east!==(ARCTIC?179.9:100)||
        main.sample_count!==count||
        !Number.isFinite(run)||Date.parse(main.valid_from_utc)!==run||end-run!==days*86400000||
        !Array.isArray(main.lead_hours)||main.lead_hours.length!==count||
@@ -107,11 +114,11 @@
            !/^[a-f0-9]{64}$/.test(main.sources[i]?.sha256)||main.sources[i]?.bytes<1000)||
        !main.forecast_mean_q10_b64)
       throw Error("Keine vollständig geprüfte originale IFS-0,1°-Prognose");
-    if(verified&&(main.reference_version!=="era5-t2m-calendar-hour-1991-2020-v1"||
+    if(verified&&(main.reference_version!==(ARCTIC?"era5-t2m-calendar-hour-1991-2020-arctic-v1":"era5-t2m-calendar-hour-1991-2020-v1")||
         ref?.period!=="1991–2020"||ref?.years!==30||ref?.native_grid_degrees!==.25||
         ref?.interpolation!=="bilinear"||!main.anomaly_mean_q10_b64))
       throw Error("ERA5-Referenz nicht vollständig geprüft");
-    if(cpc.width!==1801||cpc.height!==601||cpc.grid_degrees!==.1||
+    if(cpc.width!==main.width||cpc.height!==main.height||cpc.grid_degrees!==.1||
        !Array.isArray(cpc.countries)||!cpc.country_mask_b64||
        !Array.isArray(cpc.rings)||cpc.rings.length<100)
       throw Error("Geografisches Raster nicht kompatibel");
@@ -131,7 +138,7 @@
   const RGB=COLORS.map(rgb);
   function color(v,absolute){
     if(absolute){
-      const u=Math.max(0,Math.min(1,(v+30)/65));
+      const u=Math.max(0,Math.min(1,ARCTIC?(v+60)/80:(v+30)/65));
       return [Math.round(43+u*190),Math.round(115+u*15),Math.round(214-u*155)];
     }
     let i=0;
@@ -144,6 +151,10 @@
     return [r*Math.sin(angle),-r*Math.cos(angle)];
   }
   function computeView(region){
+    if(ARCTIC){
+      const r=Math.tan((90-region.south)*RAD/2),scale=2*r/H*1.04;
+      return {xmin:-W*scale/2,ymax:H*scale/2,scale};
+    }
     const pts=[];
     const n=32;
     // Sample all four geographic edges; stereographic bounds are not axis-aligned.
@@ -173,12 +184,12 @@
     return [LON0+Math.atan2(x,-y)/RAD,90-2*Math.atan(r)/RAD];
   }
   function gridCell(lon,lat){
-    const gx=(lon-WEST)*10,gy=(NORTH-lat)*10;
-    if(gx<0||gx>GW-1||gy<0||gy>GH-1)return null;
+    const gx=ARCTIC?((lon-WEST)%360+360)%360*10:(lon-WEST)*10,gy=(NORTH-lat)*10;
+    if((ARCTIC&&lat<currentRegion().south)||gx<0||(!ARCTIC&&gx>GW-1)||gy<0||gy>GH-1)return null;
     return [gx,gy];
   }
   function interpolate(field,gx,gy){
-    const x0=Math.floor(gx),y0=Math.floor(gy),x1=Math.min(GW-1,x0+1),y1=Math.min(GH-1,y0+1);
+    const x0=Math.floor(gx),y0=Math.floor(gy),x1=ARCTIC?(x0+1)%GW:Math.min(GW-1,x0+1),y1=Math.min(GH-1,y0+1);
     const tx=gx-x0,ty=gy-y0;
     const a=field[y0*GW+x0],b=field[y0*GW+x1],
       c=field[y1*GW+x0],d=field[y1*GW+x1];
@@ -197,6 +208,9 @@
     ctx.save();
     ctx.beginPath();
     ctx.rect(0,0,W,H);ctx.clip();
+    if(ARCTIC&&el.projection.value==="stereo"){
+      ctx.beginPath();ctx.arc(W/2,H/2,Math.tan((90-currentRegion().south)*RAD/2)/VIEW.scale,0,2*PI);ctx.clip();
+    }
     ctx.strokeStyle="rgba(42,53,65,.75)";
     ctx.lineWidth=2.175;
     ctx.lineCap="round";
@@ -206,7 +220,7 @@
       if(ring.length<2)continue;
       for(let k=0;k<ring.length;k++){
         const [x,y]=borderMapPoint(ring[k][0],ring[k][1]);
-        if(k===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+        if(k===0||(ARCTIC&&el.projection.value==="latlon"&&Math.abs(ring[k][0]-ring[k-1][0])>180))ctx.moveTo(x,y);else ctx.lineTo(x,y);
       }
     }
     ctx.stroke();
@@ -218,9 +232,9 @@
     shown=el.metric.value==="absolute"?temperature:anomaly;
     const ctx=el.map.getContext("2d",{alpha:false});
     const image=ctx.createImageData(W,H),d=image.data;
-    const lutSize=2401,lut=[];
+    const lutSize=2401,lut=[],absMin=ARCTIC?-60:-40;
     const abs=el.metric.value==="absolute";
-    for(let i=0;i<lutSize;i++)lut.push(color(abs?-40+i/20:-30+i/40,abs));
+    for(let i=0;i<lutSize;i++)lut.push(color(abs?absMin+i/20:-30+i/40,abs));
     for(let y=0;y<H;y++){
       for(let x=0;x<W;x++){
         const i=(y*W+x)*4;
@@ -228,7 +242,7 @@
         let rr=237,gg=243,bb=247;
         if(cell){
           const v=interpolate(shown,cell[0],cell[1]);
-          const j=abs?Math.max(0,Math.min(lutSize-1,Math.round((v+40)*20))):
+          const j=abs?Math.max(0,Math.min(lutSize-1,Math.round((v-absMin)*20))):
             Math.max(0,Math.min(lutSize-1,Math.round((v+30)*40)));
           [rr,gg,bb]=lut[j];
           if(border&&!extended){
@@ -251,12 +265,12 @@
     drawExpandedBorders(ctx);
     el.map.setAttribute("aria-label",`IFS-${abs?"Mitteltemperatur":"Temperaturabweichung"} · ${payload.period_days} Tage`);
     el.label.textContent=currentRegion().name+" · "+payload.period_days+" Tage · "+
-      (el.projection.value==="stereo"?"Stereografische Europaansicht":"Breiten-Längen-Ansicht")+" · 0,1° IFS";
+      (el.projection.value==="stereo"?(ARCTIC?"Polaransicht":"Stereografische Europaansicht"):"Breiten-Längen-Ansicht")+" · 0,1° IFS";
     legend(abs);countriesTable();
   }
   function legend(abs){
     if(abs){
-      el.legend.innerHTML='<small>2-m-Temperatur in °C · kühler = bläulich, wärmer = rötlich. Kein klimatologischer Mittelwert.</small>';
+      el.legend.innerHTML='<small>2-m-Temperatur in °C · '+(ARCTIC?'−60 bis +20 °C · ':'')+'kühler = bläulich, wärmer = rötlich. Kein klimatologischer Mittelwert.</small>';
       return;
     }
     const stops=COLORS.map((c,i)=>c+" "+((STOPS[i]+8)/16*100).toFixed(2)+"%").join(",");
@@ -324,7 +338,7 @@
   // Legend values come from color(), so neither projections nor map smoothing
   // can accidentally introduce a second, mismatching colour scale.
   function drawExportLegend(ctx,absolute){
-    const x=205,y=752,w=990,h=94;
+    const x=205,y=ARCTIC?1505:752,w=990,h=94;
     ctx.save();
     ctx.fillStyle="rgba(255,255,255,0.94)";
     ctx.fillRect(x,y,w,h);
@@ -335,7 +349,7 @@
     ctx.fillText(absolute?"2-m-Mitteltemperatur (°C)":
       "Temperaturabweichung gegenüber 1991–2020 (K)",x+20,y+23);
     const bx=x+20,by=y+33,bw=w-40,bh=19;
-    const low=absolute?-30:-8,high=absolute?35:8;
+    const low=absolute?(ARCTIC?-60:-30):-8,high=absolute?(ARCTIC?20:35):8;
     for(let i=0;i<bw;i++){
       const v=low+(high-low)*i/(bw-1);
       const [r,g,b]=color(v,absolute);
@@ -343,12 +357,12 @@
       ctx.fillRect(bx+i,by,1,bh);
     }
     ctx.strokeStyle="#8299ae";ctx.strokeRect(bx+.5,by+.5,bw-1,bh-1);
-    const ticks=absolute?[-30,-20,-10,0,10,20,35]:[-8,-4,-2,0,2,4,8];
+    const ticks=absolute?(ARCTIC?[-60,-45,-30,-15,0,10,20]:[-30,-20,-10,0,10,20,35]):[-8,-4,-2,0,2,4,8];
     ctx.fillStyle="#193a55";ctx.font="14px Arial";ctx.textBaseline="top";
     for(let i=0;i<ticks.length;i++){
       const v=ticks[i],tx=bx+(v-low)/(high-low)*bw;
       ctx.textAlign=i===0?"left":i===ticks.length-1?"right":"center";
-      const label=absolute?(i===0?"≤ −30":i===ticks.length-1?"≥ +35":
+      const label=absolute?(i===0?"≤ "+low:i===ticks.length-1?"≥ +"+high:
         (v>0?"+":"")+v):(i===0?"≤ −8":i===ticks.length-1?"≥ +8":
         (v>0?"+":"")+v);
       ctx.fillText(label,tx,by+bh+8);
@@ -358,26 +372,26 @@
   function exportMapCanvas(){
     if(!payload)return null;
     const absolute=el.metric.value==="absolute";
-    const out=document.createElement("canvas");out.width=W;out.height=1425;
+    const out=document.createElement("canvas");out.width=W;out.height=ARCTIC?2565:1425;
     const ctx=out.getContext("2d");ctx.scale(1.5,1.5);
-    ctx.fillStyle="#fff";ctx.fillRect(0,0,1400,950);
+    ctx.fillStyle="#fff";ctx.fillRect(0,0,1400,ARCTIC?1710:950);
     ctx.fillStyle="#193a55";ctx.font="bold 29px Arial";
-    ctx.fillText("Europa · IFS "+payload.period_days+"-Tage-"+(absolute?"Mitteltemperatur":"Temperaturabweichung"),32,45);
+    ctx.fillText((ARCTIC?"Arktis":"Europa")+" · IFS "+payload.period_days+"-Tage-"+(absolute?"Mitteltemperatur":"Temperaturabweichung"),32,45);
     ctx.font="18px Arial";
     ctx.fillText("ECMWF IFS "+fmtTime(payload.run_utc)+" · "+
       (absolute?"2-m-Temperatur °C":"ERA5 1991–2020 (0,25° → 0,1°)")+
       " · "+currentRegion().name,32,75);
-    ctx.drawImage(el.map,0,100,1400,760);
+    ctx.drawImage(el.map,0,100,1400,ARCTIC?1400:760);
     drawExportLegend(ctx,absolute);
     ctx.fillStyle="#193a55";ctx.font="15px Arial";
-    ctx.fillText("Gültig "+fmtTime(payload.valid_from_utc)+" bis "+fmtTime(payload.valid_to_utc),32,895);
+    ctx.fillText("Gültig "+fmtTime(payload.valid_from_utc)+" bis "+fmtTime(payload.valid_to_utc),32,ARCTIC?1640:895);
     ctx.fillText(`ECMWF IFS 0,1° · +0 bis +${payload.period_days*24} h · ${payload.sample_count} Originalfelder · `+
-      el.projection.options[el.projection.selectedIndex].text,32,925);
+      el.projection.options[el.projection.selectedIndex].text,32,ARCTIC?1670:925);
     return out;
   }
   function savePng(){
     const out=exportMapCanvas();if(!out)return;
-    const name=`ifs_europa_${payload.period_days}tage_${payload.run_utc.slice(0,10)}.png`;
+    const name=`ifs_${ARCTIC?el.region.value:"europa"}_${payload.period_days}tage_${payload.run_utc.slice(0,10)}.png`;
     out.toBlob(blob=>{if(!blob)return;const url=URL.createObjectURL(blob);
       download(url,name);
       setTimeout(()=>URL.revokeObjectURL(url),5000);},"image/png");
@@ -411,7 +425,7 @@
       unit,Math.round(s.coverage*100),payload.run_utc,payload.valid_from_utc,
       payload.valid_to_utc,(unit==="K"?"ERA5 1991-2020 0.25° bilinear":"keine")].join(";"));
     const url=URL.createObjectURL(new Blob(["\ufeff"+rows.join("\r\n")],{type:"text/csv;charset=utf-8"}));
-    download(url,`ifs_europa_${payload.period_days}tage_laendermittel.csv`);
+    download(url,`ifs_${ARCTIC?"arktis":"europa"}_${payload.period_days}tage_laendermittel.csv`);
     setTimeout(()=>URL.revokeObjectURL(url),5000);
   }
   el.metric.addEventListener("change",draw);
@@ -424,7 +438,7 @@
     if(x<0||x>=W||y<0||y>=H)return;
     const [lon,lat]=geo(x,y),cell=gridCell(lon,lat);
     if(!cell)return;
-    const ix=Math.round(cell[0]),iy=Math.round(cell[1]),id=mask[iy*GW+ix];
+    const ix=Math.round(cell[0])%GW,iy=Math.round(cell[1]),id=mask[iy*GW+ix];
     if(id>=0&&id<countries.length)choose(id);
   });
   el.png.addEventListener("click",savePng);
@@ -434,7 +448,7 @@
     const days=payload.period_days;
     $("weekHeading").textContent=`Temperaturabweichung · ${days===1?"nächster Tag":`nächste ${days} Tage`}`;
     $("weekSubtitle").textContent=`ECMWF IFS 0,1° · ${payload.sample_count} Originalfelder von +0 bis +${days*24} Stunden · ERA5 1991–2020 (0,25° Referenz)`;
-    $("weekPeriodHeading").textContent=`${days}-Tage-Prognose Europa`;
+    $("weekPeriodHeading").textContent=`${days}-Tage-Prognose ${ARCTIC?"Arktis":"Europa"}`;
     $("weekCountryHeading").textContent=`${days}-Tage-Ländermittel`;
     el.period.value=String(days);
     el.run.textContent="Lauf "+fmtTime(payload.run_utc);
@@ -450,7 +464,7 @@
     el.period.disabled=true;[el.png,el.pdf,el.csv].forEach(b=>b.disabled=true);
     try{
       const file=days===7?"current.json":`current_${String(days).padStart(2,"0")}.json`;
-      const response=await fetch("ifs_weekly_europe/"+file,{cache:"no-store"});
+      const response=await fetch(DATA+"/"+file,{cache:"no-store"});
       if(!response.ok)throw Error("Zeitraum momentan nicht verfügbar.");
       const data=await response.json();
       if(data.period_days!==days||data.run_utc!==manifest.run_utc||!data.reference_ready)throw Error("Zeitraum gehört nicht zum geprüften Modelllauf.");
@@ -461,11 +475,11 @@
   async function start(){
     try{
       const [combined,geoResponse,periodResponse]=await Promise.all([
-        fetch("ifs_weekly_europe/current.json",{cache:"no-store"}),
-        fetch("ifs_weekly_europe/geography.json",{cache:"force-cache"}),
-        fetch("ifs_weekly_europe/periods.json",{cache:"no-store"}).catch(()=>null)
+        fetch(DATA+"/current.json",{cache:"no-store"}),
+        fetch(DATA+"/geography.json",{cache:"force-cache"}),
+        fetch(DATA+"/periods.json",{cache:"no-store"}).catch(()=>null)
       ]);
-      const response=combined.ok?combined:await fetch("ifs_weekly_europe/forecast.json",{cache:"no-store"});
+      const response=combined.ok?combined:await fetch(DATA+"/forecast.json",{cache:"no-store"});
       if(!response.ok||!geoResponse.ok)throw Error("Geprüfte IFS-0,1°-Daten noch nicht veröffentlicht.");
       geography=await geoResponse.json();validate(await response.json(),geography);
       if(periodResponse?.ok){

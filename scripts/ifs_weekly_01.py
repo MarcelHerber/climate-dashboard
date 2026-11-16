@@ -29,6 +29,22 @@ LON = np.linspace(WEST, EAST, 1801)
 REF_LAT = np.linspace(NORTH, SOUTH, 241)
 REF_LON = np.linspace(WEST, EAST, 721)
 VERSION = 'era5-t2m-calendar-hour-1991-2020-v1'
+DOMAIN = 'europe'
+
+
+def configure_domain(domain):
+    """Select an independent reference grid; Europe remains the default."""
+    global DOMAIN, NORTH, SOUTH, WEST, EAST, LAT, LON, REF_LAT, REF_LON, VERSION
+    if domain not in ('europe', 'arctic'):
+        raise ValueError('Unknown domain')
+    DOMAIN = domain
+    NORTH, SOUTH, WEST, EAST = (90.,60.,-180.,179.9) if domain == 'arctic' else (85.,25.,-80.,100.)
+    LAT = np.linspace(NORTH,SOUTH,round((NORTH-SOUTH)*10)+1)
+    LON = np.linspace(WEST,EAST,round((EAST-WEST)*10)+1)
+    REF_LAT = np.linspace(NORTH,SOUTH,round((NORTH-SOUTH)*4)+1)
+    ref_east = 179.75 if domain == 'arctic' else EAST
+    REF_LON = np.linspace(WEST,ref_east,round((ref_east-WEST)*4)+1)
+    VERSION = 'era5-t2m-calendar-hour-1991-2020-' + ('arctic-v1' if domain=='arctic' else 'v1')
 
 
 def leads_for(days):
@@ -77,12 +93,18 @@ def normals_from_year(year, month, times, values):
     return values.reshape(-1, 4, *values.shape[1:])
 
 
-def interpolate_reference(field, old_lat, old_lon, lat, lon):
+def interpolate_reference(field, old_lat, old_lon, lat, lon, periodic=False):
     from scipy.interpolate import RegularGridInterpolator
     field = np.asarray(field)
     old_lat, old_lon = np.asarray(old_lat), np.asarray(old_lon)
     if field.shape != (len(old_lat), len(old_lon)) or not np.isfinite(field).all():
         raise ValueError('Invalid reference array')
+    if periodic:
+        if not np.isclose(old_lon[-1]+(old_lon[1]-old_lon[0]),old_lon[0]+360):
+            raise ValueError('Periodic reference requires all longitudes')
+        old_lon = np.r_[old_lon,old_lon[0]+360]
+        field = np.concatenate((field,field[:,:1]),axis=1)
+        lon = (np.asarray(lon)-old_lon[0])%360+old_lon[0]
     interp = RegularGridInterpolator((old_lat[::-1], old_lon), field[::-1], method='linear', bounds_error=True)
     yy, xx = np.meshgrid(lat, lon, indexing='ij')
     result = interp((yy, xx))
@@ -105,8 +127,8 @@ def encode(field):
 def validate_forecast_metadata(info, run):
     days=info.get('period_days'); leads=leads_for(days); times=valid_times(run,days)
     if (info.get('schema')!=1 or info.get('type')!=('ifs_0p1_seven_day_forecast' if days==7 else 'ifs_0p1_period_forecast')
-            or (info.get('grid_degrees'),info.get('width'),info.get('height')) != (.1,1801,601)
-            or tuple(info.get(k) for k in ('lat_north','lat_south','lon_west','lon_east'))!=(85.,25.,-80.,100.)
+            or (info.get('grid_degrees'),info.get('width'),info.get('height')) != (.1,len(LON),len(LAT))
+            or tuple(info.get(k) for k in ('lat_north','lat_south','lon_west','lon_east'))!=(NORTH,SOUTH,WEST,EAST)
             or info.get('sample_count')!=len(leads) or info.get('lead_hours')!=list(leads)
             or info.get('run_utc')!=iso(run) or info.get('valid_from_utc')!=iso(times[0]) or info.get('valid_to_utc')!=iso(times[-1])
             or len(info.get('sources',[]))!=len(leads)):
@@ -139,9 +161,10 @@ def decode_ifs(gid, ec, run, lead):
     if not np.allclose(ix_float, np.rint(ix_float), atol=1e-5, rtol=0):
         raise ValueError('Non-aligned native longitudes')
     vals = np.asarray(ec.codes_get_values(gid), dtype=np.float32).reshape(1801, 3600)
-    crop = vals[50:651, :][:, idx]
-    if crop.shape != (601, 1801) or not np.isfinite(crop).all() or np.any((crop < 170) | (crop > 340)):
-        raise ValueError('Invalid IFS European crop')
+    first = round((90-NORTH)*10)
+    crop = vals[first:first+len(LAT), :][:, idx]
+    if crop.shape != (len(LAT),len(LON)) or not np.isfinite(crop).all() or np.any((crop < 170) | (crop > 340)):
+        raise ValueError('Invalid IFS domain crop')
     return crop
 
 
@@ -218,7 +241,7 @@ def build_month(month, output):
             days = calendar.monthrange(year, month)[1]
             request = {'product_type':['reanalysis'],'variable':['2m_temperature'],'year':[str(year)],'month':[f'{month:02d}'],
                        'day':[f'{d:02d}' for d in range(1,days+1)],'time':[f'{h:02d}:00' for h in HOURS],
-                       'area':[NORTH,WEST,SOUTH,EAST],'data_format':'netcdf','download_format':'unarchived'}
+                       'area':[NORTH,WEST,SOUTH,float(REF_LON[-1])],'data_format':'netcdf','download_format':'unarchived'}
             client.retrieve('reanalysis-era5-single-levels',request,str(path))
             with xr.open_dataset(path) as ds:
                 da = ds['t2m']
@@ -269,7 +292,7 @@ def reference_week(run, refs, days=7):
             provenance.append(record)
         grid[lead] = loaded[m][valid.day-1,HOURS.index(valid.hour)]
     native_mean = weekly_mean(grid,days)
-    return interpolate_reference(native_mean,REF_LAT,REF_LON,LAT,LON)-273.15,provenance
+    return interpolate_reference(native_mean,REF_LAT,REF_LON,LAT,LON,periodic=DOMAIN=='arctic')-273.15,provenance
 
 
 def combine(forecast, refs, output, days=7):
@@ -303,12 +326,14 @@ def combine_periods(forecast, refs, out):
 
 if __name__ == '__main__':
     p=argparse.ArgumentParser(); sub=p.add_subparsers(dest='command',required=True)
+    p.add_argument('--domain',choices=('europe','arctic'),default='europe')
     f=sub.add_parser('forecast'); f.add_argument('--out',type=Path,required=True); f.add_argument('--source',default='ecmwf'); f.add_argument('--all-periods',action='store_true')
     m=sub.add_parser('reference'); m.add_argument('--month',type=int,choices=range(1,13),required=True); m.add_argument('--out',type=Path,required=True)
     v=sub.add_parser('validate-reference'); v.add_argument('--month',type=int,choices=range(1,13),required=True); v.add_argument('--path',type=Path,required=True)
     c=sub.add_parser('combine'); c.add_argument('--forecast',type=Path,required=True); c.add_argument('--references',type=Path,required=True); c.add_argument('--out',type=Path,required=True)
     cp=sub.add_parser('combine-periods'); cp.add_argument('--forecast',type=Path,required=True); cp.add_argument('--references',type=Path,required=True); cp.add_argument('--out',type=Path,required=True)
     a=p.parse_args()
+    configure_domain(a.domain)
     if a.command=='forecast': fetch_ifs(a.out,a.source,a.all_periods)
     elif a.command=='reference': build_month(a.month,a.out)
     elif a.command=='validate-reference': print(validate_reference(a.path,a.month)[1])
