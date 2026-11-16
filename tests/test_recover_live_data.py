@@ -1,10 +1,12 @@
 import sys
 import unittest
+import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from recover_live_data import needs_recovery, can_dispatch
+from recover_live_data import needs_recovery, can_dispatch, SOURCES
 
 
 class RecoveryTests(unittest.TestCase):
@@ -49,6 +51,45 @@ class RecoveryTests(unittest.TestCase):
         self.assertTrue(needs_recovery('icon_hazards', {'run_utc': '2026-11-15T00:00:00Z', 'periods': [{}]}, self.now))
         self.assertFalse(needs_recovery('icon_hazards', {'run_utc': '2026-11-15T12:00:00Z', 'periods': [{}]}, self.now))
         self.assertTrue(needs_recovery('mosmix', {'issue_time': '2026-11-15T00:00:00Z', 'station_count': 100}, self.now))
+
+    def test_tmax_recovery_respects_daily_cycle_and_morning_availability(self):
+        self.assertIn(('europe_tmax', 'europe-tmax-lab-data/data/europe-tmax-lab/current.json',
+                       'update-europe-tmax-lab.yml', 180), SOURCES)
+        manifest = {'schema': 2, 'icon_cycle': '2026111400', 'stations_catalog_count': 4422,
+                    'days': [{'date': f'2026-11-{d}', 'coverage': .95, 'icon_png': 'map.png',
+                              'icon_raw_png': 'raw.png', 'stations': [{'tmax_c': 10}] * 31}
+                             for d in range(14, 19)]}
+        self.assertTrue(needs_recovery('europe_tmax', manifest, self.now))
+        self.assertFalse(needs_recovery('europe_tmax', manifest, self.now.replace(hour=4)))
+        self.assertFalse(needs_recovery('europe_tmax', dict(manifest, icon_cycle='2026111500'), self.now))
+        self.assertFalse(needs_recovery('europe_tmax', dict(manifest, icon_cycle='2026111600'), self.now))
+        self.assertFalse(needs_recovery('europe_tmax', dict(manifest, days=[]), self.now))
+        self.assertFalse(needs_recovery('europe_tmax', dict(manifest, schema=1), self.now))
+
+    def test_synop_fetch_accepts_replaced_archive_tracking_refs(self):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/update-fast-live.yml').read_text()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            def git(*args, cwd=root):
+                return subprocess.run(['git', *args], cwd=cwd, check=True, capture_output=True, text=True, input='').stdout.strip()
+            remote, local = root/'remote', root/'local'
+            git('init', '--bare', str(remote))
+            git('init', str(local))
+            git('config', 'user.name', 'Regression', cwd=local)
+            git('config', 'user.email', 'regression@example.invalid', cwd=local)
+            git('remote', 'add', 'origin', str(remote), cwd=local)
+            # actions/checkout fetches the selected branch, not every data ref.
+            git('config', 'remote.origin.fetch', '+refs/heads/main:refs/remotes/origin/main', cwd=local)
+            first = git('commit-tree', git('mktree', cwd=local), '-m', 'first', cwd=local)
+            second = git('commit-tree', git('mktree', cwd=local), '-m', 'replacement', cwd=local)
+            for branch in ('live-data', 'fast-live'):
+                git('push', 'origin', f'{first}:refs/heads/{branch}', cwd=local)
+                git('fetch', 'origin', f'{branch}:refs/remotes/origin/{branch}', cwd=local)
+                git('push', '--force', 'origin', f'{second}:refs/heads/{branch}', cwd=local)
+                fetch_line = next(line.strip() for line in workflow.splitlines()
+                                  if line.strip().startswith('git fetch origin ') and f'{branch}:refs/remotes/origin/{branch}' in line)
+                git(*fetch_line.split()[1:], cwd=local)
+                self.assertEqual(git('rev-parse', f'origin/{branch}', cwd=local), second)
 
     def test_daily_archive_uses_observed_date(self):
         self.assertTrue(needs_recovery('snow_europe', {'daily': {'2026-11-10': 4}, 'observed_latest': '2026-11-10'}, self.now))

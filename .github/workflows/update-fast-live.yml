@@ -42,7 +42,8 @@ jobs:
       - name: CDC-Livestationsindex laden
         shell: bash
         run: |
-          git fetch origin live-data:refs/remotes/origin/live-data
+          # These archive branches are republished as snapshots; refresh only our local tracking ref.
+          git fetch origin +refs/heads/live-data:refs/remotes/origin/live-data
           git show origin/live-data:current_index.json > /tmp/current_index.json
           test -s /tmp/current_index.json
           echo "CDC-Livestationsindex geladen."
@@ -53,7 +54,7 @@ jobs:
           rm -rf /tmp/fast-live
           mkdir -p /tmp/fast-live
           if git ls-remote --exit-code --heads origin fast-live >/dev/null 2>&1; then
-            git fetch origin fast-live:refs/remotes/origin/fast-live
+            git fetch origin +refs/heads/fast-live:refs/remotes/origin/fast-live
             git archive origin/fast-live | tar -x -C /tmp/fast-live
             echo "Vorheriger fast-live-Stand geladen."
           else

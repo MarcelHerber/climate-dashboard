@@ -37,6 +37,7 @@ jobs:
             scripts/build_data_status.py
             scripts/recover_live_data.py
             tests/test_recover_live_data.py
+            .github/workflows/update-fast-live.yml
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
