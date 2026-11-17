@@ -166,19 +166,20 @@ function drawScene(chart,info){
     }
     series.push({id:"serie-"+(i+1)+"-"+slug(name),name,items});
   });
-  const sunRecords=visible.find(o=>o.i===0)?.ds.mosmixSunLabels;
-  if((info.key==="sun"||daily)&&sunRecords?.length){
+  const wind=info.key==="wind";
+  const dayRecords=wind?visible.find(o=>o.i===1)?.ds.mosmixWindLabels:visible.find(o=>o.i===0)?.ds.mosmixSunLabels;
+  if((info.key==="sun"||daily||wind)&&dayRecords?.length){
     const width=daily?plot.w/(maxX-minX+1):plot.w*24/Math.max(24,maxX-minX+1);
     const size=width<65?11:14,lineHeight=size+3,items=[];
-    for(const r of sunRecords){
+    for(const r of dayRecords){
       const index=daily?r.dayIndex:r.index;
       if(daily?(index<minX||index>maxX):(r.start<minX||r.end>maxX))continue;
       const lines=width>=180?[r.text]:width>=85?r.lines:r.narrowLines;
       const x=xAt(index);
       const y=daily?Math.max(TOP+size+4,yAt(r.hours,yScale)-lines.length*lineHeight-5):TOP+size+5;
-      lines.forEach((text,j)=>items.push({kind:"text",x,y:y+j*lineHeight,text,size,bold:true,align:"center",color:[63,79,96]}));
+      lines.forEach((text,j)=>items.push({kind:"text",x,y:y+j*lineHeight,text,size,bold:true,align:"center",color:wind?[217,119,6]:[63,79,96]}));
     }
-    if(items.length)series.push({id:"tagesbeschriftungen",name:"Tagesbeschriftungen",items});
+    if(items.length)series.push({id:wind?"tagesmaximalboeen":"tagesbeschriftungen",name:wind?"Tagesmaximalböen":"Tagesbeschriftungen",items});
   }
   if(!series.some(s=>s.items.length))throw Error("Keine sichtbaren Vektordaten im Diagrammzeitraum.");
   const header=[
