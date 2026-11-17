@@ -459,7 +459,7 @@
   function ensureVectorExport(){
     if(window.MosmixVectorExport)return Promise.resolve();
     if(!vectorLoadPromise)vectorLoadPromise=loadLibrary(
-      "./mosmix_vector_export.js?v=20261117-temp-labels",
+      "./mosmix_vector_export.js?v=20261117-export-visible",
       "MOSMIX-Vektorexport").then(function(){
         if(!window.MosmixVectorExport)
           throw new Error("MOSMIX-Vektorexport konnte nicht initialisiert werden.");
@@ -687,6 +687,22 @@
         text:compact+pct,lines:[compact,...(pct?[pct.trim()]:[])],
         narrowLines:second===null?[first+" h"]:[first+" h","/ "+second+" h",...(pct?[pct.trim()]:[])]};
     }).filter(Boolean);
+  }
+
+  // Scale to the longest possible daylight duration in the selected dates;
+  // never clip original forecast values (including a comparison station).
+  function dailySunAxisMaximum(frames,stations,series,start=0,end=frames.length-1){
+    let daylight=null,forecast=0;
+    for(let i=Math.max(0,start);i<=Math.min(end,frames.length-1);i++){
+      for(const station of stations){
+        const possible=possibleSunHours(frames[i].key,station);
+        if(Number.isFinite(possible))daylight=Math.max(daylight??0,possible);
+      }
+      for(const values of series){
+        if(Number.isFinite(values[i]))forecast=Math.max(forecast,values[i]);
+      }
+    }
+    return Math.max(1,Math.ceil(Math.max(daylight??12,forecast)));
   }
 
   // Gust parameters are maxima over the preceding interval, not point
@@ -1085,7 +1101,8 @@
     dayOptions.plugins.mosmixBerlinMidnight=false;
     dayOptions.layout.padding.bottom=0;
     dayOptions.scales.y.min=0;
-    dayOptions.scales.y.suggestedMax=12;
+    dayOptions.scales.y.max=dailySunAxisMaximum(dayFrames,[selectedStation],[dayValues]);
+    dayOptions.scales.y.ticks={stepSize:1};
     dayOptions.scales.x={ticks:{autoSkip:true,maxTicksLimit:10,minRotation:0,maxRotation:0},
       grid:{display:false}};
     meteogramCharts.push(new Chart(document.getElementById("mosmixSunDailyChart"),{
@@ -1185,6 +1202,10 @@
       const end=last===undefined?undefined:frames.findLastIndex(f=>f.indices[0]<=last);
       daily.options.scales.x.min=start>=0?start:undefined;
       daily.options.scales.x.max=end>=0?end:undefined;
+      const visible=daily.data.datasets.map((ds,i)=>({ds,i})).filter(({i})=>daily.isDatasetVisible(i));
+      daily.options.scales.y.max=dailySunAxisMaximum(frames,
+        visible.map(({i})=>i===0?selectedStation:secondaryStation),
+        visible.map(({ds})=>ds.data),start>=0?start:0,end>=0?end:frames.length-1);
       daily.update("none");
     }
   }
@@ -1209,11 +1230,30 @@
     };
   }
 
-  // Individual exports are re-rendered offscreen at higher resolution.
-  // The existing six-panel export keeps its established layout.
+  // Both export modes re-render offscreen with the user's visible series only.
+  function meteogramExportTitle(key,chart){
+    const names=chart.data.datasets.filter((_,i)=>chart.isDatasetVisible(i)).map(ds=>String(ds.label||""));
+    const has=pattern=>names.some(name=>pattern.test(name));
+    const join=parts=>parts.filter(Boolean).join(" und ");
+    let title="";
+    if(key==="temp")title=join([has(/Temperatur|\bTX\b|\bTN\b/i)&&"Temperatur",has(/Taupunkt/i)&&"Taupunkt"]);
+    else if(key==="rain"){
+      const rain=has(/Niederschlag|Regen/i),cloud=has(/Bewölkung/i);
+      title=join([rain&&"Niederschlag",cloud&&"Bewölkung"])+(rain?" · "+rainPeriod+" h":"");
+    }else if(key==="wind"){
+      const wind=has(/\bWind\b/i),gust=has(/Böe/i);
+      title=join([wind&&"Wind",gust&&"maximale Böen"])+(gust?" · "+gustPeriod+" h":"");
+      if(title.startsWith("maximale"))title="M"+title.slice(1);
+    }else if(key==="pressure")title=has(/Luftdruck/i)?"Luftdruck":"";
+    else if(key==="sun")title=join([has(/Sonnenschein letzte|Sonnenschein\/h/i)&&"Stündlicher Sonnenschein",
+      has(/24-h-Sonnenscheindauer/i)&&"24-h-Sonnenscheindauer",has(/Globalstrahlung/i)&&"Globalstrahlung"]);
+    else if(key==="sunDaily"&&names.length)title="Sonnenscheindauer pro Kalendertag (h)";
+    return title||names.filter(Boolean).join(" · ")||"Keine sichtbaren Datenreihen";
+  }
+
   function highResolutionMeteogramSource(spec, source) {
     const chart = meteogramCharts.find(function(item){return item.canvas === source;});
-    if (!chart || !window.Chart) return source;
+    if (!chart || !window.Chart) throw new Error("Diagramm kann nicht exportiert werden.");
     const offscreen = document.createElement("canvas");
     offscreen.width = 1540;
     offscreen.height = spec[0] === "sunDaily" ? 440 : 585;
@@ -1236,6 +1276,11 @@
           max:displayX.max
         });
       }
+      const activeAxes=new Set(chart.data.datasets.filter((_,i)=>chart.isDatasetVisible(i)).map(ds=>ds.yAxisID||"y"));
+      for(const [key,scale] of Object.entries(scales)){
+        if(key!=="x"&&!activeAxes.has(key))scale.display=false;
+      }
+      const legend=options.plugins?.legend||{},legendLabels=legend.labels||{};
       copyChart = new window.Chart(offscreen, {
         type:chart.config.type,
         data:{
@@ -1251,7 +1296,11 @@
           devicePixelRatio:2,
           events:[],
           // The offscreen export must not inherit mobile-only Chart.js styling.
-          plugins:Object.assign({},options.plugins || {},{climateMobileLegibilityV1:false}),
+          plugins:Object.assign({},options.plugins || {},{climateMobileLegibilityV1:false,
+            legend:Object.assign({},legend,{labels:Object.assign({},legendLabels,{
+              filter:(item,data)=>chart.isDatasetVisible(item.datasetIndex)&&
+                (typeof legendLabels.filter!=="function"||legendLabels.filter(item,data))
+            })})}),
           scales:scales
         })
       });
@@ -1262,8 +1311,7 @@
       snapshot.getContext("2d").drawImage(offscreen,0,0,snapshot.width,snapshot.height);
       return snapshot;
     } catch(error) {
-      console.warn("MOSMIX Einzel-Export: Originaldiagramm als Fallback.",error);
-      return source;
+      throw new Error("MOSMIX-Diagrammexport fehlgeschlagen: "+error.message);
     } finally {
       if (copyChart) copyChart.destroy();
     }
@@ -1280,13 +1328,20 @@
       ["sun","mosmixSunChart","Stündlicher Sonnenschein und Globalstrahlung · SunD1 / Rad1h"],
       ["sunDaily","mosmixSunDailyChart","Sonnenscheindauer pro Kalendertag (h)"]
     ];
-    const selected = onlyKey ? specs.filter(function(spec){return spec[0] === onlyKey;}) : specs;
-    if (!selected.length) throw new Error("Unbekanntes MOSMIX-Diagramm.");
+    const chosen = onlyKey ? specs.filter(function(spec){return spec[0] === onlyKey;}) : specs.filter(spec=>spec[0]!=="sunDaily");
+    if (!chosen.length) throw new Error("Unbekanntes MOSMIX-Diagramm.");
+    const selected = chosen.filter(spec=>{
+      const chart=meteogramCharts.find(item=>item.canvas===document.getElementById(spec[1]));
+      return chart?.data.datasets.some((_,i)=>chart.isDatasetVisible(i));
+    });
+    if (!selected.length) throw new Error("Keine sichtbaren Datenreihen.");
     return selected.map(function(spec) {
       const original = document.getElementById(spec[1]);
       if (!original || !original.width || !original.height)
         throw new Error("Diagramm noch nicht fertig gezeichnet.");
-      const source = onlyKey ? highResolutionMeteogramSource(spec,original) : original;
+      const chart=meteogramCharts.find(item=>item.canvas===original);
+      const title=meteogramExportTitle(spec[0],chart);
+      const source = highResolutionMeteogramSource(spec,original);
       const width = onlyKey ? 1600 : 1100;
       const pad = 24, innerWidth = width - 2*pad;
       const plotHeight = Math.round(innerWidth * source.height / source.width);
@@ -1298,11 +1353,11 @@
       ctx.fillRect(0,0,canvas.width,canvas.height);
       ctx.font = "700 24px Arial";
       ctx.fillStyle = "#172033";
-      ctx.fillText(spec[2],pad,33,width-2*pad);
+      ctx.fillText(title,pad,33,width-2*pad);
       ctx.strokeStyle = "#e2e8f0";
       ctx.beginPath();ctx.moveTo(pad,51);ctx.lineTo(width-pad,51);ctx.stroke();
       ctx.drawImage(source,pad,65,innerWidth,plotHeight);
-      canvas.mosmixExportTitle = spec[2];
+      canvas.mosmixExportTitle = title;
       canvas.mosmixExportKey = spec[0];
       return canvas;
     });
@@ -1345,13 +1400,15 @@
       ["sun",4,"Stündlicher Sonnenschein und Globalstrahlung · SunD1 / Rad1h"],
       ["sunDaily",5,"Sonnenscheindauer pro Kalendertag (h)"]
     ];
-    const chosen=onlyKey ? specs.filter(item=>item[0]===onlyKey) : specs;
+    const chosen=onlyKey ? specs.filter(item=>item[0]===onlyKey) : specs.filter(item=>item[0]!=="sunDaily");
     if(!chosen.length)throw new Error("Unbekanntes MOSMIX-Diagramm.");
-    return chosen.map(function(item){
+    const visible=chosen.filter(item=>meteogramCharts[item[1]]?.data.datasets.some((_,i)=>meteogramCharts[item[1]].isDatasetVisible(i)));
+    if(!visible.length)throw new Error("Keine sichtbaren Datenreihen.");
+    return visible.map(function(item){
       const chart=meteogramCharts[item[1]];
       if(!chart||!chart.scales?.x||!chart.scales?.y)
         throw new Error("Diagramm noch nicht fertig gezeichnet.");
-      return {key:item[0],title:item[2],chart:chart};
+      return {key:item[0],title:meteogramExportTitle(item[0],chart),chart:chart};
     });
   }
 

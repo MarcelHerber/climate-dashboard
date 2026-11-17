@@ -55,7 +55,7 @@ try{
         data:{labels:dates,datasets:[
           {type:i===1||i===5?"bar":"line",label:i===0?"Temperatur":"Messwert",
            data:d1,borderColor:"#c62828",backgroundColor:"rgba(44,120,190,.65)",pointRadius:0},
-          {type:"line",label:"Vergleichsstation",data:d2,
+          {type:"line",label:i===0?"Taupunkt":"Vergleichsstation",data:d2,
            borderColor:"#2563eb",pointRadius:0,borderDash:[5,4]}
         ]},
         options:{responsive:false,maintainAspectRatio:false,animation:false,
@@ -76,6 +76,7 @@ try{
       if(i===2)config.data.datasets[1].mosmixWindLabels=[{dayIndex:1,index:35.5,start:24,end:47,value:74,source:'FXh',text:'74 km/h',lines:['74 km/h'],narrowLines:['74','km/h']}];
       if(i===5)config.options.scales.x.max=3;
       const chart=new Chart(document.getElementById(id),config);
+      if(i===0)chart.setDatasetVisibility(1,false);
       chart.options.scales.x.min=i===5?0:6;
       chart.options.scales.x.max=i===5?3:54;
       const drawn=[];
@@ -104,9 +105,11 @@ try{
     window.mosmixExportTest=api;
     // Observe actual offscreen rendering, not just the on-screen chart.
     window.mosmixPngLabels=[];
+    window.mosmixExportText=[];
     const fillText=CanvasRenderingContext2D.prototype.fillText;
     CanvasRenderingContext2D.prototype.fillText=function(text,...args){
       if(this.canvas.width>=1540)window.mosmixPngLabels.push(String(text));
+      window.mosmixExportText.push(String(text));
       return fillText.call(this,text,...args);
     };
 
@@ -147,11 +150,12 @@ try{
       assert.doesNotMatch(svg,/<image\b/);
       if(key==='sun'||key==='sunDaily')assert.match(svg,/19 %/);
       if(key==='wind')assert.match(svg,/74 km\/h/);
-      if(key==='temp'){assert.match(svg,/TX 16,7 °C/);assert.match(svg,/TN -1,2 °C/);}
+      if(key==='temp'){assert.match(svg,/TX 16,7 °C/);assert.match(svg,/TN -1,2 °C/);assert.doesNotMatch(svg,/Taupunkt/);}
     }else assert.deepEqual([...readFile(path).subarray(0,8)],[137,80,78,71,13,10,26,10]);
     if(key==='temp'&&format==='png'){
       const text=await page.evaluate(()=>window.mosmixPngLabels);
       assert.ok(text.includes('TX 16,7 °C')&&text.includes('TN -1,2 °C'),'Missing TX/TN in high-resolution PNG');
+      assert.ok(!(await page.evaluate(()=>window.mosmixExportText)).some(t=>t.includes('Taupunkt')),'Hidden Taupunkt in PNG legend/title');
     }
     console.log("MOSMIX SINGLE EXPORT",vp.name,key,format,statSync(path).size,"bytes");
   }
@@ -164,6 +168,12 @@ try{
   const allPath="/tmp/mosmix-real-"+vp.name+"-all-meteograms.png";
   await all.saveAs(allPath);
   assert.ok(statSync(allPath).size>8000);
+  const allText=await page.evaluate(()=>window.mosmixExportText);
+  assert.ok(!allText.some(t=>t.includes('Taupunkt')||t.includes('Sonnenscheindauer pro Kalendertag')),'Hidden legend or redundant daily panel in combined PNG');
+  await page.evaluate(()=>{const button=document.createElement('button');button.id='all-pdf';button.textContent='Alle PDF';button.onclick=()=>window.mosmixExportTest.downloadMeteogram('pdf');document.body.appendChild(button);});
+  const [allPdf]=await Promise.all([page.waitForEvent('download',{timeout:60000}),page.locator('#all-pdf').click()]);
+  const allPdfPath='/tmp/mosmix-real-'+vp.name+'-all-meteograms.pdf';await allPdf.saveAs(allPdfPath);
+  assert.equal((readFile(allPdfPath).toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length,5,'Combined PDF must contain five pages');
   }
   assert.deepEqual(errors,[],"Browser JS errors "+errors.join(";"));
   await context.close();

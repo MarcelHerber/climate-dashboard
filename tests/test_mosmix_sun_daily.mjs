@@ -20,8 +20,8 @@ const dateHelpers=source.slice(source.indexOf("  function berlinDateParts"),
   source.indexOf("  const mosmixBerlinMidnightPlugin"));
 assert.ok(dailyHelpers.startsWith("  function sunDayFramesFromTimesteps"));
 assert.ok(dateHelpers.startsWith("  function berlinDateParts"));
-const {sunDayFramesFromTimesteps,sunDayValue,sunshineDayLabels,gustDayLabels}=new Function(
-  dailyHelpers+"\n"+dateHelpers+"\nreturn {sunDayFramesFromTimesteps,sunDayValue,sunshineDayLabels,gustDayLabels};"
+const {sunDayFramesFromTimesteps,sunDayValue,sunshineDayLabels,gustDayLabels,dailySunAxisMaximum}=new Function(
+  dailyHelpers+"\n"+dateHelpers+"\nreturn {sunDayFramesFromTimesteps,sunDayValue,sunshineDayLabels,gustDayLabels,dailySunAxisMaximum};"
 )();
 
 function hours(start,count){
@@ -69,6 +69,10 @@ const summer=sunDayFramesFromTimesteps(hours('2026-06-20T23:00:00Z',24));
 const summerLabel=sunshineDayLabels(Array(24).fill(0),summer,station)[0];
 assert.ok(summerLabel.possibleHours>15.7&&summerLabel.possibleHours<16.2);
 assert.equal(sunshineDayLabels(Array(24).fill(0),summer,{lat:null,lon:null})[0].text,'0,0 h');
+assert.equal(dailySunAxisMaximum(days,[station],[[1.7,0]]),10);
+assert.equal(dailySunAxisMaximum(summer,[station],[[0]]),17);
+assert.equal(dailySunAxisMaximum(days,[station],[[10.4,0]]),11);
+assert.equal(dailySunAxisMaximum(days,[station],[[0,12.1]],0,0),10);
 
 // 3/6/12h maxima can exceed the one-hour values; an interval overlapping
 // yesterday cannot be assigned to today. End at local 24:00 belongs to today.
