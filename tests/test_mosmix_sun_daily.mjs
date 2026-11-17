@@ -20,8 +20,8 @@ const dateHelpers=source.slice(source.indexOf("  function berlinDateParts"),
   source.indexOf("  const mosmixBerlinMidnightPlugin"));
 assert.ok(dailyHelpers.startsWith("  function sunDayFramesFromTimesteps"));
 assert.ok(dateHelpers.startsWith("  function berlinDateParts"));
-const {sunDayFramesFromTimesteps,sunDayValue}=new Function(
-  dailyHelpers+"\n"+dateHelpers+"\nreturn {sunDayFramesFromTimesteps,sunDayValue};"
+const {sunDayFramesFromTimesteps,sunDayValue,sunshineDayLabels}=new Function(
+  dailyHelpers+"\n"+dateHelpers+"\nreturn {sunDayFramesFromTimesteps,sunDayValue,sunshineDayLabels};"
 )();
 
 function hours(start,count){
@@ -54,5 +54,20 @@ assert.equal(sunDayValue(Array(24).fill(0),frame),0);
 assert.equal(sunDayValue(Array(24).fill(60),frame),24);
 assert.equal(sunDayValue(Array(24).fill(null),frame),null);
 assert.equal(sunDayValue(Array(24).fill(61),frame),null);
+
+const station={lat:47.87,lon:7.66};
+const days=sunDayFramesFromTimesteps(hours('2026-11-21T00:00:00Z',48));
+const values=Array(48).fill(0); values[10]=60; values[11]=42;
+const labels=sunshineDayLabels(values,days,station);
+assert.equal(labels.length,2);
+assert.match(labels[0].text,/^1,7 \/ 9,[0123] h \(19 %\)$/);
+assert.match(labels[1].text,/^0,0 \/ 9,[0123] h \(0 %\)$/);
+assert.equal(labels[0].index,11.5); assert.equal(labels[0].dayIndex,0);
+values[25]=null;
+assert.equal(sunshineDayLabels(values,days,station).length,1);
+const summer=sunDayFramesFromTimesteps(hours('2026-06-20T23:00:00Z',24));
+const summerLabel=sunshineDayLabels(Array(24).fill(0),summer,station)[0];
+assert.ok(summerLabel.possibleHours>15.7&&summerLabel.possibleHours<16.2);
+assert.equal(sunshineDayLabels(Array(24).fill(0),summer,{lat:null,lon:null})[0].text,'0,0 h');
 
 console.log("PASS: MOSMIX Tages-Sonnenschein, vollständige Kalenderdaten, DST, fehlende Werte, Tagesbalken.");

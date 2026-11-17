@@ -55,4 +55,18 @@ for(const hours of [72,120]){
 const scene=api.buildScene(mockChart(3,true),{key:"sunDaily",title:"Sonnenschein",station:"Speyer",issue:"2026-11-11",range:"all",timesteps});
 assert.equal(scene.series[0].items.length,4);
 assert.equal(new Set(scene.series[0].items.map(x=>JSON.stringify(x.fill))).size,4);
+const sunLabel={dayIndex:0,index:11.5,start:0,end:23,hours:1.7,possibleHours:9.1,percent:19,text:'1,7 / 9,1 h (19 %)',lines:['1,7 / 9,1 h','(19 %)'],narrowLines:['1,7 h','/ 9,1 h','(19 %)']};
+for(const key of ['sun','sunDaily']){
+ const isDaily=key==='sunDaily',c=mockChart(isDaily?3:71,isDaily);
+ c.data.datasets[0].mosmixSunLabels=[sunLabel];
+ const s=api.buildScene(c,{key,timesteps});
+ const svg=api.toSvg(s);
+ assert.match(svg,/1,7 \/ 9,1 h/); assert.match(svg,/\(19 %\)/);
+ assert.ok(s.series.some(x=>x.name==='Tagesbeschriftungen'),key+' editable labels');
+ c.scales.x.min=1;
+ assert.doesNotMatch(api.toSvg(api.buildScene(c,{key,timesteps})),/\(19 %\)/);
+}
+const oneDay=mockChart(0,true);
+oneDay.data.datasets[0].mosmixSunLabels=[sunLabel];
+assert.match(api.toSvg(api.buildScene(oneDay,{key:'sunDaily',timesteps})),/\(19 %\)/);
 console.log("PASS MOSMIX vector assets, SVG buttons and independent PDF paths.");

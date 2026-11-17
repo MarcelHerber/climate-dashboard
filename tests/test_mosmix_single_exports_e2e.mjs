@@ -7,6 +7,7 @@ const start=source.indexOf("  function setMeteogramExportReady(");
 const end=source.indexOf("  async function loadStationDetail(",start);
 assert.ok(start>0&&end>start);
 const code=source.slice(start,end);
+const labelPluginSource=source.slice(source.indexOf('  const mosmixSunDayLabelPlugin='),source.indexOf('  let mosmixMidnightPluginRegistered='));
 const scripts={
  chartjs:"node_modules/chart.js/dist/chart.umd.js",
  jspdf:"node_modules/jspdf/dist/jspdf.umd.min.js"
@@ -42,10 +43,11 @@ try{
   await page.addScriptTag({path:scripts.chartjs});
   await page.addScriptTag({path:scripts.jspdf});
   await page.addScriptTag({path:"mosmix_vector_export.js"});
-  await page.evaluate(code=>{
+  await page.evaluate(({code,labelPluginSource})=>{
+    Chart.register(new Function(labelPluginSource+'\nreturn mosmixSunDayLabelPlugin;')());
     const ids=["mosmixTempChart","mosmixRainChart","mosmixWindChart","mosmixPressureChart","mosmixSunChart","mosmixSunDailyChart"];
     const charts=ids.map((id,i)=>{
-      const dates=Array.from({length:72},(_,j)=>"2026-11-"+String(11+Math.floor(j/24)).padStart(2,"0")+" "+(j%24)+" h");
+      const dates=Array.from({length:i===5?4:72},(_,j)=>"2026-11-"+String(11+Math.floor(j/24)).padStart(2,"0")+" "+(j%24)+" h");
       const d1=dates.map((_,j)=>8+Math.sin(j/5)*3+i*2);
       const d2=dates.map((_,j)=>5+Math.cos(j/7)*2+i);
       const config={
@@ -62,10 +64,21 @@ try{
           plugins:{legend:{display:true}}
         }
       };
+      if(i===4||i===5){
+        config.data.datasets[0].mosmixSunLabels=[{dayIndex:1,index:35.5,start:24,end:47,hours:1.7,possibleHours:9.1,percent:19,text:'1,7 / 9,1 h (19 %)',lines:['1,7 / 9,1 h','(19 %)'],narrowLines:['1,7 h','/ 9,1 h','(19 %)']}];
+        config.data.datasets[0].mosmixSunDaily=i===5;
+      }
+      if(i===5)config.options.scales.x.max=3;
       const chart=new Chart(document.getElementById(id),config);
-      chart.options.scales.x.min=6;
-      chart.options.scales.x.max=54;
+      chart.options.scales.x.min=i===5?0:6;
+      chart.options.scales.x.max=i===5?3:54;
+      const drawn=[];
+      if(i===4||i===5){
+        const original=chart.ctx.fillText;
+        chart.ctx.fillText=function(text,...args){drawn.push(String(text));return original.call(this,text,...args);};
+      }
       chart.update("none");
+      if((i===4||i===5)&&!drawn.some(s=>s.includes('19 %')))throw Error('Missing daily sunshine label in '+id);
       return chart;
     });
     const dependencies={
@@ -91,7 +104,7 @@ try{
           .addEventListener("click",()=>api.downloadMeteogram(format,key));
       }
     }
-  },code);
+  },{code,labelPluginSource});
   // Every chart gets its own PNG, vector PDF and layered SVG, on both viewports.
   for(const key of selectedKey==="all"?[]:[selectedKey])for(const format of formats){
     const suffix="_"+key+"."+format;
@@ -117,6 +130,7 @@ try{
       assert.match(svg,/<svg\b/);
       assert.match(svg,/inkscape:label=/);
       assert.doesNotMatch(svg,/<image\b/);
+      if(key==='sun'||key==='sunDaily')assert.match(svg,/19 %/);
     }else assert.deepEqual([...readFile(path).subarray(0,8)],[137,80,78,71,13,10,26,10]);
     console.log("MOSMIX SINGLE EXPORT",vp.name,key,format,statSync(path).size,"bytes");
   }
