@@ -165,6 +165,19 @@ function drawScene(chart,info){
       }
     }
     series.push({id:"serie-"+(i+1)+"-"+slug(name),name,items});
+    if(info.key==="temp"&&(ds.mosmixExtreme==="TX"||ds.mosmixExtreme==="TN")){
+      const kind=ds.mosmixExtreme,labels=[];
+      (ds.data||[]).forEach((value,j)=>{
+        if(!num(value)||j<minX||j>maxX)return;
+        const text=kind+" "+value.toFixed(1).replace(".",",")+" °C";
+        const size=12,w=text.length*size*.59+10,h=size+8;
+        const x=clamp(xAt(j),LEFT+w/2,RIGHT-w/2);
+        const y=clamp(yAt(value,s)+(kind==="TX"?-1:1)*(h/2+9),TOP+h/2,BOTTOM-h/2);
+        labels.push({kind:"rect",x:x-w/2,y:y-h/2,w,h,fill:[255,255,255],stroke:[200,210,220],width:1});
+        labels.push({kind:"text",x,y:y+size*.34,text,size,bold:true,align:"center",color:rgb});
+      });
+      if(labels.length)series.push({id:"temperatur-label-"+kind.toLowerCase(),name:kind+"-Beschriftungen",items:labels});
+    }
   });
   const wind=info.key==="wind";
   const dayRecords=wind?visible.find(o=>o.i===1)?.ds.mosmixWindLabels:visible.find(o=>o.i===0)?.ds.mosmixSunLabels;
