@@ -77,3 +77,25 @@ assert.ok(windScene.series.some(s=>s.name==='Tagesmaximalböen'));
 wind.scales.x.min=24;
 assert.doesNotMatch(api.toSvg(api.buildScene(wind,{key:'wind',timesteps})),/74 km\/h/);
 console.log("PASS MOSMIX vector assets, SVG buttons and independent PDF paths.");
+// Reproduce missing TX/TN labels without the optional ChartDataLabels plugin.
+const extreme=mockChart(71);
+function extremeSeries(kind,index,value){
+ const data=Array(145).fill(null);data[index]=value;
+ return {label:kind,mosmixExtreme:kind,showLine:false,pointStyle:kind==='TX'?'triangle':'rectRot',data,borderColor:kind==='TX'?'#a5271f':'#1f5f99'};
+}
+extreme.data.datasets.push(extremeSeries('TX',20,16.7),extremeSeries('TN',32,-1.2));
+let rendered=api.toSvg(api.buildScene(extreme,{key:'temp',timesteps}));
+assert.match(rendered,/TX 16,7 °C/);assert.match(rendered,/TN -1,2 °C/);
+const textCalls=[];api.drawPdf({...pdf,text:t=>textCalls.push(t)},api.buildScene(extreme,{key:'temp',timesteps}));
+assert.ok(textCalls.includes('TX 16,7 °C'));assert.ok(textCalls.includes('TN -1,2 °C'));
+extreme.scales.x.min=21;extreme.data.datasets.at(-1).hidden=true;
+rendered=api.toSvg(api.buildScene(extreme,{key:'temp',timesteps}));
+assert.doesNotMatch(rendered,/TX 16,7 °C|TN -1,2 °C/);
+const pluginSource=main.slice(main.indexOf('  const mosmixSunDayLabelPlugin='),main.indexOf('  let mosmixMidnightPluginRegistered='));
+const plugin=new Function(pluginSource+'\nreturn mosmixSunDayLabelPlugin;')();
+const seen=[];
+const ctx={save(){},restore(){},fillRect(){},strokeRect(){},measureText:t=>({width:t.length*6}),fillText(t){seen.push(t);}};
+const fake={data:{datasets:[extremeSeries('TX',20,16.7),extremeSeries('TN',32,-1.2)]},scales:{x:{min:0,max:71}},chartArea:{left:0,right:720,top:0,bottom:300},ctx,options:{},isDatasetVisible:()=>true,getDatasetMeta:i=>({data:Array.from({length:145},(_,j)=>({x:j*10,y:i?250:50,skip:false}))})};
+plugin.afterDatasetsDraw(fake);
+assert.deepEqual(seen,['TX 16,7 °C','TN -1,2 °C']);
+seen.length=0;fake.scales.x.min=21;fake.isDatasetVisible=i=>i===0;plugin.afterDatasetsDraw(fake);assert.deepEqual(seen,[]);
