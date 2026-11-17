@@ -1,0 +1,33 @@
+name: Gebietsmittel Archiv – Daten und Browser
+on:
+  push:
+    branches: [main, feature/gebietsmittel-archiv]
+    paths:
+      - 'gebietsmittel_archiv.*'
+      - 'index.html'
+      - 'mobile_navigation.js'
+      - 'scripts/build_pages_site.sh'
+      - 'tests/test_gebietsmittel_archive*.cjs'
+      - '.github/workflows/test-gebietsmittel-archive.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Unit tests and existing Gebietsmittel navigation
+        run: |
+          node --test tests/test_gebietsmittel_archive.cjs tests/test_monthly_climate_bars.cjs tests/test_mobile_navigation.cjs
+          python -m unittest discover -s tests -p test_gebietsmittel_layout.py -v
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Desktop and mobile archive with actual DWD data
+        run: node --test tests/test_gebietsmittel_archive_browser.cjs

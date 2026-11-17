@@ -33,6 +33,8 @@ required_root_files=(
   stations_temperaturgegensatz.js
   monthly_layout.js
   monthly_climate_bars.js
+  gebietsmittel_archiv.js
+  gebietsmittel_archiv.css
   stratosphaere.html
   polar_vortex_map.js
   ssw_catalog.js
