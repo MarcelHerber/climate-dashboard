@@ -194,7 +194,10 @@ function drawScene(chart,info){
     }
     if(items.length)series.push({id:wind?"tagesmaximalboeen":"tagesbeschriftungen",name:wind?"Tagesmaximalböen":"Tagesbeschriftungen",items});
   }
-  if(!series.some(s=>s.items.length))throw Error("Keine sichtbaren Vektordaten im Diagrammzeitraum.");
+  // Some high-mountain MOSMIX stations have no sea-level pressure forecast.
+  // Keep the other panels downloadable, and state the absence of data plainly.
+  if(!series.some(s=>s.items.length))axes.push({kind:"text",x:LEFT+plot.w/2,y:TOP+plot.h/2,
+    text:"Keine Daten im Diagrammzeitraum",size:20,align:"center",color:[100,116,139]});
   const header=[
     {kind:"text",x:LEFT,y:38,text:"DWD MOSMIX-L · "+caption,size:27,bold:true,color:[17,33,55]},
     {kind:"text",x:LEFT,y:68,text:(info.station||"MOSMIX")+" · Lauf "+(info.issue||"–")+" · "+(info.range||"Alle Tage"),size:17,color:[78,92,108]},
