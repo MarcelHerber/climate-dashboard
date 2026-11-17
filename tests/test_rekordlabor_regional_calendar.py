@@ -28,6 +28,19 @@ def segment(sid, state='Hessen', lat=50.0):
 
 
 class Records(unittest.TestCase):
+    def test_overlap_preserves_valid_supplementary_fields_and_provenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a=RegionalAccumulator(Path(tmp)/'obs.sqlite')
+            day=date(2025,6,1); key='00001:19000101'
+            a.add(Observation(day,key,'Hessen','00001',{'txk_high':30,'tmk':20},False),'kl')
+            a.add(Observation(day,key,'Hessen','00001',{'txk_high':40,'tnk_low':10,'fx_kmh':80},True),'kl')
+            r=a.records(2025)['06-01']
+            self.assertEqual(r['txk_low']['Hessen'][0], [30,'2025-06-01',key,0])
+            self.assertEqual(r['tnk_high']['Hessen'][0], [10,'2025-06-01',key,1])
+            self.assertEqual(r['amplitude_high']['Hessen'][0], [20,'2025-06-01',key,1])
+            self.assertEqual(r['tmk_high']['Hessen'][0], [20,'2025-06-01',key,0])
+            self.assertEqual(r['fx_high']['Hessen'][0], [80,'2025-06-01',key,1])
+            a.close()
     def test_metrics_same_day_and_missing(self):
         self.assertEqual(calendar_metrics({'txk_high':20,'tnk_low':5,'tmk':12,'sdk':9,'fx_kmh':80}),
                          {'txk_low':20,'tnk_high':5,'tmk_high':12,'tmk_low':12,'amplitude_high':15,'sdk_high':9,'fx_high':80})

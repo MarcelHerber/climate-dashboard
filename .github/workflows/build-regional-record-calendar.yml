@@ -1,0 +1,78 @@
+name: DWD Regionaler Rekordkalender · Archivaufbau
+on:
+  workflow_dispatch:
+  push:
+    branches: [regional-rekordkalender]
+    paths:
+      - scripts/build_regional_calendar_archive.py
+      - scripts/build_rekordlabor_regional_calendar.py
+      - scripts/verify_regional_calendar_archive.py
+      - tests/test_regional_calendar_archive.py
+      - .github/workflows/build-regional-record-calendar.yml
+permissions:
+  contents: write
+concurrency:
+  group: regional-record-calendar-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  archive:
+    if: github.ref == 'refs/heads/regional-rekordkalender'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 345
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        range: ['1750-1900','1901-1920','1921-1940','1941-1960','1961-1980','1981-1990','1991-2000','2001-2010','2011-2020','2021-2026']
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: regional-rekordkalender
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/build_regional_calendar_archive.py
+            scripts/build_rekordlabor_regional_calendar.py
+            scripts/verify_regional_calendar_archive.py
+            scripts/update_station_records.py
+            scripts/dwd_common.py
+            tests/test_*calendar*.py
+            data/rekordlabor/contrast/daily/*/quality.json.gz
+            data/rekordlabor/regional_calendar/
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install requests
+      - name: Verify calculation and archive contract
+        run: python -m unittest discover -s tests -p 'test_*calendar*.py' -v
+      - name: Compute and validate archive epoch
+        env:
+          RANGE: ${{ matrix.range }}
+        run: |
+          set -euo pipefail
+          first=${RANGE%-*}
+          last=${RANGE#*-}
+          out="$RUNNER_TEMP/calendar-$RANGE"
+          python -u scripts/build_regional_calendar_archive.py --first "$first" --last "$last" --out "$out" --qc-root data/rekordlabor/contrast/daily --work "$RUNNER_TEMP" --workers 8
+          python -u scripts/verify_regional_calendar_archive.py "$out" --full
+      - name: Save verified epoch to development branch
+        env:
+          RANGE: ${{ matrix.range }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          dest="data/rekordlabor/regional_calendar/$RANGE"
+          mkdir -p "$dest"
+          # Remove only old files tracked for this same, now verified epoch.
+          git rm -r --ignore-unmatch "$dest"
+          mkdir -p "$dest"
+          cp "$RUNNER_TEMP/calendar-$RANGE/"* "$dest/"
+          git add "$dest"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "data: regional record calendar $RANGE"
+          for attempt in 1 2 3 4 5 6; do
+            if git push origin HEAD:regional-rekordkalender; then exit 0; fi
+            git pull --rebase origin regional-rekordkalender
+          done
+          exit 1

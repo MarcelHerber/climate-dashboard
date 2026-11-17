@@ -37,6 +37,10 @@ METRICS = {
 LIMITS = {'txk_high':(-50,50), 'tnk_low':(-50,50), 'tmk':(-50,50),
           'sdk':(0,24), 'fx_kmh':(0,360), 'rs':(0,500)}
 TOP_K = 50
+SOURCE_FIELDS = {'tnk_high':('tnk_low',),'txk_low':('txk_high',),
+                 'tmk_high':('tmk',),'tmk_low':('tmk',),
+                 'amplitude_high':('txk_high','tnk_low'),
+                 'rs_high':('rs',),'sdk_high':('sdk',),'fx_high':('fx_kmh',)}
 
 
 def bounded(key, value):
@@ -131,7 +135,7 @@ def load_temperature_exclusions(root: Path, first: int, last: int) -> set[tuple[
 
 
 class RegionalAccumulator:
-    """Historical source wins over overlapping preliminary data; one row/station/day/network."""
+    """One row/station/day/network; historical priority per parameter."""
     def __init__(self, db_path: Path, excluded=None):
         self.db=sqlite3.connect(db_path)
         self.db.execute('PRAGMA journal_mode=WAL')
@@ -153,13 +157,16 @@ class RegionalAccumulator:
                 for metric,key in [('TXK','txk_high'),('TNK','tnk_low')]:
                     if (d,o.station_id,metric) in self.excluded: values.pop(key,None)
                 if values:
-                    yield (o.day.year,d,o.station_id,network,o.state,o.metadata_key,int(o.preliminary),json.dumps(values,sort_keys=True,separators=(',',':')))
+                    tagged={k:[v,int(o.preliminary)] for k,v in values.items()}
+                    yield (o.day.year,d,o.station_id,network,o.state,o.metadata_key,int(o.preliminary),json.dumps(tagged,sort_keys=True,separators=(',',':')))
         with self.db:
             self.db.executemany('''INSERT INTO observations VALUES (?,?,?,?,?,?,?,?)
                 ON CONFLICT (year,day,sid,network) DO UPDATE SET
-                state=excluded.state,metadata_key=excluded.metadata_key,
-                preliminary=excluded.preliminary,vals=excluded.vals
-                WHERE excluded.preliminary < observations.preliminary''',inputs())
+                state=CASE WHEN excluded.preliminary < observations.preliminary THEN excluded.state ELSE observations.state END,
+                metadata_key=CASE WHEN excluded.preliminary < observations.preliminary THEN excluded.metadata_key ELSE observations.metadata_key END,
+                preliminary=min(excluded.preliminary,observations.preliminary),
+                vals=CASE WHEN excluded.preliminary=0 THEN json_patch(observations.vals,excluded.vals)
+                          ELSE json_patch(excluded.vals,observations.vals) END''',inputs())
 
     def records(self, year: int) -> dict:
         # Query one year at a time and keep only the current day in memory;
@@ -177,7 +184,9 @@ class RegionalAccumulator:
             buckets.clear()
         for day,sid,state,key,prelim,raw in self.db.execute('SELECT day,sid,state,metadata_key,preliminary,vals FROM observations WHERE year=? ORDER BY day,sid,network',(year,)):
             if day!=last: flush(last); last=day
-            for metric,value in calendar_metrics(json.loads(raw)).items():
+            tagged=json.loads(raw)
+            for metric,value in calendar_metrics({k:v[0] for k,v in tagged.items()}).items():
+                prelim=max(tagged[k][1] for k in SOURCE_FIELDS[metric])
                 score=value if METRICS[metric]['direction']=='desc' else -value
                 item=(score,-int(sid),[value,day,key,prelim])
                 for area in ['Deutschland']+([state] if state in AREAS and state!='Deutschland' else []):
