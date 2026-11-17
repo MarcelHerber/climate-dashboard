@@ -62,6 +62,7 @@ function drawScene(chart,info){
   const yAt=(v,s)=>plot.y+(1-(v-s.min)/(s.max-s.min))*plot.h;
   axes.push({kind:"rect",x:plot.x,y:plot.y,w:plot.w,h:plot.h,stroke:[203,213,225],fill:null,width:1});
   const yScale=chart.scales.y;
+  if(visible.some(({ds})=>(ds.yAxisID||"y")==="y")){
   const yTicks=Array.isArray(yScale.ticks)&&yScale.ticks.length?yScale.ticks:
     Array.from({length:6},(_,i)=>({value:yScale.min+(yScale.max-yScale.min)*i/5}));
   yTicks.filter(t=>num(t.value)).forEach(t=>{
@@ -72,6 +73,7 @@ function drawScene(chart,info){
   });
   if(chart.scales.y?.options?.title?.text)
     axes.push({kind:"text",x:22,y:plot.y+16,text:chart.scales.y.options.title.text,size:15,color:[82,96,113]});
+  }
   const rightScales=new Map();
   visible.forEach(({ds})=>{
     const id=ds.yAxisID||"y",scale=scaleFor(chart,ds);
