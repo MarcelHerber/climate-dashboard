@@ -1240,6 +1240,7 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
 <link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">
 <link rel="stylesheet" href="dashboard_cleanup.css?v=20261111-climatebars1">
 <link rel="stylesheet" href="dashboard_theme.css?v=20261103-contrast-v3">
+<link rel="stylesheet" href="gebietsmittel_archiv.css?v=20261117">
 <script defer src="dashboard_export_hq.js?v=20261108"></script>
 <script src="hyras_temperature_interactive.js?v=1"></script>
 </head>
@@ -1259,6 +1260,7 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
         <div class="nav-dropdown-menu" role="menu">
           <div class="nav-menu-heading">Flächen &amp; Zeitreihen</div>
           <button class="tab-button" data-nav-group="germany" onclick="switchTab('monthly')">Gebietsmittel</button>
+          <button class="tab-button" data-nav-group="germany" onclick="switchTab('gebietsmittelArchive')">Gebietsmittel Archiv</button>
           <button class="tab-button" data-nav-group="germany" onclick="switchTab('index')">Klima-Index</button>
           <button class="tab-button" data-nav-group="germany" onclick="switchTab('accumulation')">Seit Jahresbeginn</button>
           <button class="tab-button" data-nav-group="germany" onclick="switchTab('hyras')">Flächenkarten</button>
@@ -1874,6 +1876,43 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
   </div>
 </div>
 
+<!-- ================= GEBIETSMITTEL ARCHIV START ================= -->
+<div id="gebietsmittelArchive" class="tab-content">
+  <div class="section-header"><h2>Gebietsmittel Archiv</h2><p>Historische Klimachronik Deutschlands und der Bundesländer · Temperatur, Niederschlag und Sonnenschein.</p><span id="gaStatus" class="section-status" role="status">DWD-Gebietsmittel werden geladen …</span></div>
+  <section class="ga-panel ga-controls" aria-label="Archiv auswählen">
+    <div class="ga-control"><label for="gaArea">Gebiet</label><select id="gaArea"></select></div>
+    <div class="ga-control"><label for="gaYear">Archivjahr</label><select id="gaYear"></select></div>
+    <div class="ga-control"><label for="gaReference">Referenzperiode</label><select id="gaReference"><option value="1991">1991–2020</option><option value="1981">1981–2010</option><option value="1971">1971–2000</option><option value="1961">1961–1990</option></select></div>
+    <div class="ga-control"><label for="gaCompareYear">Vergleichsjahr</label><select id="gaCompareYear"></select></div>
+    <div class="ga-actions"><button id="gaPrev" type="button" class="ga-action" aria-label="Vorheriges Jahr">←</button><button id="gaNext" type="button" class="ga-action" aria-label="Nächstes Jahr">→</button></div>
+  </section>
+  <section class="ga-panel">
+    <div class="ga-heading"><h3>Jahresübersicht</h3><div class="ga-actions"><button id="gaPng" class="ga-action" type="button">PNG</button><button id="gaPdf" class="ga-action" type="button">PDF</button></div></div>
+    <p id="gaExportStatus" class="ga-muted" role="status"></p>
+    <div id="gaExportArea">
+      <h4 id="gaYearHeading">Jahresübersicht wird geladen …</h4>
+      <p class="ga-note">T = Temperaturabweichung in K · N = Niederschlag in % · S = Sonnenschein in % vom Klimamittel. Monat oder Jahreszeit anklicken.</p>
+      <div id="gaMonths" class="ga-grid" aria-label="Monate" style="margin-top:12px"></div>
+      <h4 class="ga-subtitle">Jahreszeiten und Jahresbilanz</h4>
+      <div id="gaSeasons" class="ga-season-grid" aria-label="Jahreszeiten und Jahr"></div>
+      <div id="gaLegends" class="ga-legends"></div>
+      <p class="ga-note">DWD Climate Data Center · feste Farbskalen · unvollständige Zeiträume bzw. fehlende Referenzen werden nicht geschätzt.</p>
+    </div>
+  </section>
+  <section class="ga-panel">
+    <div class="ga-heading"><h3 id="gaDetailHeading">Monatsbilanz</h3></div>
+    <div id="gaDetail" class="ga-detail-grid"></div>
+    <p class="ga-note">Die Kartenvergleich-Schaltflächen öffnen die vorhandenen Deutschlandkarten mit dem ausgewählten Zeitraum, Parameter und Vergleichsjahr.</p>
+  </section>
+  <section class="ga-panel">
+    <div class="ga-heading"><h3>Historische Gesamtübersicht</h3><div class="ga-actions"><label for="gaParameter" class="ga-muted">Parameter</label><select id="gaParameter"><option value="temp">Temperatur</option><option value="rain">Niederschlag</option><option value="sun">Sonnenschein</option></select><button id="gaCsv" class="ga-action" type="button">CSV</button></div></div>
+    <div class="ga-heading"><p id="gaTableCaption" class="ga-muted"></p><div id="gaTableLegend" class="ga-table-legend"></div></div>
+    <div class="ga-table-wrap" role="region" tabindex="0" aria-label="Historische Abweichungstabelle, horizontal und vertikal scrollbar"><table class="ga-table"><thead id="gaTableHead"></thead><tbody id="gaTableBody"></tbody></table></div>
+    <p class="ga-note">Alle verfügbaren Jahre · Zelle anklicken für die Jahresübersicht. Winter: Dezember des Vorjahres bis Februar.</p>
+  </section>
+</div>
+<!-- ================= GEBIETSMITTEL ARCHIV END ================= -->
+
 <!-- ================= GEBIETSMITTEL ================= -->
 <div id="monthly" class="tab-content">
   <div class="section-header"><h2>Gebietsmittel Deutschland und Bundesländer</h2><p>Monatliche, saisonale und jährliche Temperatur-, Niederschlags- und Sonnenscheinwerte mit frei wählbarer 30-jähriger Referenzperiode.</p><span class="section-status">DWD-Gebietsmittel · aktuelle Werte vorläufig</span></div>
@@ -1939,6 +1978,7 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
     <button type="button" class="monthly-section-link" data-monthly-target="monthlyTimeSeries">Zeitreihen</button>
     <button type="button" class="monthly-section-link" data-monthly-target="monthlyMapSection">Kartenvergleich</button>
     <button type="button" class="monthly-section-link" data-monthly-target="monthlyTablesSection">Jahrestabellen</button>
+    <button type="button" class="monthly-section-link" onclick="switchTab('gebietsmittelArchive')">Gebietsmittel Archiv →</button>
   </nav>
 
 
@@ -4417,6 +4457,7 @@ function switchTab(tab,{persist=true}={}){
   if(tab==="era5Synoptic") ensureEra5SynopticLoaded();
   if(tab==="europeStations") ensureEuropeStationMap();
   if(tab==="state-monthly-ensemble") window.ensureStateMonthlyEnsembleLoaded?.();
+  if(tab==="gebietsmittelArchive") window.ensureGebietsmittelArchiveLoaded?.(monthlyData);
   if(tab==="monthly") window.setTimeout(()=>{
     updateMonthly();
     updateMonthlyAnomalyTable();
@@ -5445,6 +5486,7 @@ dashboardFetch("data.json",{cache:"no-store"})
   .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
   .then(raw=>{
     monthlyData=normalizeMonthly(raw);
+    window.ensureGebietsmittelArchiveLoaded?.(monthlyData);
     fillAreaSelectors();
     fillCompareAreaSelectors();
     populateAccumulationYears();
@@ -17973,6 +18015,7 @@ hyrasSwitchParameter=async function(){
 <script src="era5_synoptic.js?v=20261014-synoptic-v1"></script>
 <script src="monthly_layout.js?v=20261014-gebietsmittel2"></script>
 <script src="monthly_climate_bars.js?v=20261111-climatebars1"></script>
+<script src="gebietsmittel_archiv.js?v=20261117"></script>
 <script src="dashboard_theme.js?v=20261103-white-export-v2"></script>
 </body>
 </html>
