@@ -306,11 +306,11 @@ def exercise(browser,device,base,tmp):
         details[button.lstrip("#")]={"filename":artifact.suggested_filename,
                                      "size":len(raw),"valid":True}
 
-    # Globe view is not an EPSG:4326 pressure overlay; it must never expose 2 hPa.
+    # Globe view exposes native projected pressure contours at 5/10 hPa only.
     page.locator("#satRegion").select_option("disk")
-    assert page.locator("#satIsobarSpacing").is_disabled()
+    assert page.locator("#satIsobarSpacing").is_enabled()
     assert page.locator('#satIsobarSpacing option[value="2"]').evaluate("(o)=>o.hidden")
-    assert page.locator("#satIsobarSvg").is_hidden()
+    assert page.locator("#satShowIsobars").is_enabled()
     page.locator("#satRegion").select_option("atlantic")
     page.locator("#satFilmLength").select_option("6")
     page.locator("#satFilmQuality").select_option("320")

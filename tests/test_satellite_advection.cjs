@@ -27,6 +27,21 @@ test('only a verified advection frame and selected level can be used',()=>{
  assert.equal(api.frameMarkers(frame,850,'2026-11-16T05:10:00Z'),null);
  assert.equal(api.frameMarkers({...frame,advection_method:undefined},850,frame.valid_utc),null);
 });
+test('disc arrows follow local projected wind and omit the hidden hemisphere',()=>{
+ const {SatelliteAdvection:a}=scope.window;
+ // Minimal projection fixture: north is to the right locally. Real projection
+ // math is tested independently; here check the projected Jacobian is used.
+ scope.window.SatelliteProjection={
+  isDisk:r=>r==='disk',
+  project:(region,lon,lat,w,h)=>Math.abs(lon)>80?null:[w/2+lat*w/180,h/2+lon*h/180],
+  containsPixel:(region,x,y,w,h)=>x>=0&&x<=w&&y>=0&&y<=h
+ };
+ const marks=[{lon:0,lat:0,u:0,v:10,advection:8},{lon:150,lat:0,u:0,v:10,advection:20}];
+ const arrows=a.layout(marks,[-83,-83,83,83],1000,1000,8,[],'disk');
+ assert.equal(arrows.length,1);
+ assert.ok(arrows[0].end[0]>arrows[0].start[0]&&Math.abs(arrows[0].end[1]-arrows[0].start[1])<1e-5);
+ delete scope.window.SatelliteProjection;
+});
 test('Pages publishes and syntax-checks shared advection renderer',()=>{
  const build=fs.readFileSync('scripts/build_pages_site.sh','utf8');
  assert.match(build,/^  satellite_advection\.js$/m);

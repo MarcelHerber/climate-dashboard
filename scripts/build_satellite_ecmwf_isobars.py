@@ -17,6 +17,7 @@ from pathlib import Path
 
 import numpy as np
 from satellite_mslp_grid_centers import ALGORITHM, detect_pressure_centers
+from satellite_disk_model import DISK_BBOX, WIDE_GRID_BBOX, crop_grid
 
 UTC = dt.timezone.utc
 BBOX = (-75.0, 12.0, 55.0, 80.0)
@@ -66,7 +67,7 @@ def fetch_grib(run, path):
     raise RuntimeError("Both official ECMWF sources unavailable: " + "; ".join(errors))
 
 
-def decode_grib(path, run):
+def decode_grib(path, run, *, bbox=BBOX):
     from eccodes import codes_get, codes_get_array, codes_grib_new_from_file, codes_release
     outputs = {}
     with path.open("rb") as fp:
@@ -92,14 +93,17 @@ def decode_grib(path, run):
                 lon = (lon + 180) % 360 - 180
                 # Rectangular global lon/lat fields: filter both axes,
                 # then sort to avoid discontinuity at the 0/360 seam.
-                r = np.flatnonzero((lat[:, 0] >= BBOX[1]) & (lat[:, 0] <= BBOX[3]))
-                c = np.flatnonzero((lon[0, :] >= BBOX[0]) & (lon[0, :] <= BBOX[2]))
+                r = np.flatnonzero((lat[:, 0] >= bbox[1]) & (lat[:, 0] <= bbox[3]))
+                c = np.flatnonzero((lon[0, :] >= bbox[0]) & (lon[0, :] <= bbox[2]))
                 if len(r) < 200 or len(c) < 400:
                     raise ValueError(f"Incomplete Atlantic/European coverage: {len(r)}×{len(c)}")
                 rows = r[np.argsort(lat[r, 0])]
                 cols = c[np.argsort(lon[0, c])]
                 yy = lat[rows, 0]
                 xx = lon[0, cols]
+                if (not np.allclose(np.diff(xx), .25) or not np.allclose(np.diff(yy), .25)
+                        or not np.allclose((xx[0],yy[0],xx[-1],yy[-1]),bbox,atol=.001)):
+                    raise ValueError("Incomplete sorted native IFS 0.25-degree pressure coverage")
                 field = values[np.ix_(rows, cols)]
                 if np.nanmedian(field) > 2000:
                     field /= 100.0
@@ -115,6 +119,10 @@ def decode_grib(path, run):
     if not all(step in outputs for step in LEADS):
         raise ValueError(f"Missing ECMWF pressure leads: {[s for s in LEADS if s not in outputs]}")
     return outputs
+
+
+def crop_grids(grids):
+    return {step: crop_grid(grid, BBOX) for step, grid in grids.items()}
 
 
 def contour_lines(lons, lats, pressure, levels=LEVELS):
@@ -189,7 +197,8 @@ def main():
     now = dt.datetime.now(UTC)
     errors = []
     from build_satellite_mslp_10min import build_10min
-    from satellite_temperature_advection import METHOD as ADVECTION_METHOD, retrieve as retrieve_advection
+    from satellite_temperature_advection import (METHOD as ADVECTION_METHOD, retrieve as retrieve_advection,
+                                                  crop_grids as crop_advection_grids)
     for run in candidate_runs(now):
         try:
             # Re-running an unchanged cycle must not waste compute or commits.
@@ -206,26 +215,43 @@ def main():
                         and manifest.get("fine_interval_hpa")==2
                         and set(manifest.get("fine_regions",[]))=={"europe","southwest","central","germany"}
                         and len(manifest.get("fine_hours",{}))==19
+                        and manifest.get("disk_interval_hpa")==5
+                        and manifest.get("disk_bbox")==list(DISK_BBOX)
+                        and len(manifest.get("disk_hours",{}))==19
+                        and manifest.get("disk_advection_algorithm")==ADVECTION_METHOD
                         and all((args.ten_minute_dir/path).is_file()
-                                for path in list(manifest["hours"].values())+list(manifest["fine_hours"].values()))):
+                                for path in list(manifest["hours"].values())+list(manifest["fine_hours"].values())+
+                                list(manifest["disk_hours"].values()))):
                     print(json.dumps({"status":"unchanged","run_utc":valid_run,
                                       "ten_minute_frames":109,"fine_2hpa":True}))
                     return 0
             with tempfile.TemporaryDirectory(prefix="sat-mslp-") as tmp:
                 path = Path(tmp)/"ifs_msl.grib2"
                 fetch_grib(run, path)
-                grids = decode_grib(path, run)
+                disk_grids = decode_grib(path, run, bbox=WIDE_GRID_BBOX)
+                grids = crop_grids(disk_grids)
+                disk_advection_grids = None
                 try:
-                    advection_grids = retrieve_advection(run, Path(tmp)/"ifs_advection.grib2")
+                    disk_advection_grids = retrieve_advection(run, Path(tmp)/"ifs_advection.grib2", bbox=WIDE_GRID_BBOX)
+                    advection_grids = crop_advection_grids(disk_advection_grids)
                 except Exception as exc:
-                    # Preserve the pressure product when the additional fields fail.
-                    logging.warning("Advection not available for pressure run %s: %s", run, exc)
+                    # Preserve the existing region when full-disc field checks
+                    # fail, and preserve pressure even if all advection is absent.
+                    logging.warning("Full-disc advection not available for pressure run %s: %s", run, exc)
                     advection_grids = None
+                    disk_advection_grids = None
+                    from satellite_temperature_advection import decode as decode_advection
+                    try:
+                        advection_grids = decode_advection(
+                            (Path(tmp)/"ifs_advection.grib2", Path(tmp)/"ifs_advection-surface.grib2"),run)
+                    except Exception as regional_exc:
+                        logging.warning("Regional advection not available for pressure run %s: %s",run,regional_exc)
             payload = build_payload(grids, run, now)
             age_h = (now-run).total_seconds()/3600
             if age_h > MAX_AGE_HOURS:
                 raise ValueError("Selected model run too old")
-            ten_index = build_10min(grids, run, now, args.ten_minute_dir, advection_grids=advection_grids)
+            ten_index = build_10min(grids, run, now, args.ten_minute_dir, advection_grids=advection_grids,
+                                    disk_grids=disk_grids, disk_advection_grids=disk_advection_grids)
             args.out.parent.mkdir(parents=True, exist_ok=True)
             target = args.out.with_suffix(".tmp")
             target.write_text(json.dumps(payload, ensure_ascii=False, separators=(",",":"), allow_nan=False)+"\n", encoding="utf-8")
@@ -234,7 +260,8 @@ def main():
                          run.isoformat(),len(payload["frames"]),args.out.stat().st_size)
             print(json.dumps({"status":"ok","run_utc":payload["run_utc"],
                               "frames":[v["valid_utc"] for v in payload["frames"]],
-                              "size_bytes":args.out.stat().st_size, "ten_minute_frames":109, "chunks":len(ten_index["hours"]),"fine_2hpa_chunks":len(ten_index["fine_hours"])}))
+                              "size_bytes":args.out.stat().st_size, "ten_minute_frames":109, "chunks":len(ten_index["hours"]),"fine_2hpa_chunks":len(ten_index["fine_hours"]),
+                              "disk_5hpa_chunks":len(ten_index["disk_hours"])}))
             return 0
         except Exception as exc:
             errors.append(f"{run:%Y-%m-%dT%H:%MZ}: {type(exc).__name__}: {str(exc)[:160]}")

@@ -60,7 +60,7 @@ function assertStill(plan){
   throw Error("Keine direkt abrufbare EUMETSAT-WMS-Aufnahme (z. B. Archivbild).");
  const p=url.searchParams,box=String(p.get("bbox")||"").split(",").map(Number);
  if(!eq(p.get("time"),plan.scene.time)||
-    p.get("layers")!==plan.scene.layer||p.get("srs")!=="EPSG:4326"||
+    p.get("layers")!==plan.scene.layer||p.get("srs")!==(["disk","north"].includes(plan.scene.region)?"AUTO:97004,9001,0,0":"EPSG:4326")||
     box.length!==4||box.some((v,i)=>!Number.isFinite(v)||Math.abs(v-plan.bbox[i])>1e-8))
   throw Error("Das Standardbild gehört nicht zu demselben UTC-Zeitpunkt, Produkt oder Gebiet.");
  if(img.naturalWidth!==Number(p.get("width"))||img.naturalHeight!==Number(p.get("height")))

@@ -1,5 +1,5 @@
-/* EUMETSAT WMS: real geographic HD tiles. No interpolation-based "4K" claims.
- * Each tile requests its own EPSG:4326 bounding box, preserving the
+/* EUMETSAT WMS: real projected HD tiles. No interpolation-based "4K" claims.
+ * Each tile requests its own bounding box in the selected WMS projection, preserving the
  * existing satellite, borders, pressure, radar and city coordinate system.
  * Limited network concurrency, partial-failure fallback and exact UTC.
  */
@@ -15,8 +15,11 @@ const API="https://view.eumetsat.int/geoserver/wms";
 const regions={
  europe:[-27,24,49,73,1300,850],atlantic:[-70,15,35,75,1400,850],
  southwest:[-37,24,19,53,1200,620],central:[-2,43,25,58,1300,780],
- germany:[5,47,16,56,1140,950]
+ germany:[5,47,16,56,1140,950],
+ disk:[-6500000,-6500000,6500000,6500000,1400,1400],
+ north:[-6500000,0,6500000,6500000,1400,700]
 };
+const srsFor=place=>["disk","north"].includes(place)?"AUTO:97004,9001,0,0":"EPSG:4326";
 let scene=null,zoom=1,epoch=0,timer=0,queue=[],busy=0,tiles=new Map(),layout=null,downloadBusy=false;
 const lowerMemory=Boolean((typeof navigator!=="undefined"&&navigator.deviceMemory&&navigator.deviceMemory<=4)||
  window.matchMedia?.("(max-width: 700px)")?.matches);
@@ -60,7 +63,7 @@ function clear(reason){
  // successfully decoded images for exact UTC/geography revisit.
  stage.replaceChildren();stage.hidden=true;
  if(reason)setInfo(reason);
- download.disabled=!scene||(quality.value==="standard"||quality.value==="economy")||downloadBusy||source.value!=="mtgi1"||region.value==="disk";
+ download.disabled=!scene||(quality.value==="standard"||quality.value==="economy")||downloadBusy||source.value!=="mtgi1";
  if(pdfButton)pdfButton.disabled=download.disabled||!isobarChoice?.checked;
 }
 function ready(input){
@@ -107,7 +110,7 @@ function tileUrl(tile,area,grid,selectedScene=scene){
   west+(east-west)*(x0+w)/grid.width,
   north-(north-south)*y0/grid.height];
  return API+"?"+new URLSearchParams({service:"WMS",version:"1.1.1",request:"GetMap",
-  layers:selectedScene.layer,styles:"",format:"image/png",transparent:"false",srs:"EPSG:4326",
+  layers:selectedScene.layer,styles:"",format:"image/png",transparent:"false",srs:srsFor(selectedScene.region),
   bbox:box.join(","),width:String(w),height:String(h),bgcolor:"0x000000",time:selectedScene.time}).toString();
 }
 function display(tile){
@@ -349,7 +352,7 @@ async function exportImage(format="png"){
    const productName=byId("satProduct")?.selectedOptions?.[0]?.textContent||ctxScene.product;
    const regionName=byId("satRegion")?.selectedOptions?.[0]?.textContent||ctxScene.region;
    const exported=await window.SatelliteMapExport.renderPDF({
-    image:canvas,overlay,fronts,includeCities:choice.cities,region:ctxScene.region,regionName,product:ctxScene.product,productName});
+    image:canvas,overlay,fronts,includeCities:choice.cities,geographyRasterized:true,region:ctxScene.region,regionName,product:ctxScene.product,productName});
    window.SatelliteMapExport.download({
     blob:exported.blob,name:exported.name.replace(/_isobaren(?:_noaa_fronten)?(?:_wla_kla_\d+hpa)?\.pdf$/,"_"+grid.width+"px_hd_vektoren"+(fronts?"_noaa_fronten":"")+(choice.advectionLevel?"_wla_kla_"+choice.advectionLevel+"hpa":"")+".pdf")});
    setInfo("HD-/4K-PDF aus vollständigen WMS-Kacheln · ECMWF-Isobaren"+

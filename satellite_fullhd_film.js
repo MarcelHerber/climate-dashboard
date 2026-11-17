@@ -9,7 +9,9 @@ const API="https://view.eumetsat.int/geoserver/wms";
 const AREAS={
  europe:[-27,24,49,73,1300,850],atlantic:[-70,15,35,75,1400,850],
  southwest:[-37,24,19,53,1200,620],central:[-2,43,25,58,1300,780],
- germany:[5,47,16,56,1140,950]
+ germany:[5,47,16,56,1140,950],
+ disk:[-6500000,-6500000,6500000,6500000,1400,1400],
+ north:[-6500000,0,6500000,6500000,1400,700]
 };
 const MAX_FRAMES=12,WIDTH=1920,MAX_PARALLEL=2;
 function geometry(place){
@@ -18,7 +20,8 @@ function geometry(place){
  const height=Math.round(WIDTH*area[5]/area[4]);
  const cols=Math.ceil(WIDTH/640),rows=Math.ceil(height/640);
  if(cols*rows>12)throw Error("Zu viele WMS-Kacheln für die Videovorschau.");
- return {area,width:WIDTH,height,cols,rows,tw:Math.ceil(WIDTH/cols),th:Math.ceil(height/rows)};
+ return {area,width:WIDTH,height,cols,rows,tw:Math.ceil(WIDTH/cols),th:Math.ceil(height/rows),
+  srs:["disk","north"].includes(place)?"AUTO:97004,9001,0,0":"EPSG:4326"};
 }
 function tileRequest({time,layer},g,col,row){
  const [west,south,east,north]=g.area;
@@ -32,7 +35,7 @@ function tileRequest({time,layer},g,col,row){
  return API+"?"+new URLSearchParams({
   service:"WMS",version:"1.1.1",request:"GetMap",
   layers:layer,styles:"",format:"image/png",transparent:"false",
-  srs:"EPSG:4326",bbox:b.join(","),width:String(w),height:String(h),
+  srs:g.srs,bbox:b.join(","),width:String(w),height:String(h),
   bgcolor:"0x000000",time
  }).toString();
 }

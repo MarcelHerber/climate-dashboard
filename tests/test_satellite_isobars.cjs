@@ -18,7 +18,7 @@ class FakeElement{
  appendChild(item){this.children.push(item);}
  replaceChildren(...items){this.children=items;}
 }
-function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=13,fineMode=false,holdFine=false,centerMethod,advection=false}={}){
+function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=13,fineMode=false,holdFine=false,centerMethod,advection=false,diskMode=false,missingDisk=false}={}){
  const names=["satIsobarSvg","satShowIsobars","satIsobarSpacing","satIsobarStatus","satRetryIsobars","satRegion","satSource"];
  const map=new Map(names.map(x=>[x,new FakeElement()]));
  if(advection){for(const name of ['satShowAdvection','satAdvectionLevel','satAdvectionSvg','satAdvectionStatus'])map.set(name,new FakeElement());map.get('satAdvectionLevel').value='850';}
@@ -55,6 +55,10 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
       "h"+String(h).padStart(2,"0"),
       "r"+run.toISOString().slice(0,13).replace(/[-T:]/g,"")+"/h"+String(h).padStart(2,"0")+".json"
      ])),
+     ...(diskMode&&!missingDisk?{disk_interval_hpa:5,disk_bbox:[-83,-83,83,83],
+      ...(advection?{disk_advection_algorithm:'ifs_temperature_advection_v1'}:{}),
+      disk_hours:Object.fromEntries(Array.from({length:tenHours},(_,h)=>[
+       'h'+String(h).padStart(2,'0'),'r'+run.toISOString().slice(0,13).replace(/[-T:]/g,'')+'/h'+String(h).padStart(2,'0')+'_disk.json']))}:{}),
      ...(fineMode?{
       fine_interval_hpa:2,fine_regions:["europe","southwest","central","germany"],
       fine_hours:Object.fromEntries(Array.from({length:tenHours},(_,h)=>[
@@ -69,13 +73,14 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
     const path=String(url).split("?")[0];
     const fine=path.endsWith("_2hpa.json");
     if(fine&&fineGate)await fineGate;
-    const match=path.match(/h(\d{2})(?:_2hpa)?\.json$/);
+    const disk=path.endsWith('_disk.json');
+    const match=path.match(/h(\d{2})(?:_2hpa|_disk)?\.json$/);
     const hour=Number(match[1]);
     const frames=Array.from({length:hour===tenHours-1?1:6},(_,i)=>{
      const minute=(hour*6+i)*10;
      return {valid_utc:iso(new Date(run.getTime()+minute*60000)),
       forecast_minute:minute,interpolated:minute%180!==0,
-      ...(centerMethod?{pressure_centers_method:centerMethod,pressure_centers:[{type:"H",lon:-18,lat:45,pressure_hpa:1032,prominence_hpa:7,score:50}]}:{}),
+      ...(centerMethod?{pressure_centers_method:centerMethod,pressure_centers:[{type:"H",lon:-18,lat:disk?-30:45,pressure_hpa:1032,prominence_hpa:7,score:50}]}:{}),
       ...(advection?{advection_method:'ifs_temperature_advection_v1',temperature_advection:{850:[{lon:-8,lat:38,advection:6,u:5,v:10}],925:[],700:[]}}:{}),
       contours:fine?[
        {hpa:1000,lines:frame(3).contours[0].lines},
@@ -84,20 +89,40 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=1
        {hpa:1006,lines:frame(3).contours[0].lines},
        {hpa:1008,lines:frame(3).contours[1].lines},
        {hpa:1010,lines:frame(3).contours[2].lines}
-      ]:frame(3).contours};
+      ]:disk?[{hpa:1010,lines:[[[-65,-25],[-40,-35],[-20,-40],[0,-35],[25,-30],[45,-20],[65,-10]]]}]:frame(3).contours};
     });
     return {ok:true,json:async()=>({
      schema_version:2,run_utc:iso(run),hour,frames,
+     ...(disk?{model:'ECMWF IFS Open Data',interval_hpa:5}:{}),
      ...(fine?{interval_hpa:2,regions:["europe","southwest","central","germany"]}:{})
     })};
    }
    return {ok:true,json:async()=>data};
   }};
  vm.runInNewContext(geom,sandbox,{timeout:1000});
+ if(diskMode)vm.runInNewContext(fs.readFileSync('satellite_projection.js','utf8'),sandbox,{timeout:1000});
  vm.runInNewContext(fs.readFileSync('satellite_advection.js','utf8'),sandbox,{timeout:1000});
  vm.runInNewContext(src,sandbox,{timeout:1000});
  return {map,data,api:sandbox.window.SatelliteIsobars,run,getCalls:()=>calls,releaseFine:()=>releaseFine?.(),chunkUrls,setCenterMethod:m=>{centerMethod=m;}};
 }
+test('disk export uses an independent full-domain cache and never falls back to the regional field',async()=>{
+ const {api,map,run,chunkUrls}=fixture({tenMinutes:true,diskMode:true,centerMethod:'ifs_mslp_grid_extrema_v4',advection:true});
+ const at=new Date(run.getTime()+200*60000).toISOString();
+ await ready(api);api.sync({time:at,region:'southwest',source:'mtgi1'});
+ const regional=await api.exportAt(at,'southwest',5);
+ const disk=await api.exportAt(at,'disk',10,{advectionLevel:850});
+ assert.equal(disk.pressure_centers[0].lat,-30);
+ assert.equal(regional.pressure_centers[0].lat,45);
+ assert.equal(disk.coverage,'full-disk');
+ assert.ok(chunkUrls.some(url=>url.includes('_disk.json')));
+ assert.ok(chunkUrls.some(url=>!url.includes('_disk.json')));
+ api.sync({time:at,region:'disk',source:'mtgi1'});
+ assert.equal(map.get('satShowIsobars').disabled,false);
+ assert.equal(map.get('satIsobarSvg').hidden,false);
+ const missing=fixture({tenMinutes:true,diskMode:true,missingDisk:true});
+ await ready(missing.api);
+ await assert.rejects(missing.api.exportAt(at,'disk',5),/Erdscheib/);
+});
 test('selected advection is taken from the same ten-minute pressure frame and draws independently',async()=>{
  const {api,map,run}=fixture({tenMinutes:true,advection:true});
  const at=new Date(run.getTime()+200*60000).toISOString();

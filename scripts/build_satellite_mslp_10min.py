@@ -16,6 +16,7 @@ from pathlib import Path
 
 import numpy as np
 from satellite_mslp_grid_centers import ALGORITHM, detect_pressure_centers
+from satellite_disk_model import DISK_BBOX, WIDE_GRID_BBOX
 
 UTC = dt.timezone.utc
 TEN_MINUTES = 600
@@ -158,19 +159,58 @@ def frame_from_grids(grids, run, forecast_minute):
     }
 
 
-def build_10min(grids, run, generated_at, root, advection_grids=None):
+def frame_from_disk_grids(grids, run, forecast_minute):
+    """Full visible-disc coverage, retaining the original IFS axes and UTC."""
+    x, y, pressure, source_steps, fraction = interpolate_field(grids, forecast_minute)
+    if not (np.isfinite(pressure).all() and 800 <= float(np.min(pressure)) <= 1050
+            and 950 <= float(np.max(pressure)) <= 1120):
+        raise ValueError("Invalid full-disc interpolated MSLP values")
+    if not np.allclose((x[0], y[0], x[-1], y[-1]), WIDE_GRID_BBOX):
+        raise ValueError("Incomplete full-disc native IFS pressure coverage")
+    contours = concise_contours(x, y, pressure, spacing=5, bbox=DISK_BBOX)
+    if not contours:
+        raise ValueError("No real ECMWF contours generated for full-disc view")
+    at = run + dt.timedelta(minutes=forecast_minute)
+    exact = forecast_minute % 180 == 0
+    return {
+        "valid_utc": at.isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "forecast_minute": forecast_minute,
+        "forecast_hour": forecast_minute/60,
+        "interpolated": not exact,
+        "interpolation_method": "linear_mslp_grid_then_contours" if not exact else "original_ifs_grid",
+        "source_steps_hours": list(source_steps) if not exact else [forecast_minute//60],
+        "source_valid_utc": [
+            (run + dt.timedelta(hours=h)).isoformat(timespec="seconds").replace("+00:00", "Z")
+            for h in (source_steps if not exact else [forecast_minute//60])
+        ],
+        "min_hpa": round(float(np.min(pressure)), 1),
+        "max_hpa": round(float(np.max(pressure)), 1),
+        "pressure_centers": detect_pressure_centers(x, y, pressure, bbox=WIDE_GRID_BBOX, disk=True),
+        "pressure_centers_method": ALGORITHM,
+        "contours": contours,
+    }
+
+
+def build_10min(grids, run, generated_at, root, advection_grids=None, *,
+                disk_grids=None, disk_advection_grids=None):
     """Commit immutable run directory first, then index atomically as last write."""
     if set(grids) != set(MODEL_STEPS_HOURS):
         raise ValueError("All verified ECMWF IFS source steps are required")
+    if disk_grids is not None and set(disk_grids) != set(MODEL_STEPS_HOURS):
+        raise ValueError("All verified full-disc IFS source steps are required")
+    if disk_advection_grids is not None and disk_grids is None:
+        raise ValueError("Full-disc advection requires corresponding pressure data")
     root = Path(root)
     run_id = PREFIX + run.strftime("%Y%m%d%H")
     run_dir = root/run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     chunks = {}
     fine_chunks = {}
+    disk_chunks = {}
     for hour in range(MAX_HOURS+1):
         frames = []
         fine_frames = []
+        disk_frames = []
         for minute in range(hour*60, min((hour+1)*60, MAX_HOURS*60+1), 10):
             full = frame_from_grids(grids, run, minute)
             if advection_grids is not None:
@@ -180,6 +220,13 @@ def build_10min(grids, run, generated_at, root, advection_grids=None):
             fine = full.pop("fine_contours")
             frames.append(full)
             fine_frames.append({**full, "contours": fine})
+            if disk_grids is not None:
+                disk = frame_from_disk_grids(disk_grids, run, minute)
+                if disk_advection_grids is not None:
+                    from satellite_temperature_advection import METHOD, frame_markers
+                    disk['temperature_advection'] = frame_markers(disk_advection_grids, minute, disk=True)
+                    disk['advection_method'] = METHOD
+                disk_frames.append(disk)
         if not frames:
             raise ValueError("No valid contours for an hourly chunk")
         name = f"h{hour:02d}.json"
@@ -204,6 +251,15 @@ def build_10min(grids, run, generated_at, root, advection_grids=None):
                                        allow_nan=False)+"\n", encoding="utf-8")
         fine_temp.replace(fine_target)
         fine_chunks[f"h{hour:02d}"] = f"{run_id}/{fine_name}"
+        if disk_frames:
+            disk_name = f"h{hour:02d}_disk.json"
+            disk_target = run_dir/disk_name
+            disk_payload = {**payload, "interval_hpa": 5, "frames": disk_frames}
+            disk_temp = disk_target.with_suffix(".tmp")
+            disk_temp.write_text(json.dumps(disk_payload, separators=(",", ":"),
+                                            ensure_ascii=False, allow_nan=False)+"\n", encoding="utf-8")
+            disk_temp.replace(disk_target)
+            disk_chunks[f"h{hour:02d}"] = f"{run_id}/{disk_name}"
     index = {
         "schema_version": 2,
         "model": "ECMWF IFS Open Data",
@@ -233,6 +289,13 @@ def build_10min(grids, run, generated_at, root, advection_grids=None):
         index.update(advection_algorithm=METHOD, advection_levels=list(LEVELS),
                      advection_units='K/6h (instantaneous tendency)',
                      advection_threshold=2)
+    if disk_chunks:
+        index.update(disk_hours=disk_chunks, disk_bbox=list(DISK_BBOX), disk_interval_hpa=5)
+        if disk_advection_grids is not None:
+            from satellite_temperature_advection import METHOD, LEVELS
+            index.update(disk_advection_algorithm=METHOD, disk_advection_levels=list(LEVELS),
+                         disk_advection_units='K/6h (instantaneous tendency)',
+                         disk_advection_threshold=2)
     tmp = root/"index.tmp"
     tmp.write_text(json.dumps(index, separators=(",", ":"), ensure_ascii=False)+"\n", encoding="utf-8")
     tmp.replace(root/"index.json")

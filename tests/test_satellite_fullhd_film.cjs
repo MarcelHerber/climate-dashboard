@@ -48,11 +48,20 @@ test("Full HD loader constructs true 1920px source mosaics at verified UTC with 
  }
  assert.equal(h.captures.length,12);
 });
+test("Full HD film works with the whole disc and northern half in the same projection",async()=>{
+ for(const [region,height,n] of [["disk",1920,9],["north",960,6]]){
+  const h=harness();
+  const out=await h.fhd.loadFrames({region,layer:"mtg_fd:rgb_geocolour",frames:UTC.map((time,index)=>({time,index}))});
+  assert.equal(out[0].img.height,height);
+  assert.equal(h.requests.length,n*UTC.length);
+  assert.ok(h.requests.every(r=>r.searchParams.get("srs")==="AUTO:97004,9001,0,0"));
+ }
+});
 test("MP4 source loader refuses fabricated timestamps, unauthorized layers, and >12 frame overload",async()=>{
  const h=harness();
  await assert.rejects(h.fhd.loadFrames({region:"europe",layer:"mtg_fd:rgb_geocolour",
   frames:Array.from({length:13},(_,i)=>({time:UTC[0],index:i}))}),/2 bis 12/);
- await assert.rejects(h.fhd.loadFrames({region:"disk",layer:"mtg_fd:rgb_geocolour",
+ await assert.rejects(h.fhd.loadFrames({region:"unknown",layer:"mtg_fd:rgb_geocolour",
   frames:UTC.map(time=>({time}))}),/geografisch/);
  await assert.rejects(h.fhd.loadFrames({region:"europe",layer:"bad_layer",
   frames:UTC.map(time=>({time}))}),/WMS-Layer/);

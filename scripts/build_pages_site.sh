@@ -115,6 +115,7 @@ required_root_files=(
   satellite_front_style.js
   satelliten.css
   satellite_overlay.js
+  satellite_projection.js
   satellite_lightning.js
   satellite_radar.js
   satellite_view_options.js
@@ -493,6 +494,10 @@ if "fine_hours" in idx:
     assert set(idx["fine_regions"])=={"europe","southwest","central","germany"}
     assert len(idx["fine_hours"])==len(idx["hours"])
     assert all((p/file).is_file() for file in idx["fine_hours"].values())
+if "disk_hours" in idx:
+    assert idx["disk_interval_hpa"]==5 and idx["disk_bbox"]==[-83,-83,83,83]
+    assert set(idx["disk_hours"])==set(idx["hours"])
+    assert all((p/file).is_file() for file in idx["disk_hours"].values())
 PY
     cp -R data/satellite_mslp/ten_minute _site/data/satellite_mslp/
   fi
@@ -594,6 +599,8 @@ assert "Natural Earth" in obj["source"]
 PY
 mkdir -p _site/data/blocking
 cp data/blocking/borders_50m.json _site/data/blocking/borders_50m.json
+test -s data/satellite_borders_50m.json
+cp data/satellite_borders_50m.json _site/data/satellite_borders_50m.json
 # Fallback for browser CORS: only publish satellite timestamps checked by the
 # independent EUMETSAT live probe; never create fake status if absent.
 if [[ -s data/satellite_layer_discovery_latest.json ]]; then
@@ -859,6 +866,7 @@ node --check _site/satellite_dwd_fronts.js
 node --check _site/satellite_noaa_fronts.js
 node --check _site/satellite_front_style.js
 node --check _site/satellite_overlay.js
+node --check _site/satellite_projection.js
 node --check _site/satellite_lightning.js
 node --check _site/satellite_radar.js
 node --check _site/satellite_view_options.js
@@ -878,6 +886,7 @@ node --test tests/test_satellite_isobars.cjs
 node --test tests/test_satellite_advection.cjs
 node --test tests/test_satellite_film_export.cjs
 node --test tests/test_satellite_overlay.cjs
+node --test tests/test_satellite_projection.cjs
 node --test tests/test_satelliten_ui.cjs
 node --test tests/test_satellite_phase12.cjs
 node --test tests/test_satellite_source_alignment.cjs

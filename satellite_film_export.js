@@ -94,13 +94,15 @@ function renderer(input,width){
   if(!frame.time||!Number.isFinite(Date.parse(frame.time)))throw new Error("Kein gültiger UTC-Zeitpunkt");
   ctx.fillStyle="#12263d";ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(frame.img,mapX,header,mapWidth,mapHeight);
+  const area={x:mapX,y:header,width:mapWidth,height:mapHeight};
+  window.SatelliteMapExport?.paintDiskGeography?.(ctx,input,area);
   if(input.isobarOverlays){
    const pressure=input.isobarOverlays[frameIndex];
    if(!pressure||pressure.satelliteUTC!==frame.time)
     throw new Error("Keine zum Filmzeitpunkt passenden Isobaren vorhanden.");
    if(!window.SatelliteMapExport?.paintIsobars)
     throw new Error("Isobaren-Zeichner für GIF-Export fehlt.");
-   window.SatelliteMapExport.paintIsobars(ctx,pressure,input.region,{x:mapX,y:header,width:mapWidth,height:mapHeight});
+   window.SatelliteMapExport.paintIsobars(ctx,pressure,input.region,area,window.SatelliteProjection?.isDisk?.(input.region)&&input.includeCities?(window.SatelliteOverlay?.cityAnchors?.(input.region)||[]):[]);
   }
   if(input.frontOverlays){
    if(input.frontOverlays.length!==input.frames.length)

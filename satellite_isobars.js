@@ -23,6 +23,10 @@ const TEN_MS=10*60*1000;
 const TEN_INDEX_URL="./data/satellite_mslp/ten_minute/index.json";
 const FINE_REGIONS=new Set(["europe","southwest","central","germany"]);
 const isFineRegion=place=>FINE_REGIONS.has(place);
+const isDisk=place=>Boolean(window.SatelliteProjection?.isDisk?.(place));
+const DISK_BBOX=[-83,-83,83,83];
+const advectionMethod=(idx,place)=>isDisk(place)?idx?.disk_advection_algorithm||'':idx?.advection_algorithm||'';
+const chunkKey=(idx,place,gap,key)=>idx.run_utc+'|'+(isDisk(place)?'disk':Number(gap)===2?'2':'5')+'|'+key+'|'+(idx.pressure_centers_algorithm||'')+'|'+advectionMethod(idx,place);
 let tenIndex=null,tenLoading=null,tenChecked=0;
 const tenChunks=new Map(),tenPending=new Map(),tenFailed=new Map();
 const ENDPOINTS=["./data/satellite_mslp/preview.json","./data/satellite_mslp/latest.json","https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/data/satellite_mslp/latest.json"];
@@ -76,14 +80,23 @@ async function loadTenIndex(force=false){
       ![13,19].includes(Object.keys(fine).length)||
       !Object.values(fine).every(x=>typeof x==="string"&&/^r\d{10}\/h\d{2}_2hpa\.json$/.test(x))))
        throw Error("Ungültige 2-hPa-Metadaten");
-   if(tenIndex?.run_utc!==idx.run_utc||tenIndex?.pressure_centers_algorithm!==idx.pressure_centers_algorithm||tenIndex?.advection_algorithm!==idx.advection_algorithm){tenChunks.clear();tenFailed.clear();}
+   if(idx.disk_hours){
+    const prefix='r'+new Date(idx.run_utc).toISOString().slice(0,13).replace(/[-T:]/g,'');
+    if(idx.disk_interval_hpa!==5||JSON.stringify(idx.disk_bbox)!==JSON.stringify(DISK_BBOX)||
+     Object.keys(idx.disk_hours).length!==Object.keys(idx.hours).length||
+     !Object.keys(idx.hours).every(k=>idx.disk_hours[k]===prefix+'/'+k+'_disk.json')){
+     // A malformed optional disc manifest must not disable regional coverage.
+     delete idx.disk_hours;console.warn('Ungültige Erdscheiben-Metadaten');
+    }
+   }
+   if(tenIndex?.run_utc!==idx.run_utc||tenIndex?.pressure_centers_algorithm!==idx.pressure_centers_algorithm||tenIndex?.advection_algorithm!==idx.advection_algorithm||tenIndex?.disk_advection_algorithm!==idx.disk_advection_algorithm||JSON.stringify(tenIndex?.disk_hours)!==JSON.stringify(idx.disk_hours)){tenChunks.clear();tenFailed.clear();}
    tenIndex=idx;
   }catch(err){console.warn("Optional ECMWF ten-minute pressure overlay",err?.message||err);}
   finally{tenLoading=null;update();}
  })();
  return tenLoading;
 }
-function tenFrameAt(target,gap=5){
+function tenFrameAt(target,gap=5,place=context.region){
  if(!tenIndex)return null;
  const run=Date.parse(tenIndex.run_utc),requested=Date.parse(target);
  if(!Number.isFinite(run)||!Number.isFinite(requested)||
@@ -93,15 +106,16 @@ function tenFrameAt(target,gap=5){
  const lastHour=Object.keys(tenIndex.hours).length-1;
  if(slot<0||slot>lastHour*6||Math.abs(run+slot*TEN_MS-requested)>5*60000)return null;
  const hour=Math.floor(slot/6),key="h"+String(hour).padStart(2,"0");
- const fine=Number(gap)===2;
- const lookup=fine?tenIndex.fine_hours:tenIndex.hours;
+ const disk=isDisk(place),fine=Number(gap)===2;
+ if(disk&&![5,10].includes(Number(gap)))return null;
+ const lookup=disk?tenIndex.disk_hours:fine?tenIndex.fine_hours:tenIndex.hours;
  const file=lookup?.[key];
- if(fine&&!isFineRegion(context.region))return null;
- const expected=fine?/^r\d{10}\/h\d{2}_2hpa\.json$/:/^r\d{10}\/h\d{2}\.json$/;
+ if(fine&&!isFineRegion(place))return null;
+ const expected=disk?/^r\d{10}\/h\d{2}_disk\.json$/:fine?/^r\d{10}\/h\d{2}_2hpa\.json$/:/^r\d{10}\/h\d{2}\.json$/;
  if(typeof file!=="string"||!expected.test(file))return null;
  const method=tenIndex.pressure_centers_algorithm||"";
- const advMethod=tenIndex.advection_algorithm||"";
- const cacheKey=tenIndex.run_utc+"|"+(fine?"2":"5")+"|"+key+"|"+method+"|"+advMethod;
+ const advMethod=advectionMethod(tenIndex,place);
+ const cacheKey=chunkKey(tenIndex,place,gap,key);
  const chunk=tenChunks.get(cacheKey);
  if(chunk){
   const f=chunk.frames[slot%6];
@@ -115,18 +129,21 @@ function tenFrameAt(target,gap=5){
     const params=[method?"centers="+encodeURIComponent(method.split("_").pop()):"",advMethod?"advection="+encodeURIComponent(advMethod):""].filter(Boolean);
     const d=await fetchTenJson("./data/satellite_mslp/ten_minute/"+file+(params.length?"?"+params.join("&"):""));
     if(d.schema_version!==2||d.run_utc!==tenIndex?.run_utc||
+       (disk&&(d.interval_hpa!==5||d.model!=="ECMWF IFS Open Data"||tenIndex?.disk_hours?.[key]!==file))||
        (fine&&(d.interval_hpa!==2||
         !Array.isArray(d.regions)||
         d.regions.length!==FINE_REGIONS.size||
         !d.regions.every(place=>isFineRegion(place))))||
        d.hour!==hour||!Array.isArray(d.frames)||
        d.frames.length!==(hour===lastHour?1:6)||
-       method!==(tenIndex?.pressure_centers_algorithm||"")||advMethod!==(tenIndex?.advection_algorithm||"")||
+       method!==(tenIndex?.pressure_centers_algorithm||"")||advMethod!==advectionMethod(tenIndex,place)||
        d.frames.some((f,i)=>!Array.isArray(f.contours)||!f.contours.length||
         (method&&f.pressure_centers_method!==method)||
         (advMethod&&(f.advection_method!==advMethod||!window.SatelliteAdvection||
          !window.SatelliteAdvection.levels.every(level=>window.SatelliteAdvection.frameMarkers(f,level,f.valid_utc)!==null)))||
         (fine&&f.contours.some(group=>group.hpa%2!==0))||
+        (disk&&(f.contours.some(group=>!Number.isFinite(group.hpa)||group.hpa%5!==0||!Array.isArray(group.lines))||
+          (method&&!Array.isArray(f.pressure_centers))))||
         Date.parse(f.valid_utc)!==run+(hour*6+i)*TEN_MS||
         f.interpolated!==((hour*6+i)%18!==0))){
       throw Error("Ten-minute pressure chunk failed UTC provenance validation");
@@ -148,18 +165,21 @@ function within(p,b){
 function draw(frame,bbox,gap){
  const geometry=window.SatelliteIsobarGeometry;
  if(!geometry?.prepare)throw Error("Isobaren-Darstellungsfilter fehlt.");
- const rawGroups=geometry.prepare(frame.contours,bbox,gap);
+ const disk=isDisk(context.region),height=disk&&context.region==='north'?500:1000;
+ svg.setAttribute('viewBox',`0 0 1000 ${height}`);
+ const rawGroups=disk?geometry.prepareDisk(frame.contours,context.region,gap):geometry.prepare(frame.contours,bbox,gap);
  const limits={atlantic:8,europe:6,southwest:5,central:3,germany:2};
  const opts={maxSystems:limits[context.region]||5,minRings:Number(gap)===2?6:3,minSeparation:94};
- const systems=geometry.modelGridCenters?.(frame,bbox,opts)??geometry.detectVisiblePressureSystems?.(frame.contours,bbox,opts)??[];
+ const systems=disk?[]:geometry.modelGridCenters?.(frame,bbox,opts)??geometry.detectVisiblePressureSystems?.(frame.contours,bbox,opts)??[];
  const cities=window.SatelliteOverlay?.cityAnchors?.(context.region)||[];
- const {groups,centers:placed}=geometry.layoutPressureAnnotations(systems,rawGroups,bbox,{
-  width:1000,height:1000,fontSize:40.5,labelWidth:36,labelHeight:17,
+ const annotationOptions={
+  width:1000,height,fontSize:disk?36:40.5,labelWidth:36,labelHeight:17,
   cityAnchors:document.querySelector?.("#satShowCities")?.checked?cities:[]
- });
+ };
+ const {groups,centers:placed}=disk?geometry.layoutDiskPressureAnnotations(frame,rawGroups,context.region,annotationOptions):geometry.layoutPressureAnnotations(systems,rawGroups,bbox,annotationOptions);
  const [minX,minY,maxX,maxY]=bbox;
- const px=lon=>((lon-minX)/(maxX-minX)*1000).toFixed(2);
- const py=lat=>((maxY-lat)/(maxY-minY)*1000).toFixed(2);
+ const px=lon=>(disk?lon:(lon-minX)/(maxX-minX)*1000).toFixed(2);
+ const py=lat=>(disk?lat*height/1000:(maxY-lat)/(maxY-minY)*1000).toFixed(2);
  const batch=document.createDocumentFragment();
  let count=0;
  for(const group of groups){
@@ -228,12 +248,13 @@ function draw(frame,bbox,gap){
   glyph.setAttribute("x",center.labelX.toFixed(2));
   glyph.setAttribute("y",center.labelY.toFixed(2));
   glyph.setAttribute("class","sat-pressure-center");
+  if(disk)glyph.setAttribute('style','font-size:36px');
   glyph.setAttribute("data-pressure-type",center.type);
   glyph.setAttribute("data-center-lon",String(center.lon));
   glyph.setAttribute("data-center-lat",String(center.lat));
   glyph.setAttribute("data-center-method",center.source||"isobar_legacy");
   glyph.setAttribute("aria-label",(center.type==="T"?"Tief":"Hoch")+
-   "druckzentrum, Kerndruck "+center.hpa+" hPa, Position "+center.lat+" N / "+center.lon+" E");
+   "druckzentrum, Kerndruck "+center.hpa+" hPa, Position "+Math.abs(center.lat)+(center.lat<0?" S / ":" N / ")+Math.abs(center.lon)+(center.lon<0?" W":" E"));
   glyph.setAttribute("fill",center.type==="T"?"#ba859f":"#a599bc");
   glyph.textContent=center.type;
   batch.appendChild(glyph);
@@ -251,12 +272,12 @@ function drawAdvection(frame,time,place){
  const api=window.SatelliteAdvection;
  if(!advToggle?.checked||!advSvg||!advStatus||!api)return;
  const level=Number(advLevel.value)||850,marks=api.frameMarkers(frame,level,time);
- if(marks===null||tenIndex?.advection_algorithm!==api.METHOD){advStatus.textContent='WLA / KLA: zeitlich passendes IFS-Advektionsfeld fehlt oder wird geladen.';return;}
+ if(marks===null||advectionMethod(tenIndex,place)!==api.METHOD){advStatus.textContent='WLA / KLA: zeitlich passendes IFS-Advektionsfeld fehlt oder wird geladen.';return;}
  const width=advSvg.parentElement?.clientWidth||1000,height=advSvg.parentElement?.clientHeight||650;
  advSvg.setAttribute('viewBox',`0 0 ${width} ${height}`);
- const bbox=BBOX[place], [west,south,east,north]=bbox;
- const blocked=(frame.pressure_centers||[]).map(m=>[(m.lon-west)/(east-west)*width,(north-m.lat)/(north-south)*height]);
- const arrows=api.layout(marks,bbox,width,height,api.limits[place],toggle.checked?blocked:[]);
+ const disk=isDisk(place),bbox=disk?DISK_BBOX:BBOX[place], [west,south,east,north]=bbox;
+ const blocked=(frame.pressure_centers||[]).map(m=>disk?window.SatelliteProjection.project(place,m.lon,m.lat,width,height):[(m.lon-west)/(east-west)*width,(north-m.lat)/(north-south)*height]).filter(Boolean);
+ const arrows=api.layout(marks,bbox,width,height,api.limits[place],toggle.checked?blocked:[],place);
  const batch=document.createDocumentFragment();
  for(const a of arrows){
   const path=`M ${a.start.join(' ')} L ${a.end.join(' ')} M ${a.wing1.join(' ')} L ${a.end.join(' ')} L ${a.wing2.join(' ')}`;
@@ -274,7 +295,7 @@ function drawAdvection(frame,time,place){
 }
 function update(){
  refreshSpacing();
- const supported=context.source==="mtgi1"&&Boolean(BBOX[context.region]);
+ const disk=isDisk(context.region),supported=context.source==="mtgi1"&&Boolean(disk||BBOX[context.region]);
  toggle.disabled=!supported;
  spacing.disabled=!supported||!toggle.checked;
  const advActive=supported&&Boolean(advToggle?.checked);
@@ -285,7 +306,7 @@ function update(){
  const active=supported&&(toggle.checked||advActive);
  if(retry)retry.disabled=!active||Boolean(loading);
  svg.toggleAttribute("hidden",true);
- if(!active){svg.replaceChildren();note(!supported?"Isobaren für Erdscheibe/MTG-I2 nicht verfügbar (andere Projektion).":"Isobaren ausgeblendet.");return;}
+ if(!active){svg.replaceChildren();note(!supported?"Isobaren für diese Quelle oder Projektion nicht verfügbar.":"Isobaren ausgeblendet.");return;}
  if(!data){
   if(failed){svg.replaceChildren();note("ECMWF-Isobarenabruf fehlgeschlagen ("+errorDetail+"). „Isobaren neu laden“ startet einen neuen Versuch.");return;}
   svg.replaceChildren();note("Lade echte ECMWF-IFS-Luftdruckdaten (0,25°) …");void load();return;
@@ -296,20 +317,20 @@ function update(){
  const requested=Number.isFinite(Date.parse(context.time))?context.time:new Date().toISOString();
  const satelliteTime=Number.isFinite(Date.parse(context.time))?context.time:null;
  const gap=toggle.checked?(Number(spacing.value)||5):5;
- const ten=tenFrameAt(requested,gap);
- let frame=ten||(gap===2?null:
+ const ten=disk&&!satelliteTime?null:tenFrameAt(requested,gap);
+ let frame=ten||(disk||gap===2?null:
   ((satelliteTime?frameFor(satelliteTime):null)||latestIndependentFrame()));
  const aligned=Boolean(satelliteTime&&frame&&(!ten?frameFor(satelliteTime):true));
  if(!frame){
   svg.replaceChildren();
-  note(gap===2?
+  note(disk?"Passende IFS-Erdscheiben-Daten fehlen oder werden geladen. Keine regionalen Ersatzlinien.":gap===2?
    "2-hPa-Isobaren für diesen ECMWF-Lauf noch nicht bereitgestellt oder werden geladen. Keine 5-hPa-Ersatzlinien als 2 hPa ausgeben.":
    "Kein ausreichend aktuelles ECMWF-Druckfeld verfügbar. Letzter gültiger Modelllauf bleibt angegeben, statt falsche Isobaren zu zeigen.");
   return;
  }
  if(advActive&&satelliteTime)drawAdvection(ten,satelliteTime,context.region);
  if(!toggle.checked){svg.replaceChildren();note('Isobaren ausgeblendet.');return;}
- const lines=draw(frame,BBOX[context.region],gap);
+ const lines=draw(frame,disk?DISK_BBOX:BBOX[context.region],gap);
  const gridCenters=["ifs_mslp_grid_extrema_v1","ifs_mslp_grid_extrema_v2","ifs_mslp_grid_extrema_v3","ifs_mslp_grid_extrema_v4"].includes(frame.pressure_centers_method);
  const contourChecked=["ifs_mslp_grid_extrema_v2","ifs_mslp_grid_extrema_v3","ifs_mslp_grid_extrema_v4"].includes(frame.pressure_centers_method);
  if(!lines){note("ECMWF-Daten vorhanden, aber keine sichtbaren "+spacing.value+"-hPa-Isobaren in diesem Ausschnitt.");return;}
@@ -384,19 +405,22 @@ async function exportAt(time,place,gap=5,{strictTenMinute=false,advectionLevel=n
  gap=Number(gap)||5;
  if(gap===2&&!isFineRegion(place))
   throw Error("2-hPa-Isobaren gibt es nur für Europa, Südwesteuropa, Mitteleuropa und Deutschland.");
- if(!BBOX[place])throw Error("Für diesen Kartenausschnitt gibt es keine georeferenzierten Isobaren.");
+ const disk=isDisk(place);
+ if(!disk&&!BBOX[place])throw Error("Für diesen Kartenausschnitt gibt es keine georeferenzierten Isobaren.");
+ if(disk&&![5,10].includes(gap))throw Error('Erdscheiben-Isobaren sind nur in 5/10 hPa verfügbar.');
  if(!Number.isFinite(Date.parse(time)))throw Error("Kein verifizierter Satellitenzeitpunkt für den Isobarenexport.");
  if(!data&&!loading)await load();
  else if(loading)await loading;
  if(!tenIndex)await loadTenIndex();
- let frame=tenFrameAt(time,gap);
+ let frame=tenFrameAt(time,gap,place);
  if(!frame&&tenIndex){
   const run=Date.parse(tenIndex.run_utc),slot=Math.round((Date.parse(time)-run)/TEN_MS);
   const hour=Math.floor(slot/6),key="h"+String(hour).padStart(2,"0");
-  const promise=tenPending.get(tenIndex.run_utc+"|"+(gap===2?"2":"5")+"|"+key+"|"+(tenIndex.pressure_centers_algorithm||"")+"|"+(tenIndex.advection_algorithm||""));
+  const promise=tenPending.get(chunkKey(tenIndex,place,gap,key));
   if(promise)await promise;
-  frame=tenFrameAt(time,gap);
+  frame=tenFrameAt(time,gap,place);
  }
+ if(disk&&!frame)throw Error('Für '+utc(time)+' fehlen passende IFS-Erdscheiben-Daten. Kein Export mit regionalen Ersatzlinien.');
  if(gap===2&&!frame)throw Error("Für "+utc(time)+" fehlen die berechneten 2-hPa-Konturen. Export nicht erstellt.");
  if(strictTenMinute&&!frame)
   throw Error("Für "+utc(time)+" fehlen die passenden 10-Minuten-Isobaren. GIF mit Isobaren nicht erzeugt.");
@@ -407,7 +431,7 @@ async function exportAt(time,place,gap=5,{strictTenMinute=false,advectionLevel=n
  const method=exact10?(frame.interpolated?"10-Minuten-Interpolation des MSLP-Gitterfeldes":"Original-IFS-Druckfeld"):"3-h-IFS-Druckfeld (Ersatz)";
  if(!Array.isArray(frame.contours)||!frame.contours.length)throw Error("Isobaren-Konturen fehlen.");
  const adv=advectionLevel?window.SatelliteAdvection?.frameMarkers(frame,advectionLevel,time):null;
- if(advectionLevel&&(!exact10||!adv||tenIndex?.advection_algorithm!==window.SatelliteAdvection?.METHOD))
+ if(advectionLevel&&(!exact10||!adv||advectionMethod(tenIndex,place)!==window.SatelliteAdvection?.METHOD))
   throw Error('Zeitlich passende ECMWF-Advektion fehlt; kein unvollständiger Export.');
  return {contours:frame.contours,
   pressure_centers:frame.pressure_centers,
@@ -415,6 +439,7 @@ async function exportAt(time,place,gap=5,{strictTenMinute=false,advectionLevel=n
   validUTC:frame.valid_utc,runUTC:run,
   satelliteUTC:time,method,interpolated:exact10&&Boolean(frame.interpolated),
   spacing:gap,region:place,exact10,
+  ...(disk?{coverage:'full-disk'}:{}),
   ...(advectionLevel?{advectionLevel:Number(advectionLevel),advectionMarkers:adv}:{})};
 }
 function sync(next){
