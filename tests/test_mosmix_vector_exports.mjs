@@ -76,6 +76,10 @@ assert.match(api.toSvg(windScene),/74 km\/h/);
 assert.ok(windScene.series.some(s=>s.name==='Tagesmaximalböen'));
 wind.scales.x.min=24;
 assert.doesNotMatch(api.toSvg(api.buildScene(wind,{key:'wind',timesteps})),/74 km\/h/);
+const missingPressure=mockChart(71);
+missingPressure.data.datasets=[{label:'Luftdruck',data:Array(145).fill(null),borderColor:'#4f46e5'}];
+missingPressure.isDatasetVisible=()=>true;
+assert.match(api.toSvg(api.buildScene(missingPressure,{key:'pressure',title:'Luftdruck',timesteps})),/Keine Daten im Diagrammzeitraum/);
 console.log("PASS MOSMIX vector assets, SVG buttons and independent PDF paths.");
 // Reproduce missing TX/TN labels without the optional ChartDataLabels plugin.
 const extreme=mockChart(71);
