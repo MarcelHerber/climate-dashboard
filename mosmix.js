@@ -220,7 +220,7 @@
       '<div class="mosmix-chart-grid">',
       '<div class="mosmix-chart-card"><h4>Temperatur &amp; Taupunkt</h4><div class="mosmix-chart-wrap"><canvas id="mosmixTempChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Temperatur und Taupunkt herunterladen"><button class="mosmix-button" data-mosmix-export-chart="temp" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="temp" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF (Vektor)</button><button class="mosmix-button" data-mosmix-export-chart="temp" data-mosmix-export-format="svg" type="button" disabled title="Benannte Einzelkurven als SVG-Vektorgruppen für Illustrator und After Effects">⬇ SVG</button></div></div>',
       '<div class="mosmix-chart-card"><div class="mosmix-period-head"><h4>Niederschlag &amp; Bewölkung</h4><div class="mosmix-period-group" role="group" aria-label="Niederschlagssumme Zeitraum"><button class="mosmix-period-button active" data-mosmix-period="rain" data-hours="1" type="button">1 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="3" type="button">3 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="6" type="button">6 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="12" type="button">12 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="24" type="button">24 h</button></div></div><div class="mosmix-period-hint" id="mosmixRainPeriodInfo">DWD-Niederschlagssumme der letzten 1 Stunde</div><div class="mosmix-chart-wrap"><canvas id="mosmixRainChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Niederschlag und Bewölkung herunterladen"><button class="mosmix-button" data-mosmix-export-chart="rain" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="rain" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF (Vektor)</button><button class="mosmix-button" data-mosmix-export-chart="rain" data-mosmix-export-format="svg" type="button" disabled title="Benannte Einzelkurven als SVG-Vektorgruppen für Illustrator und After Effects">⬇ SVG</button></div></div>',
-      '<div class="mosmix-chart-card"><div class="mosmix-period-head"><h4>Wind &amp; Böen</h4><div class="mosmix-period-group" role="group" aria-label="Windböen Maximum Zeitraum"><button class="mosmix-period-button active" data-mosmix-period="gust" data-hours="1" type="button">1 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="3" type="button">3 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="12" type="button">12 h</button></div></div><div class="mosmix-period-hint" id="mosmixGustPeriodInfo">Maximale DWD-Windböe der letzten 1 Stunde</div><div class="mosmix-chart-wrap"><canvas id="mosmixWindChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Wind und Böen herunterladen"><button class="mosmix-button" data-mosmix-export-chart="wind" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="wind" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF (Vektor)</button><button class="mosmix-button" data-mosmix-export-chart="wind" data-mosmix-export-format="svg" type="button" disabled title="Benannte Einzelkurven als SVG-Vektorgruppen für Illustrator und After Effects">⬇ SVG</button></div></div>',
+      '<div class="mosmix-chart-card"><div class="mosmix-period-head"><h4>Wind &amp; Böen</h4><div class="mosmix-period-group" role="group" aria-label="Windböen Maximum Zeitraum"><button class="mosmix-period-button active" data-mosmix-period="gust" data-hours="1" type="button">1 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="3" type="button">3 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="12" type="button">12 h</button></div></div><div class="mosmix-period-hint" id="mosmixGustPeriodInfo">Maximale DWD-Windböe der letzten 1 Stunde</div><div class="mosmix-period-hint">Tagesmaximalböe: höchster verfügbarer Wert aus allen Originalintervallen (vollständig innerhalb des Kalendertags MEZ/MESZ).</div><div class="mosmix-chart-wrap"><canvas id="mosmixWindChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Wind und Böen herunterladen"><button class="mosmix-button" data-mosmix-export-chart="wind" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="wind" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF (Vektor)</button><button class="mosmix-button" data-mosmix-export-chart="wind" data-mosmix-export-format="svg" type="button" disabled title="Benannte Einzelkurven als SVG-Vektorgruppen für Illustrator und After Effects">⬇ SVG</button></div></div>',
       '<div class="mosmix-chart-card"><h4>Luftdruck</h4><div class="mosmix-chart-wrap"><canvas id="mosmixPressureChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Luftdruck herunterladen"><button class="mosmix-button" data-mosmix-export-chart="pressure" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="pressure" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF (Vektor)</button><button class="mosmix-button" data-mosmix-export-chart="pressure" data-mosmix-export-format="svg" type="button" disabled title="Benannte Einzelkurven als SVG-Vektorgruppen für Illustrator und After Effects">⬇ SVG</button></div></div>',
       '<div class="mosmix-chart-card"><h4>Sonnenschein pro Stunde &amp; Globalstrahlung</h4><div class="mosmix-period-hint">SunD1-Stundenbalken (Minuten), gleitende 24-h-Summe (Stunden) und optionale Globalstrahlung. Tagesbeschriftung: Prognose / astronomisch mögliche Dauer (Anteil in %), vollständiger Kalendertag.</div><div class="mosmix-chart-wrap"><canvas id="mosmixSunChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Stündlicher Sonnenschein herunterladen"><button class="mosmix-button" data-mosmix-export-chart="sun" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="sun" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF (Vektor)</button><button class="mosmix-button" data-mosmix-export-chart="sun" data-mosmix-export-format="svg" type="button" disabled title="Benannte Einzelkurven als SVG-Vektorgruppen für Illustrator und After Effects">⬇ SVG</button></div></div>',
       '<div class="mosmix-chart-card mosmix-chart-wide"><h4>Sonnenscheindauer pro Tag</h4><div class="mosmix-period-hint">Balken in Stunden für vollständige Kalendertage (00–24 Uhr Europe/Berlin). Beschriftung: Prognose / astronomisch mögliche Dauer (Anteil in %; ohne Horizontabschattung). Unvollständige Prognosetage und fehlende Werte werden nicht als Null dargestellt.</div><div class="mosmix-chart-wrap mosmix-chart-short"><canvas id="mosmixSunDailyChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Täglicher Sonnenschein herunterladen"><button class="mosmix-button" data-mosmix-export-chart="sunDaily" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="sunDaily" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF (Vektor)</button><button class="mosmix-button" data-mosmix-export-chart="sunDaily" data-mosmix-export-format="svg" type="button" disabled title="Benannte Einzelkurven als SVG-Vektorgruppen für Illustrator und After Effects">⬇ SVG</button></div></div>',
@@ -459,7 +459,7 @@
   function ensureVectorExport(){
     if(window.MosmixVectorExport)return Promise.resolve();
     if(!vectorLoadPromise)vectorLoadPromise=loadLibrary(
-      "./mosmix_vector_export.js?v=20261117-sun-day-labels",
+      "./mosmix_vector_export.js?v=20261117-daily-gust",
       "MOSMIX-Vektorexport").then(function(){
         if(!window.MosmixVectorExport)
           throw new Error("MOSMIX-Vektorexport konnte nicht initialisiert werden.");
@@ -689,6 +689,29 @@
     }).filter(Boolean);
   }
 
+  // Gust parameters are maxima over the preceding interval, not point
+  // observations. Only intervals contained in the local calendar day count.
+  function gustDayLabels(parameters,frames){
+    const durations=[["FX1",1],["FX3",3],["FX6",6],["FXh",12]];
+    return frames.map((frame,dayIndex)=>{
+      const indices=frame.indices,covered=new Array(indices.length).fill(false);
+      let best=-Infinity,source=null;
+      for(const [field,hours] of durations){
+        const values=parameters[field];if(!Array.isArray(values))continue;
+        for(let offset=hours-1;offset<indices.length;offset++){
+          const value=values[indices[offset]];
+          if(!Number.isFinite(value)||value<0)continue;
+          for(let j=offset-hours+1;j<=offset;j++)covered[j]=true;
+          if(value>best){best=value;source=field;}
+        }
+      }
+      if(!covered.every(Boolean)||!Number.isFinite(best))return null;
+      const text=Math.round(best)+" km/h";
+      return {dayIndex,index:(indices[0]+indices.at(-1))/2,start:indices[0],end:indices.at(-1),
+        value:best,source,text,lines:[text],narrowLines:[String(Math.round(best)),"km/h"]};
+    }).filter(Boolean);
+  }
+
   function buildSunFrames(){
     return sunDayFramesFromTimesteps(data.timesteps).map(function(frame){
       frame.valuesByKey=new Map();
@@ -801,8 +824,9 @@
   const mosmixSunDayLabelPlugin={
     id:"mosmixSunDayLabels",
     afterDatasetsDraw(chart){
-      const ds=chart.data?.datasets?.[0],records=ds?.mosmixSunLabels;
-      if(!records?.length||!chart.isDatasetVisible(0))return;
+      const wind=chart.data?.datasets?.[1]?.mosmixWindLabels;
+      const ds=chart.data?.datasets?.[wind?1:0],records=wind||ds?.mosmixSunLabels;
+      if(!records?.length||!chart.isDatasetVisible(wind?1:0))return;
       const axis=chart.scales.x,area=chart.chartArea,ctx=chart.ctx;
       if(!axis||!area||!ctx)return;
       const daily=ds.mosmixSunDaily===true;
@@ -810,7 +834,7 @@
       const width=daily?pixels/Math.max(1,axis.max-axis.min+1):pixels*24/Math.max(24,axis.max-axis.min+1);
       const size=width<45?9:width<80?10:12,lineHeight=size+2;
       ctx.save();ctx.font="600 "+size+"px Arial";ctx.textAlign="center";ctx.textBaseline="alphabetic";
-      ctx.fillStyle=chart.options.color||"#334155";
+      ctx.fillStyle=wind?"#d97706":chart.options.color||"#334155";
       for(const r of records){
         const index=daily?r.dayIndex:r.index;
         if(daily?(index<axis.min||index>axis.max):(r.start<axis.min||r.end>axis.max))continue;
@@ -997,6 +1021,7 @@
     }));
 
     const windOptions = baseChartOptions("km/h");
+    const dailyGusts=gustDayLabels(p,sunDayFramesFromTimesteps(data.timesteps));
     windOptions.scales.y.beginAtZero = true;
     windOptions.plugins.tooltip.callbacks = {
       afterBody:function(items) {
@@ -1010,7 +1035,7 @@
       type:"line",
       data:{labels:labels,datasets:[
         Object.assign({label:"Wind",data:p.FF || [],borderColor:"#15806c",backgroundColor:"rgba(21,128,108,.06)"},commonLine),
-        Object.assign({label:gustPeriod+"-h-Maximalböe",data:p[GUST_PERIODS[gustPeriod]] || [],borderColor:"#d97706",backgroundColor:"rgba(217,119,6,.06)",borderDash:[5,3]},commonLine)
+        Object.assign({label:gustPeriod+"-h-Maximalböe",data:p[GUST_PERIODS[gustPeriod]] || [],borderColor:"#d97706",backgroundColor:"rgba(217,119,6,.06)",borderDash:[5,3],mosmixWindLabels:dailyGusts},commonLine)
       ]},
       options:windOptions
     }));
