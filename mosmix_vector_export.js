@@ -40,7 +40,8 @@ function drawScene(chart,info){
   const xScale=chart.scales.x,labels=chart.data.labels||[];
   const minX=num(xScale.min)?xScale.min:0;
   const maxX=num(xScale.max)?xScale.max:labels.length-1;
-  if(maxX<=minX)throw Error("Ungültiger Diagrammzeitraum.");
+  const daily=info.key==="sunDaily";
+  if(maxX<minX||(!daily&&maxX===minX))throw Error("Ungültiger Diagrammzeitraum.");
   const visible=chart.data.datasets.map((ds,i)=>({ds,i})).filter(o=>datasetVisible(chart,o.i));
   if(!visible.length)throw Error("Keine sichtbaren Datenreihen.");
   const caption=info.title||"MOSMIX-Diagramm";
@@ -57,7 +58,7 @@ function drawScene(chart,info){
   });
   const TOP=Math.max(171,legendY+39);
   const plot={x:LEFT,y:TOP,w:RIGHT-LEFT,h:BOTTOM-TOP};
-  const xAt=index=>plot.x+(index-minX)/(maxX-minX)*plot.w;
+  const xAt=index=>daily?plot.x+(index-minX+.5)/(maxX-minX+1)*plot.w:plot.x+(index-minX)/(maxX-minX)*plot.w;
   const yAt=(v,s)=>plot.y+(1-(v-s.min)/(s.max-s.min))*plot.h;
   axes.push({kind:"rect",x:plot.x,y:plot.y,w:plot.w,h:plot.h,stroke:[203,213,225],fill:null,width:1});
   const yScale=chart.scales.y;
@@ -165,6 +166,20 @@ function drawScene(chart,info){
     }
     series.push({id:"serie-"+(i+1)+"-"+slug(name),name,items});
   });
+  const sunRecords=visible.find(o=>o.i===0)?.ds.mosmixSunLabels;
+  if((info.key==="sun"||daily)&&sunRecords?.length){
+    const width=daily?plot.w/(maxX-minX+1):plot.w*24/Math.max(24,maxX-minX+1);
+    const size=width<65?11:14,lineHeight=size+3,items=[];
+    for(const r of sunRecords){
+      const index=daily?r.dayIndex:r.index;
+      if(daily?(index<minX||index>maxX):(r.start<minX||r.end>maxX))continue;
+      const lines=width>=180?[r.text]:width>=85?r.lines:r.narrowLines;
+      const x=xAt(index);
+      const y=daily?Math.max(TOP+size+4,yAt(r.hours,yScale)-lines.length*lineHeight-5):TOP+size+5;
+      lines.forEach((text,j)=>items.push({kind:"text",x,y:y+j*lineHeight,text,size,bold:true,align:"center",color:[63,79,96]}));
+    }
+    if(items.length)series.push({id:"tagesbeschriftungen",name:"Tagesbeschriftungen",items});
+  }
   if(!series.some(s=>s.items.length))throw Error("Keine sichtbaren Vektordaten im Diagrammzeitraum.");
   const header=[
     {kind:"text",x:LEFT,y:38,text:"DWD MOSMIX-L · "+caption,size:27,bold:true,color:[17,33,55]},
