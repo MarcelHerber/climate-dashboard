@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-11-16T22:59:37+00:00",
+  "generated_utc": "2026-11-17T09:26:45+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -769,7 +769,7 @@
     },
     "dhmz": {
       "state": "unavailable",
-      "reason": "ValueError: DHMZ picture is outdated or implausible: printed 2026-11-27T12:00:00+00:00"
+      "reason": "ValueError: DHMZ map lacks an unambiguous Croatian printed UTC date"
     },
     "imo": {
       "state": "unavailable",
@@ -777,28 +777,6 @@
     }
   },
   "charts": [
-    {
-      "source_id": "dwd",
-      "kind": "Analyse",
-      "valid_utc": "2026-11-15T00:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261115024108_tka01%2Cana_bwkman_dwdna_O_000000_000000_202611150000_WV12.png",
-      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
-      "credit": "© Deutscher Wetterdienst (DWD)",
-      "image": "images/dwd_20261115_0000.webp",
-      "size_bytes": 1435838
-    },
-    {
-      "source_id": "dwd",
-      "kind": "Analyse",
-      "valid_utc": "2026-11-15T06:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261115090504_tka01%2Cana_bwkman_dwdna_O_000000_000000_202611150600_WV12.png",
-      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
-      "credit": "© Deutscher Wetterdienst (DWD)",
-      "image": "images/dwd_20261115_0600.webp",
-      "size_bytes": 1433660
-    },
     {
       "source_id": "dwd",
       "kind": "Analyse",
@@ -844,18 +822,6 @@
       "size_bytes": 1473336
     },
     {
-      "source_id": "aemet",
-      "kind": "Analyse",
-      "valid_utc": "2026-11-16T12:00+00:00",
-      "issued_utc": "2026-11-16T12:00+00:00",
-      "forecast_hours": 0,
-      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026111612+000_ww_gpx0a200.gif",
-      "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
-      "credit": "© AEMET · Agencia Estatal de Meteorología",
-      "image": "images/aemet_20261116_1200.webp",
-      "size_bytes": 314346
-    },
-    {
       "source_id": "dwd",
       "kind": "Analyse",
       "valid_utc": "2026-11-16T12:00+00:00",
@@ -878,40 +844,65 @@
       "size_bytes": 1451794
     },
     {
-      "source_id": "knmi",
-      "publisher_id": "knmi",
-      "kind": "Analyse",
-      "valid_utc": "2026-11-16T18:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/AL1618_large.gif",
-      "source_page": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten/",
-      "credit": "Quelle: KNMI · CC0, soweit keine Ausnahme",
-      "image": "images/knmi_20261116_1800.webp",
-      "size_bytes": 178958
-    },
-    {
       "source_id": "aemet",
-      "kind": "Prognose",
+      "kind": "Analyse",
       "valid_utc": "2026-11-17T00:00+00:00",
-      "issued_utc": "2026-11-16T12:00+00:00",
-      "forecast_hours": 12,
-      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026111612+012_ww_g1x0a212.gif",
+      "issued_utc": "2026-11-17T00:00+00:00",
+      "forecast_hours": 0,
+      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026111700+000_ww_gpx0a000.gif",
       "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
       "credit": "© AEMET · Agencia Estatal de Meteorología",
       "image": "images/aemet_20261117_0000.webp",
-      "size_bytes": 334300
+      "size_bytes": 313790
+    },
+    {
+      "source_id": "chmi",
+      "publisher_id": "chmi",
+      "kind": "Analyse",
+      "valid_utc": "2026-11-17T00:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa",
+      "source_page": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+      "credit": "© Český hydrometeorologický ústav (ČHMÚ) · CC BY 4.0 · in WebP konvertiert",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "provider_timeline_utc": "2026-11-17T11:00+00:00",
+      "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
+      "image": "images/chmi_20261117_0000.webp",
+      "size_bytes": 296524
+    },
+    {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-11-17T00:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261117015554_tka01%2Cana_bwkman_dwdna_O_000000_000000_202611170000_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261117_0000.webp",
+      "size_bytes": 1424752
+    },
+    {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-11-17T06:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261117074053_tka01%2Cana_bwkman_dwdna_O_000000_000000_202611170600_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261117_0600.webp",
+      "size_bytes": 1439034
     },
     {
       "source_id": "knmi",
       "publisher_id": "knmi",
-      "kind": "Prognose",
-      "valid_utc": "2026-11-17T00:00+00:00",
+      "kind": "Analyse",
+      "valid_utc": "2026-11-17T06:00+00:00",
       "issued_utc": null,
-      "source_url": "https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/PL1700_large.gif",
+      "source_url": "https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/AL1706_large.gif",
       "source_page": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten/",
       "credit": "Quelle: KNMI · CC0, soweit keine Ausnahme",
-      "image": "images/knmi_20261117_0000.webp",
-      "size_bytes": 184962
+      "image": "images/knmi_20261117_0600.webp",
+      "size_bytes": 178788
     },
     {
       "source_id": "aemet",
@@ -924,21 +915,6 @@
       "credit": "© AEMET · Agencia Estatal de Meteorología",
       "image": "images/aemet_20261117_1200.webp",
       "size_bytes": 333160
-    },
-    {
-      "source_id": "chmi",
-      "publisher_id": "chmi",
-      "kind": "Analyse",
-      "valid_utc": "2026-11-17T12:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa",
-      "source_page": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
-      "credit": "© Český hydrometeorologický ústav (ČHMÚ) · CC BY 4.0 · in WebP konvertiert",
-      "license_url": "https://creativecommons.org/licenses/by/4.0/",
-      "provider_timeline_utc": "2026-11-17T11:00+00:00",
-      "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
-      "image": "images/chmi_20261117_1200.webp",
-      "size_bytes": 282756
     },
     {
       "source_id": "knmi",
@@ -1004,6 +980,18 @@
       "size_bytes": 282364
     },
     {
+      "source_id": "knmi",
+      "publisher_id": "knmi",
+      "kind": "Prognose",
+      "valid_utc": "2026-11-18T12:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/PL1812_large.gif",
+      "source_page": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten/",
+      "credit": "Quelle: KNMI · CC0, soweit keine Ausnahme",
+      "image": "images/knmi_20261118_1200.webp",
+      "size_bytes": 174224
+    },
+    {
       "source_id": "aemet",
       "kind": "Prognose",
       "valid_utc": "2026-11-19T00:00+00:00",
@@ -1014,6 +1002,18 @@
       "credit": "© AEMET · Agencia Estatal de Meteorología",
       "image": "images/aemet_20261119_0000.webp",
       "size_bytes": 330774
+    },
+    {
+      "source_id": "aemet",
+      "kind": "Prognose",
+      "valid_utc": "2026-11-19T12:00+00:00",
+      "issued_utc": "2026-11-16T12:00+00:00",
+      "forecast_hours": 72,
+      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026111612+072_ww_g1x0a2d3.gif",
+      "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "credit": "© AEMET · Agencia Estatal de Meteorología",
+      "image": "images/aemet_20261119_1200.webp",
+      "size_bytes": 319570
     },
     {
       "source_id": "chmi",
@@ -1032,8 +1032,6 @@
     }
   ],
   "time_slots": [
-    "2026-11-15T00:00+00:00",
-    "2026-11-15T06:00+00:00",
     "2026-11-15T12:00+00:00",
     "2026-11-15T18:00+00:00",
     "2026-11-16T00:00+00:00",
@@ -1041,6 +1039,7 @@
     "2026-11-16T12:00+00:00",
     "2026-11-16T18:00+00:00",
     "2026-11-17T00:00+00:00",
+    "2026-11-17T06:00+00:00",
     "2026-11-17T12:00+00:00",
     "2026-11-18T00:00+00:00",
     "2026-11-18T12:00+00:00",
