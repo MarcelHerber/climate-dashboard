@@ -68,17 +68,19 @@ try{
         config.data.datasets[0].mosmixSunLabels=[{dayIndex:1,index:35.5,start:24,end:47,hours:1.7,possibleHours:9.1,percent:19,text:'1,7 / 9,1 h (19 %)',lines:['1,7 / 9,1 h','(19 %)'],narrowLines:['1,7 h','/ 9,1 h','(19 %)']}];
         config.data.datasets[0].mosmixSunDaily=i===5;
       }
+      if(i===2)config.data.datasets[1].mosmixWindLabels=[{dayIndex:1,index:35.5,start:24,end:47,value:74,source:'FXh',text:'74 km/h',lines:['74 km/h'],narrowLines:['74','km/h']}];
       if(i===5)config.options.scales.x.max=3;
       const chart=new Chart(document.getElementById(id),config);
       chart.options.scales.x.min=i===5?0:6;
       chart.options.scales.x.max=i===5?3:54;
       const drawn=[];
-      if(i===4||i===5){
+      if(i===2||i===4||i===5){
         const original=chart.ctx.fillText;
         chart.ctx.fillText=function(text,...args){drawn.push(String(text));return original.call(this,text,...args);};
       }
       chart.update("none");
       if((i===4||i===5)&&!drawn.some(s=>s.includes('19 %')))throw Error('Missing daily sunshine label in '+id);
+      if(i===2&&!drawn.some(s=>s.includes('74')))throw Error('Missing daily maximum gust label in '+id);
       return chart;
     });
     const dependencies={
@@ -131,6 +133,7 @@ try{
       assert.match(svg,/inkscape:label=/);
       assert.doesNotMatch(svg,/<image\b/);
       if(key==='sun'||key==='sunDaily')assert.match(svg,/19 %/);
+      if(key==='wind')assert.match(svg,/74 km\/h/);
     }else assert.deepEqual([...readFile(path).subarray(0,8)],[137,80,78,71,13,10,26,10]);
     console.log("MOSMIX SINGLE EXPORT",vp.name,key,format,statSync(path).size,"bytes");
   }
