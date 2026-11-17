@@ -13,17 +13,21 @@ const PINK="#c6a2bb",HALO="#18283a";
 const esc=s=>String(s||"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^ -~]/g,"?").replace(/[\\()]/g,c=>"\\"+c);
 const fmt=s=>Number(s).toFixed(3).replace(/\.000$/,"");
 const inBounds=(p,b)=>p[0]>=b[0]&&p[0]<=b[2]&&p[1]>=b[1]&&p[1]<=b[3];
+const isDisk=r=>Boolean(window.SatelliteProjection?.isDisk?.(r));
+const DISK_BBOX=[-83,-83,83,83];
 function pathsFor(overlay,region){
- const bbox=BBOX[region];
+ const disk=isDisk(region),bbox=disk?DISK_BBOX:BBOX[region];
  if(!bbox||!overlay||!Array.isArray(overlay.contours)||!overlay.contours.length)
   throw Error("Keine realen ECMWF-Konturen für den Kartenexport verfügbar.");
+ if(disk&&overlay.coverage!=='full-disk')throw Error('Keine verifizierten Erdscheiben-Isobaren; regionale Ersatzkonturen sind unzulässig.');
  if(!window.SatelliteIsobarGeometry?.prepare)
   throw Error("Gemeinsamer Isobarenfilter fehlt.");
- const groups=window.SatelliteIsobarGeometry.prepare(overlay.contours,bbox,overlay.spacing||5);
+ const groups=disk?window.SatelliteIsobarGeometry.prepareDisk(overlay.contours,region,overlay.spacing||5):window.SatelliteIsobarGeometry.prepare(overlay.contours,bbox,overlay.spacing||5);
  if(!groups.length)throw Error("Keine ausreichend langen, sauberen Isobaren in diesem Kartenausschnitt.");
  return groups;
 }
 function project(point,region,x,y,w,h){
+ if(isDisk(region))return [x+point[0]*w/1000,y+point[1]*h/1000];
  const [minX,minY,maxX,maxY]=BBOX[region];
  return [x+(point[0]-minX)/(maxX-minX)*w,y+(maxY-point[1])/(maxY-minY)*h];
 }
@@ -148,6 +152,7 @@ function drawPDFFronts(fronts,region,w,h,bottom,satelliteUTC){
 
 function pressureCenters(overlay,region){
  const b=BBOX[region],geo=window.SatelliteIsobarGeometry;
+ if(isDisk(region))return overlay?.coverage==='full-disk'?geo.diskCenters(overlay,region):[];
  if(!b||!geo?.detectVisiblePressureSystems||!Array.isArray(overlay?.contours))return [];
  const caps={atlantic:8,europe:6,southwest:5,central:3,germany:2};
  const opts={minRings:Number(overlay.spacing)===2?6:3,
@@ -158,6 +163,7 @@ function pressureCenters(overlay,region){
  return model??geo.detectVisiblePressureSystems(overlay.contours,b,opts);
 }
 function pressureFontSize(overlay,region,width,height,previous){
+ if(isDisk(region))return Math.min(previous,36*width/1000,36*height/(region==='north'?500:1000));
  if(!["ifs_mslp_grid_extrema_v3","ifs_mslp_grid_extrema_v4"].includes(overlay?.pressure_centers_method))return previous;
  const ref=window.SatelliteIsobarGeometry.pressureReferenceHeight(BBOX[region]);
  return Math.min(previous,29.16*width/720,29.16*height/ref);
@@ -165,6 +171,12 @@ function pressureFontSize(overlay,region,width,height,previous){
 function annotationLayout(overlay,region,width,height,{groups=[],cities=[]}={}){
  const geo=window.SatelliteIsobarGeometry;
  const unit=Math.max(.75,Math.min(1.8,width/900));
+ if(isDisk(region)){
+  if(overlay?.coverage!=='full-disk')throw Error('Keine verifizierten Erdscheiben-Druckzentren.');
+  return geo.layoutDiskPressureAnnotations(overlay,groups,region,{width,height,
+   fontSize:pressureFontSize(overlay,region,width,height,1.5*Math.max(17,Math.min(35,Math.round(width*.022)))),
+   labelWidth:48*unit,labelHeight:20*unit,cityAnchors:cities});
+ }
  return geo.layoutPressureAnnotations(pressureCenters(overlay,region),groups,BBOX[region],{
   width,height,fontSize:pressureFontSize(overlay,region,width,height,1.5*Math.max(17,Math.min(35,Math.round(width*.022)))),
   labelWidth:48*unit,labelHeight:20*unit,cityAnchors:cities
@@ -241,8 +253,10 @@ function advectionLayout(overlay,region,w,h){
  if(!overlay.advectionLevel)return [];
  const api=window.SatelliteAdvection;
  if(!api||!api.levels.includes(overlay.advectionLevel)||!Array.isArray(overlay.advectionMarkers))throw Error('Verifizierte Advektion für den Export fehlt.');
- const blocked=(overlay.pressure_centers||[]).map(m=>project([m.lon,m.lat],region,0,0,w,h));
- return api.layout(overlay.advectionMarkers,BBOX[region],w,h,api.limits[region],blocked);
+ const disk=isDisk(region);
+ if(disk&&overlay.coverage!=='full-disk')throw Error('Keine verifizierten Erdscheiben-Advektionsdaten.');
+ const blocked=(overlay.pressure_centers||[]).map(m=>disk?window.SatelliteProjection.project(region,m.lon,m.lat,w,h):project([m.lon,m.lat],region,0,0,w,h)).filter(Boolean);
+ return api.layout(overlay.advectionMarkers,disk?DISK_BBOX:BBOX[region],w,h,api.limits[region],blocked,region);
 }
 function paintAdvection(ctx,overlay,region,{x=0,y=0,width,height}){
  const arrows=advectionLayout(overlay,region,width,height);
@@ -277,6 +291,18 @@ function rasterCanvas(image){
  ctx.drawImage(image,0,0,w,h);
  return c;
 }
+function paintDiskGeography(ctx,options,area){
+ if(!isDisk(options.region)||options.geographyRasterized)return;
+ const geo=window.SatelliteOverlay;
+ if(options.includeBorders){
+  if(!geo?.paintBorders)throw Error('Natural-Earth-Grenzen fehlen für den Erdscheibenexport.');
+  geo.paintBorders(ctx,options.region,area);
+ }
+ if(options.includeCities){
+  if(!geo?.paintCities)throw Error('Städtefunktion fehlt für den Erdscheibenexport.');
+  geo.paintCities(ctx,options.region,area);
+ }
+}
 async function renderPNG(options){
  const image=options.image;
  if(!options.overlay?.validUTC)throw Error("Keine gültigen Isobaren zum ausgewählten Satellitenbild.");
@@ -290,7 +316,9 @@ async function renderPNG(options){
  ctx.font=Math.max(12,Math.round(w*.013))+"px Arial";
  ctx.fillText(provenance(options),18,Math.round(header*.78),w-32);
  ctx.drawImage(image,0,header,w,h);
- paintIsobars(ctx,options.overlay,options.region,{x:0,y:header,width:w,height:h});
+ const area={x:0,y:header,width:w,height:h};
+ paintDiskGeography(ctx,options,area);
+ paintIsobars(ctx,options.overlay,options.region,area,isDisk(options.region)&&options.includeCities?(window.SatelliteOverlay?.cityAnchors?.(options.region)||[]):[]);
  paintFronts(ctx,options.fronts,options.region,{x:0,y:header,width:w,height:h},options.overlay.satelliteUTC);
  ctx.fillStyle="#10263f";ctx.font=Math.max(11,Math.round(w*.014))+"px Arial";
  ctx.fillText(footerLine(options),18,header+h+Math.round(footer*.5),w-32);
@@ -376,6 +404,7 @@ async function renderPDF(options){
  const o=options.overlay;
  if(!o?.validUTC)throw Error("Keine UTC-validierten Modell-Isobaren verfügbar.");
  const base=rasterCanvas(options.image);
+ paintDiskGeography(base.getContext('2d'),options,{x:0,y:0,width:base.width,height:base.height});
  const jpeg=base.toDataURL("image/jpeg",.93);
  if(!jpeg.startsWith("data:image/jpeg;base64,"))throw Error("PDF-Hintergrundbild konnte nicht codiert werden.");
  const b64=jpeg.slice(jpeg.indexOf(",")+1),raw=atob(b64);
@@ -424,5 +453,5 @@ function download(result){
  setTimeout(()=>URL.revokeObjectURL(u),60000);
  return result.blob.size;
 }
-window.SatelliteMapExport={paintIsobars,paintAdvection,paintFronts,frontLayout,frontFeatures,paintPressureCenters,pressureCenters,placedCenters,annotationLayout,pathsFor,renderPNG,renderPDF,download};
+window.SatelliteMapExport={paintIsobars,paintAdvection,paintFronts,frontLayout,frontFeatures,paintPressureCenters,pressureCenters,placedCenters,annotationLayout,pathsFor,paintDiskGeography,renderPNG,renderPDF,download};
 })();

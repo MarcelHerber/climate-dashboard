@@ -37,7 +37,8 @@ const REGIONS={
  southwest:{name:"Südwesteuropa · Azoren & Kanaren",bbox:[-37,24,19,53],w:1200,h:620},
  central:{name:"Mitteleuropa",bbox:[-2,43,25,58],w:1300,h:780},
  germany:{name:"Deutschland",bbox:[5,47,16,56],w:1140,h:950},
- disk:{name:"Erdscheibe",bbox:[-6500000,-6500000,6500000,6500000],w:1400,h:1400}
+ disk:{name:"Erdscheibe",bbox:[-6500000,-6500000,6500000,6500000],w:1400,h:1400},
+ north:{name:"Nordhalbkugel · maximal sichtbarer Bereich",bbox:[-6500000,0,6500000,6500000],w:1400,h:700}
 };
 const id=x=>document.getElementById(x);
 const source=id("satSource"),product=id("satProduct"),region=id("satRegion"),time=id("satTime"),image=id("satImage"),empty=id("satEmpty"),status=id("satStatus");
@@ -141,12 +142,12 @@ function buttons(){
  next.disabled=!ready||index>=frames.length-1;
  play.disabled=!ready||index<1||exportBusy;
  gif.disabled=filmItems.length<2||source.value!=="mtgi1"||filmLoading||exportBusy;
- gifIso.disabled=gif.disabled||region.value==="disk"||!window.SatelliteMapExport;
+ gifIso.disabled=gif.disabled||!window.SatelliteMapExport;
  mp4.disabled=filmItems.length<2||source.value!=="mtgi1"||filmLoading||exportBusy||!exporters?.supportsMP4();
  mp4.title=exporters?.supportsMP4()?"Echten MP4/H.264-Film herunterladen":"MP4/H.264 in diesem Browser nicht unterstützt";
  time.disabled=!frames.length||source.value!=="mtgi1";
  png.disabled=!loaded||source.value!=="mtgi1"||exportBusy;
- pngIso.disabled=png.disabled||region.value==="disk"||exportBusy||!window.SatelliteMapExport;
+ pngIso.disabled=png.disabled||exportBusy||!window.SatelliteMapExport;
  pdfIso.disabled=pngIso.disabled;
  updateTimeline();
 }
@@ -154,7 +155,7 @@ function formatUTC(t){return new Intl.DateTimeFormat("de-DE",{timeZone:"UTC",day
 function imageUrl(t,previewWidth=0){const layer=description(),r=REGIONS[region.value];
  const w=previewWidth?Math.min(previewWidth,r.w):r.w;
  const h=previewWidth?Math.max(1,Math.round(r.h*w/r.w)):r.h;
- const params=new URLSearchParams({service:"WMS",version:"1.1.1",request:"GetMap",layers:layer.layer,styles:"",format:"image/png",transparent:"false",srs:region.value==="disk"?"AUTO:97004,9001,0,0":"EPSG:4326",bbox:r.bbox.join(","),width:String(w),height:String(h),bgcolor:"0x000000"});
+ const params=new URLSearchParams({service:"WMS",version:"1.1.1",request:"GetMap",layers:layer.layer,styles:"",format:"image/png",transparent:"false",srs:["disk","north"].includes(region.value)?"AUTO:97004,9001,0,0":"EPSG:4326",bbox:r.bbox.join(","),width:String(w),height:String(h),bgcolor:"0x000000"});
  if(t)params.set("time",t);
  return API+"?"+params.toString();
 }
@@ -173,7 +174,7 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
  window.SatelliteNOAAFronts?.sync({time:t,region:region.value,source:source.value});
  window.SatelliteLightning?.sync({time:t,region:region.value,source:source.value});
  window.SatelliteRadar?.sync({time:t,region:region.value,source:source.value});
- const projection=region.value==="disk"?"AUTO:97004 (geostationär)":"EPSG:4326";
+ const projection=["disk","north"].includes(region.value)?"AUTO:97004 (geostationär)":"EPSG:4326";
  const note=t?"WMS · "+projection+" · UTC aus GetCapabilities":"WMS · "+projection+" · serverseitiger Standardzeitpunkt, nicht als live bestätigt";
  id("satImageInfo").textContent=note;
  // Display light previews first. Only the explicit raw-image/PNG action requests full resolution.
@@ -627,7 +628,6 @@ async function exportFilm(format){
  const fullHD=format==="mp4"&&id("satMp4Quality")?.value==="fhd";
  if(fullHD){
   if(images.length>12){setStatus("Full-HD-MP4 ist auf maximal 12 Aufnahmen begrenzt. Wähle einen kürzeren Film.","warning");return;}
-  if(region.value==="disk"){setStatus("Full-HD benötigt einen geografischen Ausschnitt, nicht die Erdscheibe.","warning");return;}
   if(!window.SatelliteFHD?.loadFrames){setStatus("Full-HD-WMS-Modul nicht geladen.","error");return;}
  }
  const generation=token,place=region.value,code=product.value;
@@ -761,7 +761,8 @@ async function downloadComposite(format){
   const fronts=window.SatelliteFrontsPaused===true?null:(await window.SatelliteNOAAFronts?.exportAt?.(t,place)||null);
   const img=await exportPixels(t);
   const arg={image:img,overlay,fronts,region:place,regionName:REGIONS[place].name,product:product.value,
-   productName:description().name,credit:description().credit};
+   productName:description().name,credit:description().credit,
+   includeBorders:Boolean(id("satShowBorders")?.checked),includeCities:Boolean(id("satShowCities")?.checked)};
   const result=format==="pdf"?await composite.renderPDF(arg):await composite.renderPNG(arg);
   const bytes=composite.download(result);
   setStatus(format.toUpperCase()+" mit pinken Isobaren gespeichert ("+(bytes/1048576).toFixed(1)+
@@ -788,6 +789,7 @@ async function downloadGIFIsobars(){
   const result=await exporters.exportGIF({
    frames:selected,isobarOverlays:overlays,frontOverlays:withFronts?frontOverlays:null,region:place,product:product.value,
    productName:description().name,credit:description().credit,
+   includeBorders:Boolean(id("satShowBorders")?.checked),includeCities:Boolean(id("satShowCities")?.checked),
    width:Math.min(480,Number(filmQuality.value)||320),delayMs:Number(filmSpeed.value)||750,
    progress:(n,total)=>setStatus("GIF mit pinken Isobaren: "+n+"/"+total,"info")
   });

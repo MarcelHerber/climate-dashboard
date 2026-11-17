@@ -19,7 +19,7 @@ function node(){
   toggleAttribute(k,force){if(force){this.attrs[k]="";if(k==="hidden")this.hidden=true;}else{delete this.attrs[k];if(k==="hidden")this.hidden=false;}return Boolean(force)}
  };
 }
-async function fixture(){
+async function fixture(projected=false){
  const names=["satImageStack","satBordersSvg","satCitiesLayer","satShowBorders","satShowCities",
   "satOverlayHint","satRegion","satSource"];
  const els=Object.fromEntries(names.map(k=>[k,node()]));
@@ -28,12 +28,14 @@ async function fixture(){
   document:{getElementById:id=>els[id],createElement:()=>node(),
    createElementNS:()=>node()},
   window:{},console:{warn(){}},
-  fetch:async url=>{assert.equal(url,"./data/blocking/borders_50m.json");return{ok:true,json:async()=>geo}}
+  fetch:async url=>{if(projected&&url==="./data/satellite_borders_50m.json")return{ok:true,json:async()=>JSON.parse(fs.readFileSync("data/satellite_borders_50m.json","utf8"))};assert.equal(url,"./data/blocking/borders_50m.json");return{ok:true,json:async()=>geo}}
  };
+ if(projected)vm.runInNewContext(fs.readFileSync("satellite_projection.js","utf8"),sandbox);
  vm.runInNewContext(js,sandbox,{timeout:1000});
  for(let i=0;i<12&&!els.satBordersSvg.children.length;i++){
   await new Promise(resolve=>setTimeout(resolve,5));
  }
+ els.overlay=sandbox.window.SatelliteOverlay;
  return els;
 }
 test("Natural Earth geography covers the Azores, Madeira, Canaries, Newfoundland and Iceland",()=>{
@@ -64,7 +66,7 @@ test("Borders and cities line up with the southwest EPSG:4326 WMS viewport",asyn
  assert.ok(Math.abs(parseFloat(a.style.left)-expectedX)<0.002);
  assert.ok(Math.abs(parseFloat(a.style.top)-expectedY)<0.002);
 });
-test("Overlays are togglable and are suppressed on geostationary disk and MTG-I2",async()=>{
+test("Overlays are togglable and safely suppressed without disk projection helper and on MTG-I2",async()=>{
  const e=await fixture();
  e.satShowBorders.checked=false;e.satShowBorders.fire("change");
  assert.equal(e.satBordersSvg.hidden,true);
@@ -84,6 +86,47 @@ test("Overlays are togglable and are suppressed on geostationary disk and MTG-I2
  assert.equal(e.satBordersSvg.hidden,false);
  assert.ok(e.satCitiesLayer.children.some(x=>x.textContent==="Nuuk"));
  assert.match(e.satOverlayHint.textContent,/südlich 25°N/);
+});
+test("Whole-disc border data and geostationary city overlays work on screen and export",async()=>{
+ const world=JSON.parse(fs.readFileSync("data/satellite_borders_50m.json","utf8"));
+ assert.equal(world.schema_version,1);
+ assert.match(world.source,/Natural Earth 1:50m/);
+ const points=world.lines.flat();
+ // Distinct coasts in the old footprint's newly covered sectors.
+ for(const [west,south,east,north] of [[-18,3,-15,15],[-37,-7,-30,-3],[16,-35,20,-28],[49,17,60,28]]){
+  assert.ok(points.some(([lon,lat])=>lon>=west&&lon<=east&&lat>=south&&lat<=north));
+ }
+ const e=await fixture(true);
+ // HD export has its own borders choice, independent of the screen toggle.
+ e.satShowBorders.checked=false;
+ e.satRegion.value="disk";e.satRegion.fire("change");
+ for(let i=0;i<30&&!e.satOverlayHint.textContent.includes("WGS84");i++)await new Promise(r=>setTimeout(r,10));
+ assert.match(e.satOverlayHint.textContent,/WGS84/);
+ assert.equal(e.satBordersSvg.hidden,true);
+ e.satShowBorders.checked=true;e.satShowBorders.fire("change");
+ assert.equal(e.satShowBorders.disabled,false);
+ assert.equal(e.satBordersSvg.hidden,false);
+ assert.ok(e.satBordersSvg.children[0].attrs.d.length>10000);
+ assert.ok(e.satCitiesLayer.children.some(x=>x.textContent==="Johannesburg"));
+ const anchors=e.overlay.cityAnchors("disk");
+ assert.ok(anchors.some(x=>x.name==="Johannesburg"));
+ const calls=[],labels=[];
+ const ctx={save(){},restore(){},beginPath(){},rect(){},clip(){},moveTo(x,y){calls.push([x,y])},lineTo(x,y){calls.push([x,y])},stroke(){},arc(){},fill(){},strokeText(){},fillText(name,x,y){labels.push([name,x,y])}};
+ assert.ok(e.overlay.paintBorders(ctx,"disk",{width:1400,height:1400})>100);
+ assert.ok(calls.some(([,y])=>y>700));
+ assert.ok(e.overlay.paintCities(ctx,"disk",{width:1400,height:1400})>10);
+ assert.ok(labels.some(([name,x,y])=>name==="Johannesburg"&&x>700&&y>700));
+ e.satRegion.value="north";e.satRegion.fire("change");
+ assert.equal(e.satShowBorders.disabled,false);
+ assert.equal(e.satBordersSvg.hidden,false);
+ assert.equal(e.satImageStack.style.aspectRatio,"1400/700");
+ assert.ok(!e.satCitiesLayer.children.some(x=>x.textContent==="Johannesburg"));
+ calls.length=0;
+ assert.ok(e.overlay.paintBorders(ctx,"north",{width:1400,height:700})>100);
+ assert.ok(calls.every(([x,y])=>x>=0&&x<=1400&&y>=0&&y<=700));
+ labels.length=0;
+ assert.ok(e.overlay.paintCities(ctx,"north",{width:1400,height:700})>5);
+ assert.ok(labels.every(([name,x,y])=>name!=="Johannesburg"&&x>=0&&x<=1400&&y>=0&&y<=700));
 });
 test("Satellite overlay assets are built and mobile controls remain accessible",()=>{
  assert.match(html,/<script defer src="satellite_overlay\.js(?:\?[^"]+)?"><\/script>/);

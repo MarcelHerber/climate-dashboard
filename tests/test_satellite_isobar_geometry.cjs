@@ -10,6 +10,27 @@ function shared(){
  vm.runInNewContext(geometry,sandbox,{timeout:3000});
  return sandbox.window.SatelliteIsobarGeometry;
 }
+test('disk and north geometry clips source lines, labels and independent native-grid centers',()=>{
+ const projection={isDisk:r=>['disk','north'].includes(r),project:(r,lon,lat,w,h)=>Math.abs(lon)<=80&&(r==='disk'||lat>=0)?[w*(.5+lon/200),h*(.5-lat/200)]:null,
+  paths(r,line,w,h){return [line.map(p=>this.project(r,...p,w,h)).filter(Boolean)];},
+  containsPixel:(r,x,y,w,h)=>x>=0&&y>=0&&x<=w&&y<=h};
+ const sandbox={window:{SatelliteProjection:projection},Math,Number};
+ vm.runInNewContext(geometry,sandbox);
+ const geo=sandbox.window.SatelliteIsobarGeometry;
+ const frame={contours:[{hpa:1010,lines:[[[-60,-10],[-20,-10],[20,-10],[60,-10],[100,-10]]]}],
+  pressure_centers_method:'ifs_mslp_grid_extrema_v4',pressure_centers:[
+   {type:'T',lon:20,lat:-25,pressure_hpa:990,score:70,prominence_hpa:8},
+   {type:'H',lon:-25,lat:25,pressure_hpa:1035,score:70,prominence_hpa:8},
+   {type:'H',lon:100,lat:10,pressure_hpa:1035,score:70,prominence_hpa:8}]};
+ const groups=geo.prepareDisk(frame.contours,'disk',5);
+ assert.equal(groups.length,1);
+ assert.equal(groups[0].runs[0].length,4);
+ const result=geo.layoutDiskPressureAnnotations(frame,groups,'disk',{width:1000,height:1000});
+ assert.equal(result.centers.length,2);
+ assert.ok(result.centers.some(c=>c.lat<0&&c.anchorY>500));
+ assert.equal(geo.prepareDisk(frame.contours,'north',5).length,0);
+ assert.equal(geo.layoutDiskPressureAnnotations(frame,[],'north',{width:1000,height:500}).centers.length,1);
+});
 function location(nx,ny){
  return [bbox[0]+nx/1000*(bbox[2]-bbox[0]),
          bbox[3]-ny/1000*(bbox[3]-bbox[1])];

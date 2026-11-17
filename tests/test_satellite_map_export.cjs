@@ -17,7 +17,7 @@ const sourceOverlay={validUTC:"2026-11-12T03:20:00Z",satelliteUTC:"2026-11-12T03
   {hpa:1015,lines:[[[-30,40],[-26,41],[-22,42],[-18,43],[-14,43],[-10,44],[-5,44],[-2,45]]]}
  ]};
 function loaded(){
- const calls=[],textCalls=[],pressurePaint=[];
+ const calls=[],textCalls=[],pressurePaint=[],geographyCalls=[];
  const ctx={
   save(){},restore(){},beginPath(){},rect(){},clip(){},moveTo(){},lineTo(){},fillRect(){},
   strokeRect(){},fillText(s){textCalls.push(String(s));if(s==="H"||s==="T")pressurePaint.push({letter:s,font:this.font,lineWidth:this.lineWidth});},strokeText(s){textCalls.push("outline:"+String(s));},drawImage(){},stroke(){calls.push({width:this.lineWidth,color:this.strokeStyle});},
@@ -30,20 +30,48 @@ function loaded(){
   toBlob(fn){fn(new Blob(["mock-composite"],{type:"image/png"}));}
  });
  const scope={
-  window:{},Blob,TextEncoder,Uint8Array,Uint8ClampedArray,ArrayBuffer,
+  window:{SatelliteOverlay:{paintBorders:(ctx,region)=>geographyCalls.push(['borders',region]),paintCities:(ctx,region)=>geographyCalls.push(['cities',region]),cityAnchors:()=>[]}},Blob,TextEncoder,Uint8Array,Uint8ClampedArray,ArrayBuffer,
   atob:s=>Buffer.from(s,"base64").toString("binary"),setTimeout,
   document:{createElement:()=>canvas()},
   console
  };
  vm.runInNewContext(geometry,scope,{timeout:5000});
+ vm.runInNewContext(fs.readFileSync('satellite_projection.js','utf8'),scope,{timeout:5000});
  vm.runInNewContext(fs.readFileSync('satellite_advection.js','utf8'),scope,{timeout:5000});
  vm.runInNewContext(content,scope,{timeout:5000});
  vm.runInNewContext(film,scope,{timeout:5000});
- return {api:scope.window.SatelliteMapExport,film:scope.window.SatelliteFilmExport,calls,textCalls,pressurePaint,ctx};
+ return {api:scope.window.SatelliteMapExport,film:scope.window.SatelliteFilmExport,calls,textCalls,pressurePaint,ctx,geographyCalls};
 }
 const options={image:{naturalWidth:180,naturalHeight:100},
  overlay:sourceOverlay,region:"southwest",regionName:"Südwesteuropa",
  product:"geocolour",productName:"GeoColour",credit:"EUMETSAT"};
+
+test('full-disc pressure vectors retain southern H/T and advection across PNG, PDF and GIF',async()=>{
+ const {api,film,textCalls,ctx,geographyCalls}=loaded();
+ const overlay={...sourceOverlay,coverage:'full-disk',region:'disk',contours:[
+  {hpa:1010,lines:[[[-100,-20],[-60,-30],[-30,-20],[0,-20],[30,-15],[60,-20],[100,-20]],
+   [[-40,25],[-20,25],[0,25],[20,25],[40,25]]]}],pressure_centers_method:'ifs_mslp_grid_extrema_v4',
+  pressure_centers:[{type:'H',lon:-25,lat:-35,pressure_hpa:1035,prominence_hpa:8,score:60},{type:'T',lon:25,lat:30,pressure_hpa:990,prominence_hpa:8,score:60},{type:'H',lon:150,lat:0,pressure_hpa:1040,prominence_hpa:10,score:80}],
+  advectionLevel:850,advectionMarkers:[{lon:20,lat:-25,advection:7,u:10,v:5},{lon:-20,lat:25,advection:-6,u:3,v:10}]};
+ const groups=api.pathsFor(overlay,'disk');
+ assert.ok(groups[0].runs.length>=2);
+ assert.throws(()=>api.pathsFor(sourceOverlay,'disk'),/Erdscheib/);
+ const disk=api.placedCenters(overlay,'disk',900,900),north=api.placedCenters(overlay,'north',900,450);
+ assert.equal(disk.length,2);assert.equal(north.length,1);assert.equal(disk.find(c=>c.lat<0).type,'H');
+ api.paintIsobars(ctx,overlay,'disk',{width:900,height:900});
+ assert.ok(textCalls.includes('WLA')&&textCalls.includes('KLA'));
+ const args={...options,overlay,region:'disk',image:{naturalWidth:900,naturalHeight:900},includeBorders:true,includeCities:true};
+ const pdf=Buffer.from(await (await api.renderPDF(args)).blob.arrayBuffer()).toString('latin1');
+ assert.match(pdf,/\(H\) Tj/);assert.match(pdf,/\(T\) Tj/);assert.match(pdf,/\(WLA\) Tj/);
+ assert.equal((await api.renderPNG(args)).blob.type,'image/png');
+ assert.deepEqual(geographyCalls,[['borders','disk'],['cities','disk'],['borders','disk'],['cities','disk']]);
+ await api.renderPDF({...args,geographyRasterized:true});
+ assert.equal(geographyCalls.length,4,'HD raster geography must not be painted twice');
+ const t2='2026-11-12T03:30:00Z';
+ const result=await film.exportGIF({frames:[overlay.satelliteUTC,t2].map(time=>({time,img:args.image})),isobarOverlays:[overlay,{...overlay,validUTC:t2,satelliteUTC:t2}],region:'disk',product:'geocolour',productName:'GeoColour',width:480,delayMs:400,includeBorders:true,includeCities:true});
+ assert.equal(Buffer.from(await result.blob.arrayBuffer()).subarray(0,6).toString(),'GIF89a');
+ assert.ok(geographyCalls.filter(([feature])=>feature==='borders').length>=4);
+});
 
 test('WLA and KLA are shared editable vector labels and colored canvas arrows',async()=>{
  const {api,film,calls,textCalls,ctx}=loaded();
@@ -259,7 +287,7 @@ test("Only H/T font sizes are exactly +50% on desktop/mobile, Canvas, GIF and ed
  assert.match(css,/@media\(max-width:650px\)\{\.sat-pressure-center\{font-size:37\.5px\}/);
  assert.match(css,/font-size:40\.5px;font-weight:750;\s*stroke:#15283b;stroke-width:2\.1px/);
  assert.match(html,/satelliten\.css\?v=20261116-advection1/);
- assert.match(html,/satellite_map_export\.js\?v=20261116-advection1/);
+ assert.match(html,/satellite_map_export\.js\?v=20261117-full-disk1/);
  const {api,ctx,pressurePaint}=loaded();
  const fixture=JSON.parse(fs.readFileSync(
   "tests/fixtures/satellite_mslp_20261114_1040_missing_low.json","utf8"));

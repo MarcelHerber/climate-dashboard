@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 from scipy import ndimage
+from satellite_disk_model import disk_candidate_visible
 
 ALGORITHM = "ifs_mslp_grid_extrema_v4"
 MODEL_BBOX = (-70.5, 14.5, 49.5, 75.5)
@@ -113,7 +114,7 @@ def _closed_systems(z, type_, latitudes):
     return selected, covered
 
 
-def detect_pressure_centers(lons, lats, pressure):
+def detect_pressure_centers(lons, lats, pressure, *, bbox=MODEL_BBOX, disk=False):
     """Return ranked, well-separated *native-grid* minima/maxima.
 
     Screens and exports apply geographic viewport filters; this operation
@@ -153,8 +154,10 @@ def detect_pressure_centers(lons, lats, pressure):
 
     def add(type_, iy, ix, prominence, closed, area=0, extent=0):
         lon, lat = float(xx[ix]), float(yy[iy])
-        if not (MODEL_BBOX[0] + 1 <= lon <= MODEL_BBOX[2] - 1
-                and MODEL_BBOX[1] + 1 <= lat <= MODEL_BBOX[3] - 1):
+        if not (bbox[0] + 1 <= lon <= bbox[2] - 1
+                and bbox[1] + 1 <= lat <= bbox[3] - 1):
+            return
+        if disk and not disk_candidate_visible(lon, lat):
             return
         value = float(z[iy, ix])
         relative = (type_ == "T" and value > 1014) or (type_ == "H" and value < 1017)
@@ -176,8 +179,8 @@ def detect_pressure_centers(lons, lats, pressure):
         for row_, col_ in np.argwhere(selector):
             row, col = int(row_ + radius), int(col_ + radius)
             lon, lat = float(xx[col]), float(yy[row])
-            if not (MODEL_BBOX[0] + 1 <= lon <= MODEL_BBOX[2] - 1
-                    and MODEL_BBOX[1] + 1 <= lat <= MODEL_BBOX[3] - 1):
+            if not (bbox[0] + 1 <= lon <= bbox[2] - 1
+                    and bbox[1] + 1 <= lat <= bbox[3] - 1):
                 continue
             local = smoothed[row, col]
             diffs = np.asarray([

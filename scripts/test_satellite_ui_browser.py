@@ -345,16 +345,26 @@ def exercise(page, viewport_label, official_xml):
         evidence["atlantic_wms_warning"]=page.locator("#satStatus").inner_text()
     # Select the native geostationary projection for full disk.
     page.locator("#satRegion").select_option("disk")
-    assert page.locator("#satIsobarSpacing").is_disabled(), "Disk must not expose geographic pressure contours"
+    assert page.locator("#satIsobarSpacing").is_enabled(), "Disk must expose projected pressure contours"
+    assert not page.locator('#satIsobarSpacing option[value="2"]').is_enabled()
     page.wait_for_timeout(350)
     evidence["full_disk_native_projection"]="AUTO%3A97004" in page.locator("#satImage").get_attribute("src")
     assert evidence["full_disk_native_projection"], "Full-disc projection is not geostationary"
-    evidence["disk_overlays_disabled"]=(
-        page.locator("#satBordersSvg").is_hidden()
-        and page.locator("#satShowBorders").is_disabled()
-        and page.locator("#satCitiesLayer").is_hidden()
-    )
-    assert evidence["disk_overlays_disabled"], "Geographic borders wrongly placed on full disk"
+    for place in ("disk", "north"):
+        page.locator("#satRegion").select_option(place)
+        assert page.locator("#satShowBorders").is_enabled()
+        assert page.locator("#satShowCities").is_enabled()
+        assert page.locator("#satShowIsobars").is_enabled()
+        page.wait_for_function("()=>!document.querySelector('#satBordersSvg').hasAttribute('hidden') && document.querySelector('#satBordersSvg path')?.getAttribute('d')?.length>1000", timeout=20000)
+        assert page.locator("#satCitiesLayer").is_visible()
+        evidence[place+"_border_path_length"]=len(page.locator("#satBordersSvg path").get_attribute("d"))
+        evidence[place+"_native_projection"]="AUTO%3A97004" in page.locator("#satImage").get_attribute("src")
+        assert evidence[place+"_native_projection"]
+        if place=="north":
+            assert "-6500000%2C0%2C6500000%2C6500000" in page.locator("#satImage").get_attribute("src")
+        if ten_manifest.is_file() and json.loads(ten_manifest.read_text(encoding="utf-8")).get("disk_hours"):
+            page.wait_for_function("()=>!document.querySelector('#satIsobarSvg').hasAttribute('hidden') && document.querySelector('#satIsobarSvg path')", timeout=20000)
+            evidence[place+"_pressure_paths"]=page.locator("#satIsobarSvg path").count()
     page.locator("#satRegion").select_option("germany")
     evidence["germany_bbox"]="5%2C47%2C16%2C56" in page.locator("#satImage").get_attribute("src")
     assert evidence["germany_bbox"], "Germany selection did not change bounding box"

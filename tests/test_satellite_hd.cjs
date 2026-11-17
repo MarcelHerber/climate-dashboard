@@ -57,6 +57,25 @@ function setup(){
 }
 const UTC="2026-11-12T17:20:00Z";
 function live(){return {time:UTC,region:"europe",source:"mtgi1",product:"geocolour",layer:"mtg_fd:rgb_geocolour",ready:true,cached:false};}
+test("Full disc and north half request real 4K geostationary tiles, never a geographic crop",async()=>{
+ for(const [place,height,minimumY] of [["disk",4096,-6500000],["north",2048,0]]){
+  const a=setup(),q=a.els.get("satStillQuality");q.value="4k";
+  a.els.get("satRegion").value=place;
+  a.context.window.SatelliteHD.sync({...live(),region:place});
+  const expected=place==="disk"?16:8;
+  await until(()=>a.els.get("satHDTiles").children.length===expected,"complete "+place+" 4K");
+  const urls=a.requests.map(u=>new URL(u).searchParams);
+  assert.ok(urls.every(p=>p.get("srs")==="AUTO:97004,9001,0,0"&&p.get("time")===UTC));
+  const b=urls.map(p=>p.get("bbox").split(",").map(Number));
+  assert.equal(Math.min(...b.map(x=>x[0])),-6500000);
+  assert.equal(Math.min(...b.map(x=>x[1])),minimumY);
+  assert.equal(Math.max(...b.map(x=>x[2])),6500000);
+  assert.equal(Math.max(...b.map(x=>x[3])),6500000);
+  assert.match(a.els.get("satHDStatus").textContent,new RegExp("4096 × "+height+" px"));
+  await a.context.window.SatelliteHD.exportImage("png");
+  assert.equal(a.alerts.downloads,1);
+ }
+});
 test("HD module is published and standard still uses verified 800px first",()=>{
  assert.ok(shell.includes("  satellite_hd.js\n"));
  assert.ok(shell.includes("node --check _site/satellite_hd.js"));

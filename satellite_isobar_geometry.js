@@ -354,7 +354,83 @@ function layoutPressureAnnotations(centers,groups,viewport,{width=1000,height=10
  return {centers:positioned,groups:annotated};
 }
 
-window.SatelliteIsobarGeometry={modelGridCenters,pressureLabels,pressureReferenceHeight,layoutPressureAnnotations,detectVisiblePressureSystems,detectPressureSystems,prepare,clean,smooth,project,
+// Geostationary projection: clip on the actual ellipsoidal limb before
+// selecting labels. Runs here are normalized projected (top-down) pixels.
+const diskPrepared=new WeakMap();
+function prepareDisk(contours,region,spacing=5){
+ const projection=window.SatelliteProjection;
+ if(!projection?.isDisk(region)||![5,10].includes(Number(spacing)))throw Error("Ungültige Erdscheiben-Isobarendarstellung");
+ if(!Array.isArray(contours))throw Error("Ungültige Erdscheiben-Konturen");
+ const key=region+'|'+Number(spacing),cached=diskPrepared.get(contours);
+ if(cached?.has(key))return cached.get(key);
+ const groups=[];
+ for(const level of contours||[]){
+  if(!Number.isFinite(level.hpa)||level.hpa%Number(spacing)||!Array.isArray(level.lines))continue;
+  const runs=[];let label=null,longest=0;
+  for(const line of level.lines){
+   for(const run of projection.paths(region,line,1000,1000)){
+    if(run.length<2)continue;
+    const cumulative=[0];for(let i=1;i<run.length;i++)cumulative.push(cumulative[i-1]+distance(run[i-1],run[i]));
+    const length=cumulative.at(-1);
+    // A wider view needs smaller thresholds in map units; retain clipped edges.
+    if(length<4)continue;
+    runs.push(run);
+    if(length>longest&&length>45){longest=length;label=run[cumulative.findIndex(v=>v>=length/2)];}
+   }
+  }
+  if(runs.length)groups.push({hpa:level.hpa,heavy:level.hpa===1015,runs,label:level.hpa===1015||level.hpa%10===0?label:null});
+ }
+ // Immutable model frames are reused during animation and resize; weak keys
+ // release projected geometry when their bounded source chunks are evicted.
+ const variants=cached||new Map();variants.set(key,groups);diskPrepared.set(contours,variants);
+ return groups;
+}
+function diskCenters(overlay,region){
+ const method=overlay?.pressure_centers_method,projection=window.SatelliteProjection;
+ if(!projection?.isDisk(region)||!GRID_METHODS.has(method)||!Array.isArray(overlay?.pressure_centers))return [];
+ if(overlay.pressure_centers.length>40)throw Error("IFS: ungültige Extremaanzahl");
+ const out=[];
+ for(const m of overlay.pressure_centers){
+  const {lon,lat,pressure_hpa:hpa,score}=m;
+  if(!['H','T'].includes(m.type)||![lon,lat,hpa,score].every(Number.isFinite)||Math.abs(lon)>180||Math.abs(lat)>90||hpa<850||hpa>1100||score<0||score>300)throw Error("IFS: ungültiges Druckgitter-Extremum");
+  if(!projection.project(region,lon,lat,1000,1000))continue;
+  const closedSystem=m.closed_system===true,closedArea=Number(m.closed_area_km2)||0;
+  if(closedSystem&&closedArea<15000&&m.prominence_hpa<5)continue;
+  if(!closedSystem&&m.prominence_hpa<2)continue;
+  out.push({...m,hpa,closedSystem,closedArea,method,source:'ifs_grid'});
+ }
+ const rank=m=>m.score+(m.closedSystem?30+Math.sqrt(m.closedArea)/50:0);
+ return out.sort((a,b)=>rank(b)-rank(a)||a.lon-b.lon);
+}
+function layoutDiskPressureAnnotations(overlay,groups,region,{width=1000,height=1000,fontSize=36,labelWidth=36,labelHeight=17,cityAnchors=[]}={}){
+ const projection=window.SatelliteProjection,occupied=[],centers=[];
+ const xy=p=>[p[0]*width/1000,p[1]*height/1000];
+ const projectGeo=m=>projection.project(region,m.lon,m.lat,width,height);
+ const overlaps=(a,b)=>a[0]<b[2]&&a[2]>b[0]&&a[1]<b[3]&&a[3]>b[1];
+ const fits=b=>[[b[0],b[1]],[b[2],b[1]],[b[0],b[3]],[b[2],b[3]]].every(p=>projection.containsPixel(region,p[0],p[1],width,height))&&!occupied.some(o=>overlaps(b,o));
+ for(const city of cityAnchors){const p=projectGeo(city);if(p)occupied.push([p[0]-5,p[1]-14,p[0]+width*.07,p[1]+5]);}
+ for(const m of diskCenters(overlay,region)){
+  const [x,y]=projectGeo(m),b=[x-fontSize*.57,y-fontSize*.7,x+fontSize*.57,y+fontSize*.7];
+  if(!fits(b)||centers.some(c=>distance([x,y],[c.anchorX,c.anchorY])<fontSize*2))continue;
+  occupied.push(b);centers.push({...m,anchorX:x,anchorY:y,labelX:x,labelY:y,leader:false});
+  if(centers.length>=(region==='north'?9:14))break;
+ }
+ const annotated=groups.map(g=>{
+  if(!g.label)return g;
+  const original=xy(g.label);let best=null,d=Infinity,bestBox=null;
+  const run=g.runs.find(r=>r.includes(g.label));
+  for(const p of [g.label,...(run||[])]){
+   const [x,y]=xy(p),delta=distance(original,[x,y]);
+   const b=[x-labelWidth/2,y-labelHeight/2,x+labelWidth/2,y+labelHeight/2];
+   if(delta<d&&fits(b)){best=p;d=delta;bestBox=b;}
+  }
+  if(bestBox)occupied.push(bestBox);
+  return {...g,label:best};
+ });
+ return {centers,groups:annotated};
+}
+
+window.SatelliteIsobarGeometry={modelGridCenters,pressureLabels,pressureReferenceHeight,layoutPressureAnnotations,prepareDisk,diskCenters,layoutDiskPressureAnnotations,detectVisiblePressureSystems,detectPressureSystems,prepare,clean,smooth,project,
  settings:{minLoopDiagonal:MIN_LOOP_DIAGONAL,minLoopArea:MIN_LOOP_AREA,
   minOpenLength:MIN_OPEN_LENGTH,smoothing:SMOOTHING,maxShift:MAX_SHIFT}};
 })();

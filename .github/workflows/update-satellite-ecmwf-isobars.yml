@@ -14,7 +14,9 @@ on:
       - "tests/test_satellite_ecmwf_isobars.py"
       - "scripts/build_satellite_mslp_10min.py"
       - "scripts/satellite_temperature_advection.py"
+      - "scripts/satellite_disk_model.py"
       - "tests/test_satellite_temperature_advection.py"
+      - "tests/test_satellite_disk_model.py"
       - "tests/test_satellite_mslp_10min.py"
       - ".github/workflows/update-satellite-ecmwf-isobars.yml"
 
@@ -46,6 +48,7 @@ jobs:
           python -m unittest discover -s tests -p test_satellite_mslp_10min.py -v
           python -m unittest discover -s tests -p test_satellite_mslp_grid_centers.py -v
           python -m unittest discover -s tests -p test_satellite_temperature_advection.py -v
+          python -m unittest discover -s tests -p test_satellite_disk_model.py -v
       - name: Download genuine ECMWF Open Data IFS sea-level pressure
         run: python scripts/build_satellite_ecmwf_isobars.py --out data/satellite_mslp/latest.json --ten-minute-dir data/satellite_mslp/ten_minute
       - name: Validate output and UTC provenance
@@ -127,8 +130,39 @@ jobs:
               assert frame["interpolated"]==(i%18!=0)
               assert frame["contours"]
               assert all(level["hpa"]%5==0 and level["lines"] for level in frame["contours"])
+          assert index["disk_bbox"]==[-83.,-83.,83.,83.] and index["disk_interval_hpa"]==5
+          assert set(index["disk_hours"])==set(index["hours"])
+          diskframes=[]
+          for hour,path in index["disk_hours"].items():
+              assert path==f"r{run:%Y%m%d%H}/{hour}_disk.json"
+              chunk=json.loads((base/path).read_text())
+              assert chunk["schema_version"]==2 and chunk["run_utc"]==d["run_utc"]
+              assert chunk["interval_hpa"]==5 and chunk["hour"]==int(hour[1:])
+              diskframes.extend(chunk["frames"])
+          assert len(diskframes)==109
+          for coarse,disk in zip(allframes,diskframes):
+              assert disk["valid_utc"]==coarse["valid_utc"]
+              assert disk["forecast_minute"]==coarse["forecast_minute"]
+              assert disk["interpolated"]==coarse["interpolated"]
+              assert disk["contours"] and all(group["hpa"]%5==0 and group["lines"] for group in disk["contours"])
+              assert any(pt[1]<-10 for group in disk["contours"] for line in group["lines"] for pt in line)
+              assert disk["pressure_centers_method"]=="ifs_mslp_grid_extrema_v4"
+              assert len(disk["pressure_centers"])<=40
+              for c in disk["pressure_centers"]:
+                  assert -83<=c["lon"]<=83 and -83<=c["lat"]<=83 and c["type"] in ("H","T")
+                  assert 800<=c["pressure_hpa"]<=1120
+              if index.get("disk_advection_algorithm"):
+                  assert disk["advection_method"]==index["disk_advection_algorithm"]=="ifs_temperature_advection_v1"
+                  assert set(disk["temperature_advection"])=={"925","850","700"}
+                  for markers in disk["temperature_advection"].values():
+                      assert len(markers)<=220
+                      for marker in markers:
+                          assert -83<=marker["lon"]<=83 and -83<=marker["lat"]<=83
+                          assert 2<=abs(marker["advection"])<100
+                          assert abs(marker["u"])<=150 and abs(marker["v"])<=150
           print("Confirmed 109 identical grid-derived H/T center lists for genuine 2- and 5-hPa contours")
           print("Confirmed 109 real 2-hPa European and 109 original 5-hPa forecast contours")
+          print("Confirmed 109 independent full-disc 5-hPa ECMWF frames at identical valid UTC")
           print("Confirmed real ECMWF IFS MSLP:", d["run_utc"], p.stat().st_size,
                 "bytes +", len(allframes), "verified 10-minute steps")
           PY
@@ -155,11 +189,15 @@ jobs:
           print("Run (UTC):",d["run_utc"])
           for f in d["frames"]:
               print("*",f["valid_utc"],"forecast +"+str(f["forecast_hour"])+"h",len(f["contours"]),"pressure levels")
-          print("Ten-minute pressure interpolation: +0 through +18 h, 109 frames for 5 hPa + 109 European 2-hPa frames")
+          print("Ten-minute pressure interpolation: +0 through +18 h, 109 frames each for regional 5 hPa, European 2 hPa and full-disc 5 hPa")
           index=json.load(open("data/satellite_mslp/ten_minute/index.json"))
           if index.get("advection_algorithm"):
               print("WLA/KLA: 925/850/700 hPa from same-run T/U/V and surface pressure, interpolated before diagnosis (K/6h)")
           else:
               print("WLA/KLA unavailable; pressure vectors remain available independently.")
+          if index.get("disk_advection_algorithm"):
+              print("Full-disc WLA/KLA: same-run T/U/V and surface pressure, spatially distributed significant markers.")
+          else:
+              print("Full-disc WLA/KLA unavailable; full-disc pressure vectors remain available independently.")
           print("© ECMWF · CC BY 4.0 · interpolated forecast, not observation")
           PY

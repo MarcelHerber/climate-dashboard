@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 from scipy.ndimage import gaussian_filter
+from satellite_disk_model import crop_grid, disk_candidate_visible
 
 LEVELS = (925, 850, 700)
 METHOD = "ifs_temperature_advection_v1"
@@ -30,7 +31,7 @@ def advection_field(x, y, t, u, v, sp, level):
     return np.where(np.isfinite(t), a, np.nan)
 
 
-def select_markers(x, y, a, u, v):
+def select_markers(x, y, a, u, v, *, disk=False):
     """Rank coherent local advection, then suppress neighboring samples."""
     good = np.isfinite(a) & np.isfinite(u) & np.isfinite(v)
     sigma = (.75/abs(float(np.median(np.diff(y)))), .75/abs(float(np.median(np.diff(x)))))
@@ -43,11 +44,22 @@ def select_markers(x, y, a, u, v):
     sampled = np.zeros_like(mask)
     sampled[::sy, ::sx] = True
     rows, cols = np.where(mask & sampled)
+    if disk:
+        visible = disk_candidate_visible(x[cols], y[rows])
+        rows, cols = rows[visible], cols[visible]
     scores = np.abs(smooth[rows, cols])
     # Unit-sphere vectors provide latitude-correct geodesic separation.
     lat, lon = np.deg2rad(y[rows]), np.deg2rad(x[cols])
     xyz = np.column_stack((np.cos(lat)*np.cos(lon), np.cos(lat)*np.sin(lon), np.sin(lat)))
     order = np.argsort(-scores, kind="stable")
+    if disk:
+        # Interleave the strongest significant candidate in each ~40 degree
+        # sector. A northern storm track must not consume all 220 slots.
+        sectors = (np.floor((y[rows]+90)/40).astype(int)*5
+                   + np.floor((x[cols]+90)/40).astype(int))
+        pools = [order[sectors[order] == s] for s in np.unique(sectors)]
+        order = [p[k] for k in range(max(map(len, pools), default=0))
+                 for p in pools if len(p) > k]
     available = np.ones(len(rows), dtype=bool)
     markers = []
     for k in order:
@@ -79,15 +91,20 @@ def interpolate_fields(grids, minute, level=850):
             a[-1]*(1-f)+b[-1]*f)
 
 
-def frame_markers(grids, minute):
+def frame_markers(grids, minute, *, disk=False):
     result = {}
     for level in LEVELS:
         x,y,t,u,v,sp = interpolate_fields(grids[level],minute,level)
-        result[str(level)] = select_markers(x,y,advection_field(x,y,t,u,v,sp,level),u,v)
+        result[str(level)] = select_markers(x,y,advection_field(x,y,t,u,v,sp,level),u,v,disk=disk)
     return result
 
 
-def retrieve(run, path, leads=LEADS):
+def crop_grids(grids):
+    return {level: {step: crop_grid(value, BBOX) for step, value in steps.items()}
+            for level, steps in grids.items()}
+
+
+def retrieve(run, path, leads=LEADS, *, bbox=BBOX):
     """Get pressure-level winds, temperature and surface pressure separately."""
     from ecmwf.opendata import Client
     path = Path(path)
@@ -104,14 +121,14 @@ def retrieve(run, path, leads=LEADS):
             c.retrieve(**kwargs, levtype='pl', param=['t','u','v'],
                        levelist=list(LEVELS), target=str(path))
             c.retrieve(**kwargs, levtype='sfc', param='sp', target=str(surface))
-            return decode((path,surface),run,leads)
+            return decode((path,surface),run,leads,bbox=bbox)
         except Exception as exc:
             logging.warning('Advection %s unavailable: %s',source,exc)
             errors.append(str(exc))
     raise RuntimeError('IFS advection unavailable: '+'; '.join(errors))
 
 
-def decode(paths,run,leads=LEADS):
+def decode(paths,run,leads=LEADS, *, bbox=BBOX):
     from eccodes import codes_get, codes_get_array, codes_grib_new_from_file, codes_release
     fields = {}
     axes = None
@@ -130,11 +147,13 @@ def decode(paths,run,leads=LEADS):
                     ni,nj = int(codes_get(msg,'Ni')),int(codes_get(msg,'Nj'))
                     lat = np.asarray(codes_get_array(msg,'latitudes')).reshape(nj,ni)[:,0]
                     lon = (np.asarray(codes_get_array(msg,'longitudes')).reshape(nj,ni)[0,:]+180)%360-180
-                    rows = np.flatnonzero((lat>=BBOX[1])&(lat<=BBOX[3]))
-                    cols = np.flatnonzero((lon>=BBOX[0])&(lon<=BBOX[2]))
+                    rows = np.flatnonzero((lat>=bbox[1])&(lat<=bbox[3]))
+                    cols = np.flatnonzero((lon>=bbox[0])&(lon<=bbox[2]))
                     rows,cols = rows[np.argsort(lat[rows])],cols[np.argsort(lon[cols])]
                     x,y = lon[cols],lat[rows]
-                    if len(x)<500 or len(y)<260 or not np.allclose(np.diff(x),.25) or not np.allclose(np.diff(y),.25):
+                    if (len(x)<500 or len(y)<260 or not np.allclose(np.diff(x),.25)
+                            or not np.allclose(np.diff(y),.25)
+                            or not np.allclose((x[0],y[0],x[-1],y[-1]),bbox,atol=.001)):
                         raise ValueError('Incomplete IFS 0.25-degree advection grid')
                     if axes is not None and (not np.array_equal(axes[0],x) or not np.array_equal(axes[1],y)):
                         raise ValueError('Inconsistent IFS advection coordinates')
