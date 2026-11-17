@@ -69,4 +69,11 @@ for(const key of ['sun','sunDaily']){
 const oneDay=mockChart(0,true);
 oneDay.data.datasets[0].mosmixSunLabels=[sunLabel];
 assert.match(api.toSvg(api.buildScene(oneDay,{key:'sunDaily',timesteps})),/\(19 %\)/);
+const wind=mockChart(71);
+wind.data.datasets[1].mosmixWindLabels=[{...sunLabel,text:'74 km/h',lines:['74 km/h'],narrowLines:['74','km/h']}];
+const windScene=api.buildScene(wind,{key:'wind',timesteps});
+assert.match(api.toSvg(windScene),/74 km\/h/);
+assert.ok(windScene.series.some(s=>s.name==='Tagesmaximalböen'));
+wind.scales.x.min=24;
+assert.doesNotMatch(api.toSvg(api.buildScene(wind,{key:'wind',timesteps})),/74 km\/h/);
 console.log("PASS MOSMIX vector assets, SVG buttons and independent PDF paths.");
