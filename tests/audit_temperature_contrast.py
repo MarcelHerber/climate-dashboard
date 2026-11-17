@@ -39,11 +39,28 @@ with tempfile.TemporaryDirectory() as directory:
             page.wait_for_function("!document.querySelector('#hourPanel').hidden")
             assert page.locator('#detail').inner_text().endswith('UTC')
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
+            annual_value=page.evaluate("Chart.getChart('annual').data.datasets[0].data[0]")
+            auto=page.evaluate("[Chart.getChart('annual').scales.y.min,Chart.getChart('annual').scales.y.max]")
+            assert 0<auto[0]<annual_value<auto[1],auto
+            page.locator('#axisMode').select_option('zero')
+            assert page.evaluate("Chart.getChart('annual').scales.y.min") == 0
+            page.locator('#axisMode').select_option('manual')
+            manual_max=int(annual_value/5+2)*5
+            page.locator('#axisMin').fill('0'); page.locator('#axisMin').press('Tab')
+            page.locator('#axisMax').fill(str(manual_max)); page.locator('#axisMax').press('Tab')
+            page.locator('#axisStep').fill('5'); page.locator('#axisStep').press('Tab')
+            assert page.evaluate("[Chart.getChart('annual').scales.y.min,Chart.getChart('annual').scales.y.max]") == [0,manual_max]
+            assert page.evaluate("Chart.getChart('annual').scales.y.ticks.map(t=>t.value)") == list(range(0,manual_max+1,5))
+            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
             for kind in ('png','pdf','svg','csv'):
                 with page.expect_download(timeout=15000) as d: page.locator(f'[data-fmt={kind}]').click()
                 assert d.value.suggested_filename.endswith('.'+kind)
                 assert d.value.path().stat().st_size>100
-                if kind=='svg': assert 'DWD CDC' in d.value.path().read_text()
+                if kind=='svg':
+                    svg=d.value.path().read_text()
+                    assert 'DWD CDC' in svg and f'>{manual_max}</text>' in svg and '>5</text>' in svg
+            page.locator('#axisMode').select_option('auto')
+            assert page.evaluate("[Chart.getChart('annual').scales.y.min,Chart.getChart('annual').scales.y.max]") == auto
             page.locator('#mode').select_option('daily')
             page.wait_for_function("document.querySelector('#method').textContent.includes('TXK') && document.querySelector('#ranking tr')")
             assert page.locator('#hourPanel').is_hidden()
