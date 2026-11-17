@@ -20,8 +20,8 @@ const dateHelpers=source.slice(source.indexOf("  function berlinDateParts"),
   source.indexOf("  const mosmixBerlinMidnightPlugin"));
 assert.ok(dailyHelpers.startsWith("  function sunDayFramesFromTimesteps"));
 assert.ok(dateHelpers.startsWith("  function berlinDateParts"));
-const {sunDayFramesFromTimesteps,sunDayValue,sunshineDayLabels}=new Function(
-  dailyHelpers+"\n"+dateHelpers+"\nreturn {sunDayFramesFromTimesteps,sunDayValue,sunshineDayLabels};"
+const {sunDayFramesFromTimesteps,sunDayValue,sunshineDayLabels,gustDayLabels}=new Function(
+  dailyHelpers+"\n"+dateHelpers+"\nreturn {sunDayFramesFromTimesteps,sunDayValue,sunshineDayLabels,gustDayLabels};"
 )();
 
 function hours(start,count){
@@ -69,5 +69,21 @@ const summer=sunDayFramesFromTimesteps(hours('2026-06-20T23:00:00Z',24));
 const summerLabel=sunshineDayLabels(Array(24).fill(0),summer,station)[0];
 assert.ok(summerLabel.possibleHours>15.7&&summerLabel.possibleHours<16.2);
 assert.equal(sunshineDayLabels(Array(24).fill(0),summer,{lat:null,lon:null})[0].text,'0,0 h');
+
+// 3/6/12h maxima can exceed the one-hour values; an interval overlapping
+// yesterday cannot be assigned to today. End at local 24:00 belongs to today.
+const gustFrames=sunDayFramesFromTimesteps(hours('2026-11-21T00:00:00Z',48));
+const ff={FX1:Array(48).fill(62),FX3:Array(48).fill(null),FX6:Array(48).fill(null),FXh:Array(48).fill(null)};
+ff.FX3[5]=68; ff.FX6[10]=70; ff.FXh[23]=74; ff.FXh[3]=110; ff.FX3[24]=99;
+let gust=gustDayLabels(ff,gustFrames);
+assert.deepEqual(gust.map(r=>r.text),['74 km/h','62 km/h']);
+assert.equal(gust[0].source,'FXh');
+ff.FXh[23]=null; assert.equal(gustDayLabels(ff,gustFrames)[0].text,'70 km/h');
+ff.FX6[10]=null; assert.equal(gustDayLabels(ff,gustFrames)[0].text,'68 km/h');
+ff.FX1[1]=null; assert.equal(gustDayLabels(ff,gustFrames).length,1,'missing coverage must omit day');
+ff.FX3[2]=65; assert.equal(gustDayLabels(ff,gustFrames)[0].text,'68 km/h','3h interval covers missing hour');
+const dstFrames=sunDayFramesFromTimesteps(hours('2026-10-24T23:00:00Z',25));
+assert.equal(gustDayLabels({FX1:Array(25).fill(0)},dstFrames)[0].text,'0 km/h');
+assert.equal(gustDayLabels({FX1:Array(24).fill(20)},dstFrames).length,0);
 
 console.log("PASS: MOSMIX Tages-Sonnenschein, vollständige Kalenderdaten, DST, fehlende Werte, Tagesbalken.");
