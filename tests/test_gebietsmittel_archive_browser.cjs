@@ -24,8 +24,21 @@ test('real archive renders, selection, comparative detail and narrow viewport',a
     assert.match(await page.locator('#gaDetail').innerText(),/\+2,0 K/);
     assert.match(await page.locator('#gaDetail').innerText(),/78 %/);
     assert.match(await page.locator('#gaDetail').innerText(),/126 %/);
+    await page.selectOption('#gaCompareYear','1881');
+    assert.equal(await page.locator('#gaDetail .ga-detail-card').nth(2).locator('button').isDisabled(),true);
+    await page.selectOption('#gaCompareYear','2024');
+    assert.equal(await page.locator('#gaDetail .ga-detail-card').nth(2).locator('button').isDisabled(),false);
+    await page.evaluate(()=>{
+      const fields={monthlyAreaSelect:['Deutschland'],paramSelect:['temp','sun'],monthSelect:['01','06'],monthlyReferenceSelect:['1961-1990','1991-2020'],regionalMapYearSelect:['2024','2025'],regionalMapYearBSelect:['2024','2025'],regionalMapModeSelect:['anomaly','percent']};
+      for(const [id,values] of Object.entries(fields)){const s=document.createElement('select');s.id=id;for(const v of values)s.add(new Option(v,v));document.body.append(s);}
+      window.savedArchiveBridge={};window.persistDashboardState=(id,v)=>window.savedArchiveBridge[id]=String(v);
+      window.monthlyObservedSelectionTouched=false;window.switchTab=()=>{};window.populateRegionalMapYears=()=>{};window.updateRegionalMap=()=>{};
+    });
+    await page.locator('#gaDetail .ga-detail-card').nth(2).locator('button').click();
+    assert.deepEqual(await page.evaluate(()=>window.savedArchiveBridge),{monthlyAreaSelect:'Deutschland',paramSelect:'sun',monthSelect:'06',monthlyReferenceSelect:'1991-2020',regionalMapYearSelect:'2025',regionalMapYearBSelect:'2024',regionalMapModeSelect:'percent'});
+    assert.equal(await page.evaluate(()=>window.monthlyObservedSelectionTouched),true);
     await page.selectOption('#gaParameter','sun');
-    assert.equal(await page.locator('#gaTableBody tr').count(),146);
+    assert.equal(await page.locator('#gaTableBody tr').count(),new Set(data.map(r=>r.date.slice(0,4))).size);
     assert.match(await page.locator('#gaTableCaption').innerText(),/Sonnenschein/);
     await page.selectOption('#gaReference','1961');
     assert.match(await page.locator('#gaYearHeading').innerText(),/1961–1990/);

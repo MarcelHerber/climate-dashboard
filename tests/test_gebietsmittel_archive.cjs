@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {buildIndex, valueFor, referenceMean, anomaly, colorFor, rankFor, csvFor}=require('../gebietsmittel_archiv.js');
+const {buildIndex, valueFor, referenceMean, anomaly, colorFor, rankFor, csvFor, canCompare}=require('../gebietsmittel_archiv.js');
 const data=require('../data.json');
 const index=buildIndex(data);
 const de=index.get('Deutschland');
@@ -18,8 +18,9 @@ test('real DWD June 2025 uses 1991–2020 and percent of normal',()=>{
 test('missing sunshine and future months are not zero or complete years',()=>{
   assert.equal(valueFor(de,1881,'01','sun'),null);
   assert.equal(referenceMean(de,'01','sun',1881),null);
-  assert.equal(valueFor(de,2026,'12','temp'),null);
-  assert.equal(valueFor(de,2026,'year','rain'),null);
+  const partial=new Map([['2026-01',{temp:2,rain:30,sun:20}]]);
+  assert.equal(valueFor(partial,2026,'12','temp'),null);
+  assert.equal(valueFor(partial,2026,'year','rain'),null);
   assert.equal(anomaly(5,0,'rain'),null);
   assert.equal(anomaly(0,10,'rain'),0);
 });
@@ -48,8 +49,13 @@ test('rank uses only available data and tied values share rank',()=>{
   assert.deepEqual(rankFor(fixture,[2000,2001,2002,2003],2000,'01','temp'),{rank:3,count:3});
   assert.equal(rankFor(fixture,[2000,2001,2002,2003],2003,'01','temp'),null);
 });
+test('map comparison cannot silently substitute an unavailable year',()=>{
+  assert.equal(canCompare(de,2025,1881,'06','sun'),false);
+  assert.equal(canCompare(de,2025,2024,'06','sun'),true);
+  assert.equal(canCompare(new Map([['2026-01',{rain:30}]]),2026,2025,'year','rain'),false);
+});
 test('CSV preserves metadata, absolute values, normals and missing values',()=>{
   const csv=csvFor(de,[2025,2026],'Deutschland','temp',1991);
   assert.match(csv,/Deutschland;1991–2020;Temperatur;2025;Juni;18,38;16,354;2,026/);
-  assert.match(csv,/Deutschland;1991–2020;Temperatur;2026;Dezember;;/);
+  assert.match(csvFor(de,[1881],'Deutschland','sun',1991),/Deutschland;1991–2020;Sonnenschein;1881;Dezember;;/);
 });
