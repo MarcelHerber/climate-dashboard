@@ -459,7 +459,7 @@
   function ensureVectorExport(){
     if(window.MosmixVectorExport)return Promise.resolve();
     if(!vectorLoadPromise)vectorLoadPromise=loadLibrary(
-      "./mosmix_vector_export.js?v=20261117-daily-gust",
+      "./mosmix_vector_export.js?v=20261117-temp-labels",
       "MOSMIX-Vektorexport").then(function(){
         if(!window.MosmixVectorExport)
           throw new Error("MOSMIX-Vektorexport konnte nicht initialisiert werden.");
@@ -824,10 +824,37 @@
   const mosmixSunDayLabelPlugin={
     id:"mosmixSunDayLabels",
     afterDatasetsDraw(chart){
+      // Native canvas labels: also work in the standalone view and offscreen PNG
+      // exports, even when ChartDataLabels is not loaded.
+      const extremes=chart.data?.datasets||[],area=chart.chartArea,ctx=chart.ctx;
+      if(area&&ctx&&chart.scales.x){
+        const axis=chart.scales.x;
+        const dayWidth=(area.right-area.left)*24/Math.max(24,axis.max-axis.min+1);
+        extremes.forEach((dataset,i)=>{
+          const kind=dataset.mosmixExtreme;
+          if((kind!=="TX"&&kind!=="TN")||!chart.isDatasetVisible(i))return;
+          const points=chart.getDatasetMeta(i).data;
+          const size=dayWidth<65?9:10;
+          ctx.save();ctx.font="700 "+size+"px Arial";ctx.textAlign="center";ctx.textBaseline="middle";
+          dataset.data.forEach((value,j)=>{
+            if(!Number.isFinite(value)||j<axis.min||j>axis.max)return;
+            const p=points[j];if(!p||p.skip||!Number.isFinite(p.x)||!Number.isFinite(p.y)||p.x<area.left||p.x>area.right)return;
+            const number=value.toFixed(1).replace(".",",");
+            const label=dayWidth<65?number:kind+" "+number+" °C";
+            const w=ctx.measureText(label).width+8,h=size+6;
+            const x=Math.max(area.left+w/2,Math.min(area.right-w/2,p.x));
+            const y=Math.max(area.top+h/2,Math.min(area.bottom-h/2,p.y+(kind==="TX"?-1:1)*(h/2+7)));
+            ctx.fillStyle="rgba(255,255,255,.94)";ctx.fillRect(x-w/2,y-h/2,w,h);
+            ctx.strokeStyle="rgba(100,116,139,.25)";ctx.strokeRect(x-w/2,y-h/2,w,h);
+            ctx.fillStyle=kind==="TX"?"#a5271f":"#1f5f99";ctx.fillText(label,x,y);
+          });
+          ctx.restore();
+        });
+      }
       const wind=chart.data?.datasets?.[1]?.mosmixWindLabels;
       const ds=chart.data?.datasets?.[wind?1:0],records=wind||ds?.mosmixSunLabels;
       if(!records?.length||!chart.isDatasetVisible(wind?1:0))return;
-      const axis=chart.scales.x,area=chart.chartArea,ctx=chart.ctx;
+      const axis=chart.scales.x;
       if(!axis||!area||!ctx)return;
       const daily=ds.mosmixSunDaily===true;
       const pixels=area.right-area.left;
@@ -957,24 +984,6 @@
       });
     };
     const tempOptions = baseChartOptions("°C");
-    tempOptions.plugins.datalabels = {
-      display:function(context){
-        return (context.datasetIndex===2||context.datasetIndex===3) &&
-          Number.isFinite(context.dataset.data[context.dataIndex]);
-      },
-      formatter:function(value,context){
-        return (context.datasetIndex===2?"TX ":"TN ")+
-          value.toFixed(1).replace(".",",")+" °C";
-      },
-      anchor:"end",
-      align:function(context){return context.datasetIndex===2?"top":"bottom";},
-      offset:4,clamp:true,clip:false,
-      color:function(context){return context.datasetIndex===2?"#a5271f":"#1f5f99";},
-      backgroundColor:"rgba(255,255,255,.9)",
-      borderColor:"rgba(100,116,139,.25)",
-      borderWidth:1,borderRadius:4,
-      padding:{top:3,right:5,bottom:3,left:5},font:{size:10,weight:"700"}
-    };
 
     meteogramCharts.push(new Chart(document.getElementById("mosmixTempChart"), {
       type:"line",
@@ -988,9 +997,9 @@
           pointHoverRadius:4
         }),
         Object.assign({label:"Taupunkt",data:p.Td || [],borderColor:"#1769c2",backgroundColor:"rgba(23,105,194,.08)"},commonLine),
-        {label:"TX 12 h · 18 UTC",data:officialTX,showLine:false,pointRadius:3.5,
+        {label:"TX 12 h · 18 UTC",data:officialTX,mosmixExtreme:"TX",showLine:false,pointRadius:3.5,
          pointHoverRadius:5,pointStyle:"triangle",borderColor:"#a5271f",backgroundColor:"#a5271f"},
-        {label:"TN 12 h · 06 UTC",data:officialTN,showLine:false,pointRadius:3.5,
+        {label:"TN 12 h · 06 UTC",data:officialTN,mosmixExtreme:"TN",showLine:false,pointRadius:3.5,
          pointHoverRadius:5,pointStyle:"rectRot",borderColor:"#1f5f99",backgroundColor:"#1f5f99"},
         Object.assign({label:"Vorheriger Lauf · Temperatur",data:previousSeries("TTT"),
          borderColor:"#a45e5e",borderDash:[6,4],pointRadius:0,

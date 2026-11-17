@@ -64,6 +64,11 @@ try{
           plugins:{legend:{display:true}}
         }
       };
+      if(i===0){
+        const tx=dates.map((_,j)=>j===20?16.7:null),tn=dates.map((_,j)=>j===32?-1.2:null);
+        config.data.datasets.push({label:'TX 12 h',data:tx,mosmixExtreme:'TX',showLine:false,pointStyle:'triangle',borderColor:'#a5271f'},
+          {label:'TN 12 h',data:tn,mosmixExtreme:'TN',showLine:false,pointStyle:'rectRot',borderColor:'#1f5f99'});
+      }
       if(i===4||i===5){
         config.data.datasets[0].mosmixSunLabels=[{dayIndex:1,index:35.5,start:24,end:47,hours:1.7,possibleHours:9.1,percent:19,text:'1,7 / 9,1 h (19 %)',lines:['1,7 / 9,1 h','(19 %)'],narrowLines:['1,7 h','/ 9,1 h','(19 %)']}];
         config.data.datasets[0].mosmixSunDaily=i===5;
@@ -74,11 +79,12 @@ try{
       chart.options.scales.x.min=i===5?0:6;
       chart.options.scales.x.max=i===5?3:54;
       const drawn=[];
-      if(i===2||i===4||i===5){
+      if(i===0||i===2||i===4||i===5){
         const original=chart.ctx.fillText;
         chart.ctx.fillText=function(text,...args){drawn.push(String(text));return original.call(this,text,...args);};
       }
       chart.update("none");
+      if(i===0&&(!drawn.some(s=>s.includes('16,7'))||!drawn.some(s=>s.includes('-1,2'))))throw Error('Missing native TX/TN labels in '+id);
       if((i===4||i===5)&&!drawn.some(s=>s.includes('19 %')))throw Error('Missing daily sunshine label in '+id);
       if(i===2&&!drawn.some(s=>s.includes('74')))throw Error('Missing daily maximum gust label in '+id);
       return chart;
@@ -96,6 +102,13 @@ try{
       "\nreturn {downloadMeteogram,meteogramExportSections};");
     const api=make(...Object.values(dependencies));
     window.mosmixExportTest=api;
+    // Observe actual offscreen rendering, not just the on-screen chart.
+    window.mosmixPngLabels=[];
+    const fillText=CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText=function(text,...args){
+      if(this.canvas.width>=1540)window.mosmixPngLabels.push(String(text));
+      return fillText.call(this,text,...args);
+    };
 
 
 
@@ -134,7 +147,12 @@ try{
       assert.doesNotMatch(svg,/<image\b/);
       if(key==='sun'||key==='sunDaily')assert.match(svg,/19 %/);
       if(key==='wind')assert.match(svg,/74 km\/h/);
+      if(key==='temp'){assert.match(svg,/TX 16,7 °C/);assert.match(svg,/TN -1,2 °C/);}
     }else assert.deepEqual([...readFile(path).subarray(0,8)],[137,80,78,71,13,10,26,10]);
+    if(key==='temp'&&format==='png'){
+      const text=await page.evaluate(()=>window.mosmixPngLabels);
+      assert.ok(text.includes('TX 16,7 °C')&&text.includes('TN -1,2 °C'),'Missing TX/TN in high-resolution PNG');
+    }
     console.log("MOSMIX SINGLE EXPORT",vp.name,key,format,statSync(path).size,"bytes");
   }
   if(selectedKey==="all"){
