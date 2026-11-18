@@ -2,6 +2,14 @@ name: Phase 2 · Einheitliche Exporte und Mobile Live-QA
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - t850_ensembles.js
+      - t850_vector_export.js
+      - tests/test_t850_classic.cjs
+      - tests/test_phase2_exports.cjs
+      - scripts/build_pages_site.sh
+      - .github/workflows/audit-phase2-exports.yml
   push:
     branches: [main]
     paths:
@@ -18,6 +26,7 @@ on:
       - scripts/inject_mobile_navigation.py
       - tests/test_phase2_exports.cjs
       - tests/test_t850_vector_export.cjs
+      - tests/test_t850_classic.cjs
       - tests/test_scientific_vector_actions.cjs
       - tests/audit_phase2_exports_live.py
       - .github/workflows/audit-phase2-exports.yml
@@ -56,6 +65,7 @@ jobs:
             scripts/inject_mobile_navigation.py
             tests/test_phase2_exports.cjs
             tests/test_t850_vector_export.cjs
+            tests/test_t850_classic.cjs
             tests/test_scientific_vector_actions.cjs
             tests/test_mosmix_vector_exports.mjs
             tests/test_dashboard_hq_export.cjs
@@ -74,6 +84,7 @@ jobs:
         run: |
           node --test tests/test_phase2_exports.cjs
           node --test tests/test_t850_vector_export.cjs
+          node --test tests/test_t850_classic.cjs
           node --test tests/test_scientific_vector_actions.cjs
           node tests/test_mosmix_vector_exports.mjs
           node --test tests/test_dashboard_hq_export.cjs
@@ -81,6 +92,7 @@ jobs:
 
   real-data-browser:
     needs: static
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:

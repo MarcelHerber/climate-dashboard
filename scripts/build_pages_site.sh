@@ -201,7 +201,7 @@ for filename in ("index.html","stratosphaere.html","station_jahresanalyse.html")
     path=Path("_site")/filename
     html=path.read_text(encoding="utf-8")
     scripts=(
-        '<script defer src="t850_vector_export.js?v=20261114-vector-areas-v1"></script>\n'
+        '<script defer src="t850_vector_export.js?v=20261118-ensemble-classic-v1"></script>\n'
         '<script defer src="scientific_vector_actions.js?v=20261113-science-vector-v1"></script>\n'
     )
     if html.count("</head>")!=1:
@@ -534,7 +534,7 @@ path=Path("_site/index.html")
 html=path.read_text(encoding="utf-8")
 for filename in ("monthly_frequency.js","t850_ensembles.js"):
     pattern=re.escape(filename)+r"(?:\?v=[A-Za-z0-9_.-]+)?"
-    version="20261114-vector-areas-v1" if filename=="t850_ensembles.js" else "20261113-phase2-exports-v1"
+    version="20261118-ensemble-classic-v1" if filename=="t850_ensembles.js" else "20261113-phase2-exports-v1"
     html,count=re.subn(pattern,filename+"?v="+version,html)
     if count!=1:
         raise SystemExit(f"Phase 2: missing/duplicate chart asset {filename}: {count}")
@@ -988,6 +988,7 @@ node --check _site/mosmix_vector_export.js
 node tests/test_mosmix_vector_exports.mjs
 node --test tests/test_phase2_exports.cjs
 node --test tests/test_t850_vector_export.cjs
+  node --test tests/test_t850_classic.cjs
 node --test tests/test_scientific_vector_actions.cjs
 node tests/test_mosmix_world.mjs
 node tests/test_mosmix_sun_daily.mjs

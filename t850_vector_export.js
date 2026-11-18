@@ -158,6 +158,9 @@ function buildScene(chart,info){
   if(!finite(ymin)||!finite(ymax)||ymax<=ymin||xmax<=xmin)throw Error("Ungültige Diagrammachsen.");
   const xa=i=>P.x+(i-xmin)/(xmax-xmin)*P.w;
   const ya=v=>P.y+P.h-(v-ymin)/(ymax-ymin)*P.h;
+  const right=chart.scales.yRain,rightValid=!!right&&finite(right.min)&&finite(right.max)&&right.max>right.min;
+  const yr=v=>P.y+P.h-(v-right.min)/(right.max-right.min)*P.h;
+  const classic=info?.classic===true;
   const fills=fillAreas(chart,xa,ya,xmin,xmax);
   const series=[];
   chart.data.datasets.forEach((ds,i)=>{
@@ -172,19 +175,22 @@ function buildScene(chart,info){
     let paint=color(ds.borderColor||ds.backgroundColor);
     if(percentile)paint={hex:/^(25|75)\./.test(label)?"#5599d2":"#8aa9d6",opacity:.85};
     // Mobile Chart.js opacity is often 0.2; keep members legible on white paper.
-    if(label.startsWith("Member "))paint.opacity=.50;
-    const points=segments(ds,xa,ya);
+    if(label.startsWith("Member ")&&!classic)paint.opacity=.50;
+    const rightSeries=ds.yAxisID==="yRain";if(rightSeries&&!rightValid)return;
+    const yAt=rightSeries?yr:ya;
+    const points=segments(ds,xa,yAt);
     const radius=Number(ds.pointRadius)||0,markers=[];
     if(radius>0)for(let j=0;j<(ds.data||[]).length;j++){
       const v=value(ds.data[j]);if(v===null)continue;
-      const px=xa(j),py=ya(v);
+      const px=xa(j),py=yAt(v);
       if(px>=P.x&&px<=P.x+P.w&&py>=P.y&&py<=P.y+P.h)markers.push([px,py]);
     }
     if(!points.length&&!markers.length)return;
     series.push({label,points,markers,radius,hex:paint.hex,opacity:paint.opacity,
-      width:percentile?1.3:label.startsWith("Member ")?1.15:Math.max(1.4,Number(ds.borderWidth)||2),
+      width:percentile?1.3:classic?Math.max(.65,Number(ds.borderWidth)||1):label.startsWith("Member ")?1.15:Math.max(1.4,Number(ds.borderWidth)||2),axis:rightSeries?"right":"left",order:Number(ds.order)||0,
       dash:Array.isArray(ds.borderDash)?ds.borderDash:[]});
   });
+  if(classic)series.sort((a,b)=>b.order-a.order);
   if(!series.length)throw Error("Keine sichtbaren Ensemblekurven verfügbar.");
   // Preserve optional categorical/date tick labels when the source chart
   // uses numeric coordinates with formatted ticks (seasonal DWD records).
@@ -197,23 +203,26 @@ function buildScene(chart,info){
         String(info.yTickFormatter(t.value)):String(t.label??t.value)});
   }else for(let i=0;i<=6;i++)ticks.push({v:ymin+(ymax-ymin)*i/6,
     py:ya(ymin+(ymax-ymin)*i/6)});
+  const rightTicks=[];
+  if(rightValid)for(let i=0;i<=5;i++){const v=right.min+(right.max-right.min)*i/5;rightTicks.push({v,py:yr(v)});}
   const dates=[];
   const count=Math.max(1,Math.ceil((xmax-xmin)/8));
   for(let i=Math.ceil(xmin);i<=Math.floor(xmax);i+=count)
     dates.push({text:String(labels[i]||""),px:xa(i)});
   const metadata=(info?.metadata||[]).map(String);
   return {title:String(info?.title||"Ensemblevorhersage"),metadata,
-    axis:String(info?.axis||""),series,fills,ticks,dates,plot:P,model:String(info?.model||""),
+    axis:String(info?.axis||""),rightAxis:rightValid?String(info?.rightAxis||"Niederschlag [mm]"):"",rightTicks,classic,series,fills,ticks,dates,plot:P,model:String(info?.model||""),
     subtitle:String(info?.subtitle||"Ensemble-Vektorexport"),
     source:String(info?.source||"Quelle: Open-Meteo Ensemble API / zugrunde liegende Modelle")};
 }
 function legend(scene){
  const out=[],seen=new Set();
- const isMember=s=>/^(?:_?(?:GEFS|EPS)(?:[_ ]|$)|Member )/i.test(s.label);
+ const isMember=s=>/^(?:_?(?:GEFS|EPS)(?:[_ ]|$)|Member |P\d+(?:\s|$))/i.test(s.label);
  const members=scene.series.filter(isMember);
- if(members.length)out.push({label:"Member ("+members.length+")",hex:"#64748b"});
+ if(members.length)out.push({label:"Member ("+new Set(members.map(s=>s.label.replace(/ · RR 6 h$/,""))).size+")",hex:scene.classic?"#29d0f0":"#64748b"});
  for(const series of scene.series){
    const label=series.label;
+   if((scene.classic||scene.rightAxis)&&label==="0 °C")continue;
    const key=label.includes("Perzentil")?"Perzentile":
       label.startsWith("Kontrolllauf")?"Kontrolllauf":
       label.startsWith("Hauptlauf")?"Hauptlauf":
@@ -221,11 +230,18 @@ function legend(scene){
       label.includes("1991–2020")?"ERA5 1991–2020":
       isMember(series)?"Member":
       label;
-   if(key==="Member"||seen.has(key))continue;
-   seen.add(key);
-   out.push({label:key,hex:series.hex,dash:series.dash});
+   const legendKey=series.axis==="right"&&key!=="Member"&&!key.includes(" · RR")?key+" · RR":key;
+   if(legendKey==="Member"||seen.has(legendKey))continue;
+   seen.add(legendKey);
+   out.push({label:legendKey,hex:series.hex,dash:series.dash});
  }
- return out.slice(0,8);
+ return (scene.classic||scene.rightAxis)?out:out.slice(0,8);
+}
+function legendLayout(scene){
+ const entries=legend(scene),compact=scene.classic||scene.rightAxis,lx=compact?75:585;
+ const widths=entries.map(item=>compact?Math.max(80,item.label.length*7+32):Math.max(115,Math.min(205,item.label.length*9+33)));
+ const factor=compact?Math.min(1,(W-75-lx)/Math.max(1,widths.reduce((a,b)=>a+b,0))):1;
+ let x=lx;return entries.map((item,i)=>{const width=widths[i]*factor,result={...item,x,width,font:13*factor,line:22*factor};x+=width;return result;}).filter(item=>item.x+item.width<=W-75+.01);
 }
 function pt(p){return p.map(n=>Number(n.toFixed(3)));}
 function path(points){return points.map((p,i)=>(i?"L":"M")+pt(p).join(" ")).join(" ");}
@@ -235,36 +251,37 @@ function svgText(x,y,t,size=17,fill="#334155",anchor="start"){
 function svgScene(scene,index){
  const dy=index*H,clipid="plotclip"+index;
  const prefix="panel"+index+"_";
+ const dark=scene.classic,fg=dark?"#f5f5f5":"#334155",sub=dark?"#d2d2d2":"#51667a",grid=dark?"#333333":"#e3e9ee",axis=scene.axis+(scene.rightAxis?" | "+scene.rightAxis:"");
  let s='<defs><clipPath id="'+clipid+'"><rect x="'+P.x+'" y="'+(P.y+dy)+'" width="'+P.w+'" height="'+P.h+'"/></clipPath></defs>';
+ if(dark)s+='<rect x="0" y="'+dy+'" width="'+W+'" height="'+H+'" fill="#000000"/>';
  s+='<g id="'+prefix+'metadata" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Angaben')+'">';
- s+=svgText(65,62+dy,scene.title,31,"#152c43");
- s+=svgText(66,95+dy,scene.axis+" · "+scene.subtitle,19,"#41566a");
- scene.metadata.slice(0,5).forEach((v,i)=>s+=svgText(66,127+dy+i*23,v,16,"#475569"));
+ s+=svgText(65,62+dy,scene.title,31,dark?fg:"#152c43");
+ s+=svgText(66,95+dy,axis+" · "+scene.subtitle,19,dark?sub:"#41566a");
+ scene.metadata.slice(0,5).forEach((v,i)=>s+=svgText(66,127+dy+i*23,v,16,dark?sub:"#475569"));
  const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
- if(created)s+=svgText(P.x,863+dy,created,15);
- s+=svgText(P.x,887+dy,scene.source,15);
- s+=svgText(P.x,911+dy,scene.source==="Quelle: DWD CDC · Originalmessungen"?"DWD-Originalmessungen · Temperaturdifferenz in K · benannte Vektorebenen":"UTC (Z) · Mess- und Prognosewerte unverändert · Kurven als benannte Vektorebenen",15);
+ if(created)s+=svgText(P.x,863+dy,created,15,fg);
+ s+=svgText(P.x,887+dy,scene.source,15,fg);
+ s+=svgText(P.x,911+dy,scene.source==="Quelle: DWD CDC · Originalmessungen"?"DWD-Originalmessungen · Temperaturdifferenz in K · benannte Vektorebenen":"UTC (Z) · Mess- und Prognosewerte unverändert · Kurven als benannte Vektorebenen",15,fg);
  s+="</g>";
  s+='<g id="'+prefix+'legend" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Legende')+'">';
- let lx=585;
- for(const item of legend(scene)){
-   const width=Math.max(115,Math.min(205,item.label.length*9+33));
-   if(lx+width>W-75)break;
-   s+='<path d="M'+lx+" "+(242+dy)+" h22"+'" stroke="'+item.hex+'" stroke-width="3" fill="none"'+
+ for(const item of legendLayout(scene)){
+   const lx=item.x;
+   s+='<path d="M'+lx+" "+(242+dy)+" h"+item.line+'" stroke="'+item.hex+'" stroke-width="3" fill="none"'+
       (item.dash?.length?' stroke-dasharray="'+item.dash.join(",")+'"':"")+'/>';
-   s+=svgText(lx+28,248+dy,item.label,13);
-   lx+=width;
+   s+=svgText(lx+item.line+6,248+dy,item.label,item.font,fg);
  }
  s+="</g>";
  s+='<g id="'+prefix+'axes" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Achsen und Gitter')+'">';
- s+='<rect x="'+P.x+'" y="'+(P.y+dy)+'" width="'+P.w+'" height="'+P.h+'" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>';
+ s+='<rect x="'+P.x+'" y="'+(P.y+dy)+'" width="'+P.w+'" height="'+P.h+'" fill="'+(dark?"#000000":"#ffffff")+'" stroke="'+(dark?"#aaaaaa":"#cbd5e1")+'" stroke-width="1.5"/>';
  for(const t of scene.ticks){
   const y=t.py+dy;
-  s+='<path d="M'+P.x+" "+y+" H"+(P.x+P.w)+'" fill="none" stroke="#e3e9ee"/>';
-  s+=svgText(P.x-12,y+5,t.label??t.v.toLocaleString("de-DE",{maximumFractionDigits:2}),16,"#51667a","end");
+  s+='<path d="M'+P.x+" "+y+" H"+(P.x+P.w)+'" fill="none" stroke="'+grid+'"'+(dark?' stroke-dasharray="4,4"':"")+'/>';
+  s+=svgText(P.x-12,y+5,t.label??t.v.toLocaleString("de-DE",{maximumFractionDigits:2}),16,sub,"end");
  }
+ for(const t of scene.rightTicks||[])s+=svgText(P.x+P.w+12,t.py+dy+5,t.v.toLocaleString("de-DE",{maximumFractionDigits:2}),16,sub,"start");
  for(const d of scene.dates){
-  s+=svgText(d.px,P.y+P.h+32+dy,d.text,15,"#51667a","middle");
+  if(dark)s+='<path d="M'+d.px+" "+(P.y+dy)+" V"+(P.y+P.h+dy)+'" fill="none" stroke="'+grid+'" stroke-dasharray="4,4"/>';
+  s+=svgText(d.px,P.y+P.h+32+dy,d.text,15,sub,"middle");
  }
  s+="</g>";
  (scene.fills||[]).forEach((fill,i)=>{
@@ -297,37 +314,42 @@ function drawPdf(pdf,scene){
  const s=Math.min((pw-12)/W,(ph-12)/H),ox=(pw-W*s)/2,oy=(ph-H*s)/2;
  const X=x=>ox+x*s,Y=y=>oy+y*s;
  const ink=(hex)=>{const a=rgb(hex);return a;};
- const text=(str,x,y,size,colorValue="#334155",align="left")=>{
+ const dark=scene.classic,fg=dark?"#f5f5f5":"#334155",sub=dark?"#d2d2d2":"#51667a",grid=dark?"#333333":"#e3e9ee",baseColor=dark?0:255;
+ const axis=scene.axis+(scene.rightAxis?" | "+scene.rightAxis:"");
+ const text=(str,x,y,size,colorValue=fg,align="left")=>{
    pdf.setFont("helvetica","normal");pdf.setFontSize(size*s*2.83465);
    pdf.setTextColor(...ink(colorValue));pdf.text(String(str),X(x),Y(y),{align});
  };
- pdf.setFillColor(255,255,255);pdf.rect(0,0,pw,ph,"F");
- text(scene.title,65,62,31,"#152c43");
- text(scene.axis+" · "+scene.subtitle,66,95,19,"#41566a");
- scene.metadata.slice(0,5).forEach((m,i)=>text(m,66,127+i*23,16,"#475569"));
- let lx=585;
- for(const item of legend(scene)){
-   const width=Math.max(115,Math.min(205,item.label.length*9+33));
-   if(lx+width>W-75)break;
+ pdf.setFillColor(baseColor,baseColor,baseColor);pdf.rect(0,0,pw,ph,"F");
+ text(scene.title,65,62,31,dark?fg:"#152c43");
+ text(axis+" · "+scene.subtitle,66,95,19,dark?sub:"#41566a");
+ scene.metadata.slice(0,5).forEach((m,i)=>text(m,66,127+i*23,16,dark?sub:"#475569"));
+ for(const item of legendLayout(scene)){
+   const lx=item.x;
    pdf.setDrawColor(...ink(item.hex));pdf.setLineWidth(3*s);
    if(typeof pdf.setLineDashPattern==="function"&&item.dash?.length)
      pdf.setLineDashPattern(item.dash.map(n=>n*s),0);
-   pdf.line(X(lx),Y(242),X(lx+22),Y(242));
+   pdf.line(X(lx),Y(242),X(lx+item.line),Y(242));
    if(typeof pdf.setLineDashPattern==="function")pdf.setLineDashPattern([],0);
-   text(item.label,lx+28,248,13);
-   lx+=width;
+   text(item.label,lx+item.line+6,248,item.font);
  }
  const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
  if(created)text(created,P.x,863,15);
  text(scene.source,P.x,887,15);
  text(scene.source==="Quelle: DWD CDC · Originalmessungen"?"DWD-Originalmessungen · Temperaturdifferenz in K · einzelne Vektorpfade":"UTC (Z) · einzelne Kurven als Vektorpfade · Daten unverändert",P.x,911,15);
- pdf.setLineWidth(.5);pdf.setDrawColor(196,208,219);pdf.rect(X(P.x),Y(P.y),P.w*s,P.h*s,"S");
+ pdf.setLineWidth(.5);pdf.setDrawColor(...ink(dark?"#aaaaaa":"#c4d0db"));pdf.rect(X(P.x),Y(P.y),P.w*s,P.h*s,"S");
  for(const t of scene.ticks){
-   pdf.setDrawColor(226,232,239);pdf.setLineWidth(.25);
+   pdf.setDrawColor(...ink(grid));pdf.setLineWidth(.25);
+   if(dark&&typeof pdf.setLineDashPattern==="function")pdf.setLineDashPattern([4*s,4*s],0);
    pdf.line(X(P.x),Y(t.py),X(P.x+P.w),Y(t.py));
-   text(t.label??t.v.toLocaleString("de-DE",{maximumFractionDigits:2}),P.x-12,t.py+5,16,"#51667a","right");
+   if(typeof pdf.setLineDashPattern==="function")pdf.setLineDashPattern([],0);
+   text(t.label??t.v.toLocaleString("de-DE",{maximumFractionDigits:2}),P.x-12,t.py+5,16,sub,"right");
  }
- for(const d of scene.dates)text(d.text,d.px,P.y+P.h+32,15,"#51667a","center");
+ for(const t of scene.rightTicks||[])text(t.v.toLocaleString("de-DE",{maximumFractionDigits:2}),P.x+P.w+12,t.py+5,16,sub,"left");
+ for(const d of scene.dates){
+   if(dark){pdf.setDrawColor(...ink(grid));if(typeof pdf.setLineDashPattern==="function")pdf.setLineDashPattern([4*s,4*s],0);pdf.line(X(d.px),Y(P.y),X(d.px),Y(P.y+P.h));if(typeof pdf.setLineDashPattern==="function")pdf.setLineDashPattern([],0);}
+   text(d.text,d.px,P.y+P.h+32,15,sub,"center");
+ }
  // Independent PDF polygons precede the member strokes and preserve overlays.
  // Use PDF transparency graphics states where jsPDF supports them; otherwise
  // the polygon is correctly clipped and alpha-blended on white paper.
@@ -335,7 +357,7 @@ function drawPdf(pdf,scene){
    typeof pdf.saveGraphicsState==="function"&&typeof pdf.restoreGraphicsState==="function";
  for(const band of scene.fills||[])for(const area of band.areas){
    const orig=ink(area.hex);
-   const blended=orig.map(v=>Math.round(255*(1-area.opacity)+v*area.opacity));
+   const blended=orig.map(v=>Math.round(baseColor*(1-area.opacity)+v*area.opacity));
    if(pdfAlpha)pdf.saveGraphicsState();
    pdf.setFillColor(...(pdfAlpha?orig:blended));
    if(pdfAlpha)pdf.setGState(new pdf.GState({opacity:area.opacity}));
@@ -349,7 +371,7 @@ function drawPdf(pdf,scene){
  for(const c of scene.series){
    const base=ink(c.hex);
    // jsPDF core has no alpha stroke guarantee: blend light member curves on white.
-   const adjusted=base.map(v=>Math.round(255*(1-c.opacity)+v*c.opacity));
+   const adjusted=base.map(v=>Math.round(baseColor*(1-c.opacity)+v*c.opacity));
    pdf.setDrawColor(...adjusted);pdf.setLineWidth(c.width*s);
    if(typeof pdf.setLineDashPattern==="function")pdf.setLineDashPattern(c.dash.map(n=>n*s),0);
    for(const seg of c.points){
