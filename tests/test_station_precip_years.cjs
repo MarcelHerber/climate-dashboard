@@ -15,7 +15,7 @@ function encode(year, entries) {
 test("full calendar retains future nulls and uses original complete annual curves",()=>{
   assert.equal(typeof api.stationPrecipYearView,"function");
   const labels=api.stationPrecipCalendarLabels(2026);
-  const result=api.stationPrecipYearView({year:2026,dataThrough:"2026-01-02",currentDaily:[1,2],profile:{historical_year_daily_tenths:{"1999":encode(1999,[[0,10],[364,90]]),"2000":encode(2000,[[0,20],[59,30],[365,150]])}}});
+  const result=api.stationPrecipYearView({year:2026,dataThrough:"2026-01-02",currentDaily:[1,2],profile:{historical_year_daily_tenths:{"1999":encode(1999,[[0,10],[364,90]]),"2000":encode(2000,[[0,20],[59,30],[365,150]]),"2001":encode(2001,[[364,150]]),"2002":encode(2002,[[364,150]]),"2003":encode(2003,[[364,150]])}}});
   assert.equal(result.labels[0],"01-01");
   assert.equal(result.labels.at(-1),"12-31");
   assert.equal(result.labels.length,365);
@@ -46,4 +46,12 @@ test("old profile without individual history still has a full reference and axis
   assert.equal(view.maximum.at(-1),12);
   assert.equal(view.current.at(-1),null);
   assert.deepEqual(Object.keys(view.curves),[]);
+});
+
+test("fewer than five exact reference years preserve the published climate normal",()=>{
+  const profile={climate_mean_cumulative:Array(365).fill(8),historical_year_daily_tenths:{"2000":encode(2000,[[0,20]])}};
+  const view=api.stationPrecipYearView({year:2026,dataThrough:"2026-01-01",currentDaily:[0],profile});
+  assert.equal(view.climate.at(-1),8);
+  assert.equal(view.referenceCount,0);
+  assert.equal(view.curves["2000"].at(-1),2);
 });
