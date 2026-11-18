@@ -4,7 +4,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-from scripts.sst.config import REGIONS
+from scripts.sst.config import REGIONS, ALL_REGIONS
 from scripts.sst.manifest import archive_relpath, empty_manifest, register_date, write_manifest_atomic
 
 
@@ -30,10 +30,10 @@ class SstManifestTests(unittest.TestCase):
     def test_empty_manifest_has_stable_public_contract(self):
         manifest = empty_manifest()
         self.assertEqual(manifest["schema_version"], 1)
-        self.assertEqual(manifest["archive_start"], "2020-01-01")
+        self.assertEqual(manifest["archive_start"], "1981-09-01")
         self.assertIsNone(manifest["data_through"])
         self.assertEqual(manifest["available_dates"], [])
-        self.assertEqual(set(manifest["regions"]), set(REGIONS))
+        self.assertEqual(set(manifest["regions"]), set(ALL_REGIONS))
         self.assertEqual(manifest["scales"]["absolute"], [-2.0, 34.0])
         self.assertEqual(manifest["scales"]["anomaly"], [-6.0, 6.0])
 

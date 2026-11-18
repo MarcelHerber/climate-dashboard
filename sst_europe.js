@@ -26,6 +26,11 @@ function sstShiftDate(iso,days){
   return sstIsoDate(date);
 }
 function sstRegionLabel(region){return sstManifest?.regions?.[region]?.label||region;}
+function sstRegionSource(region,date){
+  const meta=sstManifest?.regions?.[region];
+  const historical=["europe","mediterranean","north_atlantic","nordic_seas"].includes(region)&&date<"2002-06-01";
+  return historical?"NOAA OISST v2.1 (0,25°)":(meta?.source_label||(meta?.source_id==="oisst"||["pacific","nino34","indian_ocean"].includes(region)?"NOAA OISST v2.1 (0,25°)":"NASA/JPL MUR SST v4.1")).replace(/^Quelle:\s*/i,"");
+}
 function sstViewLabel(view){return view==="anomaly"?"SST-Anomalie zu 1991–2020":"SST absolut";}
 function sstRegionHasDate(iso,region=sstState.region,view=sstState.view){
   return Boolean(sstManifest?.dates?.[iso]?.regions?.[region]?.[view]);
@@ -82,7 +87,7 @@ function sstRenderStats(stats,view){
 
 async function sstLoadManifestFrom(base){
   const controller=new AbortController();
-  const timeout=window.setTimeout(()=>controller.abort(),5000);
+  const timeout=window.setTimeout(()=>controller.abort(),20000);
   try{
     const response=await fetch(`${base}/manifest.json?t=${Date.now()}`,{cache:"no-store",signal:controller.signal});
     if(!response.ok)throw new Error(`SST manifest HTTP ${response.status} @ ${base}`);
@@ -128,7 +133,8 @@ function sstPopulateRegions(){
 
 function sstUpdateDateBounds(){
   const input=sstEl("sstDate");if(!input||!sstManifest)return;
-  input.min=sstManifest.archive_start||"2020-01-01";
+  const dates=sstManifest.available_dates||Object.keys(sstManifest.dates||{}).sort();
+  input.min=dates.find(iso=>sstRegionHasDate(iso))||sstManifest.archive_start||"1981-09-01";
   input.max=sstLatestDateForRegion()||sstManifest.data_through||"";
   input.value=sstState.date||input.max||"";
 }
@@ -185,7 +191,7 @@ function sstRenderMap(){
   // Manifest.data_through is GLOBAL and may belong to Pacific OISST rather
   // than the selected MUR European region. Always show the region's last map.
   const latestInRegion=sstLatestDateForRegion(region,view);
-  if(dataThrough)dataThrough.textContent=`Datenstand ${sstRegionLabel(region)}: ${latestInRegion||"–"}`;
+  if(dataThrough)dataThrough.textContent=`Datenstand ${sstRegionLabel(region)}: ${latestInRegion||"–"} · Kartenquelle (${date}): ${sstRegionSource(region,date)}`;
   sstRenderStats(stats,view);
   if(!image)return;
   if(!rel){
@@ -245,7 +251,7 @@ async function composeSstExportCanvas(){
     ctx.fillText(statsLine,28,image.naturalHeight+63);
   }
   ctx.fillStyle="#5f676d";ctx.font="15px Arial,sans-serif";
-  const regionSource=(sstManifest?.regions?.[sstState.region]?.source_label||"Quelle: NASA/JPL MUR SST v4.1").replace(/^Quelle:\s*/i,"");
+  const regionSource=sstRegionSource(sstState.region,sstState.date);
   const source=sstState.view==="anomaly"?`${regionSource} · Referenz NOAA OISST 1991–2020`:regionSource;
   ctx.fillText(source,28,image.naturalHeight+(statsLine?96:65));
   return canvas;

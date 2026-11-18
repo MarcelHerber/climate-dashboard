@@ -8,7 +8,7 @@ from pathlib import Path
 
 import xarray as xr
 
-from .config import ARCHIVE_START, REGIONS, Region
+from .config import MUR_ARCHIVE_START, REGIONS, Region
 from .manifest import VIEWS, archive_relpath, read_manifest, register_date, write_manifest_atomic
 from .processing import (
     process_mur_region,
@@ -85,8 +85,8 @@ def build_date(
     *,
     source_adapter=None,
 ) -> BuildResult:
-    if day < ARCHIVE_START:
-        raise ValueError(f"SST-Archiv beginnt am {ARCHIVE_START.isoformat()}.")
+    if day < MUR_ARCHIVE_START:
+        raise ValueError(f"SST-Archiv beginnt am {MUR_ARCHIVE_START.isoformat()}.")
 
     expected_file_count = _expected_file_count()
     archive_root = Path(archive_root)

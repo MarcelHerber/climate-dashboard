@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import xarray as xr
 
-from .config import ARCHIVE_START, OCEAN_REGIONS
+from .config import ARCHIVE_START, OCEAN_REGIONS, REGIONS, SEA_ICE_THRESHOLD, oisst_regions_for_day
 from .manifest import VIEWS, archive_relpath, read_manifest, write_manifest_atomic
 from .ocean_sources import download_oisst_daily_subset, download_oisst_normal_subset
 from .processing import ProcessedFields, summarize_region_statistics, validate_scientific_fields
@@ -54,6 +54,8 @@ def _squeeze_spatial(array: xr.DataArray) -> xr.DataArray:
 
 
 def _subset_field(field: xr.DataArray, region) -> xr.DataArray:
+    if region.west < 0:
+        field = field.assign_coords(lon=((field["lon"] + 180) % 360) - 180).sortby("lon")
     subset = field.where((field["lon"] >= region.west) & (field["lon"] <= region.east), drop=True)
     subset = subset.where((subset["lat"] >= region.south) & (subset["lat"] <= region.north), drop=True)
     return subset
@@ -74,8 +76,16 @@ def _processed_fields(actual_dataset: xr.Dataset, normal_dataset: xr.Dataset, re
     if normal_units.startswith("k"):
         normal = normal - 273.15
 
-    normal_hi = normal.interp(lat=actual["lat"], lon=actual["lon"], method="linear")
+    if actual["lat"].equals(normal["lat"]) and actual["lon"].equals(normal["lon"]):
+        normal_hi = normal
+    else:
+        normal_hi = normal.interp(lat=actual["lat"], lon=actual["lon"], method="linear")
     valid_mask = np.isfinite(actual) & np.isfinite(normal_hi)
+    if region.id in REGIONS and "ice" in actual_dataset:
+        # NCEI packs ice as 0..100 with scale_factor=.01: decoded fractions 0..1.
+        ice = _subset_field(_squeeze_spatial(actual_dataset["ice"]).astype(float), region)
+        # Missing ice in open ocean is allowed; SST still supplies the land mask.
+        valid_mask = valid_mask & (ice.fillna(0) < SEA_ICE_THRESHOLD)
     absolute_c = actual.where(valid_mask)
     anomaly_c = (actual - normal_hi).where(valid_mask)
 
@@ -113,8 +123,8 @@ def _sync_manifest_metadata(manifest: dict) -> None:
         by_region[region_id] = "NOAA OISST v2.1"
 
 
-def _region_complete(manifest: dict, day: date, archive_root: Path, region_id: str) -> bool:
-    region = OCEAN_REGIONS[region_id]
+def _region_complete(manifest: dict, day: date, archive_root: Path, region_id: str, region=None) -> bool:
+    region = region or oisst_regions_for_day(day)[region_id]
     entry = manifest.get("dates", {}).get(day.isoformat())
     if not isinstance(entry, dict):
         return False
@@ -150,8 +160,9 @@ def build_ocean_date(
 
     archive_root = Path(archive_root)
     cache_root = Path(cache_root)
-    requested = tuple(region_ids or OCEAN_REGIONS.keys())
-    unknown = [region_id for region_id in requested if region_id not in OCEAN_REGIONS]
+    regions = oisst_regions_for_day(day)
+    requested = tuple(region_ids or regions.keys())
+    unknown = [region_id for region_id in requested if region_id not in regions]
     if unknown:
         raise ValueError(f"Unbekannte Ozean-SST-Regionen: {unknown}")
 
@@ -162,7 +173,7 @@ def build_ocean_date(
     to_build = tuple(
         region_id
         for region_id in requested
-        if not _region_complete(manifest, day, archive_root, region_id)
+        if not _region_complete(manifest, day, archive_root, region_id, regions[region_id])
     )
     if not to_build:
         write_manifest_atomic(manifest_path, manifest)
@@ -187,14 +198,17 @@ def build_ocean_date(
 
         try:
             download_oisst_daily_subset(day, actual_path)
-            download_oisst_normal_subset(day, normal_path)
+            if any(region_id in REGIONS for region_id in to_build):
+                download_oisst_normal_subset(day, normal_path, include_europe=True)
+            else:
+                download_oisst_normal_subset(day, normal_path)
 
             with xr.open_dataset(actual_path) as actual_raw, xr.open_dataset(normal_path) as normal_raw:
                 actual = _standardize_dataset(actual_raw.load())
                 normal = _standardize_dataset(normal_raw.load())
 
             for region_id in to_build:
-                region = OCEAN_REGIONS[region_id]
+                region = regions[region_id]
                 fields = _processed_fields(actual, normal, region)
                 validate_scientific_fields(fields)
                 statistics[region_id] = summarize_region_statistics(fields, region)

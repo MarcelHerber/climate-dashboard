@@ -7,7 +7,7 @@ from unittest import mock
 
 from scripts.sst.backfill import backfill, iter_dates, storage_report
 from scripts.sst.build_daily import BuildResult
-from scripts.sst.config import ARCHIVE_START, REGIONS
+from scripts.sst.config import MUR_ARCHIVE_START, REGIONS
 from scripts.sst.manifest import archive_relpath, empty_manifest, register_date, write_manifest_atomic
 
 
@@ -39,8 +39,8 @@ class SstBackfillTests(unittest.TestCase):
             self.assertEqual(report["file_count"], 16)
             self.assertEqual(report["total_bytes"], 160)
             self.assertEqual(report["mean_bytes_per_day"], 80.0)
-            projected_days = (date.today() - ARCHIVE_START).days + 1
-            self.assertAlmostEqual(report["projected_archive_gib_from_2020"], 80.0 * projected_days / (1024 ** 3))
+            projected_days = (date.today() - MUR_ARCHIVE_START).days + 1
+            self.assertAlmostEqual(report["projected_mur_archive_gib_from_2002"], 80.0 * projected_days / (1024 ** 3))
 
     def test_backfill_delegates_each_date_and_writes_storage_report(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -89,7 +89,7 @@ class SstBackfillTests(unittest.TestCase):
                 BuildResult(date(2026, 9, 2), False, 8, "daily_normal"),
             ]
             with mock.patch("scripts.sst.backfill.build_date", side_effect=sequence), \
-                 mock.patch("scripts.sst.backfill.storage_report", return_value={"date_count": 2, "file_count": 16, "total_bytes": 160, "mean_bytes_per_day": 80, "projected_archive_gib_from_2020": 1.0}):
+                 mock.patch("scripts.sst.backfill.storage_report", return_value={"date_count": 2, "file_count": 16, "total_bytes": 160, "mean_bytes_per_day": 80, "projected_mur_archive_gib_from_2002": 1.0}):
                 result = backfill(date(2026, 9, 1), date(2026, 9, 2), archive, cache, "token")
             self.assertEqual(result["built"], 1)
             self.assertEqual(result["skipped"], 1)

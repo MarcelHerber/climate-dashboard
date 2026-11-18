@@ -16,7 +16,7 @@ const window={setTimeout(){},clearTimeout(){}};
 const injected='window.__tests={setManifest(doc){sstManifest=doc;},'+
  'setRegion(region){sstState.region=region;},setView(view){sstState.view=view;},'+
  'setDate(date){sstState.date=date;},latest:sstLatestDateForRegion,'+
- 'bounds:sstUpdateDateBounds,render:sstRenderMap};})();';
+ 'bounds:sstUpdateDateBounds,render:sstRenderMap,source:sstRegionSource};})();';
 const code=src.replace(/\}\)\(\);\s*$/,injected);
 const context={document,window,console,Date,Intl,AbortController,MutationObserver:class{}};
 vm.runInNewContext(code,context);
@@ -44,6 +44,9 @@ app.setDate("2026-10-29");
 assert.equal(app.latest(),"2026-10-29");
 app.bounds();
 assert.equal(nodes.sstDate.max,"2026-10-29");
+assert.equal(nodes.sstDate.min,"2026-10-29");
+assert.match(app.source("europe","2002-05-31"),/NOAA OISST/);
+assert.match(app.source("europe","2002-06-01"),/NASA\/JPL MUR/);
 app.render();
 assert.match(nodes.sstDataThrough.textContent,/Europa gesamt: 2026-10-29/);
 assert.doesNotMatch(nodes.sstDataThrough.textContent,/2026-11-10/);

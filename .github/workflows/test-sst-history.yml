@@ -1,0 +1,41 @@
+name: Test SST historical archive
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/sst/**'
+      - 'scripts/patch_sst_frontend.py'
+      - 'sst_europe.js'
+      - 'tests/test_sst*'
+      - '.github/workflows/*sst*.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            scripts/sst
+            scripts/patch_sst_frontend.py
+            tests
+            requirements-sst.txt
+            sst_europe.js
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-sst.txt
+      - run: pip install -r requirements-sst.txt
+      - run: |
+          python -m unittest discover -s tests -p 'test_sst_archive_history*.py' -v
+          python -m unittest discover -s tests -p 'test_sst_config.py' -v
+          python -m unittest discover -s tests -p 'test_sst_manifest.py' -v
+          python -m unittest discover -s tests -p 'test_sst_backfill.py' -v
+          node tests/test_sst_region_date.cjs

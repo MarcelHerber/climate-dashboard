@@ -42,7 +42,10 @@ OISST_RETRY_DELAYS = (5, 15, 30, 60)
 OISST_RETRYABLE_STATUS = {408, 425, 429, 500, 502, 503, 504}
 
 
-def ocean_union_bounds() -> tuple[float, float, float, float]:
+def ocean_union_bounds(*, include_europe: bool = False) -> tuple[float, float, float, float]:
+    if include_europe:
+        # A global longitude span is needed on both sides of Greenwich.
+        return (0.0, -61.5, 360.0, 85.0)
     bounds = [region.download_bounds for region in OCEAN_REGIONS.values()]
     return (
         min(item[0] for item in bounds),
@@ -212,8 +215,10 @@ def download_oisst_normal_subset(
     day: date,
     destination: Path,
     session=requests,
+    *,
+    include_europe: bool = False,
 ) -> Path:
-    west, south, east, north = ocean_union_bounds()
+    west, south, east, north = ocean_union_bounds(include_europe=include_europe)
     time_start, time_stop = _normal_time_indices(day)
     latitudes = OISST_GRID_LAT_START + np.arange(OISST_GRID_LAT_COUNT) * OISST_GRID_STEP
     longitudes = OISST_GRID_LON_START + np.arange(OISST_GRID_LON_COUNT) * OISST_GRID_STEP
@@ -228,12 +233,14 @@ def download_oisst_normal_subset(
     base_date = date(1, 1, 1)
     params = {
         "var": "sst",
-        "north": north, "south": south, "west": west, "east": east,
         "time_start": (base_date + timedelta(days=time_start)).isoformat() + "T00:00:00Z",
         "time_end": (base_date + timedelta(days=time_stop)).isoformat() + "T00:00:00Z",
         "timeStride": 1,
         "accept": "netcdf4",
     }
+    if not include_europe:
+        params.update(north=north, south=south, west=west, east=east)
+    # Omitting the longitude bounds requests the full NCSS horizontal grid.
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="oisst-ocean-normal-", dir=destination.parent) as tmp:
         path = Path(tmp) / "normal.nc"

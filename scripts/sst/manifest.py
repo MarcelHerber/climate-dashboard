@@ -30,6 +30,7 @@ def empty_manifest() -> dict:
         "source": {
             "sst": "MUR-JPL-L4-GLOB-v4.1",
             "reference": "NOAA OISST 1991-2020",
+            "europe_source_periods": {"1981-09-01": "NOAA OISST v2.1", "2002-06-01": "MUR-JPL-L4-GLOB-v4.1"},
         },
         "scales": {
             "absolute": [float(ABSOLUTE_RANGE[0]), float(ABSOLUTE_RANGE[1])],
@@ -119,6 +120,7 @@ def register_date(
     merged_regions.update(copy.deepcopy(outputs))
     merged_statistics.update(copy.deepcopy(statistics))
     dates[day_key] = {
+        **previous,
         "reference_method": reference_method or previous.get("reference_method"),
         "regions": merged_regions,
         "statistics": merged_statistics,
@@ -130,12 +132,35 @@ def register_date(
     return manifest
 
 
+def manifest_entry_complete(entry: dict, region_ids) -> bool:
+    """Check the selected regions, not just the presence of a date."""
+    if not isinstance(entry, dict):
+        return False
+    for region_id in region_ids:
+        outputs = entry.get("regions", {}).get(region_id, {})
+        stats = entry.get("statistics", {}).get(region_id, {})
+        if not isinstance(outputs, dict) or not isinstance(stats, dict):
+            return False
+        for view in VIEWS:
+            if not isinstance(outputs.get(view), str) or not outputs[view]:
+                return False
+            values = stats.get(view)
+            if not isinstance(values, dict) or not all(
+                isinstance(values.get(key), (int, float)) and math.isfinite(values[key])
+                for key in STAT_KEYS
+            ):
+                return False
+    return True
+
+
 def read_manifest(path: Path) -> dict:
     if not path.exists():
         return empty_manifest()
     payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("schema_version") != 1:
         raise RuntimeError(f"Nicht unterstütztes SST-Manifest: {payload.get('schema_version')}")
+    payload["archive_start"] = ARCHIVE_START.isoformat()
+    payload.setdefault("source", {})["europe_source_periods"] = empty_manifest()["source"]["europe_source_periods"]
     return payload
 
 
@@ -144,7 +169,7 @@ def write_manifest_atomic(path: Path, payload: dict) -> None:
     temporary = path.with_name(path.name + ".tmp")
     try:
         with temporary.open("w", encoding="utf-8", newline="\n") as handle:
-            json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=False)
+            json.dump(payload, handle, ensure_ascii=False, separators=(",", ":"), sort_keys=False)
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())

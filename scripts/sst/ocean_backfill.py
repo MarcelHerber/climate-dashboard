@@ -5,7 +5,7 @@ import json
 from datetime import date, timedelta
 from pathlib import Path
 
-from .config import ARCHIVE_START, OCEAN_REGIONS
+from .config import ARCHIVE_START, ALL_REGIONS
 from .ocean_build import build_ocean_date
 
 
@@ -27,7 +27,7 @@ def _parse_date(value: str) -> date:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="NOAA-OISST-Karten für Pazifik, Niño 3.4 und Indischen Ozean rückwirkend ergänzen."
+        description="NOAA-OISST-Karten historisch ergänzen (Europa vor Juni 2002)."
     )
     parser.add_argument("--start", required=True, type=_parse_date)
     parser.add_argument("--end", required=True, type=_parse_date)
@@ -35,16 +35,16 @@ def main() -> int:
     parser.add_argument("--cache-root", default=Path(".sst_cache"), type=Path)
     parser.add_argument(
         "--regions",
-        default=",".join(OCEAN_REGIONS),
-        help="Kommagetrennte Regions-IDs; Standard: alle neuen Ozeanregionen.",
+        default=None,
+        help="Kommagetrennte Regions-IDs; Standard: alle OISST-Regionen des Tages.",
     )
     args = parser.parse_args()
 
     if args.start < ARCHIVE_START:
         parser.error(f"SST-Backfill beginnt frühestens {ARCHIVE_START.isoformat()}.")
 
-    region_ids = tuple(item.strip() for item in args.regions.split(",") if item.strip())
-    unknown = [item for item in region_ids if item not in OCEAN_REGIONS]
+    region_ids = tuple(item.strip() for item in args.regions.split(",") if item.strip()) if args.regions else None
+    unknown = [item for item in (region_ids or ()) if item not in ALL_REGIONS]
     if unknown:
         parser.error(f"Unbekannte Ozeanregionen: {unknown}")
 
@@ -69,7 +69,7 @@ def main() -> int:
             {
                 "start": args.start.isoformat(),
                 "end": args.end.isoformat(),
-                "regions": list(region_ids),
+                "regions": list(region_ids) if region_ids else "auto",
                 "built": built,
                 "skipped": skipped,
                 "files": files,

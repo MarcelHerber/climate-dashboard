@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       month:
-        description: "Monat YYYY-MM, z. B. 2020-01"
+        description: "Monat YYYY-MM, z. B. 1981-09"
         required: true
         type: string
       chain:
@@ -85,7 +85,8 @@ jobs:
           import subprocess
           from datetime import date, timedelta
 
-          from scripts.sst.config import ARCHIVE_START, OCEAN_REGIONS
+          from scripts.sst.config import ARCHIVE_START, oisst_regions_for_day
+          from scripts.sst.manifest import manifest_entry_complete
           from scripts.sst.ocean_sources import latest_available_oisst_date
 
           message = os.environ.get('START_COMMIT_MESSAGE', '')
@@ -97,7 +98,7 @@ jobs:
           month = os.environ.get('BACKFILL_MONTH', '').strip()
           if not month:
               match = re.search(r'\[start-sst-ocean-archive:(\d{4}-\d{2})\]', message)
-              month = recovery_match.group(1) if recovery_match else (match.group(1) if match else '2020-01')
+              month = recovery_match.group(1) if recovery_match else (match.group(1) if match else '1981-09')
           if not re.fullmatch(r'\d{4}-\d{2}', month):
               raise SystemExit('Monat muss YYYY-MM entsprechen.')
 
@@ -130,10 +131,9 @@ jobs:
                   stderr=subprocess.DEVNULL,
               )
               manifest = json.loads(raw)
-              required = set(OCEAN_REGIONS)
               for iso, entry in manifest.get('dates', {}).items():
-                  regions = entry.get('regions', {}) if isinstance(entry, dict) else {}
-                  if isinstance(regions, dict) and required.issubset(regions):
+                  day = date.fromisoformat(iso)
+                  if day >= ARCHIVE_START and manifest_entry_complete(entry, oisst_regions_for_day(day)):
                       existing_complete.add(iso)
           except Exception:
               pass
@@ -228,7 +228,9 @@ jobs:
           test -f "$OUT/manifest.json"
           COUNT=$(find "$OUT" -type f -name '*.webp' | wc -l)
           echo "${{ matrix.day }}: $COUNT Ozean-WebP-Karten"
-          test "$COUNT" -eq 6
+          EXPECTED=$(python -c 'from datetime import date; from scripts.sst.config import oisst_regions_for_day; import sys; print(2 * len(oisst_regions_for_day(date.fromisoformat(sys.argv[1]))))' "${{ matrix.day }}")
+          test "$COUNT" -eq "$EXPECTED"
+          python -c 'import json,sys; from datetime import date; from scripts.sst.config import oisst_regions_for_day; from scripts.sst.manifest import manifest_entry_complete; day=sys.argv[1]; data=json.load(open(sys.argv[2])); assert manifest_entry_complete(data["dates"][day], oisst_regions_for_day(date.fromisoformat(day)))' "${{ matrix.day }}" "$OUT/manifest.json"
 
       - name: Tagesergebnis hochladen
         uses: actions/upload-artifact@v4
@@ -309,6 +311,8 @@ jobs:
           if os.environ.get('RECOVERY_RUN_ID', '0') == '0' and len(manifests) > expected:
               raise RuntimeError(f'Erwartet höchstens {expected} Ozean-Tages-Manifeste, gefunden {len(manifests)}')
           if not manifests:
+              if expected and os.environ.get('RECOVERY_RUN_ID', '0') == '0':
+                  raise RuntimeError('Keine erwarteten Ozean-Tagesartefakte vorhanden; Monat wird nicht übersprungen.')
               print('Keine erfolgreich gebauten Tagesartefakte vorhanden; Archiv bleibt unverändert.')
               raise SystemExit(0)
           if os.environ.get('RECOVERY_RUN_ID', '0') == '0' and len(manifests) < expected:
@@ -336,9 +340,22 @@ jobs:
               target_regions = target.setdefault('regions', {})
               target_stats = target.setdefault('statistics', {})
               target_refs = target.setdefault('reference_methods', {})
-              target_regions.update(copy.deepcopy(incoming.get('regions', {})))
-              target_stats.update(copy.deepcopy(incoming.get('statistics', {})))
-              target_refs.update(copy.deepcopy(incoming.get('reference_methods', {})))
+              # Preserve complete published maps when a partially filled day is rebuilt.
+              keep = set()
+              for region_id, views in target_regions.items():
+                  stats = target_stats.get(region_id, {})
+                  if all(views.get(view) and (archive / views[view]).is_file()
+                         and isinstance(stats.get(view), dict)
+                         and set(stats[view]) == {'mean', 'min', 'max'}
+                         for view in ('absolute', 'anomaly')):
+                      keep.add(region_id)
+              for region_id, views in incoming.get('regions', {}).items():
+                  if region_id in keep:
+                      continue
+                  target_regions[region_id] = copy.deepcopy(views)
+                  target_stats[region_id] = copy.deepcopy(incoming['statistics'][region_id])
+                  if region_id in incoming.get('reference_methods', {}):
+                      target_refs[region_id] = incoming['reference_methods'][region_id]
               if not target.get('reference_method'):
                   target['reference_method'] = incoming.get('reference_method')
               dates[day] = target
@@ -346,16 +363,20 @@ jobs:
 
               for webp in root.rglob('*.webp'):
                   relative = webp.relative_to(root)
+                  if relative.parts[2] in keep:
+                      continue
                   destination = archive / relative
                   destination.parent.mkdir(parents=True, exist_ok=True)
                   shutil.copy2(webp, destination)
 
           available_sorted = sorted(available)
           merged['dates'] = {day: dates[day] for day in available_sorted}
+          merged['archive_start'] = '1981-09-01'
+          merged.setdefault('source', {})['europe_source_periods'] = {'1981-09-01': 'NOAA OISST v2.1', '2002-06-01': 'MUR-JPL-L4-GLOB-v4.1'}
           merged['available_dates'] = available_sorted
           merged['data_through'] = available_sorted[-1] if available_sorted else None
           merged['generated_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
-          manifest_path.write_text(json.dumps(merged, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          manifest_path.write_text(json.dumps(merged, ensure_ascii=False, separators=(',', ':')) + '\n', encoding='utf-8')
 
           webps = list(archive.rglob('*.webp'))
           total_bytes = sum(path.stat().st_size for path in webps)
@@ -368,7 +389,7 @@ jobs:
               'file_count': len(webps),
               'total_bytes': total_bytes,
               'mean_bytes_per_day': mean_bytes_per_day,
-              'projected_archive_gib_from_2020': (mean_bytes_per_day * projected_days) / (1024 ** 3),
+              'projected_archive_gib_from_archive_start': (mean_bytes_per_day * projected_days) / (1024 ** 3),
           }
           (archive / 'storage_report.json').write_text(
               json.dumps(report, ensure_ascii=False, indent=2) + '\n',
@@ -402,6 +423,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # Successful matrix jobs must all be present before advancing the chain.
+          if [[ "${DAY_COUNT:-0}" -gt 0 ]]; then
+            COUNT=$(find /tmp/sst-ocean-days -name manifest.json -type f | wc -l)
+            test "$COUNT" -eq "$DAY_COUNT"
+          fi
           NEXT_MONTH=$(python - <<'PY'
           import os
           from datetime import date
