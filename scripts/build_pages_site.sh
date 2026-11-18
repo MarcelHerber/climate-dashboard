@@ -140,6 +140,8 @@ required_root_files=(
   saisonal_europa.css
   sst_europe.js
   sst_europe.css
+  sst_nino_years.js
+  sst_nino_years.css
   t850_ensembles.js
   t850_vector_export.js
   scientific_vector_actions.js
@@ -192,6 +194,25 @@ for file in "${required_root_files[@]}"; do
   fi
   cp "$file" _site/
 done
+
+# Add NOAA OISST daily Niño year-over-year curves without rewriting the main SST page.
+python - <<'PY'
+from pathlib import Path
+page = Path("_site/index.html")
+html = page.read_text(encoding="utf-8")
+assert 'id="sst-europe"' in html, "SST tab not found"
+css = '<link rel="stylesheet" href="sst_nino_years.css?v=20261118-1">'
+js = '<script defer src="sst_nino_years.js?v=20261118-1"></script>'
+if css not in html:
+    assert html.count("</head>") == 1
+    html = html.replace("</head>", css + "\n</head>", 1)
+if js not in html:
+    assert html.count("</body>") == 1
+    html = html.replace("</body>", js + "\n</body>", 1)
+assert html.count(css) == 1 and html.count(js) == 1
+page.write_text(html, encoding="utf-8")
+PY
+node --check _site/sst_nino_years.js
 
 # Phase 2: add source-specific vector downloads to existing scientific charts.
 # Keep source HTML and all existing PNG/CSV controls intact.
