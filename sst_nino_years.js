@@ -152,6 +152,7 @@
         interaction: { intersect: false, mode: "nearest", axis: "xy" },
         plugins: {
           legend: { display: false },
+          datalabels: { display: false },
           title: { display: true, text: REGIONS[region][0] + " · täglicher Jahresverlauf (" + (anomaly ? "Anomalie" : "SST") + ")", color: "#f8fafc",
                    font: { size: 16, weight: "bold" }, padding: 12 },
           tooltip: { callbacks: { title: function (items) {
@@ -235,7 +236,7 @@
     panel.innerHTML = '<h3>Jahresverläufe der Meeresoberflächentemperatur</h3>' +
       '<p class="sst-years-explain">Tägliche Gebietsmittel der vier Niño-Regionen. Alle Jahre im direkten Vergleich, aktuelle Messreihe rot und Klimamittel gelb.</p>' +
       '<div class="sst-years-controls">' +
-      '<label>Niño-Region<select id="sstYearsRegion"><option value="nino12">Niño 1+2</option><option value="nino3">Niño 3</option><option value="nino34" selected>Niño 3.4</option><option value="nino4">Niño 4</option></select></label>' +
+      '<label>Niño-Region<select id="sstYearsRegion"><option value="nino12" selected>Niño 1+2</option><option value="nino3">Niño 3</option><option value="nino34">Niño 3.4</option><option value="nino4">Niño 4</option></select></label>' +
       '<label>Darstellung<select id="sstYearsMetric"><option value="absolute">SST absolut (°C)</option><option value="anomaly">Abweichung zum Mittel (K)</option></select></label>' +
       '<label>Historische Jahre<select id="sstYearsHistory"><option value="all">Alle Jahre</option><option value="year">Einzeljahr hervorheben</option><option value="none">Nur aktuelles Jahr + Mittel</option></select></label>' +
       '<label>Vergleichsjahr<select id="sstYearsYear"></select></label>' +
