@@ -1,0 +1,59 @@
+name: SST Niño-Tagesverläufe prüfen
+
+on:
+  pull_request:
+    paths:
+      - "sst_nino_years.js"
+      - "sst_nino_years.css"
+      - "scripts/build_pages_site.sh"
+      - ".github/workflows/test-sst-nino-years.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nino-years:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - name: Frontend-Syntax und Einbau prüfen
+        shell: bash
+        run: |
+          node --check sst_nino_years.js
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("scripts/build_pages_site.sh").read_text()
+          js = Path("sst_nino_years.js").read_text()
+          css = Path("sst_nino_years.css").read_text()
+          assert s.count("  sst_nino_years.js\n") == 1
+          assert s.count("  sst_nino_years.css\n") == 1
+          assert 'id="sst-europe"' in s
+          assert 'html.count(js) == 1' in s
+          assert 'datalabels: { display: false }' in js
+          assert '"date,sst"' in js
+          assert "Array.from({ length: 366 }" in js
+          assert "1991; year <= 2020" in js
+          assert "#ff373b" in js and "#fff42d" in js
+          assert ".sst-years-graph" in css
+          PY
+      - name: Tatsächliche tägliche NOAA-OISST-Regionsreihen abrufen
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv, datetime, io, urllib.request
+          root = "https://raw.githubusercontent.com/tsjuri/earthindicators/main/data/"
+          for region in ("nino12", "nino3", "nino34", "nino4"):
+              url = root + region + "_daily_sst.csv"
+              request = urllib.request.Request(url, headers={"User-Agent": "ClimateDashboard-SST-Test"})
+              with urllib.request.urlopen(request, timeout=35) as response:
+                  rows = list(csv.DictReader(io.TextIOWrapper(response, encoding="utf-8")))
+              assert len(rows) >= 15000, (region, len(rows))
+              assert rows[0]["date"] == "1982-01-01"
+              assert "1991-01-01" in {row["date"] for row in rows}
+              assert "2020-12-31" in {row["date"] for row in rows}
+              assert (datetime.date.today() - datetime.date.fromisoformat(rows[-1]["date"])).days < 60
+              assert all(10 <= float(row["sst"]) <= 35 for row in rows[::60])
+              print(region, len(rows), rows[0]["date"], rows[-1]["date"])
+          PY
