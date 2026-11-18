@@ -9737,7 +9737,12 @@ async function updateStationPrecipitation(){
     stationPrecipChart=new Chart(document.getElementById("stationPrecipChart"),{
       type:"line",data:{labels:selectedLabels.map(stationPrecipDateLabel),datasets},
       options:{responsive:true,maintainAspectRatio:false,interaction:{mode:fullYear?"nearest":"index",intersect:false},plugins:{
-        legend:{labels:{filter:(item,data)=>{const dataset=data.datasets[item.datasetIndex];return !dataset?.historyYear||dataset.historyExtreme||stationPrecipHistorySelection.size<=10;}}},
+        legend:{labels:{filter:(item,data)=>{const dataset=data.datasets[item.datasetIndex];return !dataset?.historyYear||dataset.historyExtreme||stationPrecipHistorySelection.size<=10;}},
+          onClick:(event,item,legend)=>{
+            const dataset=legend.chart.data.datasets[item.datasetIndex];
+            if(dataset?.historyYear){stationPrecipHistorySelection.delete(Number(dataset.label));stationPrecipHistoryApply();return;}
+            Chart.defaults.plugins.legend.onClick(event,item,legend);
+          }},
         title:{display:true,text:`Kumulierte Niederschlagssumme – ${station.name} – ${range.displayLabel}`},
         subtitle:{display:true,text:"Die Summe startet am ersten Tag des gewählten Zeitraums wieder bei 0 mm.",color:"#666",font:{size:12}},
         datalabels:{display:false},tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${stationPrecipFormat(context.parsed.y)} mm`}},
