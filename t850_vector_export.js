@@ -222,6 +222,7 @@ function legend(scene){
  if(members.length)out.push({label:"Member ("+new Set(members.map(s=>s.label.replace(/ · RR 6 h$/,""))).size+")",hex:scene.classic?"#29d0f0":"#64748b"});
  for(const series of scene.series){
    const label=series.label;
+   if((scene.classic||scene.rightAxis)&&label==="0 °C")continue;
    const key=label.includes("Perzentil")?"Perzentile":
       label.startsWith("Kontrolllauf")?"Kontrolllauf":
       label.startsWith("Hauptlauf")?"Hauptlauf":
@@ -234,7 +235,13 @@ function legend(scene){
    seen.add(legendKey);
    out.push({label:legendKey,hex:series.hex,dash:series.dash});
  }
- return out.slice(0,8);
+ return (scene.classic||scene.rightAxis)?out:out.slice(0,8);
+}
+function legendLayout(scene){
+ const entries=legend(scene),compact=scene.classic||scene.rightAxis,lx=compact?75:585;
+ const widths=entries.map(item=>compact?Math.max(80,item.label.length*7+32):Math.max(115,Math.min(205,item.label.length*9+33)));
+ const factor=compact?Math.min(1,(W-75-lx)/Math.max(1,widths.reduce((a,b)=>a+b,0))):1;
+ let x=lx;return entries.map((item,i)=>{const width=widths[i]*factor,result={...item,x,width,font:13*factor,line:22*factor};x+=width;return result;}).filter(item=>item.x+item.width<=W-75+.01);
 }
 function pt(p){return p.map(n=>Number(n.toFixed(3)));}
 function path(points){return points.map((p,i)=>(i?"L":"M")+pt(p).join(" ")).join(" ");}
@@ -257,14 +264,11 @@ function svgScene(scene,index){
  s+=svgText(P.x,911+dy,scene.source==="Quelle: DWD CDC · Originalmessungen"?"DWD-Originalmessungen · Temperaturdifferenz in K · benannte Vektorebenen":"UTC (Z) · Mess- und Prognosewerte unverändert · Kurven als benannte Vektorebenen",15,fg);
  s+="</g>";
  s+='<g id="'+prefix+'legend" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Legende')+'">';
- let lx=(scene.classic||scene.rightAxis)?75:585;
- for(const item of legend(scene)){
-   const width=Math.max(115,Math.min(205,item.label.length*9+33));
-   if(lx+width>W-75)break;
-   s+='<path d="M'+lx+" "+(242+dy)+" h22"+'" stroke="'+item.hex+'" stroke-width="3" fill="none"'+
+ for(const item of legendLayout(scene)){
+   const lx=item.x;
+   s+='<path d="M'+lx+" "+(242+dy)+" h"+item.line+'" stroke="'+item.hex+'" stroke-width="3" fill="none"'+
       (item.dash?.length?' stroke-dasharray="'+item.dash.join(",")+'"':"")+'/>';
-   s+=svgText(lx+28,248+dy,item.label,13,fg);
-   lx+=width;
+   s+=svgText(lx+item.line+6,248+dy,item.label,item.font,fg);
  }
  s+="</g>";
  s+='<g id="'+prefix+'axes" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Achsen und Gitter')+'">';
@@ -320,17 +324,14 @@ function drawPdf(pdf,scene){
  text(scene.title,65,62,31,dark?fg:"#152c43");
  text(axis+" · "+scene.subtitle,66,95,19,dark?sub:"#41566a");
  scene.metadata.slice(0,5).forEach((m,i)=>text(m,66,127+i*23,16,dark?sub:"#475569"));
- let lx=(scene.classic||scene.rightAxis)?75:585;
- for(const item of legend(scene)){
-   const width=Math.max(115,Math.min(205,item.label.length*9+33));
-   if(lx+width>W-75)break;
+ for(const item of legendLayout(scene)){
+   const lx=item.x;
    pdf.setDrawColor(...ink(item.hex));pdf.setLineWidth(3*s);
    if(typeof pdf.setLineDashPattern==="function"&&item.dash?.length)
      pdf.setLineDashPattern(item.dash.map(n=>n*s),0);
-   pdf.line(X(lx),Y(242),X(lx+22),Y(242));
+   pdf.line(X(lx),Y(242),X(lx+item.line),Y(242));
    if(typeof pdf.setLineDashPattern==="function")pdf.setLineDashPattern([],0);
-   text(item.label,lx+28,248,13);
-   lx+=width;
+   text(item.label,lx+item.line+6,248,item.font);
  }
  const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
  if(created)text(created,P.x,863,15);
