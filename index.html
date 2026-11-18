@@ -9215,11 +9215,11 @@ function stationPrecipYearView({year,dataThrough,currentDaily,profile}){
     const values=profile[key]||[];
     return labels.map(label=>values[legacyLabels.indexOf(label==="02-29"?"02-28":label)]??null);
   };
-  const climate=reference.length?labels.map((_,i)=>Math.round(reference.reduce((sum,[,data])=>sum+data[i],0)/reference.length*10)/10):legacy("climate_mean_cumulative");
+  const climate=reference.length>=5?labels.map((_,i)=>Math.round(reference.reduce((sum,[,data])=>sum+data[i],0)/reference.length*10)/10):legacy("climate_mean_cumulative");
   const minimum=entries.length?labels.map((_,i)=>Math.min(...entries.map(([,data])=>data[i]))):legacy("historical_min_cumulative");
   const maximum=entries.length?labels.map((_,i)=>Math.max(...entries.map(([,data])=>data[i]))):legacy("historical_max_cumulative");
   const annualOrder=entries.slice().sort((a,b)=>a[1].at(-1)-b[1].at(-1)||Number(a[0])-Number(b[0]));
-  return {labels,current,climate,minimum,maximum,curves,missingDates,total:total/10,referenceCount:reference.length,
+  return {labels,current,climate,minimum,maximum,curves,missingDates,total:total/10,referenceCount:reference.length>=5?reference.length:0,
     dryYear:annualOrder.length?Number(annualOrder[0][0]):null,
     wetYear:annualOrder.length?Number(annualOrder.at(-1)[0]):null};
 }
@@ -9623,11 +9623,13 @@ async function updateStationPrecipitation(){
   const requestId=++stationPrecipRequestId;
   const stationId=document.getElementById("stationPrecipStationSelect").value;
   if(!stationId){
+    stationPrecipHistoryControls(stationId,null);
     document.getElementById("stationPrecipSummary").textContent="Für diese Auswahl wurde keine Station gefunden.";
     return;
   }
   const range=stationPrecipRangeFromPageControls();
   if(!range.valid){
+    stationPrecipHistoryControls(stationId,null);
     document.getElementById("stationPrecipSummary").textContent=range.message;
     return;
   }
