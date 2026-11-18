@@ -3442,6 +3442,15 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
     </div>
 
     <div id="stationPrecipSummary" class="summary-box">Stationskurve wird aufgebaut …</div>
+    <details id="stationPrecipHistoryControl" class="summary-box" hidden>
+      <summary style="cursor:pointer;font-weight:600">Historische Jahreslinien <span id="stationPrecipHistoryCount"></span></summary>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
+        <button class="action" type="button" id="stationPrecipHistoryAll">Alle Jahre anzeigen</button>
+        <button class="action" type="button" id="stationPrecipHistoryNone">Alle ausblenden</button>
+      </div>
+      <p class="note" id="stationPrecipHistoryNote" style="margin:6px 0"></p>
+      <div id="stationPrecipHistoryYears" role="group" aria-label="Historische Jahre auswählen" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:4px 8px;max-height:11rem;overflow:auto"></div>
+    </details>
 
     <div class="chart-container">
       <canvas id="stationPrecipChart"></canvas>
@@ -9155,6 +9164,130 @@ function resetStationHeatwavesZoom(){
 
 
 // ================= STATIONSNIEDERSCHLAG =================
+function stationPrecipCalendarLabels(year){
+  const labels=[];
+  for(let cursor=new Date(Date.UTC(year,0,1));cursor.getUTCFullYear()===year;cursor.setUTCDate(cursor.getUTCDate()+1)){
+    labels.push(cursor.toISOString().slice(5,10));
+  }
+  return labels;
+}
+
+function stationPrecipDecodeYear(encoded,year,labels){
+  try{
+    const sourceLabels=stationPrecipCalendarLabels(year);
+    const bytes=atob(encoded);
+    if(bytes.length!==sourceLabels.length*2)return null;
+    let total=0;
+    const cumulative=new Map();
+    for(let i=0;i<sourceLabels.length;i++){
+      total+=bytes.charCodeAt(i*2)*256+bytes.charCodeAt(i*2+1);
+      cumulative.set(sourceLabels[i],total/10);
+    }
+    // On non-leap comparison axes, the 29 February amount enters the
+    // cumulative value on 1 March. Annual totals never lose precipitation.
+    return labels.map(label=>cumulative.get(label)??(label==="02-29"?cumulative.get("02-28"):null));
+  }catch(error){return null;}
+}
+
+function stationPrecipYearView({year,dataThrough,currentDaily,profile}){
+  const labels=stationPrecipCalendarLabels(year);
+  const current=[];
+  const missingDates=[];
+  let total=0;
+  for(let i=0;i<labels.length;i++){
+    const iso=year+"-"+labels[i],value=currentDaily[i];
+    if(iso>dataThrough){current.push(null);continue;}
+    if(value==null||!Number.isFinite(Number(value))){current.push(null);missingDates.push(iso);continue;}
+    total+=Math.round(Number(value)*10);
+    current.push(total/10);
+  }
+  const curves={};
+  for(const [key,encoded] of Object.entries(profile.historical_year_daily_tenths||{})){
+    const historyYear=Number(key);
+    if(!Number.isInteger(historyYear)||historyYear<1||historyYear>=year)continue;
+    const curve=stationPrecipDecodeYear(encoded,historyYear,labels);
+    if(curve&&Number.isFinite(curve.at(-1)))curves[key]=curve;
+  }
+  const entries=Object.entries(curves);
+  const reference=entries.filter(([key])=>Number(key)>=1991&&Number(key)<=2020);
+  const legacyLabels=stationPrecipCalendarLabels(2001);
+  const legacy=(key)=>{
+    const values=profile[key]||[];
+    return labels.map(label=>values[legacyLabels.indexOf(label==="02-29"?"02-28":label)]??null);
+  };
+  const climate=reference.length>=5?labels.map((_,i)=>Math.round(reference.reduce((sum,[,data])=>sum+data[i],0)/reference.length*10)/10):legacy("climate_mean_cumulative");
+  const minimum=entries.length?labels.map((_,i)=>Math.min(...entries.map(([,data])=>data[i]))):legacy("historical_min_cumulative");
+  const maximum=entries.length?labels.map((_,i)=>Math.max(...entries.map(([,data])=>data[i]))):legacy("historical_max_cumulative");
+  const annualOrder=entries.slice().sort((a,b)=>a[1].at(-1)-b[1].at(-1)||Number(a[0])-Number(b[0]));
+  return {labels,current,climate,minimum,maximum,curves,missingDates,total:total/10,referenceCount:reference.length>=5?reference.length:0,
+    dryYear:annualOrder.length?Number(annualOrder[0][0]):null,
+    wetYear:annualOrder.length?Number(annualOrder.at(-1)[0]):null};
+}
+
+function stationPrecipHistoricalDatasets(view,selected){
+  return Object.entries(view.curves).filter(([year])=>selected.has(Number(year))).map(([year,data])=>{
+    const wet=Number(year)===view.wetYear,dry=Number(year)===view.dryYear;
+    return {label:year,data,borderColor:wet?"#1680cf":dry?"#df861c":selected.size>10?"rgba(130,140,150,.35)":"rgba(125,135,145,.85)",
+      borderWidth:wet||dry?2.1:1,pointRadius:0,tension:0,spanGaps:false,fill:false,order:wet||dry?2:3,historyYear:true,historyExtreme:wet||dry};
+  });
+}
+
+let stationPrecipHistoryStation=null,stationPrecipHistoryView=null,stationPrecipHistorySelection=new Set(),stationPrecipRequestId=0;
+
+function stationPrecipHistoryApply(){
+  if(!stationPrecipChart||!stationPrecipHistoryView)return;
+  const selected=stationPrecipHistorySelection,view=stationPrecipHistoryView;
+  const history=stationPrecipHistoricalDatasets(view,selected);
+  stationPrecipChart.data.datasets=stationPrecipChart.data.datasets.filter(dataset=>!dataset.historyYear).concat(history);
+  document.getElementById("stationPrecipHistoryCount").textContent=`(${history.length}/${Object.keys(view.curves).length})`;
+  document.querySelectorAll("#stationPrecipHistoryYears input").forEach(input=>{input.checked=selected.has(Number(input.value));});
+  stationPrecipChart.options.plugins.subtitle.text=history.length
+    ?`Vollständige historische Messjahre · ${history.length} eingeblendet · Einzelsummen ab 1. Januar`
+    :"Niederschlagssumme ab 1. Januar · aktuelles Jahr nur bis zum Datenstand.";
+  stationPrecipChart.update("none");
+}
+
+function stationPrecipHistoryControls(stationId,view){
+  const control=document.getElementById("stationPrecipHistoryControl");
+  stationPrecipHistoryView=view;
+  control.hidden=!view;
+  if(!view)return;
+  if(stationPrecipHistoryStation!==stationId){
+    stationPrecipHistoryStation=stationId;
+    stationPrecipHistorySelection.clear();
+    control.open=false;
+  }
+  const years=Object.keys(view.curves).map(Number).sort((a,b)=>b-a);
+  stationPrecipHistorySelection=new Set([...stationPrecipHistorySelection].filter(year=>years.includes(year)));
+  const target=document.getElementById("stationPrecipHistoryYears");
+  target.replaceChildren();
+  for(const year of years){
+    const label=document.createElement("label");
+    label.style.cssText="display:flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer";
+    const input=document.createElement("input");
+    input.type="checkbox";input.value=String(year);input.checked=stationPrecipHistorySelection.has(year);
+    input.addEventListener("change",()=>{
+      if(input.checked)stationPrecipHistorySelection.add(year);else stationPrecipHistorySelection.delete(year);
+      stationPrecipHistoryApply();
+    });
+    label.append(input,document.createTextNode(String(year)));
+    if(year===view.wetYear||year===view.dryYear)label.title=year===view.wetYear?"Nassestes vollständiges Jahr":"Trockenstes vollständiges Jahr";
+    target.append(label);
+  }
+  document.getElementById("stationPrecipHistoryNote").textContent=years.length
+    ?"Graue Linien = historische Messjahre · blau = nassestes, orange = trockenstes vollständiges Jahr. Schaltjahre: Der 29. Februar zählt vollständig zur Jahressumme."
+    :"Für diese Station sind noch keine vollständigen Einzeljahreskurven veröffentlicht.";
+  document.getElementById("stationPrecipHistoryAll").disabled=!years.length;
+  document.getElementById("stationPrecipHistoryNone").disabled=!years.length;
+  document.getElementById("stationPrecipHistoryAll").onclick=()=>{
+    stationPrecipHistorySelection=new Set(years);stationPrecipHistoryApply();
+  };
+  document.getElementById("stationPrecipHistoryNone").onclick=()=>{
+    stationPrecipHistorySelection.clear();stationPrecipHistoryApply();
+  };
+  stationPrecipHistoryApply();
+}
+
 function stationPrecipFormat(value,decimals=1){
   if(value===null || value===undefined || !Number.isFinite(Number(value))) return "–";
   return Number(value).toLocaleString("de-DE",{minimumFractionDigits:decimals,maximumFractionDigits:decimals});
@@ -9219,8 +9352,14 @@ function stationPrecipResolveRange(period,customStart,customEnd,index=stationPre
 }
 
 function stationPrecipRangeFromPageControls(){
+  const period=document.getElementById("stationPrecipPeriodSelect")?.value||"ytd";
+  if(period==="ytd"&&stationPrecipIndex){
+    const year=Number(stationPrecipIndex.current_year),end=stationPrecipIndex.data_through;
+    const labels=stationPrecipCalendarLabels(year),endIndex=labels.indexOf(end.slice(5));
+    if(endIndex>=0)return {valid:true,start:`${year}-01-01`,end,startIndex:0,endIndex,label:"Seit Jahresbeginn",displayLabel:`Seit Jahresbeginn bis ${stationPrecipGermanIsoDate(end)}`,period,year};
+  }
   return stationPrecipResolveRange(
-    document.getElementById("stationPrecipPeriodSelect")?.value||"ytd",
+    period,
     document.getElementById("stationPrecipStartDate")?.value,
     document.getElementById("stationPrecipEndDate")?.value
   );
@@ -9343,10 +9482,10 @@ async function loadStationPrecipCurrentMonths(){
   }));
 }
 
-function stationPrecipCurrentDaily(stationId){
+function stationPrecipCurrentDaily(stationId,labels=stationPrecipIndex.labels||[]){
   const byMonth=new Map();
   for(const payload of stationPrecipMonthCache.values()) byMonth.set(Number(payload.month),payload);
-  return (stationPrecipIndex.labels||[]).map(label=>{
+  return labels.map(label=>{
     const [monthText,dayText]=label.split("-");
     const month=Number(monthText), day=Number(dayText);
     const payload=byMonth.get(month);
@@ -9481,13 +9620,16 @@ function updateStationPrecipMonthlyTable(stationId){
 
 async function updateStationPrecipitation(){
   if(!stationPrecipIndex) return;
+  const requestId=++stationPrecipRequestId;
   const stationId=document.getElementById("stationPrecipStationSelect").value;
   if(!stationId){
+    stationPrecipHistoryControls(stationId,null);
     document.getElementById("stationPrecipSummary").textContent="Für diese Auswahl wurde keine Station gefunden.";
     return;
   }
   const range=stationPrecipRangeFromPageControls();
   if(!range.valid){
+    stationPrecipHistoryControls(stationId,null);
     document.getElementById("stationPrecipSummary").textContent=range.message;
     return;
   }
@@ -9499,14 +9641,20 @@ async function updateStationPrecipitation(){
       loadStationPrecipCurrentMonths()
     ]);
     if(!profileResponse.ok) throw new Error(`Klimadatei konnte nicht geladen werden (HTTP ${profileResponse.status}).`);
-    stationPrecipProfile=await profileResponse.json();
+    const profile=await profileResponse.json();
+    if(requestId!==stationPrecipRequestId)return;
+    stationPrecipProfile=profile;
     updateStationPrecipMonthlyTable(stationId);
 
-    const labels=stationPrecipIndex.labels||[];
-    const selectedLabels=labels.slice(range.startIndex,range.endIndex+1);
-    const currentDaily=stationPrecipCurrentDaily(stationId);
+    const fullYear=range.period==="ytd";
+    const labels=fullYear?stationPrecipCalendarLabels(range.year):stationPrecipIndex.labels||[];
+    const selectedLabels=fullYear?labels:labels.slice(range.startIndex,range.endIndex+1);
+    const currentDaily=stationPrecipCurrentDaily(stationId,labels);
+    const yearView=fullYear?stationPrecipYearView({year:range.year,dataThrough:range.end,currentDaily,profile}):null;
     const currentCumulative=stationPrecipRangeCumulative(currentDaily,labels,range);
-    const climate=stationPrecipRangeCurveFromCumulative(stationPrecipProfile.climate_mean_cumulative||[],range);
+    const climate=yearView?yearView.climate.slice(0,range.endIndex+1):stationPrecipRangeCurveFromCumulative(stationPrecipProfile.climate_mean_cumulative||[],range);
+    const chartCurrent=yearView?yearView.current:currentCumulative;
+    const chartClimate=yearView?yearView.climate:climate;
     const currentValue=currentCumulative.total;
     const climateValue=climate.length?climate[climate.length-1]:null;
     const deviation=Number.isFinite(currentValue)&&Number.isFinite(climateValue)?currentValue-climateValue:null;
@@ -9519,7 +9667,16 @@ async function updateStationPrecipitation(){
       && Number(periodHistory.start_index)===range.startIndex
       && range.endIndex<=Number(periodHistory.end_index);
     const historicalCompatible=ytdCompatible||periodCompatible;
-    if(ytdCompatible){
+    if(yearView){
+      historicalMin=yearView.minimum;
+      historicalMax=yearView.maximum;
+      minValue=historicalMin[range.endIndex]??null;
+      maxValue=historicalMax[range.endIndex]??null;
+      const candidates=Object.entries(yearView.curves).map(([year,curve])=>[Number(year),curve[range.endIndex]]).filter(([,value])=>Number.isFinite(value)).sort((a,b)=>a[1]-b[1]||a[0]-b[0]);
+      const legacyIndex=stationPrecipCalendarLabels(2001).indexOf(labels[range.endIndex]==="02-29"?"02-28":labels[range.endIndex]);
+      minYear=candidates[0]?.[0]??stationPrecipProfile.historical_min_year?.[legacyIndex]??null;
+      maxYear=candidates.at(-1)?.[0]??stationPrecipProfile.historical_max_year?.[legacyIndex]??null;
+    }else if(ytdCompatible){
       historicalMin=(stationPrecipProfile.historical_min_cumulative||[]).slice(range.startIndex,range.endIndex+1);
       historicalMax=(stationPrecipProfile.historical_max_cumulative||[]).slice(range.startIndex,range.endIndex+1);
       minValue=historicalMin.length?historicalMin[historicalMin.length-1]:null;
@@ -9552,7 +9709,7 @@ async function updateStationPrecipitation(){
       `${station.name} (${station.id})`,station.state||"Bundesland unbekannt",
       station.height===null||station.height===undefined?null:`${station.height} m ü. NHN`,
       range.displayLabel,
-      `${station.reference_years} vollständige Referenzjahre 1991–2020`
+      `${yearView?.referenceCount||station.reference_years} vollständige Referenzjahre 1991–2020`
     ].filter(Boolean);
     let gapText="";
     if(missingCount>0){
@@ -9572,20 +9729,31 @@ async function updateStationPrecipitation(){
       );
     }
     datasets.push(
-      {label:`Mittel ${hyrasReferenceDisplay()}`,data:climate,borderColor:"#111",borderWidth:2,borderDash:[8,5],pointRadius:0,fill:false,tension:.12},
-      {label:String(stationPrecipIndex.current_year),data:currentCumulative,borderColor:"#c53030",backgroundColor:"rgba(197,48,48,.08)",borderWidth:3,pointRadius:0,spanGaps:true,fill:false,tension:.12}
+      {label:fullYear?"Mittel 1991–2020":`Mittel ${hyrasReferenceDisplay()}`,data:chartClimate,borderColor:"#111",borderWidth:2,borderDash:[8,5],pointRadius:0,fill:false,tension:.12,order:0},
+      {label:String(stationPrecipIndex.current_year),data:chartCurrent,borderColor:"#c53030",backgroundColor:"rgba(197,48,48,.08)",borderWidth:3,pointRadius:0,spanGaps:!fullYear,fill:false,tension:.12,order:-1}
     );
+    const xTicks=fullYear?{autoSkip:false,maxRotation:0,callback:function(value){
+      const label=this.getLabelForValue(value);
+      return label?.startsWith("01.")?MONTH_SHORT[Number(label.slice(3,5))-1]:null;
+    }}:{maxTicksLimit:14,maxRotation:0};
     stationPrecipChart=new Chart(document.getElementById("stationPrecipChart"),{
       type:"line",data:{labels:selectedLabels.map(stationPrecipDateLabel),datasets},
-      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:fullYear?"nearest":"index",intersect:false},plugins:{
+        legend:{labels:{filter:(item,data)=>{const dataset=data.datasets[item.datasetIndex];return !dataset?.historyYear||dataset.historyExtreme||stationPrecipHistorySelection.size<=10;}},
+          onClick:(event,item,legend)=>{
+            const dataset=legend.chart.data.datasets[item.datasetIndex];
+            if(dataset?.historyYear){stationPrecipHistorySelection.delete(Number(dataset.label));stationPrecipHistoryApply();return;}
+            Chart.defaults.plugins.legend.onClick(event,item,legend);
+          }},
         title:{display:true,text:`Kumulierte Niederschlagssumme – ${station.name} – ${range.displayLabel}`},
         subtitle:{display:true,text:"Die Summe startet am ersten Tag des gewählten Zeitraums wieder bei 0 mm.",color:"#666",font:{size:12}},
         datalabels:{display:false},tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${stationPrecipFormat(context.parsed.y)} mm`}},
         zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}
-      },scales:{x:{ticks:{maxTicksLimit:14,maxRotation:0}},y:{beginAtZero:true,title:{display:true,text:"Niederschlagssumme (mm)"}}}}
+      },scales:{x:{ticks:xTicks},y:{beginAtZero:true,title:{display:true,text:"Niederschlagssumme (mm)"}}}}
     });
+    stationPrecipHistoryControls(stationId,yearView);
 
-    const deviationSeries=currentCumulative.map((value,index)=>value===null||climate[index]===null?null:Math.round((value-climate[index])*10)/10);
+    const deviationSeries=chartCurrent.map((value,index)=>value==null||chartClimate[index]==null?null:Math.round((value-chartClimate[index])*10)/10);
     if(stationPrecipDeviationChart) stationPrecipDeviationChart.destroy();
     stationPrecipDeviationChart=new Chart(document.getElementById("stationPrecipDeviationChart"),{
       type:"line",data:{labels:selectedLabels.map(stationPrecipDateLabel),datasets:[{
@@ -9596,10 +9764,10 @@ async function updateStationPrecipitation(){
         subtitle:{display:true,text:"Vergleich mit exakt demselben Kalenderzeitraum des Mittels 1991–2020.",color:"#666",font:{size:12}},
         datalabels:{display:false},tooltip:{callbacks:{label:context=>`${context.parsed.y>=0?"+":""}${stationPrecipFormat(context.parsed.y)} mm`}},
         zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}
-      },scales:{x:{ticks:{maxTicksLimit:14,maxRotation:0}},y:{title:{display:true,text:"Abweichung (mm)"}}}}
+      },scales:{x:{ticks:xTicks},y:{title:{display:true,text:"Abweichung (mm)"}}}}
     });
   }catch(error){
-    document.getElementById("stationPrecipSummary").textContent=`Stationskurve konnte nicht geladen werden: ${error.message}`;
+    if(requestId===stationPrecipRequestId)document.getElementById("stationPrecipSummary").textContent=`Stationskurve konnte nicht geladen werden: ${error.message}`;
   }
 }
 

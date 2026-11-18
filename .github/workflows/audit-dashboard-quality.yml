@@ -10,6 +10,8 @@ on:
       - "scripts/build_pages_site.sh"
       - "scripts/audit_payload_sizes.cjs"
       - "tests/test_dashboard_hq_export.cjs"
+      - "tests/test_station_precip_years.cjs"
+      - "tests/test_station_precip_years.py"
       - ".github/workflows/audit-dashboard-quality.yml"
   push:
     branches: [main]
@@ -53,9 +55,12 @@ jobs:
             data.json
             scripts/build_pages_site.sh
             scripts/audit_payload_sizes.cjs
+            scripts/update_station_precip.py
             tests/test_dashboard_hq_export.cjs
             tests/test_station_snow_years.cjs
             tests/test_station_snow_accumulation.cjs
+            tests/test_station_precip_years.cjs
+            tests/test_station_precip_years.py
       - name: JavaScript Syntax
         run: |
           node --check dashboard_export_hq.js
@@ -67,6 +72,8 @@ jobs:
           node --test tests/test_dashboard_hq_export.cjs
           node --test tests/test_station_snow_years.cjs
           node --test tests/test_station_snow_accumulation.cjs
+          node --test tests/test_station_precip_years.cjs
+          python -m unittest discover -s tests -p test_station_precip_years.py -v
       - name: Dateigrößen und JSON-Parsezeiten messen
         run: node scripts/audit_payload_sizes.cjs > dashboard-payload-audit.json
       - name: Größenprotokoll anzeigen

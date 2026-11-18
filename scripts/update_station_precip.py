@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import calendar
 import csv
 import io
@@ -8,6 +9,7 @@ import json
 import math
 import os
 import re
+import struct
 import tempfile
 import zipfile
 from collections import defaultdict
@@ -45,7 +47,7 @@ RR_RECENT_PATTERN = re.compile(
 )
 RR_STATION_ID_PATTERN = re.compile(r"tageswerte_RR_(\d{5})_", re.IGNORECASE)
 
-STATE_VERSION = 4
+STATE_VERSION = 5
 MIN_REFERENCE_YEARS = 5
 MIN_HISTORY_YEARS = 5
 MIN_CURRENT_STATIONS = 500
@@ -300,6 +302,25 @@ def observations_to_monthly_history(observations, current_year: int) -> list[dic
     return history
 
 
+def observations_to_year_daily_tenths(observations, current_year: int) -> dict[str, str]:
+    """Complete measured calendar years, losslessly encoded in tenths of a millimetre."""
+    by_year: dict[int, dict[int, int]] = defaultdict(dict)
+    for row in observations:
+        year = row.day.year
+        value = row.values.get("rsk_high")
+        if year >= current_year or value is None or not 0 <= value <= 1000:
+            continue
+        by_year[year][row.day.timetuple().tm_yday - 1] = round(value * 10)
+    result = {}
+    for year, values in sorted(by_year.items()):
+        days = 366 if calendar.isleap(year) else 365
+        if len(values) != days or not all(i in values for i in range(days)):
+            continue
+        packed = struct.pack(f">{days}H", *(values[i] for i in range(days)))
+        result[str(year)] = base64.b64encode(packed).decode("ascii")
+    return result
+
+
 def build_profile_payload(
     station_id: str,
     observations,
@@ -365,6 +386,7 @@ def build_profile_payload(
         "reference_years": len(reference_years),
         "reference_year_list": reference_years,
         "monthly_history": monthly_history,
+        "historical_year_daily_tenths": observations_to_year_daily_tenths(observations, current_year),
         "climate_mean_cumulative": climate_mean,
         "historical_min_cumulative": historical_min,
         "historical_max_cumulative": historical_max,
@@ -768,7 +790,7 @@ def add_current_snow_network_precip_stations(
             "longitude": profile.longitude, "history_start_year": None,
             "history_end_year": None, "history_years": 0,
             "reference_period": "1991-2020", "reference_years": 0,
-            "reference_year_list": [], "monthly_history": [],
+            "reference_year_list": [], "monthly_history": [], "historical_year_daily_tenths": {},
             "climate_mean_cumulative": [None] * 365,
             "historical_min_cumulative": [None] * 365,
             "historical_max_cumulative": [None] * 365,
