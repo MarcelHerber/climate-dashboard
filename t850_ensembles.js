@@ -170,13 +170,13 @@ function pressureKey(hourly){
   return keys.find(function(k){return k==="temperature_850hPa";})||
     keys.find(function(k){return /^temperature_850hPa_/.test(k)&&!/member\d+$/.test(k);})||null;
 }
-function synopticIndexes(times,maxHours){
+function synopticIndexes(times,maxHours,strict=false){
   const indexed=(times||[]).map(function(t,i){return {t:t,i:i,d:parseUtc(t)};}).filter(function(x){return !Number.isNaN(x.d.getTime());});
   if(!indexed.length)return [];
   const hours=Number(maxHours);
   const limit=Number.isFinite(hours)?indexed[0].d.getTime()+hours*3600000+60000:Infinity;
-  let keep=indexed.filter(function(x){return x.d.getTime()<=limit&&HOURS.includes(x.d.getUTCHours());});
-  if(keep.length<5){
+  let keep=indexed.filter(function(x){return x.d.getTime()<=limit&&HOURS.includes(x.d.getUTCHours())&&x.d.getUTCMinutes()===0&&x.d.getUTCSeconds()===0;});
+  if(!strict&&keep.length<5){
     keep=indexed.filter(function(x,idx){return x.d.getTime()<=limit&&idx%6===0;});
   }
   return keep;
@@ -207,16 +207,16 @@ function transformSeries(times,raw,param,maxHours){
     return {times:dates,values:values};
   }
   if(param.kind==="instant"){
-    const keep=synopticIndexes(times,maxHours);
+    const keep=synopticIndexes(times,maxHours,!!param.combined);
     return {times:keep.map(function(x){return x.t;}),values:keep.map(function(x){return finite(raw[x.i]);})};
   }
-  const outTimes=[],outValues=[],rolling=[];let cumulative=0,cumulativeValid=true;
+  const outTimes=[],outValues=[],rolling=[];let cumulative=0,cumulativeValid=true,previous=null;
   for(const x of indexed){
     if(x.d.getTime()>limit)break;
     const value=finite(raw[x.i]);
     if(param.kind==="precipCum"){if(value==null)cumulativeValid=false;else if(cumulativeValid)cumulative+=Math.max(0,value);}
-    if(["precip6","precip24","sum6"].includes(param.kind)){rolling.push(value);const windowSize=param.kind==="precip24"?24:6;if(rolling.length>windowSize)rolling.shift();}
-    if(!HOURS.includes(x.d.getUTCHours()))continue;
+    if(["precip6","precip24","sum6"].includes(param.kind)){if(previous!==null&&x.d.getTime()-previous!==3600000)rolling.length=0;previous=x.d.getTime();rolling.push(value);const windowSize=param.kind==="precip24"?24:6;if(rolling.length>windowSize)rolling.shift();}
+    if(!HOURS.includes(x.d.getUTCHours())||x.d.getUTCMinutes()!==0||x.d.getUTCSeconds()!==0)continue;
     outTimes.push(x.t);
     if(param.kind==="precipCum")outValues.push(cumulativeValid?round(cumulative,2):null);
     else{
@@ -251,7 +251,7 @@ function parseMemberFields(hourly,times,param,maxHours){
       rain.times=primary.times;
       rain.allMembers=(rain.control?[rain.control]:[]).concat(rain.members);
     }
-    primary.rain=rain;
+    primary.rain=rain&&rain.allMembers.some(hasFiniteSeries)?rain:null;
   }
   return primary;
 }
@@ -385,7 +385,7 @@ function classicMemberColor(id){
 }
 function classicDataset(id,data,rain){
   const color=classicMemberColor(id);
-  return {label:"P"+id+(rain?" · RR 6 h":""),data,borderColor:color,backgroundColor:color,borderWidth:.8,pointRadius:0,tension:0,spanGaps:false,fill:false,yAxisID:rain?"yRain":"y",_memberId:id,_hideLegend:!!rain,order:2};
+  return {label:"P"+id+(rain?" · RR 6 h":""),data,borderColor:color,backgroundColor:color,borderWidth:.8,borderDash:rain?[2,2]:[],pointRadius:0,tension:0,spanGaps:false,fill:false,yAxisID:rain?"yRain":"y",_memberId:id,_hideLegend:!!rain,order:2};
 }
 function rainBoundsFor(results,meanOnly){
   const values=[];
@@ -447,10 +447,10 @@ function modelChart(r,bounds,param,sharedRain){
   if(param.combined&&r.rain){
     r.rain.members.forEach((m,i)=>{
       const id=r.rain.memberIds[i];
-      sets.push(classic?{...classicDataset(id,m,true),_hideLegend:!!r.memberIds?.includes(id)}:{label:"Member "+id+" · RR 6 h",data:m,yAxisID:"yRain",borderColor:"rgba(0,125,210,.24)",borderWidth:1,pointRadius:0,spanGaps:false,_hideLegend:true,_tooltip:false,_memberId:id});
+      sets.push(classic?{...classicDataset(id,m,true),_hideLegend:!!r.memberIds?.includes(id)}:{label:"Member "+id+" · RR 6 h",data:m,yAxisID:"yRain",borderColor:"rgba(0,125,210,.24)",borderDash:[2,2],borderWidth:1,pointRadius:0,spanGaps:false,_hideLegend:true,_tooltip:false,_memberId:id});
     });
-    if(r.rain.control&&hasFiniteSeries(r.rain.control))sets.push({label:"Kontrolllauf · RR 6 h",data:r.rain.control,yAxisID:"yRain",borderColor:classic?"#4b83ff":"#2468b5",borderDash:[6,4],borderWidth:2,pointRadius:0,spanGaps:false});
-    sets.push({label:"Ensemble-Mittel · RR 6 h",data:r.rain.stats.mean,yAxisID:"yRain",borderColor:classic?"#ffffff":"#008bc9",borderDash:classic?[5,3]:[],borderWidth:2.5,pointRadius:0,spanGaps:false});
+    if(r.rain.control&&hasFiniteSeries(r.rain.control))sets.push({label:"Kontrolllauf · RR 6 h",data:r.rain.control,yAxisID:"yRain",borderColor:classic?"#4b83ff":"#2468b5",borderDash:[2,3],borderWidth:2,pointRadius:0,spanGaps:false});
+    sets.push({label:"Ensemble-Mittel · RR 6 h",data:r.rain.stats.mean,yAxisID:"yRain",borderColor:classic?"#ffffff":"#008bc9",borderDash:[5,3],borderWidth:2.5,pointRadius:0,spanGaps:false});
     if(hasFiniteSeries(r.mainRainAligned))sets.push({label:"Hauptlauf · RR 6 h",data:r.mainRainAligned,yAxisID:"yRain",borderColor:classic?"#00e600":"#045e9a",borderDash:[5,3],borderWidth:2.8,pointRadius:0,spanGaps:false});
   }
   if(classic)for(const ds of sets){
@@ -605,7 +605,7 @@ async function enrichWithRunInfo(r,p,c,good,signal,param){
 }
 function updateParameterHeader(param){
   const metric=el("t850Metric");if(metric){metric.disabled=!!param.combined;for(const id of ["t850Threshold","t850ThresholdDirection"]){const input=el(id);if(input)input.disabled=!!param.combined;}}
-  const node=el("ensembleParameterStatus");if(node)node.textContent=param.label+" · 4 Modelle · voller Modellhorizont · Hauptlauf"+(param.climate?" · ERA5 1991–2020":"")+" · Y-Achse pro Modell anpassbar";
+  const node=el("ensembleParameterStatus");if(node)node.textContent=param.label+" · 4 Modelle · voller Modellhorizont · Hauptlauf"+(param.combined?" · gestrichelt/punktiert: Niederschlag (rechte Achse)":"")+(param.climate?" · ERA5 1991–2020":"")+" · Y-Achse pro Modell anpassbar";
   const title=el("ensembleComparisonTitle");if(title)title.textContent=(displayMetric()==="prob"?"Modellvergleich · Wahrscheinlichkeit":displayMetric()==="spread"?"Modellvergleich · Spread":"Vergleich der Ensemble-Mittel")+" · "+param.label;
   const climateLegend=el("ensembleClimateLegend");if(climateLegend)climateLegend.hidden=!param.climate||displayMetric()!=="members";
 }
@@ -648,7 +648,7 @@ function exportMetadata(){
   }else if(metric==="spread"){
     rows.push("Auswertung: Ensemble-Spread (Standardabweichung)");
   }else{
-    rows.push("Auswertung: "+(classicStyle()?"Classic · farbige Einzelmember und Mittelwert": "Ensemble-Member, Mittelwert und Perzentile")+(param.combined?" · zweite Achse Niederschlag 6 h":""));
+    rows.push("Auswertung: "+(classicStyle()?"Classic · farbige Einzelmember und Mittelwert": "Ensemble-Member, Mittelwert und Perzentile")+(param.combined?" · gestrichelt/punktiert: Niederschlag 6 h (rechts)":""));
   }
   rows.push("Ansicht: "+(view==="four"?"4er-Tafel und Modellvergleich":model?.label||"GFS / GEFS"));
   // Match the site-wide PNG/PDF provenance conventions; preserve all plotted
