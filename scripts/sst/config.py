@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 
 
@@ -115,7 +115,25 @@ ALL_REGIONS = {**REGIONS, **OCEAN_REGIONS}
 ABSOLUTE_RANGE = (-2.0, 34.0)
 ANOMALY_RANGE = (-6.0, 6.0)
 SEA_ICE_THRESHOLD = 0.15
-ARCHIVE_START = date(2020, 1, 1)
+OISST_ARCHIVE_START = date(1981, 9, 1)
+MUR_ARCHIVE_START = date(2002, 6, 1)
+ARCHIVE_START = OISST_ARCHIVE_START
+
+# The same European extents, with the historical NOAA source instead of MUR.
+HISTORICAL_EUROPE_REGIONS = {
+    key: replace(region, source_id="oisst", source_label="Quelle: NOAA OISST v2.1 (0,25°)")
+    for key, region in REGIONS.items()
+}
+
+
+def oisst_regions_for_day(day: date) -> dict[str, Region]:
+    if day < OISST_ARCHIVE_START:
+        raise ValueError(f"OISST-Archiv beginnt am {OISST_ARCHIVE_START}.")
+    if day < MUR_ARCHIVE_START:
+        return {**HISTORICAL_EUROPE_REGIONS, **OCEAN_REGIONS}
+    return dict(OCEAN_REGIONS)
+
+
 MUR_COLLECTION_ID = "C1996881146-POCLOUD"
 MUR_HARMONY_BASE = (
     f"https://harmony.earthdata.nasa.gov/{MUR_COLLECTION_ID}/"

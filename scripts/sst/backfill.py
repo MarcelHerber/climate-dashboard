@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from .build_daily import build_date
-from .config import ARCHIVE_START, REGIONS
+from .config import MUR_ARCHIVE_START, REGIONS
 from .manifest import VIEWS, archive_relpath
 
 
@@ -33,14 +33,14 @@ def storage_report(archive_root: Path, dates) -> dict:
                     file_count += 1
     date_count = len(dates)
     mean_bytes_per_day = total_bytes / date_count if date_count else 0.0
-    projected_days = max(0, (date.today() - ARCHIVE_START).days + 1)
+    projected_days = max(0, (date.today() - MUR_ARCHIVE_START).days + 1)
     projected_bytes = mean_bytes_per_day * projected_days
     return {
         "date_count": date_count,
         "file_count": file_count,
         "total_bytes": total_bytes,
         "mean_bytes_per_day": mean_bytes_per_day,
-        "projected_archive_gib_from_2020": projected_bytes / (1024 ** 3),
+        "projected_mur_archive_gib_from_2002": projected_bytes / (1024 ** 3),
     }
 
 
@@ -65,8 +65,8 @@ def backfill(
     cache_root: Path,
     token: str,
 ) -> dict:
-    if start < ARCHIVE_START:
-        raise ValueError(f"SST-Backfill beginnt frühestens {ARCHIVE_START.isoformat()}.")
+    if start < MUR_ARCHIVE_START:
+        raise ValueError(f"SST-Backfill beginnt frühestens {MUR_ARCHIVE_START.isoformat()}.")
     days = list(iter_dates(start, end))
     built = 0
     skipped = 0

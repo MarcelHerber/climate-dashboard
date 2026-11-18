@@ -28,7 +28,7 @@ class SstConfigTests(unittest.TestCase):
         self.assertEqual(ABSOLUTE_RANGE, (-2.0, 34.0))
         self.assertEqual(ANOMALY_RANGE, (-6.0, 6.0))
         self.assertEqual(SEA_ICE_THRESHOLD, 0.15)
-        self.assertEqual(ARCHIVE_START, date(2020, 1, 1))
+        self.assertEqual(ARCHIVE_START, date(1981, 9, 1))
         self.assertEqual(MUR_COLLECTION_ID, "C1996881146-POCLOUD")
 
 

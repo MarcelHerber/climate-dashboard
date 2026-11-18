@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 CSS_TAG = '<link rel="stylesheet" href="sst_europe.css">'
-JS_TAG = '<script src="sst_europe.js?v=20261112-sst-recovery-1"></script>'
+JS_TAG = '<script src="sst_europe.js?v=20261118-sst-history-1"></script>'
 LEGACY_BUTTON = '  <button class="tab-button" onclick="switchTab(\'sst-europe\')">Meere / SST</button>\n'
 CURRENT_BUTTON_HTML = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'sst-europe\')">Meere / SST</button>'
 CURRENT_NAV_HTML = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'era5Europe\')">ERA5-Land Europa</button>'
@@ -14,8 +14,8 @@ PANEL = '''<!-- ================= MEERE / SST ================= -->
 <div id="sst-europe" class="tab-content">
   <div class="section-header sst-europe-header">
     <h2>Meere / SST</h2>
-    <p>Tägliche Meeresoberflächentemperatur und Abweichung zum Mittel 1991–2020 für Europa und den Nordatlantik.</p>
-    <span class="section-status">NASA/JPL MUR SST v4.1 · NOAA OISST 1991–2020</span>
+    <p>Tägliche Meeresoberflächentemperatur und Abweichung zum Mittel 1991–2020 für Europa, den Nordatlantik und die Weltmeere.</p>
+    <span class="section-status">NASA/JPL MUR ab Juni 2002 · NOAA OISST ab September 1981</span>
   </div>
   <div class="controls sst-europe-controls">
     <div class="control-group"><label for="sstRegion">Region</label><select id="sstRegion"></select></div>
@@ -41,7 +41,7 @@ PANEL = '''<!-- ================= MEERE / SST ================= -->
       <div class="sst-europe-timeline-label">30 Tage</div>
       <div id="sstTimeline" class="sst-europe-timeline" aria-label="SST Zeitachse"></div>
     </div>
-    <p class="sst-europe-source">Aktuelle/historische SST: NASA/JPL MUR SST v4.1. Anomalien: MUR minus NOAA OISST-Tagesklimatologie 1991–2020. Land und stärker meereisbedeckte Zellen werden neutral maskiert.</p>
+    <p class="sst-europe-source">Europa: NASA/JPL MUR SST v4.1 ab Juni 2002, davor NOAA OISST v2.1 (0,25°). Pazifik, Niño 3.4 und Indischer Ozean: NOAA OISST v2.1 ab September 1981. Anomalien zur NOAA OISST-Tagesklimatologie 1991–2020. Land und stärker meereisbedeckte Zellen werden neutral maskiert.</p>
   </div>
 </div>
 
@@ -54,6 +54,11 @@ def patch_html(text: str) -> str:
     old_script = r'<script src="sst_europe\.js(?:\?[^"]*)?"></script>'
     if re.search(old_script, text):
         text = re.sub(old_script, lambda _: JS_TAG, text, count=1)
+    if 'id="sst-europe"' in text:
+        text = re.sub(r'(<p class="sst-europe-source">).*?(</p>)',
+                      lambda _: re.search(r'<p class="sst-europe-source">.*?</p>', PANEL).group(0), text, count=1)
+        text = re.sub(r'(<div class="section-header sst-europe-header">\s*<h2>Meere / SST</h2>\s*)<p>.*?</p>\s*<span class="section-status">.*?</span>',
+                      lambda m: m.group(1) + re.search(r'<p>Tägliche.*?</span>', PANEL, re.S).group(0), text, count=1, flags=re.S)
     if all(marker in text for marker in (CSS_TAG, JS_TAG, 'id="sst-europe"', "switchTab('sst-europe')")):
         return text
 
