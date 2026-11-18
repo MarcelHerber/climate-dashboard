@@ -1,16 +1,14 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-18T11:50:44Z",
+  "generated_at": "2026-11-18T11:59:58Z",
   "provider": "EUMETSAT",
   "service": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
-  "check_mode": "fast",
+  "check_mode": "deep",
   "products": {
     "geocolour": {
       "layer": "mtg_fd:rgb_geocolour",
       "available_times": [
-        "2026-11-18T03:20:00Z",
-        "2026-11-18T03:30:00Z",
         "2026-11-18T03:40:00Z",
         "2026-11-18T03:50:00Z",
         "2026-11-18T04:00:00Z",
@@ -56,43 +54,44 @@
         "2026-11-18T10:40:00Z",
         "2026-11-18T10:50:00Z",
         "2026-11-18T11:00:00Z",
-        "2026-11-18T11:10:00Z"
+        "2026-11-18T11:10:00Z",
+        "2026-11-18T11:20:00Z",
+        "2026-11-18T11:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-18T11:10:00Z",
-      "latest_verified_time": "2026-11-18T11:10:00Z",
+      "latest_advertised_time": "2026-11-18T11:30:00Z",
+      "latest_verified_time": "2026-11-18T11:30:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 415333,
+      "bytes": 416600,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 40.7,
+      "age_minutes": 30.0,
       "fresh": true,
       "verified_attempts": 1,
-      "diagnostics_checked_at": "2026-11-17T12:10:52Z",
+      "diagnostics_checked_at": "2026-11-18T11:59:58Z",
       "full_disk_ok": true,
-      "full_disk_bytes": 317616,
+      "full_disk_bytes": 316064,
       "atlantic_ok": true,
-      "atlantic_bytes": 924930,
+      "atlantic_bytes": 916946,
       "southwest_ok": true,
-      "southwest_bytes": 1528019,
+      "southwest_bytes": 1634233,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 260415
+          "bytes": 270868
         },
         {
           "width": 480,
-          "bytes": 260286
+          "bytes": 269913
         }
       ]
     },
     "dust": {
       "layer": "mtg_fd:rgb_dust",
       "available_times": [
-        "2026-11-18T03:30:00Z",
         "2026-11-18T03:40:00Z",
         "2026-11-18T03:50:00Z",
         "2026-11-18T04:00:00Z",
@@ -139,44 +138,43 @@
         "2026-11-18T10:50:00Z",
         "2026-11-18T11:00:00Z",
         "2026-11-18T11:10:00Z",
-        "2026-11-18T11:20:00Z"
+        "2026-11-18T11:20:00Z",
+        "2026-11-18T11:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-18T11:20:00Z",
-      "latest_verified_time": "2026-11-18T11:20:00Z",
+      "latest_advertised_time": "2026-11-18T11:30:00Z",
+      "latest_verified_time": "2026-11-18T11:30:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 576992,
+      "bytes": 577106,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 30.7,
+      "age_minutes": 30.0,
       "fresh": true,
       "verified_attempts": 1,
-      "diagnostics_checked_at": "2026-11-17T12:10:52Z",
+      "diagnostics_checked_at": "2026-11-18T11:59:58Z",
       "full_disk_ok": true,
-      "full_disk_bytes": 296976,
+      "full_disk_bytes": 297426,
       "atlantic_ok": true,
-      "atlantic_bytes": 1049286,
+      "atlantic_bytes": 1059293,
       "southwest_ok": true,
-      "southwest_bytes": 1921354,
+      "southwest_bytes": 1975093,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 297792
+          "bytes": 307611
         },
         {
           "width": 480,
-          "bytes": 297414
+          "bytes": 307574
         }
       ]
     },
     "cloudtype": {
       "layer": "mtg_fd:rgb_cloudtype",
       "available_times": [
-        "2026-11-18T03:20:00Z",
-        "2026-11-18T03:30:00Z",
         "2026-11-18T03:40:00Z",
         "2026-11-18T03:50:00Z",
         "2026-11-18T04:00:00Z",
@@ -222,43 +220,45 @@
         "2026-11-18T10:40:00Z",
         "2026-11-18T10:50:00Z",
         "2026-11-18T11:00:00Z",
-        "2026-11-18T11:10:00Z"
+        "2026-11-18T11:10:00Z",
+        "2026-11-18T11:20:00Z",
+        "2026-11-18T11:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-18T11:10:00Z",
-      "latest_verified_time": "2026-11-18T11:10:00Z",
+      "latest_advertised_time": "2026-11-18T11:30:00Z",
+      "latest_verified_time": "2026-11-18T11:20:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 628666,
+      "bytes": 628744,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 40.7,
+      "age_minutes": 40.0,
       "fresh": true,
-      "verified_attempts": 1,
-      "diagnostics_checked_at": "2026-11-17T12:10:52Z",
+      "verified_attempts": 2,
+      "latest_frame_warning": "2026-11-18T11:30:00Z: The read operation timed out",
+      "diagnostics_checked_at": "2026-11-18T11:59:58Z",
       "full_disk_ok": true,
-      "full_disk_bytes": 350347,
+      "full_disk_bytes": 350201,
       "atlantic_ok": true,
-      "atlantic_bytes": 1027706,
+      "atlantic_bytes": 990998,
       "southwest_ok": true,
-      "southwest_bytes": 2071981,
+      "southwest_bytes": 2077790,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 324693
+          "bytes": 326218
         },
         {
           "width": 480,
-          "bytes": 324350
+          "bytes": 326037
         }
       ]
     },
     "ir105": {
       "layer": "mtg_fd:ir105_hrfi",
       "available_times": [
-        "2026-11-18T03:30:00Z",
         "2026-11-18T03:40:00Z",
         "2026-11-18T03:50:00Z",
         "2026-11-18T04:00:00Z",
@@ -305,43 +305,43 @@
         "2026-11-18T10:50:00Z",
         "2026-11-18T11:00:00Z",
         "2026-11-18T11:10:00Z",
-        "2026-11-18T11:20:00Z"
+        "2026-11-18T11:20:00Z",
+        "2026-11-18T11:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-18T11:20:00Z",
-      "latest_verified_time": "2026-11-18T11:20:00Z",
+      "latest_advertised_time": "2026-11-18T11:30:00Z",
+      "latest_verified_time": "2026-11-18T11:30:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 80385,
+      "bytes": 80312,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 30.7,
+      "age_minutes": 30.0,
       "fresh": true,
       "verified_attempts": 1,
-      "diagnostics_checked_at": "2026-11-17T12:10:52Z",
-      "full_disk_ok": false,
-      "full_disk_error": "HTTP Error 503: Service Unavailable",
+      "diagnostics_checked_at": "2026-11-18T11:59:58Z",
+      "full_disk_ok": true,
+      "full_disk_bytes": 74452,
       "atlantic_ok": true,
-      "atlantic_bytes": 171796,
+      "atlantic_bytes": 170159,
       "southwest_ok": true,
-      "southwest_bytes": 252258,
+      "southwest_bytes": 244767,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 63947
+          "bytes": 51689
         },
         {
           "width": 480,
-          "bytes": 53359
+          "bytes": 51598
         }
       ]
     },
     "firetemperature": {
       "layer": "mtg_fd:rgb_firetemperature",
       "available_times": [
-        "2026-11-18T03:30:00Z",
         "2026-11-18T03:40:00Z",
         "2026-11-18T03:50:00Z",
         "2026-11-18T04:00:00Z",
@@ -388,44 +388,43 @@
         "2026-11-18T10:50:00Z",
         "2026-11-18T11:00:00Z",
         "2026-11-18T11:10:00Z",
-        "2026-11-18T11:20:00Z"
+        "2026-11-18T11:20:00Z",
+        "2026-11-18T11:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-18T11:20:00Z",
-      "latest_verified_time": "2026-11-18T11:20:00Z",
+      "latest_advertised_time": "2026-11-18T11:30:00Z",
+      "latest_verified_time": "2026-11-18T11:30:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 416317,
+      "bytes": 416158,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 30.7,
+      "age_minutes": 30.0,
       "fresh": true,
       "verified_attempts": 1,
-      "diagnostics_checked_at": "2026-11-17T12:10:52Z",
+      "diagnostics_checked_at": "2026-11-18T11:59:58Z",
       "full_disk_ok": true,
-      "full_disk_bytes": 275391,
+      "full_disk_bytes": 276375,
       "atlantic_ok": true,
-      "atlantic_bytes": 740378,
+      "atlantic_bytes": 735032,
       "southwest_ok": true,
-      "southwest_bytes": 1591082,
+      "southwest_bytes": 1621216,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 255541
+          "bytes": 259302
         },
         {
           "width": 480,
-          "bytes": 255264
+          "bytes": 259949
         }
       ]
     },
     "lightning": {
       "layer": "mtg_fd:li_afa",
       "available_times": [
-        "2026-11-18T07:40:00Z",
-        "2026-11-18T07:45:00Z",
         "2026-11-18T07:50:00Z",
         "2026-11-18T07:55:00Z",
         "2026-11-18T08:00:00Z",
@@ -471,21 +470,23 @@
         "2026-11-18T11:20:00Z",
         "2026-11-18T11:25:00Z",
         "2026-11-18T11:30:00Z",
-        "2026-11-18T11:35:00Z"
+        "2026-11-18T11:35:00Z",
+        "2026-11-18T11:40:00Z",
+        "2026-11-18T11:45:00Z"
       ],
-      "latest_advertised_time": "2026-11-18T11:35:00Z",
-      "latest_verified_time": "2026-11-18T11:35:00Z",
+      "latest_advertised_time": "2026-11-18T11:45:00Z",
+      "latest_verified_time": "2026-11-18T11:45:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 6341,
+      "bytes": 5848,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 15.7,
+      "age_minutes": 15.0,
       "fresh": true,
       "verified_attempts": 1,
-      "diagnostics_checked_at": "2026-11-17T12:10:52Z"
+      "diagnostics_checked_at": "2026-11-18T11:59:58Z"
     }
   },
   "errors": [],
