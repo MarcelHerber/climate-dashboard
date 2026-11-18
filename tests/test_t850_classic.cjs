@@ -29,6 +29,7 @@ test("classic style keeps member identities and thin straight colored paths",()=
  assert.equal(a.tension,0);
  assert.equal(a.yAxisID,"y");
  assert.equal(b.yAxisID,"yRain");
+ assert.deepEqual(a.borderDash,[]);assert.deepEqual(b.borderDash,[2,2]);
  assert.equal(a._memberId,2);
  assert.equal(b._memberId,2);
 });
@@ -79,4 +80,22 @@ test("switching classic preserves ensemble values and independent rain axes",()=
  assert.equal(configs[1].options.scales.yRain.position,"right");
  h.comparisonChart([r],{min:-10,max:5},0,0,null,h.PARAMS.t2mPrecip);
  assert.deepEqual(configs[2].data.datasets.find(d=>d.yAxisID==="yRain").data,rain);
+});
+
+test("a missing UTC hour invalidates the six-hour rainfall sum, not the temperature",()=>{
+ const time=Array.from({length:13},(_,i)=>i).filter(i=>i!==4).map(i=>"2026-11-18T"+String(i).padStart(2,"0")+":00");
+ const n=time.length, h={time,temperature_2m_member01:Array(n).fill(-2),precipitation_member01:Array(n).fill(1)};
+ const r=harness.parseMemberFields(h,time,harness.PARAMS.t2mPrecip,120);
+ assert.deepEqual(r.times,["2026-11-18T00:00","2026-11-18T06:00","2026-11-18T12:00"]);
+ assert.deepEqual(r.rain.members[0],[null,null,6]);
+});
+test("all four model rain and temperature legends fit into a combined vector",()=>{
+ const window={};vm.runInNewContext(globalThis.VECTOR_SOURCE||fs.readFileSync("t850_vector_export.js","utf8"),{window,console,Math,Number,Object,Array,String,Error});
+ const labels=["ECMWF IFS ENS","ECMWF AIFS ENS","GFS / GEFS","ICON-EU EPS"];
+ const datasets=[...labels.map(label=>({label,data:[1,2,3],borderColor:"#123456"})),{label:"0 °C",data:[0,0,0]},...labels.map(label=>({label:label+" · RR 6 h",data:[0,1,2],yAxisID:"yRain",borderColor:"#123456"}))];
+ const chart={data:{labels:["00","06","12"],datasets},scales:{x:{min:0,max:2},y:{min:-10,max:10},yRain:{min:0,max:100}}};
+ const scene=window.T850VectorExport.buildScene(chart,{title:"Kombiniert",classic:true});
+ const svg=window.T850VectorExport.toSvg([scene]);
+ const legend=svg.slice(svg.indexOf('id="panel0_legend"'),svg.indexOf('id="panel0_axes"'));
+ for(const l of labels){assert.ok(legend.includes(">"+l+"</text>"),l);assert.ok(legend.includes(">"+l+" · RR 6 h</text>"),l+" rainfall");}
 });
