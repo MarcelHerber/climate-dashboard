@@ -18,6 +18,12 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            sst_nino_years.js
+            sst_nino_years.css
+            scripts/build_pages_site.sh
+          sparse-checkout-cone-mode: false
       - name: Frontend-Syntax und Einbau prüfen
         shell: bash
         run: |
