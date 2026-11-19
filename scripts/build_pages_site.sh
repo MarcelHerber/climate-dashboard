@@ -219,14 +219,15 @@ print("Phase 2: stratosphere and station-science SVG/PDF controls staged.")
 PY
 
 
-# Add NOAA OISST daily Niño year-over-year curves without rewriting the main SST page.
+# Add NOAA OISST global and regional daily year-over-year curves.
 python - <<'PY'
 from pathlib import Path
 page = Path("_site/index.html")
 html = page.read_text(encoding="utf-8")
 assert 'id="sst-europe"' in html, "SST tab not found"
 css = '<link rel="stylesheet" href="sst_nino_years.css?v=20261118-1">'
-js = '<script defer src="sst_nino_years.js?v=20261118-1"></script>'
+js = '<script defer src="sst_nino_years.js?v=20261119-1"></script>'
+html = html.replace('<script defer src="sst_nino_years.js?v=20261118-1"></script>', js)
 if css not in html:
     assert html.count("</head>") == 1
     html = html.replace("</head>", css + "\n</head>", 1)

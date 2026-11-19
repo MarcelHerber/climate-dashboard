@@ -1,0 +1,84 @@
+name: SST regionale Jahreslinien aktualisieren
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/sst/regional_years.py
+      - .github/workflows/update-sst-regional-years.yml
+  schedule:
+    - cron: '26 5 * * *'
+  workflow_dispatch:
+    inputs:
+      years_per_run:
+        description: 'Maximal neu zu lesende Jahresdateien (inkl. laufendes Jahr)'
+        type: number
+        default: 45
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sst-regional-years-writer
+  cancel-in-progress: false
+
+jobs:
+  regional-years:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python -m pip install numpy netCDF4
+      - run: python -m unittest discover -s tests -p test_sst_regional_means.py -v
+      - name: Eigene Datensammlung aufbauen beziehungsweise aktualisieren
+        shell: bash
+        env:
+          LIMIT: ${{ inputs.years_per_run || (github.event_name == 'push' && 45) || 5 }}
+        run: |
+          set -euo pipefail
+          [[ "$LIMIT" =~ ^[0-9]+$ ]] && (( LIMIT >= 1 && LIMIT <= 100 ))
+          BRANCH=sst-regional-years-data
+          ROOT="$RUNNER_TEMP/sst-regional-data"
+          git config user.name 'climate-dashboard-bot'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          PARENT=''
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
+            git fetch --depth=1 origin "$BRANCH"
+            PARENT=$(git rev-parse FETCH_HEAD)
+            git worktree add --detach "$ROOT" "$PARENT"
+          else
+            git worktree add --detach --no-checkout "$ROOT" HEAD
+            git -C "$ROOT" read-tree --empty
+          fi
+          publish_checkpoint() {
+            git -C "$ROOT" add -A
+            if [[ -n "$PARENT" ]] && git -C "$ROOT" diff --cached --quiet "$PARENT" --; then return; fi
+            if [[ -z "$PARENT" ]] && [[ -z "$(git -C "$ROOT" ls-files)" ]]; then return; fi
+            TREE=$(git -C "$ROOT" write-tree)
+            if [[ -n "$PARENT" ]]; then
+              COMMIT=$(git commit-tree "$TREE" -p "$PARENT" -m 'Update regional OISST daily means')
+            else
+              COMMIT=$(git commit-tree "$TREE" -m 'Initialize regional OISST daily means')
+            fi
+            git push origin "$COMMIT:refs/heads/$BRANCH"
+            PARENT="$COMMIT"
+          }
+          python -m scripts.sst.regional_years --root "$ROOT" --list-years > "$RUNNER_TEMP/regional-years.txt"
+          mapfile -t YEARS < "$RUNNER_TEMP/regional-years.txt"
+          FAILED=0
+          for YEAR in "${YEARS[@]:0:LIMIT}"; do
+            if python -m scripts.sst.regional_years --root "$ROOT" --year "$YEAR"; then
+              publish_checkpoint
+            else
+              FAILED=1
+            fi
+          done
+          python -m scripts.sst.regional_years --root "$ROOT" --publish
+          publish_checkpoint
+          exit "$FAILED"

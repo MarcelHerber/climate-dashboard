@@ -6,6 +6,10 @@ on:
       - "sst_nino_years.js"
       - "sst_nino_years.css"
       - "tests/test_sst_nino_plot.cjs"
+      - "tests/test_sst_region_years.cjs"
+      - "tests/test_sst_regional_means.py"
+      - "scripts/sst/regional_years.py"
+      - ".github/workflows/update-sst-regional-years.yml"
       - "scripts/build_pages_site.sh"
       - ".github/workflows/test-sst-nino-years.yml"
   workflow_dispatch:
@@ -24,6 +28,7 @@ jobs:
             sst_nino_years.js
             sst_nino_years.css
             tests/test_sst_nino_plot.cjs
+            tests/test_sst_region_years.cjs
             scripts/build_pages_site.sh
           sparse-checkout-cone-mode: false
       - name: Frontend-Syntax und Einbau prüfen
@@ -31,6 +36,7 @@ jobs:
         run: |
           node --check sst_nino_years.js
           node tests/test_sst_nino_plot.cjs
+          node tests/test_sst_region_years.cjs
           python - <<'PY'
           from pathlib import Path
           s = Path("scripts/build_pages_site.sh").read_text()
@@ -53,7 +59,7 @@ jobs:
           python - <<'PY'
           import csv, datetime, io, urllib.request
           root = "https://raw.githubusercontent.com/tsjuri/earthindicators/main/data/"
-          for region in ("nino12", "nino3", "nino34", "nino4"):
+          for region in ("nino12", "nino3", "nino34", "nino4", "world", "natl", "npac", "spna"):
               url = root + region + "_daily_sst.csv"
               request = urllib.request.Request(url, headers={"User-Agent": "ClimateDashboard-SST-Test"})
               with urllib.request.urlopen(request, timeout=35) as response:
@@ -63,6 +69,36 @@ jobs:
               assert "1991-01-01" in {row["date"] for row in rows}
               assert "2020-12-31" in {row["date"] for row in rows}
               assert (datetime.date.today() - datetime.date.fromisoformat(rows[-1]["date"])).days < 60
-              assert all(10 <= float(row["sst"]) <= 35 for row in rows[::60])
+              assert all(-2.5 <= float(row["sst"]) <= 36 for row in rows[::60])
               print(region, len(rows), rows[0]["date"], rows[-1]["date"])
+          PY
+  regional-means:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            scripts/sst
+            tests/test_sst_regional_means.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python -m pip install numpy netCDF4
+      - run: python -m unittest discover -s tests -p test_sst_regional_means.py -v
+      - name: Echtes NOAA-OISST-Jahresfile abrufen und berechnen
+        run: |
+          python -m scripts.sst.regional_years --root "$RUNNER_TEMP/sst-test" --year 1982
+          python - <<'PY'
+          import csv, os
+          from pathlib import Path
+          with (Path(os.environ['RUNNER_TEMP']) / 'sst-test/annual/1982.csv').open() as handle:
+              rows = list(csv.DictReader(handle))
+          assert len(rows) == 365
+          assert rows[0]['date'] == '1982-01-01'
+          assert rows[-1]['date'] == '1982-12-31'
+          assert all(-2.5 <= float(r['nordic_seas']) <= 18 for r in rows)
+          assert all(18 <= float(r['indian_ocean']) <= 30 for r in rows)
+          print('Six native-grid NOAA 1982 regional time series verified.')
           PY
