@@ -29,6 +29,8 @@ required_root_files=(
   stations_rekordlabor.css
   stations_rekordlabor_core.js
   stations_rekordlabor.js
+  stations_regional_calendar.js
+  stations_regional_calendar.css
   stations_temperaturgegensatz.html
   stations_temperaturgegensatz.js
   monthly_layout.js
@@ -1724,6 +1726,7 @@ echo "ERA5-Atmosphäre: $(find _site/era5_europe -type f | wc -l) Dateien"
 # plus hourly weather-change archive only when verified on main.
 node --check _site/stations_rekordlabor_core.js
 node --check _site/stations_rekordlabor.js
+node --check _site/stations_regional_calendar.js
 node --test tests/test_stations_rekordlabor.cjs
 python -m unittest discover -s tests -p test_rekordlabor_hourly.py -v
 python -m unittest discover -s tests -p test_rekordlabor_newyear.py -v
