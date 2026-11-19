@@ -5,6 +5,7 @@ on:
     paths:
       - "sst_nino_years.js"
       - "sst_nino_years.css"
+      - "tests/test_sst_nino_plot.cjs"
       - "scripts/build_pages_site.sh"
       - ".github/workflows/test-sst-nino-years.yml"
   workflow_dispatch:
@@ -22,12 +23,14 @@ jobs:
           sparse-checkout: |
             sst_nino_years.js
             sst_nino_years.css
+            tests/test_sst_nino_plot.cjs
             scripts/build_pages_site.sh
           sparse-checkout-cone-mode: false
       - name: Frontend-Syntax und Einbau prüfen
         shell: bash
         run: |
           node --check sst_nino_years.js
+          node tests/test_sst_nino_plot.cjs
           python - <<'PY'
           from pathlib import Path
           s = Path("scripts/build_pages_site.sh").read_text()

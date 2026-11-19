@@ -148,7 +148,7 @@
       plugins: [background],
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
-        normalized: true, parsing: false, spanGaps: true,
+        normalized: true, parsing: true, spanGaps: true,
         interaction: { intersect: false, mode: "nearest", axis: "xy" },
         plugins: {
           legend: { display: false },

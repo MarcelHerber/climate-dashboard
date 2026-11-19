@@ -195,25 +195,6 @@ for file in "${required_root_files[@]}"; do
   cp "$file" _site/
 done
 
-# Add NOAA OISST daily Niño year-over-year curves without rewriting the main SST page.
-python - <<'PY'
-from pathlib import Path
-page = Path("_site/index.html")
-html = page.read_text(encoding="utf-8")
-assert 'id="sst-europe"' in html, "SST tab not found"
-css = '<link rel="stylesheet" href="sst_nino_years.css?v=20261118-1">'
-js = '<script defer src="sst_nino_years.js?v=20261118-1"></script>'
-if css not in html:
-    assert html.count("</head>") == 1
-    html = html.replace("</head>", css + "\n</head>", 1)
-if js not in html:
-    assert html.count("</body>") == 1
-    html = html.replace("</body>", js + "\n</body>", 1)
-assert html.count(css) == 1 and html.count(js) == 1
-page.write_text(html, encoding="utf-8")
-PY
-node --check _site/sst_nino_years.js
-
 # Phase 2: add source-specific vector downloads to existing scientific charts.
 # Keep source HTML and all existing PNG/CSV controls intact.
 python - <<'PY'
@@ -235,6 +216,25 @@ for filename in ("index.html","stratosphaere.html","station_jahresanalyse.html")
 print("Phase 2: stratosphere and station-science SVG/PDF controls staged.")
 PY
 
+
+# Add NOAA OISST daily Niño year-over-year curves without rewriting the main SST page.
+python - <<'PY'
+from pathlib import Path
+page = Path("_site/index.html")
+html = page.read_text(encoding="utf-8")
+assert 'id="sst-europe"' in html, "SST tab not found"
+css = '<link rel="stylesheet" href="sst_nino_years.css?v=20261118-1">'
+js = '<script defer src="sst_nino_years.js?v=20261118-1"></script>'
+if css not in html:
+    assert html.count("</head>") == 1
+    html = html.replace("</head>", css + "\n</head>", 1)
+if js not in html:
+    assert html.count("</body>") == 1
+    html = html.replace("</body>", js + "\n</body>", 1)
+assert html.count(css) == 1 and html.count(js) == 1
+page.write_text(html, encoding="utf-8")
+PY
+node --check _site/sst_nino_years.js
 
 # Independent NOAA GFS 0.5 degree +3 h forecast anomalies.
 # Only include the reference-backed index: no fabricated 1991-2020 values.
