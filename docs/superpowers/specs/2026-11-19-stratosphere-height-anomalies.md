@@ -1,0 +1,7 @@
+# Stratosphäre · Zeit-Höhen-Anomalien
+
+Approved visual design: two side-by-side regional cross-sections, 60 days of daily 00 UTC analysis and +15 days ensemble forecast, 10–1000 hPa log-pressure, fixed anomaly scale ±45 dam, contours above 45 dam, clear analysis/forecast boundary, interactive ECMWF ENS/GEFS and four regions, responsive layout, PNG and vector PDF export, dark theme.
+
+Regions: polar cap 60–90°N all longitudes; Pacific 120°E–120°W; Atlantic 90°W–30°E; Eurasia 30–120°E. Use cosine-latitude weights; same definition on all sources. ERA5 geopotential divided by standard gravity and 10 to obtain dam. 1991–2020 reference requires all 30 genuine samples per calendar date; interpolate Feb 29 from adjacent dates only if both are complete. No substitution or fabricated weather. GFS 00 UTC analyses may bridge ERA5 publication delay, explicitly labelled. ECMWF ENS uses all 50 PF + control; GEFS uses operational ensemble mean. Missing pressure levels interpolated only for rendering in log pressure; no data across missing days.
+
+Chosen approach: compact independent data branches for ERA5 reference/history, ECMWF and GEFS; client SVG contours and vector export (instead of many regenerated image variants). Reference requests prioritise current rolling window and checkpoint every completed month/year, since complete 30-year daily history is a significant backfill. Existing stratosphere features remain untouched. Explicit status for missing reference or unavailable model; no fake chart in production.

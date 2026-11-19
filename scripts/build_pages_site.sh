@@ -92,6 +92,8 @@ required_root_files=(
   stratosphere_nasa_common.js
   stratosphere_analysis_forecast.js
   stratosphere_analysis_forecast.css
+  stratosphere_height.js
+  stratosphere_height.css
   stratosphere_comparison_metrics.js
   stratosphere_vertical_profile.js
   stratosphere_chart_visibility.css
@@ -219,6 +221,30 @@ for filename in ("index.html","stratosphaere.html","station_jahresanalyse.html")
 print("Phase 2: stratosphere and station-science SVG/PDF controls staged.")
 PY
 
+
+# Add independent polar-sector time-height geopotential anomalies.
+python - <<'PY'
+from pathlib import Path
+page = Path("_site/stratosphaere.html")
+html = page.read_text(encoding="utf-8")
+assert 'id="polarVortexCard"' in html
+css = '<link rel="stylesheet" href="stratosphere_height.css?v=20261119-1">'
+scripts = (
+    '<script defer src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>\n'
+    '<script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>\n'
+    '<script defer src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.5.0/dist/svg2pdf.umd.min.js"></script>\n'
+    '<script defer src="stratosphere_height.js?v=20261119-1"></script>'
+)
+if css not in html:
+    assert html.count("</head>") == 1
+    html = html.replace("</head>", css + "\n</head>", 1)
+if 'stratosphere_height.js' not in html:
+    assert html.count("</body>") == 1
+    html = html.replace("</body>", scripts + "\n</body>", 1)
+assert html.count('stratosphere_height.js') == 1
+page.write_text(html, encoding="utf-8")
+PY
+node --check _site/stratosphere_height.js
 
 # Add NOAA OISST global and regional daily year-over-year curves.
 python - <<'PY'
@@ -1812,3 +1838,4 @@ if [ -s data/rekordlabor/contrast/index.json ]; then
   cp -a data/rekordlabor/contrast/. _site/data/rekordlabor/contrast/
 fi
 du -sh _site
+
