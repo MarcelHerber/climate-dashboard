@@ -1,0 +1,15 @@
+const assert = require('node:assert/strict');
+const {makeSeries, sampleAt, REGIONS} = require('../stratosphere_height.js');
+const forecast = {model:'gefs',cycle:'2026-11-19T00:00:00Z',levels:[10,50,100,1000],days:{'2026-11-19':{atlantic:{10:3000,50:2000,100:1000,1000:10}},'2026-11-20':{atlantic:{10:3010,50:2000,100:1000,1000:10}}}};
+const ref = {'11-18':{atlantic:{10:2900,50:1980,100:990,1000:5}},'11-19':{atlantic:{10:2900,50:1980,100:990,1000:5}},'11-20':{atlantic:{10:2900,50:1980,100:990,1000:5}}};
+const history = {'2026-11-18':{atlantic:{10:2950,50:2000,100:1000,1000:10}}};
+const s = makeSeries('atlantic',forecast,ref,history,{});
+assert.equal(s.dates.length,76); assert.equal(s.dates[60],'2026-11-19');
+assert.equal(s.values[59][0],50); assert.equal(s.values[60][0],100);
+assert.equal(s.values[61][0],110); assert.equal(s.values[62][0],null);
+assert.equal(sampleAt(s,60.5,10),105); assert.ok(Math.abs(sampleAt(s,60,Math.sqrt(10*50))-60)<1e-9);
+assert.equal(sampleAt(s,61.5,10),null); assert.equal(Object.keys(REGIONS).length,4);
+const extraHistory={'2026-11-18':{atlantic:{...history['2026-11-18'].atlantic,150:750}}};
+const extraRef={'11-18':{atlantic:{...ref['11-18'].atlantic,150:700}}};
+assert.equal(sampleAt(makeSeries('atlantic',forecast,extraRef,extraHistory,{}),59,150),50);
+console.log('Anomalies, log-pressure interpolation, no extrapolation or missing-day bridging verified.');

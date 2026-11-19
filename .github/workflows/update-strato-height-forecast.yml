@@ -1,0 +1,65 @@
+name: Stratosphäre Höhenanomalien · Ensemble-Daten
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "12 10,15 * * *"
+  push:
+    branches: [main]
+    paths:
+      - scripts/strato_height_data.py
+      - .github/workflows/update-strato-height-forecast.yml
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [gefs, ecmwf]
+    concurrency:
+      group: strato-height-${{ matrix.model }}
+      cancel-in-progress: false
+    env:
+      DATA_BRANCH: strato-height-${{ matrix.model }}-data
+      OPENBLAS_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install "numpy>=1.26,<3" "eccodes>=2,<3" "ecmwf-opendata>=0.3.28,<1"
+      - name: Restore forecast data branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin "refs/heads/$DATA_BRANCH" >/dev/null; then
+            git clone --quiet --single-branch --depth 1 --branch "$DATA_BRANCH" "$remote" "$RUNNER_TEMP/height-data"
+          else
+            git init -q -b "$DATA_BRANCH" "$RUNNER_TEMP/height-data"
+            git -C "$RUNNER_TEMP/height-data" remote add origin "$remote"
+          fi
+      - name: Compute complete 00 UTC ensemble mean
+        run: timeout 270m python scripts/strato_height_data.py --root "$RUNNER_TEMP/height-data" --forecast "${{ matrix.model }}"
+      - name: Bridge delayed ERA5 days with GFS analysis
+        if: always() && matrix.model == 'gefs'
+        run: timeout 30m python scripts/strato_height_data.py --root "$RUNNER_TEMP/height-data" --bridge
+      - name: Publish verified data and resumable checkpoints
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/height-data"
+          test -d .git
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Update ${{ matrix.model }} polar-sector heights"
+            git push origin "HEAD:refs/heads/$DATA_BRANCH"
+          fi
