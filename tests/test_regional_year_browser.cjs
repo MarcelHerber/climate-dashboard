@@ -19,6 +19,8 @@ const fs=require('node:fs');
    await canvas.scrollIntoViewIfNeeded();
    const position=await page.evaluate(()=>{let c=Chart.getChart('rrYearCanvas');return {x:c.scales.x.getPixelForValue(318),y:c.scales.y.getPixelForValue(c.data.datasets[0].data[318])};});
    await canvas.click({position});
+   // Chart.js handles native clicks on the next animation frame.
+   await page.waitForFunction(()=>document.getElementById('rrYearDay').textContent.includes('Historischer Rekord'),{},{timeout:10000});
    const selected=await page.locator('#rrDay').inputValue();
    if(viewport.width>600){
     assert.equal(selected,'11-14');assert.match(await page.locator('#rrYearDay').innerText(),/Hückeswagen/);
