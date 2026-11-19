@@ -6,8 +6,8 @@
   "coordinate_reference_system": "EPSG:4326",
   "georeferencing_verified": true,
   "front_source_format": "CODSUS-HIRES",
-  "valid_utc": "2026-11-19T12:00Z",
-  "checked_at": "2026-11-19T13:54Z",
+  "valid_utc": "2026-11-19T21:00Z",
+  "checked_at": "2026-11-19T23:13Z",
   "source_url": "https://tgftp.nws.noaa.gov/data/raw/as/asus02.kwbc.cod.sus.txt",
   "documentation_url": "https://www.wpc.ncep.noaa.gov/html/read_coded_bull_hr.shtml",
   "analysis_domain": "North America and western North Atlantic; not the DWD manual Europe analysis",
@@ -19,73 +19,48 @@
         "type": "LineString",
         "coordinates": [
           [
-            -89.3,
-            49.4
+            -90.4,
+            42.9
           ],
           [
-            -88.6,
-            47.6
-          ],
-          [
-            -88.9,
-            45.7
-          ],
-          [
-            -90.5,
-            44.5
-          ],
-          [
-            -92.5,
-            43.4
-          ],
-          [
-            -94.1,
+            -92.0,
             42.7
           ],
           [
-            -95.5,
-            42.1
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "cold",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
+            -94.1,
+            42.5
+          ],
           [
-            -95.5,
+            -95.9,
+            41.8
+          ],
+          [
+            -97.9,
+            41.9
+          ],
+          [
+            -98.7,
             42.1
           ],
           [
-            -97.2,
+            -99.8,
+            42.1
+          ],
+          [
+            -101.5,
+            41.8
+          ],
+          [
+            -102.5,
             40.9
           ],
           [
-            -99.3,
-            39.9
+            -104.2,
+            39.6
           ],
           [
-            -100.9,
-            39.5
-          ],
-          [
-            -102.8,
-            39.1
-          ],
-          [
-            -103.6,
-            39.1
-          ],
-          [
-            -104.5,
-            39.7
+            -104.6,
+            39.3
           ]
         ]
       },
@@ -101,32 +76,28 @@
         "type": "LineString",
         "coordinates": [
           [
-            -63.6,
-            49.2
+            -112.2,
+            44.6
           ],
           [
-            -64.5,
-            49.5
+            -113.0,
+            44.6
           ],
           [
-            -67.3,
-            50.1
+            -114.6,
+            44.2
           ],
           [
-            -71.8,
-            51.1
+            -116.0,
+            43.0
           ],
           [
-            -77.8,
-            52.6
+            -117.3,
+            40.9
           ],
           [
-            -86.1,
-            52.3
-          ],
-          [
-            -94.3,
-            50.9
+            -117.8,
+            39.0
           ]
         ]
       },
@@ -142,32 +113,61 @@
         "type": "LineString",
         "coordinates": [
           [
-            -86.3,
-            60.0
+            -117.0,
+            35.8
           ],
           [
-            -91.8,
-            58.4
+            -117.5,
+            32.9
           ],
           [
-            -97.2,
-            58.3
+            -120.1,
+            30.2
           ],
           [
-            -105.0,
-            59.8
+            -125.0,
+            28.3
           ],
           [
-            -105.6,
-            59.8
+            -129.0,
+            27.7
           ],
           [
-            -108.3,
-            60.1
+            -136.8,
+            26.8
+          ]
+        ]
+      },
+      "properties": {
+        "front_type": "cold",
+        "symbol_orientation_verified": false,
+        "origin": "WPC high-resolution coded surface analysis"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -136.9,
+            26.8
           ],
           [
-            -115.7,
-            60.5
+            -139.2,
+            26.5
+          ],
+          [
+            -142.4,
+            26.4
+          ],
+          [
+            -145.5,
+            26.7
+          ],
+          [
+            -150.7,
+            28.3
           ]
         ]
       },
@@ -183,107 +183,24 @@
         "type": "LineString",
         "coordinates": [
           [
-            -116.5,
-            60.5
+            -77.0,
+            53.6
           ],
           [
-            -121.1,
-            60.4
-          ],
-          [
-            -124.9,
-            61.8
-          ],
-          [
-            -127.8,
-            63.9
-          ],
-          [
-            -131.0,
-            64.8
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "stationary",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -93.4,
-            50.5
-          ],
-          [
-            -92.2,
+            -85.5,
             50.6
           ],
           [
-            -90.2,
-            50.0
+            -89.4,
+            50.1
           ],
           [
-            -89.2,
-            49.3
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "occluded",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -147.1,
-            56.7
+            -91.6,
+            49.5
           ],
           [
-            -142.2,
-            55.3
-          ],
-          [
-            -138.1,
-            54.2
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "warm",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -120.3,
-            34.6
-          ],
-          [
-            -125.5,
-            30.1
-          ],
-          [
-            -136.9,
-            27.5
-          ],
-          [
-            -146.4,
-            28.2
+            -95.5,
+            49.0
           ]
         ]
       },
@@ -299,16 +216,78 @@
         "type": "LineString",
         "coordinates": [
           [
-            -120.3,
-            34.6
+            -76.3,
+            61.8
           ],
           [
-            -118.4,
-            33.8
+            -82.8,
+            58.9
           ],
           [
-            -115.9,
-            32.4
+            -85.9,
+            57.4
+          ],
+          [
+            -90.4,
+            55.8
+          ],
+          [
+            -94.3,
+            54.4
+          ]
+        ]
+      },
+      "properties": {
+        "front_type": "cold",
+        "symbol_orientation_verified": false,
+        "origin": "WPC high-resolution coded surface analysis"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -69.5,
+            53.1
+          ],
+          [
+            -77.0,
+            53.6
+          ]
+        ]
+      },
+      "properties": {
+        "front_type": "stationary",
+        "symbol_orientation_verified": false,
+        "origin": "WPC high-resolution coded surface analysis"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -69.6,
+            53.0
+          ],
+          [
+            -68.0,
+            52.6
+          ],
+          [
+            -65.8,
+            51.5
+          ],
+          [
+            -63.9,
+            50.4
+          ],
+          [
+            -62.5,
+            47.8
           ]
         ]
       },
@@ -324,29 +303,29 @@
         "type": "LineString",
         "coordinates": [
           [
-            -123.9,
-            37.7
+            -43.4,
+            70.7
           ],
           [
-            -121.9,
-            37.1
+            -45.1,
+            67.8
           ],
           [
-            -120.6,
-            35.3
+            -45.5,
+            66.0
           ],
           [
-            -120.3,
-            34.8
+            -45.7,
+            63.7
           ],
           [
-            -120.3,
-            34.5
+            -45.5,
+            62.0
           ]
         ]
       },
       "properties": {
-        "front_type": "occluded",
+        "front_type": "stationary",
         "symbol_orientation_verified": false,
         "origin": "WPC high-resolution coded surface analysis"
       }
@@ -357,25 +336,152 @@
         "type": "LineString",
         "coordinates": [
           [
-            -150.4,
+            -70.3,
+            76.1
+          ],
+          [
+            -68.5,
+            77.1
+          ],
+          [
+            -65.9,
+            77.7
+          ],
+          [
+            -61.6,
+            78.6
+          ],
+          [
+            -53.5,
+            79.6
+          ],
+          [
+            -44.8,
+            79.1
+          ]
+        ]
+      },
+      "properties": {
+        "front_type": "stationary",
+        "symbol_orientation_verified": false,
+        "origin": "WPC high-resolution coded surface analysis"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -33.4,
+            47.2
+          ],
+          [
+            -37.5,
+            43.4
+          ],
+          [
+            -40.9,
+            41.3
+          ],
+          [
+            -46.6,
+            39.1
+          ],
+          [
+            -53.1,
+            39.6
+          ],
+          [
+            -57.7,
+            40.8
+          ],
+          [
+            -61.0,
+            41.7
+          ]
+        ]
+      },
+      "properties": {
+        "front_type": "cold",
+        "symbol_orientation_verified": false,
+        "origin": "WPC high-resolution coded surface analysis"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -112.8,
+            58.7
+          ],
+          [
+            -114.6,
+            57.5
+          ],
+          [
+            -116.6,
+            56.6
+          ],
+          [
+            -119.0,
+            56.2
+          ],
+          [
+            -122.2,
+            56.8
+          ],
+          [
+            -124.3,
+            57.7
+          ]
+        ]
+      },
+      "properties": {
+        "front_type": "cold",
+        "symbol_orientation_verified": false,
+        "origin": "WPC high-resolution coded surface analysis"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -94.1,
+            54.5
+          ],
+          [
+            -96.2,
+            54.3
+          ],
+          [
+            -100.2,
+            54.8
+          ],
+          [
+            -102.6,
+            55.4
+          ],
+          [
+            -105.7,
+            56.8
+          ],
+          [
+            -109.8,
+            57.8
+          ],
+          [
+            -112.4,
             58.6
-          ],
-          [
-            -149.0,
-            58.2
-          ],
-          [
-            -147.6,
-            57.3
-          ],
-          [
-            -146.9,
-            56.5
           ]
         ]
       },
       "properties": {
-        "front_type": "occluded",
+        "front_type": "stationary",
         "symbol_orientation_verified": false,
         "origin": "WPC high-resolution coded surface analysis"
       }
@@ -386,25 +492,25 @@
         "type": "LineString",
         "coordinates": [
           [
-            -172.8,
-            69.0
+            -124.4,
+            57.6
           ],
           [
-            -173.0,
-            67.3
+            -127.2,
+            58.9
           ],
           [
-            -175.0,
-            65.5
+            -130.2,
+            60.2
           ],
           [
-            -178.4,
-            64.0
+            -132.8,
+            61.6
           ]
         ]
       },
       "properties": {
-        "front_type": "cold",
+        "front_type": "stationary",
         "symbol_orientation_verified": false,
         "origin": "WPC high-resolution coded surface analysis"
       }
@@ -415,24 +521,28 @@
         "type": "LineString",
         "coordinates": [
           [
-            -173.2,
-            69.1
+            -174.1,
+            67.7
           ],
           [
-            -172.5,
-            69.5
+            -173.3,
+            69.3
+          ],
+          [
+            -171.7,
+            70.8
           ],
           [
             -167.7,
             71.2
           ],
           [
-            -160.8,
-            71.5
+            -162.6,
+            71.1
           ],
           [
-            -154.1,
-            71.0
+            -155.0,
+            70.7
           ]
         ]
       },
@@ -448,40 +558,56 @@
         "type": "LineString",
         "coordinates": [
           [
-            -174.6,
-            60.2
+            -170.0,
+            61.4
           ],
           [
-            -175.6,
-            61.0
-          ],
-          [
-            -175.3,
-            62.1
-          ],
-          [
-            -173.4,
-            63.2
-          ],
-          [
-            -170.6,
-            63.7
-          ],
-          [
-            -165.4,
-            63.4
-          ],
-          [
-            -158.9,
-            62.4
-          ],
-          [
-            -154.3,
+            -171.2,
             61.1
           ],
           [
-            -150.6,
-            58.6
+            -174.3,
+            61.2
+          ],
+          [
+            -176.4,
+            62.1
+          ],
+          [
+            -175.2,
+            63.7
+          ],
+          [
+            -171.0,
+            64.7
+          ],
+          [
+            -168.0,
+            65.8
+          ],
+          [
+            -163.8,
+            65.6
+          ],
+          [
+            -159.1,
+            64.9
+          ],
+          [
+            -154.7,
+            64.1
+          ],
+          [
+            -152.3,
+            62.6
+          ],
+          [
+            -150.0,
+            61.5
+          ],
+          [
+            -148.8,
+            60.7
           ]
         ]
       },
@@ -497,33 +623,33 @@
         "type": "LineString",
         "coordinates": [
           [
-            -147.0,
-            56.6
+            -148.8,
+            60.6
           ],
           [
-            -145.6,
-            52.8
+            -145.5,
+            59.2
           ],
           [
-            -146.8,
-            46.0
+            -144.5,
+            58.4
           ],
           [
-            -151.1,
-            38.7
+            -143.4,
+            57.7
           ],
           [
-            -158.8,
-            33.0
+            -142.7,
+            56.9
           ],
           [
-            -167.6,
-            29.2
+            -142.5,
+            56.1
           ]
         ]
       },
       "properties": {
-        "front_type": "cold",
+        "front_type": "occluded",
         "symbol_orientation_verified": false,
         "origin": "WPC high-resolution coded surface analysis"
       }
@@ -534,94 +660,24 @@
         "type": "LineString",
         "coordinates": [
           [
-            -178.7,
-            27.5
+            -142.5,
+            56.3
           ],
           [
-            -178.9,
-            27.5
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "cold",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -36.7,
-            34.2
+            -141.0,
+            56.1
           ],
           [
-            -37.9,
-            33.1
+            -139.3,
+            56.1
           ],
           [
-            -39.7,
-            31.9
+            -136.6,
+            55.6
           ],
           [
-            -42.1,
-            30.8
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "cold",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -36.7,
-            34.2
-          ],
-          [
-            -35.1,
-            34.1
-          ],
-          [
-            -33.3,
-            34.3
-          ],
-          [
-            -31.8,
-            34.9
-          ],
-          [
-            -30.0,
-            35.1
-          ],
-          [
-            -28.0,
-            34.6
-          ],
-          [
-            -26.4,
-            33.6
-          ],
-          [
-            -25.1,
-            32.7
-          ],
-          [
-            -23.9,
-            32.3
-          ],
-          [
-            -22.6,
-            32.1
+            -133.7,
+            54.2
           ]
         ]
       },
@@ -637,106 +693,52 @@
         "type": "LineString",
         "coordinates": [
           [
-            -2.3,
-            36.2
+            -142.4,
+            56.3
           ],
           [
-            -4.4,
-            35.0
+            -141.8,
+            53.6
           ],
           [
-            -6.1,
-            34.1
+            -141.7,
+            51.4
           ],
           [
-            -7.9,
-            33.4
+            -141.2,
+            49.0
           ],
           [
-            -10.3,
-            32.7
+            -141.4,
+            46.4
           ],
           [
-            -12.6,
-            32.2
-          ],
-          [
-            -14.8,
-            32.0
-          ],
-          [
-            -16.3,
-            31.9
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "cold",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -16.2,
-            31.9
-          ],
-          [
-            -18.6,
-            31.9
-          ],
-          [
-            -20.8,
-            32.0
-          ],
-          [
-            -22.6,
-            32.1
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "stationary",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -40.1,
+            -142.5,
             43.6
           ],
           [
-            -42.1,
-            42.6
+            -144.6,
+            39.6
           ],
           [
-            -44.9,
-            41.6
+            -147.5,
+            37.4
           ],
           [
-            -47.7,
-            40.9
+            -150.5,
+            35.9
           ],
           [
-            -50.4,
-            40.5
+            -152.9,
+            34.7
           ],
           [
-            -53.0,
-            40.3
+            -156.5,
+            32.6
           ],
           [
-            -55.3,
-            40.3
+            -157.0,
+            32.3
           ]
         ]
       },
@@ -752,519 +754,123 @@
         "type": "LineString",
         "coordinates": [
           [
-            -31.3,
-            60.1
+            -77.7,
+            25.9
           ],
           [
-            -29.7,
-            60.9
-          ],
-          [
-            -27.8,
-            61.7
-          ],
-          [
-            -24.7,
-            62.5
-          ],
-          [
-            -21.5,
-            63.0
-          ],
-          [
-            -18.5,
-            63.1
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "warm",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -33.1,
-            55.4
-          ],
-          [
-            -34.8,
-            56.4
-          ],
-          [
-            -36.2,
-            57.4
-          ],
-          [
-            -37.9,
-            58.6
-          ],
-          [
-            -39.9,
-            59.8
-          ],
-          [
-            -41.1,
-            61.1
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "stationary",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -41.1,
-            61.1
-          ],
-          [
-            -41.3,
-            62.0
-          ],
-          [
-            -40.9,
-            62.7
-          ],
-          [
-            -40.0,
-            63.2
-          ],
-          [
-            -39.5,
-            63.9
-          ],
-          [
-            -39.6,
-            64.6
-          ],
-          [
-            -38.8,
-            64.9
-          ],
-          [
-            -37.6,
-            65.0
-          ],
-          [
-            -36.3,
-            64.8
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "stationary",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -2.5,
-            67.2
-          ],
-          [
-            -4.5,
-            66.2
-          ],
-          [
-            -7.0,
-            65.2
-          ],
-          [
-            -9.7,
-            64.3
-          ],
-          [
-            -12.8,
-            63.6
-          ],
-          [
-            -15.7,
-            63.2
-          ],
-          [
-            -18.4,
-            63.1
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "cold",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -57.5,
-            66.6
-          ],
-          [
-            -59.4,
-            67.3
-          ],
-          [
-            -61.6,
-            67.7
-          ],
-          [
-            -63.2,
-            68.6
-          ],
-          [
-            -64.2,
-            69.8
-          ],
-          [
-            -64.1,
-            70.9
-          ],
-          [
-            -62.7,
-            72.1
-          ],
-          [
-            -59.6,
-            73.2
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "stationary",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -69.7,
-            73.7
-          ],
-          [
-            -72.1,
-            74.4
-          ],
-          [
-            -74.0,
-            75.2
-          ],
-          [
-            -74.7,
-            76.0
-          ],
-          [
-            -73.8,
-            77.0
-          ],
-          [
-            -70.6,
-            77.8
-          ],
-          [
-            -65.0,
-            78.4
-          ],
-          [
-            -61.7,
-            78.8
-          ],
-          [
-            -58.5,
-            79.4
-          ],
-          [
-            -55.3,
-            79.6
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "stationary",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -55.3,
-            79.6
-          ],
-          [
-            -48.6,
-            79.5
-          ],
-          [
-            -43.3,
-            79.1
-          ],
-          [
-            -38.8,
-            78.3
-          ],
-          [
-            -35.3,
-            77.6
-          ],
-          [
-            -32.2,
-            77.0
-          ],
-          [
-            -28.2,
-            76.4
-          ],
-          [
-            -25.9,
-            75.7
-          ],
-          [
-            -25.5,
-            75.0
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "warm",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -47.3,
-            61.3
-          ],
-          [
-            -47.7,
-            62.8
-          ],
-          [
-            -47.1,
-            64.6
-          ],
-          [
-            -46.4,
-            66.1
-          ],
-          [
-            -45.6,
-            68.2
-          ],
-          [
-            -45.2,
-            69.7
-          ],
-          [
-            -45.3,
-            71.1
-          ],
-          [
-            -46.5,
-            72.4
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "stationary",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -1.1,
-            53.5
-          ],
-          [
-            -4.9,
-            54.2
-          ],
-          [
-            -7.7,
-            54.6
-          ],
-          [
-            -10.1,
-            54.9
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "stationary",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -42.0,
-            30.8
-          ],
-          [
-            -44.1,
-            29.7
-          ],
-          [
-            -44.5,
-            29.4
-          ],
-          [
-            -45.2,
-            29.0
-          ],
-          [
-            -46.7,
-            28.3
-          ],
-          [
-            -47.5,
-            27.9
-          ],
-          [
-            -48.2,
-            27.7
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "cold",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -36.7,
-            48.1
-          ],
-          [
-            -38.6,
-            46.7
-          ],
-          [
-            -40.9,
-            45.8
-          ],
-          [
-            -43.8,
-            45.1
-          ],
-          [
-            -47.0,
-            44.7
-          ],
-          [
-            -49.9,
-            44.7
-          ],
-          [
-            -55.4,
-            45.7
-          ],
-          [
-            -59.6,
-            48.2
-          ],
-          [
-            -63.6,
-            49.2
-          ]
-        ]
-      },
-      "properties": {
-        "front_type": "cold",
-        "symbol_orientation_verified": false,
-        "origin": "WPC high-resolution coded surface analysis"
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            -80.7,
-            24.5
-          ],
-          [
-            -81.3,
-            24.0
+            -80.0,
+            25.1
           ],
           [
             -82.0,
-            23.6
-          ],
-          [
-            -83.1,
-            23.4
+            24.0
           ],
           [
             -84.2,
-            23.2
+            24.1
           ],
           [
-            -85.4,
-            23.4
+            -86.0,
+            24.7
           ],
           [
-            -86.5,
-            23.9
-          ],
-          [
-            -87.6,
-            24.9
+            -87.3,
+            26.2
           ],
           [
             -88.6,
-            25.5
+            25.3
+          ]
+        ]
+      },
+      "properties": {
+        "front_type": "stationary",
+        "symbol_orientation_verified": false,
+        "origin": "WPC high-resolution coded surface analysis"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -117.7,
+            38.8
           ],
           [
-            -90.2,
-            25.6
+            -117.0,
+            35.9
+          ]
+        ]
+      },
+      "properties": {
+        "front_type": "occluded",
+        "symbol_orientation_verified": false,
+        "origin": "WPC high-resolution coded surface analysis"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -126.0,
+            63.3
+          ],
+          [
+            -129.8,
+            65.1
+          ],
+          [
+            -131.7,
+            65.5
+          ],
+          [
+            -135.7,
+            67.8
+          ],
+          [
+            -138.1,
+            69.0
+          ],
+          [
+            -144.0,
+            70.1
+          ],
+          [
+            -147.6,
+            70.1
+          ],
+          [
+            -155.1,
+            70.7
+          ]
+        ]
+      },
+      "properties": {
+        "front_type": "stationary",
+        "symbol_orientation_verified": false,
+        "origin": "WPC high-resolution coded surface analysis"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -112.9,
+            58.7
+          ],
+          [
+            -118.8,
+            60.2
+          ],
+          [
+            -126.3,
+            63.4
           ]
         ]
       },
