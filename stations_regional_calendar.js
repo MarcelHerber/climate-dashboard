@@ -98,7 +98,7 @@ function init(){
  $("rrPng").addEventListener("click",()=>void exportImage(false));
  $("rrPdf").addEventListener("click",()=>void exportImage(true));
 }
-API.open=()=>{if(!opened){opened=true;init();void load();}};
+API.open=()=>{if(!opened){opened=true;init();root.RegionalRecordYear?.open();void load();}};
 async function load(){
  const token=++serial;current=null;$("rrResults").hidden=true;
  const q={area:$("rrArea").value,metric:$("rrMetric").value,md:$("rrDay").value,first:Number($("rrFirst").value),last:Number($("rrLast").value)};

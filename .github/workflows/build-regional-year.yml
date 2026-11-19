@@ -1,0 +1,54 @@
+name: Regionaler Rekordkalender · Jahresdaten erstellen
+on:
+  push:
+    branches: [regional-year-ui]
+    paths:
+      - scripts/build_regional_year.py
+      - .github/workflows/build-regional-year.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/build_regional_year.py
+            tests/test_regional_year.py
+            data/rekordlabor/regional_year/
+      - uses: actions/checkout@v6
+        with:
+          ref: c74e76375cb7d96ea6011824a3f41b8a2197d8d8
+          path: archive-source
+          persist-credentials: false
+          sparse-checkout: |
+            data/rekordlabor/regional_calendar
+      - name: Generate all 366 days from verified DWD archive
+        run: |
+          PYTHONPATH=scripts python -m unittest discover -s tests -p test_regional_year.py -v
+          python scripts/build_regional_year.py archive-source/data/rekordlabor/regional_calendar data/rekordlabor/regional_year
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          files=list(Path('data/rekordlabor/regional_year').glob('*.json'))
+          assert len(files)==136
+          for f in files:
+              d=json.loads(f.read_text())
+              assert len(d['rows'])==366
+              assert d['rows'][59][1] is None
+              assert all(row[1] is None for row in d['rows'][320:])
+          d=json.loads(Path('data/rekordlabor/regional_year/rs_high-0.json').read_text())
+          assert d['rows'][318][0][:4]==[832,1994,'02357','Hückeswagen']
+          print('All 136 series verified, including leap day and real historical record.')
+          PY
+      - name: Commit tested summaries only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/rekordlabor/regional_year
+          git commit -m "Build regional annual record series from verified archive"
+          git push origin HEAD:regional-year-ui

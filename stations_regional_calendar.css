@@ -3,6 +3,10 @@
 .rr-grid>div{min-width:0}
 .rr-map{background:#eff5f8;border:1px solid var(--rl-line);border-radius:10px;overflow:hidden}
 .rr-map svg{display:block;width:100%;height:auto}
+.rr-year{border:1px solid var(--rl-line);border-radius:12px;padding:16px;margin:1rem 0;background:var(--rl-bg)}
+.rr-year h3{margin:0 0 6px}
+.rr-year-chart{position:relative;width:100%;height:400px;min-width:0}
+@media(max-width:600px){.rr-year{padding:10px}.rr-year-chart{height:320px}}
 .rr-map [data-rank]{cursor:pointer;outline:none}
 .rr-map [data-rank]:focus,.rr-map [data-rank]:hover,.rr-map [data-rank].rr-active{stroke:#111827;stroke-width:3}
 .rr-grid .rr-table{max-height:620px}

@@ -7,7 +7,7 @@
 <meta name="description" content="DWD-Messdaten: historischer Rekordkalender, Jahreszeitenrekorde und Wetterumschwünge aus echten Stationszeitreihen.">
 <link rel="stylesheet" href="dashboard_theme.css">
 <link rel="stylesheet" href="stations_rekordlabor.css?v=20261115-newyear-v1">
-<link rel="stylesheet" href="stations_regional_calendar.css?v=20261119">
+<link rel="stylesheet" href="stations_regional_calendar.css?v=20261119-year">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
@@ -15,7 +15,8 @@
 <script defer src="t850_vector_export.js?v=20261115-season-period-markers"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script defer src="stations_rekordlabor_core.js?v=282d12bbc936"></script>
-<script defer src="stations_regional_calendar.js?v=20261119"></script>
+<script defer src="stations_regional_year.js?v=20261119"></script>
+<script defer src="stations_regional_calendar.js?v=20261119-year"></script>
 <script defer src="stations_rekordlabor.js?v=20261119-regional"></script>
 </head>
 <body class="rl-body">
@@ -87,6 +88,14 @@
 </div>
 <div class="rl-downloads"><button id="rrLoad" type="submit">Top 50 anzeigen</button></div>
 </form>
+<section class="rr-year" aria-labelledby="rrYearHeading">
+<h3 id="rrYearHeading">Jahresverlauf der Tagesrekorde</h3>
+<p class="rl-hint">Historischer Rekord je Kalendertag bis zum Vorjahr und Tagesextrem des aktuellen Archivjahrs. Die Jahresgrenzen oben gelten nur für die Top-50-Rangliste.</p>
+<div id="rrYearStatus" class="rl-meta" role="status" aria-live="polite">Lade Jahresverlauf …</div>
+<div class="rr-year-chart"><canvas id="rrYearCanvas" role="img" aria-label="Historischer Tagesrekord und Tagesextrem im aktuellen Jahr"></canvas></div>
+<p id="rrYearDay" class="rl-meta" aria-live="polite">Klicke einen Kalendertag an, um die Top 50 zu öffnen.</p>
+<div class="rl-downloads"><button id="rrYearPng" type="button" disabled>PNG · Jahresverlauf</button><button id="rrYearPdf" type="button" disabled>PDF · Jahresverlauf</button><button id="rrYearCsv" type="button" disabled>CSV · Jahresverlauf</button><button id="rrYearRetry" type="button">Neu laden</button></div>
+</section>
 <div id="rrStatus" class="rl-meta" role="status" aria-live="polite">Kalendertag und Gebiet auswählen.</div>
 <div id="rrResults" hidden>
 <div class="rl-kpis" id="rrKpis"></div>

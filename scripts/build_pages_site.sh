@@ -31,6 +31,7 @@ required_root_files=(
   stations_rekordlabor.js
   stations_regional_calendar.js
   stations_regional_calendar.css
+  stations_regional_year.js
   stations_temperaturgegensatz.html
   stations_temperaturgegensatz.js
   monthly_layout.js
@@ -1728,6 +1729,10 @@ echo "ERA5-Atmosphäre: $(find _site/era5_europe -type f | wc -l) Dateien"
 node --check _site/stations_rekordlabor_core.js
 node --check _site/stations_rekordlabor.js
 node --check _site/stations_regional_calendar.js
+node --check _site/stations_regional_year.js
+mkdir -p _site/data/rekordlabor/regional_year
+cp data/rekordlabor/regional_year/*.json _site/data/rekordlabor/regional_year/
+test "$(find _site/data/rekordlabor/regional_year -maxdepth 1 -name '*.json' | wc -l)" -eq 136
 node --test tests/test_stations_rekordlabor.cjs
 python -m unittest discover -s tests -p test_rekordlabor_hourly.py -v
 python -m unittest discover -s tests -p test_rekordlabor_newyear.py -v

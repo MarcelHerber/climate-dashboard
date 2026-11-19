@@ -1,0 +1,47 @@
+name: Regionaler Rekordkalender · Jahresverlauf und Downloads
+on:
+  push:
+    branches: [regional-year-ui, main]
+    paths:
+      - stations_regional_year.js
+      - tests/test_regional_year.cjs
+      - tests/test_regional_year_browser.cjs
+      - .github/workflows/test-regional-year.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            stations_rekordlabor.html
+            stations_rekordlabor.js
+            stations_rekordlabor_core.js
+            stations_rekordlabor.css
+            stations_regional_calendar.js
+            stations_regional_calendar.css
+            stations_regional_year.js
+            dashboard_theme.js
+            dashboard_theme.css
+            t850_vector_export.js
+            wettergefahren_basemap_50m.json
+            tests/test_regional_year.cjs
+            tests/test_regional_year_browser.cjs
+            data/rekordlabor/regional_year/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: node --test tests/test_regional_year.cjs
+      - name: Install browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Verify real data, desktop, mobile and downloads
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 &
+          node tests/test_regional_year_browser.cjs
