@@ -6,7 +6,7 @@ const $=id=>document.getElementById(id),C=window.RecordLaborCore;
 const RAW="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/";
 const TODAY=new Date(),YEAR=TODAY.getUTCFullYear();
 const tabs={calendar:["rlTabCalendar","rlCalendar"],seasons:["rlTabSeasons","rlSeasons"],
- changes:["rlTabChanges","rlChanges"],newyear:["rlTabNewYear","rlNewYear"]};
+ changes:["rlTabChanges","rlChanges"],newyear:["rlTabNewYear","rlNewYear"],regional:["rlTabRegional","rlRegional"]};
 const state={catalog:null,klIndex:new Map(),station:null,view:"calendar",temp:null,snow:null,kl:null,
   stationSerial:0,weatherIndex:null,weather:null,weatherSerial:0,
   selectedEvent:null,csv:[],fileName:"",chart:null,chartCanvas:null,chartLabel:"",chartDateAxis:null,status:""};
@@ -104,7 +104,7 @@ function showTab(which){
   $(btn).setAttribute("aria-selected",String(key===which));
   $(area).hidden=key!==which;
  }
- if(which==="changes"){void initWeather();}else if(which==="newyear"){void initNewYear();}else if(state.station)render();
+ if(which==="changes"){void initWeather();}else if(which==="newyear"){void initNewYear();}else if(which==="regional"){window.RegionalRecordCalendar?.open();}else if(state.station)render();
 }
 function destroyChart(){
  if(state.chart){state.chart.destroy();state.chart=null;state.chartCanvas=null;}

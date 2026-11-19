@@ -1,0 +1,59 @@
+name: Regionaler Rekordkalender · Archiv und Browser
+on:
+  push:
+    branches: [regional-calendar-ui, main]
+    paths:
+      - stations_regional_calendar.*
+      - stations_rekordlabor.*
+      - tests/test_regional_calendar*.cjs
+      - .github/workflows/test-regional-calendar.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regional:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            stations_regional_calendar.js
+            stations_regional_calendar.css
+            stations_rekordlabor.html
+            stations_rekordlabor.js
+            stations_rekordlabor_core.js
+            stations_rekordlabor.css
+            dashboard_theme.js
+            dashboard_theme.css
+            t850_vector_export.js
+            wettergefahren_basemap_50m.json
+            tests/test_stations_rekordlabor.cjs
+            tests/test_regional_calendar.cjs
+            tests/test_regional_calendar_browser.cjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Load real pinned DWD archives
+        run: |
+          for p in 1750-1900 1901-1920 1921-1940 1941-1960 1961-1980 1981-1990 1991-2000 2001-2010 2011-2020 2021-2026; do
+            mkdir -p "$RUNNER_TEMP/rr/$p"
+            for f in manifest.json 11-14.json.gz; do
+              curl -fsSL --retry 3 --max-time 60 "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/c74e76375cb7d96ea6011824a3f41b8a2197d8d8/data/rekordlabor/regional_calendar/$p/$f" -o "$RUNNER_TEMP/rr/$p/$f"
+            done
+          done
+          echo "RR_FIXTURES=$RUNNER_TEMP/rr" >> "$GITHUB_ENV"
+      - name: Verify rankings and existing Rekordlabor regressions
+        run: |
+          node --check stations_regional_calendar.js
+          node --check stations_rekordlabor.js
+          node --test tests/test_regional_calendar.cjs tests/test_stations_rekordlabor.cjs
+      - name: Install browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Desktop and mobile using original archive fixtures
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 &
+          node tests/test_regional_calendar_browser.cjs

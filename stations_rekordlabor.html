@@ -7,6 +7,7 @@
 <meta name="description" content="DWD-Messdaten: historischer Rekordkalender, Jahreszeitenrekorde und Wetterumschwünge aus echten Stationszeitreihen.">
 <link rel="stylesheet" href="dashboard_theme.css">
 <link rel="stylesheet" href="stations_rekordlabor.css?v=20261115-newyear-v1">
+<link rel="stylesheet" href="stations_regional_calendar.css?v=20261119">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
@@ -14,7 +15,8 @@
 <script defer src="t850_vector_export.js?v=20261115-season-period-markers"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script defer src="stations_rekordlabor_core.js?v=282d12bbc936"></script>
-<script defer src="stations_rekordlabor.js?v=100cf9c73731"></script>
+<script defer src="stations_regional_calendar.js?v=20261119"></script>
+<script defer src="stations_rekordlabor.js?v=20261119-regional"></script>
 </head>
 <body class="rl-body">
 <header class="rl-top">
@@ -43,6 +45,7 @@
 </section>
 <div class="rl-tabs" role="tablist" aria-label="Rekordauswertungen">
 <button type="button" id="rlTabCalendar" role="tab" aria-selected="true" aria-controls="rlCalendar">Rekordkalender</button>
+<button type="button" id="rlTabRegional" role="tab" aria-selected="false" aria-controls="rlRegional">Regionaler Rekordkalender</button>
 <button type="button" id="rlTabSeasons" role="tab" aria-selected="false" aria-controls="rlSeasons">Jahreszeitenrekorde</button>
 <button type="button" id="rlTabChanges" role="tab" aria-selected="false" aria-controls="rlChanges">Wetterumschwünge</button>
 <button type="button" id="rlTabNewYear" role="tab" aria-selected="false" aria-controls="rlNewYear">Jahreswechsel</button>
@@ -71,6 +74,29 @@
 <h3>Historische Top 10</h3><div class="rl-table-scroll"><table><thead><tr><th>Rang</th><th>Datum</th><th>Wert</th><th>Jahr</th></tr></thead><tbody id="rlCalendarTable"></tbody></table></div>
 <details class="rl-details"><summary>Alle verfügbaren Jahre anzeigen</summary><div class="rl-table-scroll"><table><thead><tr><th>Datum</th><th>Wert</th></tr></thead><tbody id="rlCalendarAllYears"></tbody></table></div></details>
 <p class="rl-hint">Die Rangliste zählt jeden Kalendertag separat; der 29. Februar erscheint ausschließlich in Schaltjahren. Fehlende oder ungültige Tagesmessungen werden ausgelassen. Schneehöhen-Rekorde verwenden nur qualitätsgeprüfte hydrologische Jahre. Niederschlag (DWD RSK, korrigierte Tagessumme) und Sonnenscheindauer (DWD SDK) werden nur für Stationen mit separat geprüftem historischem DWD-KL-Archiv angeboten.</p>
+</section>
+<section class="rl-panel" id="rlRegional" role="tabpanel" aria-labelledby="rlTabRegional" hidden>
+<div class="rl-heading"><div><h2>Regionaler Rekordkalender</h2><p>Die 50 extremsten Messungen eines Kalendertags – deutschlandweit oder für ein Bundesland.</p></div></div>
+<form id="rrForm">
+<div class="rl-row">
+<div><label for="rrDay">Kalendertag</label><select id="rrDay"></select></div>
+<div><label for="rrArea">Gebiet</label><select id="rrArea"></select></div>
+<div class="rl-grow"><label for="rrMetric">Rekordart</label><select id="rrMetric"></select></div>
+<div><label for="rrFirst">Von Jahr</label><input id="rrFirst" type="number" min="1750" max="2026" value="1750" required></div>
+<div><label for="rrLast">Bis Jahr</label><input id="rrLast" type="number" min="1750" max="2026" value="2026" required></div>
+</div>
+<div class="rl-downloads"><button id="rrLoad" type="submit">Top 50 anzeigen</button></div>
+</form>
+<div id="rrStatus" class="rl-meta" role="status" aria-live="polite">Kalendertag und Gebiet auswählen.</div>
+<div id="rrResults" hidden>
+<div class="rl-kpis" id="rrKpis"></div>
+<div class="rr-grid">
+<div><div id="rrMap" class="rr-map" aria-label="Karte der 50 extremsten Stationsmessungen"></div><p id="rrMapNote" class="rl-hint"></p><div id="rrDetail" class="rl-meta" aria-live="polite">Kartenpunkt oder Tabellenrang auswählen.</div></div>
+<div><h3>Historische Top 50</h3><div class="rl-table-scroll rr-table"><table><thead><tr><th>Rang</th><th>Datum</th><th>Station</th><th>Wert</th><th>Archiv</th></tr></thead><tbody id="rrTable"></tbody></table></div></div>
+</div>
+<div class="rl-downloads"><button id="rrPng" type="button" disabled>PNG · Karte</button><button id="rrPdf" type="button" disabled>PDF · Karte und Top 50</button><button id="rrCsv" type="button" disabled>CSV · Top 50</button></div>
+</div>
+<p class="rl-hint">Quelle: DWD CDC, historische und aktuelle Tagesmessungen; vorläufige Werte sind gekennzeichnet. Tagesamplitude = Tmax − Tmin derselben Station am selben Tag. Mehrere Termine derselben Station zählen einzeln. Die tatsächliche Datenabdeckung variiert nach Parameter, Region, Jahr und Kalendertag. Der 29. Februar enthält nur Schaltjahre. Die älteren Reihen sind räumlich deutlich lückenhafter. Archivstand: 15. November 2026.</p>
 </section>
 <section class="rl-panel" id="rlSeasons" role="tabpanel" aria-labelledby="rlTabSeasons" hidden>
 <div class="rl-heading"><div><h2>Jahreszeitenrekorde</h2><p>Wann begann die Hitze? Wann gab es den letzten Frost – und wie lange hielt die Schneedecke?</p></div></div>

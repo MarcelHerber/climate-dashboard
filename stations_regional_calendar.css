@@ -1,0 +1,12 @@
+@media(min-width:651px){.rl-tabs{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.rr-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:18px;align-items:start}
+.rr-grid>div{min-width:0}
+.rr-map{background:#eff5f8;border:1px solid var(--rl-line);border-radius:10px;overflow:hidden}
+.rr-map svg{display:block;width:100%;height:auto}
+.rr-map [data-rank]{cursor:pointer;outline:none}
+.rr-map [data-rank]:focus,.rr-map [data-rank]:hover,.rr-map [data-rank].rr-active{stroke:#111827;stroke-width:3}
+.rr-grid .rr-table{max-height:620px}
+.rr-table button{font:inherit;color:var(--rl-blue);background:transparent;border:0;font-weight:bold;cursor:pointer;padding:6px}
+.rr-table tr.rr-active{background:var(--rl-pale)}
+#rrDetail{overflow-wrap:anywhere}
+@media(max-width:860px){.rr-grid{grid-template-columns:1fr}.rr-grid .rr-table{max-height:425px}}
