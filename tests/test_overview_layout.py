@@ -93,6 +93,29 @@ class OverviewLayoutTests(unittest.TestCase):
                 result = self.evaluate(f'const Chart={{defaults:{{}}}}, window={{devicePixelRatio:{ratio}}}; {assignment} console.log(JSON.stringify(Chart.defaults.devicePixelRatio));')
                 self.assertEqual(result, expected)
 
+    def test_overview_retries_when_async_leaflet_becomes_available(self):
+        source = re.search(r'function initializeOverviewControls\([^\n]*\).*?\n}', self.html, re.S).group()
+        result = self.evaluate('''let listener, rendered=0, L;
+          const document={querySelectorAll:()=>[],getElementById:id=>id==='overview' ?
+            {classList:{contains:()=>true}} : {addEventListener:(event,cb)=>{if(event==='load')listener=cb;}}};
+          function renderOverviewMap(){if(L)rendered++;}
+        '''+source+'''
+          initializeOverviewControls(); L={}; if(listener)listener();
+          console.log(JSON.stringify(rendered));''')
+        self.assertEqual(result, 1)
+
+    def test_dynamically_added_daily_map_precedes_footer(self):
+        source = (ROOT / 'dwd_station_daily_map.js').read_text(encoding='utf-8')
+        inject = re.search(r'function inject\(\)\{.*?\n}', source, re.S).group()
+        result = self.evaluate('''const footer={id:'footer'}, children=[footer];
+          const main={appendChild:node=>children.push(node),querySelector:()=>footer,
+            insertBefore:(node,before)=>children.splice(children.indexOf(before),0,node)};
+          const document={createElement:()=>({}),head:{appendChild:()=>{}},
+            querySelector:s=>s==='main.dashboard-main'?main:null,getElementById:()=>null};
+          const $=id=>document.getElementById(id);
+        '''+inject+'''inject(); console.log(JSON.stringify(children.map(x=>x.id)));''')
+        self.assertEqual(result, ['dwdDailyMap','footer'])
+
 
 if __name__ == '__main__':
     unittest.main()

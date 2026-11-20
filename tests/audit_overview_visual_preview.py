@@ -167,6 +167,7 @@ def main():
                     for theme in ('light','dark'):
                         if page.locator('html').get_attribute('data-theme') != theme:
                             page.locator('#dashboardThemeToggle').click(timeout=5000)
+                        page.evaluate('window.scrollTo(0,0)')
                         result=checks(page,width,theme)
                         result['problems']=validate(result)
                         summary=page.locator('.overview-more-links summary')
@@ -191,6 +192,7 @@ def main():
                     for theme in ('dark','light'):
                         if page.locator('html').get_attribute('data-theme')!=theme:
                             page.locator('#dashboardThemeToggle').click(timeout=5000)
+                        page.evaluate('window.scrollTo(0,0)')
                         sst=page.evaluate('''() => {const main=document.querySelector('main.dashboard-main'), tab=document.querySelector('#sst-europe'), footer=document.querySelector('.dashboard-footer');
                         return {theme:document.documentElement.dataset.theme,footerAfter:main.lastElementChild===footer&&!!(tab.compareDocumentPosition(footer)&Node.DOCUMENT_POSITION_FOLLOWING),contains:main.contains(tab),imgWidth:document.querySelector('#sstMapImage').naturalWidth,region:document.querySelector('#sstRegion').selectedOptions[0]?.textContent,source:document.querySelector('#sstDataThrough').textContent,overflow:document.documentElement.scrollWidth-innerWidth};}''')
                         observations.append({'width':width,'sst':sst})

@@ -13,7 +13,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<script async src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script async id="dashboardLeafletScript" src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script defer src="europe_station_basemap.js?v=20261104-3"></script>
 <script src="station_snow_years.js?v=20261104-2"></script>
 <script src="station_snow_accumulation.js?v=20261104-2"></script>
@@ -1304,6 +1304,18 @@ html[data-theme="dark"] .overview-more-links > summary {
 
 @media (max-width: 1180px) {
   .overview-bottom-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* The header has more navigation items now; let its brand wrap and
+   reserve the actions' intrinsic width so they remain clickable. */
+@media (min-width: 1321px) {
+  .dashboard-header-inner {
+    grid-template-columns: minmax(180px, 1fr) auto auto;
+    gap: 12px;
+  }
+  .dashboard-brand-title { white-space: normal; }
+  .primary-nav .nav-link,
+  .primary-nav .nav-dropdown-toggle { padding-inline: 10px; }
 }
 
 @media (max-width: 800px) {
@@ -5485,6 +5497,11 @@ function renderOverview(){
   if(overviewStatusPayload)updateOverviewStatus(overviewStatusPayload);
 }
 function initializeOverviewControls(){
+  if(typeof L==="undefined"){
+    document.getElementById("dashboardLeafletScript")?.addEventListener("load",()=>{
+      if(document.getElementById("overview")?.classList.contains("active"))renderOverviewMap();
+    },{once:true});
+  }
   document.querySelectorAll("[data-overview-param]").forEach(button=>{
     button.addEventListener("click",()=>{
       overviewMapParam=button.dataset.overviewParam||"temp";
@@ -18275,7 +18292,7 @@ hyrasSwitchParameter=async function(){
 <!-- Erweiterung 16.2: Gebietsmittel-Kartenvergleich Jahr A / Jahr B / Differenz + Bundesländer-Ranking -->
 <!-- Climate Dashboard Layout v21: professionelles Layout + vollständiges ERA5-Land V8.1 + Europa-Stationen -->
 <!-- Dashboard Layout v23: Europa-Stationen Aktivfilter wiederhergestellt -->
-<script src="monthly_frequency.js?v=20261103-dark-export-v1"></script>
+<script src="monthly_frequency.js?v=20261103-dark-export-v1-footer-order"></script>
 <script src="hyras_historical_temperature_1km.js?v=4"></script>
 <script src="mosmix.js?v=20261028-mosmix-foursteps-v1"></script>
 <script src="station_thresholds.js?v=20261103-white-export-v2"></script>
