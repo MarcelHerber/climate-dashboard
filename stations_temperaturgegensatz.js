@@ -1,4 +1,33 @@
-(()=>{'use strict';
+(function(root){
+'use strict';
+function niceStep(raw){
+  const base=10**Math.floor(Math.log10(raw));
+  const n=raw/base;
+  return base*(n<1.5?1:n<3?2:n<7.5?5:10);
+}
+const round=v=>Number(v.toPrecision(12));
+function bounds(data,mode='auto',manual={}){
+  const values=data.filter(v=>typeof v==='number'&&Number.isFinite(v));
+  const low=values.length?Math.min(...values):0,high=values.length?Math.max(...values):1;
+  if(mode==='manual'){
+    const {min,max,step}=Object.fromEntries(['min','max','step'].map(k=>[k,manual[k]===undefined||String(manual[k]).trim()===''?NaN:Number(manual[k])]));
+    if(![min,max,step].every(Number.isFinite)||min<0||max<=min||step<=0||step>max-min||(max-min)/step>24)
+      throw Error('Bitte gültige Grenzen und eine Schrittweite für höchstens 25 Achsenmarken eingeben.');
+    if(values.length&&(high<min||low>max))throw Error('Der Achsenbereich enthält keine Daten.');
+    return {min,max,step};
+  }
+  const pad=Math.max(1*(high===low), (high-low)*0.05,0.1);
+  const bottom=mode==='zero'?0:Math.max(0,low-pad),top=high+pad;
+  const step=niceStep(Math.max(top-bottom,0.2)/6);
+  return {min:round(Math.floor(bottom/step)*step),max:round(Math.ceil(top/step)*step),step:round(step)};
+}
+function exportTicks(chart){
+  return {yTicks:chart.scales.y.ticks.map(t=>({value:t.value})),yTickFormatter:v=>v.toLocaleString('de-DE',{maximumFractionDigits:8})};
+}
+const api={bounds,exportTicks};
+if(typeof module==='object'&&module.exports)module.exports=api;else root.TemperatureContrastAxis=api;
+})(typeof window==='object'?window:globalThis);
+if(typeof window==='object')(()=>{'use strict';
 const $=id=>document.getElementById(id), root='data/rekordlabor/contrast/', states=['Baden-Württemberg','Bayern','Berlin','Brandenburg','Bremen','Hamburg','Hessen','Mecklenburg-Vorpommern','Niedersachsen','Nordrhein-Westfalen','Rheinland-Pfalz','Saarland','Sachsen','Sachsen-Anhalt','Schleswig-Holstein','Thüringen'];
 const option=(el,value,name)=>el.add(new Option(name,value));states.forEach((s,i)=>option($('region'),i,s));for(let m=1;m<=12;m++)option($('month'),m,new Date(2020,m-1,1).toLocaleString('de',{month:'long'}));
 const cache=new Map();let manifest, rows=[], packs=new Map(), serial=0, detailSerial=0, chart, hourlyChart, map, layer;
@@ -9,7 +38,30 @@ const fetchGzip=async(path,binary=false)=>{if(!cache.has(path)){cache.set(path,(
 const checked=y=>y.quality_version==='contrast-qc-v2', mode=()=>$('mode').value, key=()=>[$('height').value,$('radius').value,$('hdiff').value].join('-');
 const title=()=>`${mode()==='hourly'?'Zeitgleiche Stundenwerte':'Klimatag TXK − TNK'} · ${$('region').selectedOptions[0].text} · ${$('from').value}–${$('to').value} · ${$('month').selectedOptions[0].text} · ${$('season').selectedOptions[0].text} · ${$('quality').selectedOptions[0].text} · Radius ${$('radius').value==='9999'?'frei':$('radius').value+' km'} · Höhe ${$('height').value==='9999'?'frei':$('height').value+' m'} · ΔH ${$('hdiff').value==='9999'?'frei':$('hdiff').value+' m'}`;
 function years(){const list=manifest?.[mode()]||[];const a=$('from').value,b=$('to').value;for(const id of ['from','to']){$(id).replaceChildren();list.forEach(v=>option($(id),v.year,v.year));}if(list.length){$('from').value=list.some(v=>String(v.year)===a)?a:list[0].year;$('to').value=list.some(v=>String(v.year)===b)?b:list.at(-1).year;}}
-function plot(canvas,labels,data,prev,caption){prev?.destroy();return new Chart(canvas,{type:'line',data:{labels,datasets:[{label:caption,data,borderColor:'#be4a41',backgroundColor:'#be4a41',pointRadius:2,tension:0,spanGaps:false}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:'Temperaturdifferenz (K)'},beginAtZero:true},x:{ticks:{maxTicksLimit:12}}}}});}
+const axis=window.TemperatureContrastAxis;
+function annualAxis(data){
+  const mode=$('axisMode').value, fields=['Min','Max','Step'];
+  $('axisManual').hidden=mode!=='manual';
+  let b=axis.bounds(data,'auto'), message='';
+  if(mode==='manual'){
+    const defaults=[b.min,b.max,b.step];
+    fields.forEach((k,i)=>{if($('axis'+k).value==='')$('axis'+k).value=defaults[i];});
+    try{b=axis.bounds(data,'manual',{min:$('axisMin').value,max:$('axisMax').value,step:$('axisStep').value});
+      if(data.some(v=>Number.isFinite(v)&&(v<b.min||v>b.max)))message='Hinweis: Werte außerhalb der gewählten Achse sind abgeschnitten. ';
+    }catch(e){message=e.message+' Automatische Skalierung aktiv. ';}
+  }else b=axis.bounds(data,mode);
+  $('axisHint').textContent=message+'Achse: '+b.min.toLocaleString('de-DE')+'–'+b.max.toLocaleString('de-DE')+' K';
+  return {min:b.min,max:b.max,ticks:{stepSize:b.step,autoSkip:false,maxTicksLimit:25}};
+}
+function updateAnnualAxis(){
+  $('axisManual').hidden=$('axisMode').value!=='manual';
+  if(!chart)return;
+  const y=annualAxis(chart.data.datasets[0].data);
+  Object.assign(chart.options.scales.y,{min:y.min,max:y.max,ticks:y.ticks});
+  chart.update('none');
+}
+for(const id of ['axisMode','axisMin','axisMax','axisStep'])$(id).addEventListener('change',updateAnnualAxis);
+function plot(canvas,labels,data,prev,caption){prev?.destroy();return new Chart(canvas,{type:'line',data:{labels,datasets:[{label:caption,data,borderColor:'#be4a41',backgroundColor:'#be4a41',pointRadius:2,tension:0,spanGaps:false}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:'Temperaturdifferenz (K)'},...(canvas.id==='annual'?annualAxis(data):{beginAtZero:true})},x:{ticks:{maxTicksLimit:12}}}}});}
 function clear(){rows=[];packs=new Map();$('qcAudit').hidden=true;$('ranking').replaceChildren();$('kpis').replaceChildren();$('detail').textContent='';chart?.destroy();chart=null;hourlyChart?.destroy();hourlyChart=null;$('hourPanel').hidden=true;layer?.clearLayers();$('downloads').querySelectorAll('button').forEach(b=>b.disabled=true);}
 function box(value,label){let div=document.createElement('div');div.className='rl-kpi';let strong=document.createElement('strong'),small=document.createElement('small');strong.textContent=value;small.textContent=label;div.append(strong,small);$('kpis').append(div);}
 async function render(){const run=++serial;++detailSerial;clear();$('status').textContent='Lade geprüfte Jahresarchive …';$('method').textContent=mode()==='hourly'?'Je UTC-Stunde: höchste minus niedrigste Temperatur verschiedener Stationen mit gleichem UTC-Stempel; pro UTC-Tag der größte Kontrast. Dokumentierte MEZ (MD)-Messungen des ostdeutschen Archivs werden um eine Stunde nach UTC verschoben. Historisch deutlich geringere und regional ungleiche Stationsabdeckung; Messverfahren und Bezugszeiten können abweichen.':'Je DWD-Archivdatum: größtes Tagesmaximum (TXK) minus kleinstes Tagesminimum (TNK) verschiedener Stationen. Nicht zwingend zeitgleich; historische Klimatag-Definitionen und Stationsabdeckung können abweichen.';
@@ -22,7 +74,7 @@ function mapPair(r){if(!window.L)return;if(!map){map=L.map('map').setView([51,10
 async function showDay(){const id=++detailSerial,r=rows.find(v=>v.date===$('day').value);hourlyChart?.destroy();hourlyChart=null;$('hourPanel').hidden=true;$('qcAudit').hidden=true;if(!r){$('detail').textContent='Für diesen Tag liegt unter den gewählten Filtern kein gültiges Stationspaar vor.';mapPair(null);return;}mapPair(r);const marker=(manifest?.[mode()]||[]).find(y=>y.year===r.year);$('detail').textContent=`${marker&&!checked(marker)?'Ungeprüft · ':''}${r.date} · ${fmt(r.delta)} K · ${r.warm.name} (${fmt(r.hi)} °C, ${r.warm.height} m) ↔ ${r.cold.name} (${fmt(r.lo)} °C, ${r.cold.height} m) · ${Math.round(r.km)} km${mode()==='hourly'?' · '+String(r.h).padStart(2,'0')+':00 UTC':''}`;if(mode()!=='hourly')return;
 try{const p=packs.get(r.year),month=r.date.slice(5,7),data=await fetchGzip(`hourly/${r.year}/hour-${month}.bin.gz?v=${marker?.quality_version||'legacy'}-${marker?.end||''}`,true);if(id!==detailSerial)return;let n=p.stations.length,offset=(+r.date.slice(8,10)-1)*24*n,ids=p.stations.map((s,i)=>({s,i})).filter(({s})=>s.height<=+$('height').value&&($('region').value==='DE'||states[+$('region').value]===s.state));const values=[];for(let h=0;h<24;h++){let best=-1;const valid=ids.map(x=>({...x,v:data[offset+h*n+x.i]})).filter(x=>x.v!==-32768&&Number.isFinite(x.v)).sort((a,b)=>a.v-b.v);for(let a=valid.length-1;a>0;a--){const x=valid[a];if(x.v-valid[0].v<=best)break;for(let b=0;b<a;b++){const y=valid[b],delta=x.v-y.v;if(delta<=best)break;if(Math.abs(x.s.height-y.s.height)<=+$('hdiff').value&&distance(x.s,y.s)<=+$('radius').value){best=delta;break;}}}values.push(best<0?null:best/10);} $('hourPanel').hidden=false;hourlyChart=plot($('hours'),Array.from({length:24},(_,i)=>String(i).padStart(2,'0')+' UTC'),values,hourlyChart,'Stundenkontrast');}catch(e){if(id===detailSerial)$('detail').textContent+=' · Stundendetails nicht verfügbar: '+e.message;}}
 function save(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
-function download(f){if(!chart)return;const name=`temperaturgegensatz_${$('quality').value}_${mode()}_${$('region').value}_${$('from').value}-${$('to').value}_${key()}`;if(f==='csv'){const header='Datum;Differenz_K;Warmstation;Warm_C;Kaltstation;Kalt_C;UTC_Stunde;Entfernung_km;Messgrundlage;Qualitätsprüfung;Filter';const quote=s=>'"'+String(s).replaceAll('"','""')+'"';save(new Blob(['\ufeff'+header+'\n'+rows.map(r=>[r.date,fmt(r.delta),quote(r.warm.name),fmt(r.hi),quote(r.cold.name),fmt(r.lo),mode()==='hourly'?r.h:'',fmt(r.km),mode(),r.checked?'plausibilitätsgeprüft':'ungeprüft',quote(title())].join(';')).join('\n')],{type:'text/csv;charset=utf-8'}),name+'.csv');return;}const v=window.T850VectorExport,exportChart=chart.data.labels.length===1?{data:chart.data,scales:{x:{min:-0.5,max:0.5},y:chart.scales.y},isDatasetVisible:chart.isDatasetVisible.bind(chart)}:chart,scene=v.buildScene(exportChart,{title:'Temperaturgegensätze · Jahresmaximum',axis:'Temperaturdifferenz (K)',subtitle:mode()==='hourly'?'Zeitgleiche UTC-Termine':'Klimatag TXK − TNK',metadata:[title().split(' · ').slice(1,6).join(' · '),title().split(' · ').slice(6).join(' · ')],source:'Quelle: DWD CDC · Originalmessungen'});if(f==='svg'){v.saveSvg([scene],name+'.svg');return;}if(f==='pdf'){const pdf=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:[v.W/2.83465,v.H/2.83465]});v.drawPdf(pdf,scene);pdf.save(name+'.pdf');return;}const svg=v.toSvg([scene]),img=new Image(),url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));img.onload=()=>{const c=document.createElement('canvas');c.width=v.W*2;c.height=v.H*2;c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);c.toBlob(b=>save(b,name+'.png'));};img.src=url;}
+function download(f){if(!chart)return;const name=`temperaturgegensatz_${$('quality').value}_${mode()}_${$('region').value}_${$('from').value}-${$('to').value}_${key()}`;if(f==='csv'){const header='Datum;Differenz_K;Warmstation;Warm_C;Kaltstation;Kalt_C;UTC_Stunde;Entfernung_km;Messgrundlage;Qualitätsprüfung;Filter';const quote=s=>'"'+String(s).replaceAll('"','""')+'"';save(new Blob(['\ufeff'+header+'\n'+rows.map(r=>[r.date,fmt(r.delta),quote(r.warm.name),fmt(r.hi),quote(r.cold.name),fmt(r.lo),mode()==='hourly'?r.h:'',fmt(r.km),mode(),r.checked?'plausibilitätsgeprüft':'ungeprüft',quote(title())].join(';')).join('\n')],{type:'text/csv;charset=utf-8'}),name+'.csv');return;}const v=window.T850VectorExport,exportChart=chart.data.labels.length===1?{data:chart.data,scales:{x:{min:-0.5,max:0.5},y:chart.scales.y},isDatasetVisible:chart.isDatasetVisible.bind(chart)}:chart,scene=v.buildScene(exportChart,{title:'Temperaturgegensätze · Jahresmaximum',axis:'Temperaturdifferenz (K)',subtitle:mode()==='hourly'?'Zeitgleiche UTC-Termine':'Klimatag TXK − TNK',metadata:[title().split(' · ').slice(1,6).join(' · '),title().split(' · ').slice(6).join(' · ')],source:'Quelle: DWD CDC · Originalmessungen',...axis.exportTicks(chart)});if(f==='svg'){v.saveSvg([scene],name+'.svg');return;}if(f==='pdf'){const pdf=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:[v.W/2.83465,v.H/2.83465]});v.drawPdf(pdf,scene);pdf.save(name+'.pdf');return;}const svg=v.toSvg([scene]),img=new Image(),url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));img.onload=()=>{const c=document.createElement('canvas');c.width=v.W*2;c.height=v.H*2;c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);c.toBlob(b=>save(b,name+'.png'));};img.src=url;}
 for(const id of ['mode','region','radius','height','hdiff','month','season','from','to','quality'])$(id).addEventListener('change',()=>{if(!manifest)return;if(id==='mode')years();if(id==='month'&&+$('month').value)$('season').value='all';if(id==='season'&&$('season').value!=='all')$('month').value='0';render();});$('day').addEventListener('change',showDay);$('downloads').addEventListener('click',e=>{if(e.target.dataset.fmt)download(e.target.dataset.fmt);});
 fetch(root+'index.json',{cache:'no-cache'}).then(r=>{if(!r.ok)throw Error('Noch kein Jahresarchiv veröffentlicht');return r.json();}).then(m=>{manifest=m;years();render();}).catch(e=>{$('status').textContent=e.message+' · Der Datenaufbau erfolgt über DWD-Archivläufe.';});
 })();
