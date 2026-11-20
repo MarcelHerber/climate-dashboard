@@ -94,9 +94,14 @@ Zeiten in ms; Bytes nach Lighthouse. Stufen: 0 Referenz, 1 Auslagerung,
   JavaScript-Ausnahmen. Zwei bereits in der Referenz vorkommende HTTP-404-URLs
   (`era5_stratosphere.js?v=1`, `favicon.png`); bei einigen Läufen wird der
   Favicon-404 wiederholt.
-- SST-Tab und Footer geprüft; die vollständige Karte war bei 390 px im
-  Screenshot sichtbar, weitere Screenshots zeigten noch den Ladezustand.
-  Gesonderter Browser-Nachtest für vollständige SST-Karte und SST-Exporte.
+- SST-Tab und Footer geprüft. Der
+  [gesonderte SST-Nachtest](https://github.com/MarcelHerber/climate-dashboard/actions/runs/44710264430)
+  wartet auf die vollständig geladene Karte und besteht auf 320, 360, 390
+  und 1440 px im Hell- und Dunkelmodus. Der direkte SST-PNG- und -PDF-Export
+  funktioniert ohne vorherige Bibliotheksabrufe bei 390 und 1440 px
+  (PNG 1.020.351 B, PDF 845.079 B). Keine unbehandelten JS-Ausnahmen;
+  die bereits bekannte Stratosphären-URL lieferte hier HTTP 503 statt 404.
+  [Screenshots und Exportdateien](https://github.com/MarcelHerber/climate-dashboard/actions/runs/44710264430/artifacts/14616971573).
 - Keine Veröffentlichung oder Merge. Die ausdrückliche Nutzereinwilligung
   ist erforderlich, auch nach weiteren Optimierungen.
 
