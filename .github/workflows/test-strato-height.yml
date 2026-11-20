@@ -46,7 +46,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        model: [gefs, ecmwf]
+        model: [gefs, ecmwf, bridge]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -56,3 +56,4 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install numpy eccodes ecmwf-opendata
       - run: python scripts/strato_height_data.py --root "$RUNNER_TEMP/probe" --probe "${{ matrix.model }}"
+

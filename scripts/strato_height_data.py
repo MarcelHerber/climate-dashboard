@@ -97,7 +97,7 @@ def download(url,target):
 
 def noaa_url(cycle,lead,levels,analysis=False):
     if analysis:
-        params={'file':f'gfs.t{cycle.hour:02d}z.pgrb2.0p50.f{lead:03d}','dir':f'/gfs.{cycle:%Y%m%d}/{cycle.hour:02d}/atmos'}
+        params={'file':f'gfs.t{cycle.hour:02d}z.pgrb2full.0p50.f{lead:03d}','dir':f'/gfs.{cycle:%Y%m%d}/{cycle.hour:02d}/atmos'}
         name='filter_gfs_0p50.pl'
     else:
         params={'file':f'geavg.t{cycle.hour:02d}z.pgrb2a.0p50.f{lead:03d}','dir':f'/gefs.{cycle:%Y%m%d}/{cycle.hour:02d}/atmos/pgrb2ap5'}
@@ -137,10 +137,70 @@ def decode_grib(path,cycle,lead,levels,members,resolution):
     if set(found)!={(m,p) for m in members for p in levels}: raise ValueError(f'Incomplete GRIB: {len(found)}/{len(members)*len(levels)}')
     return {r:{str(p):round(float(np.mean([found[m,p][r] for m in members])),4) for p in levels} for r in REGIONS}
 
-def gefs_step(cycle,lead,levels=NOAA_LEVELS,analysis=False):
+def archive_ranges(index,cycle,levels):
+    """Select complete HGT GRIB messages for precisely the requested 00Z analysis."""
+    records=[]
+    for line in index.splitlines():
+        fields=line.split(':')
+        if len(fields)>=6 and fields[1].isdigit():
+            records.append((int(fields[1]),fields))
+    offsets=sorted({offset for offset,_ in records})
+    ends={a:b-1 for a,b in zip(offsets,offsets[1:])}
+    wanted={f'{p} mb':p for p in levels}; found={}
+    for offset,fields in records:
+        if fields[2]!=f'd={cycle:%Y%m%d%H}' or fields[3]!='HGT' or fields[4] not in wanted or fields[5]!='anl':
+            continue
+        p=wanted[fields[4]]
+        if p in found or offset not in ends: raise ValueError(f'Ambiguous or unbounded HGT archive range at {p} hPa')
+        found[p]=(offset,ends[offset])
+    return found
+
+def archive_read(url, byte_range=None):
+    headers={'User-Agent':'ClimateDashboard-Height/1.0','Accept-Encoding':'identity'}
+    if byte_range:
+        start,end=byte_range; headers['Range']=f'bytes={start}-{end}'
+    for attempt in range(3):
+        try:
+            with urlopen(Request(url,headers=headers),timeout=60) as response:
+                if byte_range:
+                    if response.status!=206 or not response.headers.get('Content-Range','').startswith(f'bytes {start}-{end}/'):
+                        raise ValueError('Archive server did not return exact byte range')
+                    data=response.read(end-start+2)
+                    if len(data)!=end-start+1 or not data.startswith(b'GRIB') or not data.endswith(b'7777'):
+                        raise ValueError('Incomplete GRIB archive field')
+                    return data
+                return response.read(2_000_000)
+        except (OSError,ValueError):
+            if attempt==2: raise
+            time.sleep(3*(attempt+1))
+
+def gfs_archive_step(cycle,levels=ECMWF_LEVELS):
+    """NOAA's public AWS archive: range fetch only matching analysis fields."""
+    remaining=set(levels); root=f'https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.{cycle:%Y%m%d}/{cycle.hour:02d}/atmos'
     with tempfile.TemporaryDirectory() as td:
-        path=Path(td)/'data.grib2'; download(noaa_url(cycle,lead,levels,analysis),path)
-        return decode_grib(path,cycle,lead,levels,[0],.5)
+        path=Path(td)/'gfs.grib2'
+        with path.open('wb') as out:
+            for product in ('pgrb2','pgrb2b'):
+                if not remaining: break
+                url=f'{root}/gfs.t{cycle.hour:02d}z.{product}.0p25.f000'
+                ranges=archive_ranges(archive_read(url+'.idx').decode('utf-8'),cycle,remaining)
+                for p,byte_range in ranges.items():
+                    out.write(archive_read(url,byte_range))
+                    remaining.remove(p)
+        if remaining: raise ValueError(f'GFS archive missing analysis pressure levels: {sorted(remaining)}')
+        return decode_grib(path,cycle,0,levels,[0],.25)
+
+def gefs_step(cycle,lead,levels=NOAA_LEVELS,analysis=False):
+    if analysis and lead!=0: raise ValueError('Analysis bridge requires lead zero')
+    with tempfile.TemporaryDirectory() as td:
+        path=Path(td)/'data.grib2'
+        try:
+            download(noaa_url(cycle,lead,levels,analysis),path)
+            return decode_grib(path,cycle,lead,levels,[0],.5)
+        except Exception as exc:
+            if not analysis: raise
+            print('GFS NOMADS unavailable; trying NOAA AWS archive',cycle.isoformat(),str(exc)[:150],flush=True)
+            return gfs_archive_step(cycle,levels)
 
 def ecmwf_step(client,cycle,lead,levels=ECMWF_LEVELS):
     with tempfile.TemporaryDirectory() as td:
@@ -182,12 +242,26 @@ def build_forecast(root,model,probe=False):
 
 def build_bridge(root):
     path=root/'bridge.json'; rows=read_json(path,{'days':{}})['days']; today=datetime.now(timezone.utc).date()
+    def valid_row(row):
+        return isinstance(row,dict) and set(row)==set(REGIONS) and all(
+            isinstance(sector,dict) and set(sector)=={str(p) for p in ECMWF_LEVELS}
+            and all(isinstance(v,(int,float)) and math.isfinite(v) and -150<v<4000 for v in sector.values()) for sector in row.values())
+    rows={k:v for k,v in rows.items() if valid_row(v)}
+    def save():
+        write_json(path,{'schema':1,'source':'GFS operational 00 UTC analysis','days':{k:v for k,v in rows.items() if k>=(today-timedelta(days=85)).isoformat()}})
     for d in range(1,11):
         day=today-timedelta(days=d); iso=day.isoformat()
         if iso in rows: continue
-        try: rows[iso]=gefs_step(datetime(day.year,day.month,day.day,tzinfo=timezone.utc),0,ECMWF_LEVELS,analysis=True)
+        try:
+            row=gefs_step(datetime(day.year,day.month,day.day,tzinfo=timezone.utc),0,ECMWF_LEVELS,analysis=True)
+            if not valid_row(row): raise ValueError('Incomplete GFS analysis bridge row')
+            rows[iso]=row
+            save()
+            print('Verified GFS 00 UTC analysis',iso,len(ECMWF_LEVELS),'levels',flush=True)
         except Exception as exc: print('GFS analysis unavailable',iso,str(exc)[:150],flush=True)
-    write_json(path,{'schema':1,'source':'GFS operational 00 UTC analysis','days':{k:v for k,v in rows.items() if k>=(today-timedelta(days=85)).isoformat()}})
+    save()
+    missing=[(today-timedelta(days=d)).isoformat() for d in range(1,8) if (today-timedelta(days=d)).isoformat() not in rows]
+    if missing: raise ValueError('Missing required GFS analysis bridge dates: '+', '.join(missing))
 
 def cds_client():
     import cdsapi
@@ -270,9 +344,14 @@ def build_analysis(root):
 
 def main():
     cli=argparse.ArgumentParser(); cli.add_argument('--root',required=True,type=Path); actions=cli.add_mutually_exclusive_group(required=True)
-    actions.add_argument('--forecast',choices=['gefs','ecmwf']); actions.add_argument('--bridge',action='store_true'); actions.add_argument('--analysis',action='store_true'); actions.add_argument('--reference'); actions.add_argument('--list-reference',action='store_true'); actions.add_argument('--probe',choices=['gefs','ecmwf'])
+    actions.add_argument('--forecast',choices=['gefs','ecmwf']); actions.add_argument('--bridge',action='store_true'); actions.add_argument('--analysis',action='store_true'); actions.add_argument('--reference'); actions.add_argument('--list-reference',action='store_true'); actions.add_argument('--probe',choices=['gefs','ecmwf','bridge'])
     a=cli.parse_args()
     if a.forecast: build_forecast(a.root,a.forecast)
+    elif a.probe=='bridge':
+        build_bridge(a.root)
+        day=(datetime.now(timezone.utc)-timedelta(days=2)).replace(hour=0,minute=0,second=0,microsecond=0)
+        row=gfs_archive_step(day)
+        print('Verified independent NOAA archive',day.isoformat(),row['polar']['10'],flush=True)
     elif a.probe: build_forecast(a.root,a.probe,True)
     elif a.bridge: build_bridge(a.root)
     elif a.analysis: build_analysis(a.root)
@@ -282,3 +361,4 @@ def main():
         print('\n'.join(pending_reference(a.root)))
 
 if __name__=='__main__': main()
+
