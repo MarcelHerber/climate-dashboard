@@ -1839,3 +1839,10 @@ if [ -s data/rekordlabor/contrast/index.json ]; then
 fi
 du -sh _site
 
+# Opt-in only while the isolated performance experiment is evaluated.
+# The regular Pages deployment keeps its existing loading behavior.
+if [ -n "${DASHBOARD_LOADING_STAGE:-}" ]; then
+  python scripts/optimize_dashboard_loading.py _site --stage "$DASHBOARD_LOADING_STAGE"
+  node --check _site/dashboard_main.js
+fi
+
