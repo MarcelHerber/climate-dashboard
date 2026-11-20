@@ -1243,6 +1243,101 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
 <link rel="stylesheet" href="gebietsmittel_archiv.css?v=20261117">
 <script defer src="dashboard_export_hq.js?v=20261108"></script>
 <script src="hyras_temperature_interactive.js?v=1"></script>
+<style>
+.overview-link-copy,
+.overview-mini-label,
+.overview-mini-detail,
+.overview-map-legend,
+.overview-stat-name,
+.overview-source-table {
+  font-size: 12px;
+}
+
+.overview-bottom-grid {
+  grid-template-columns: 1.08fr 0.82fr 1fr;
+}
+
+.overview-more-links {
+  border-top: 1px solid #e6eaed;
+}
+
+.overview-more-links > summary {
+  padding: 14px 20px;
+  color: #075fad;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.overview-more-links > summary span {
+  float: right;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.overview-more-links > summary:focus-visible {
+  outline: 2px solid var(--blue, #075fad);
+  outline-offset: -2px;
+}
+
+.overview-more-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
+.overview-more-list .overview-quicklink {
+  min-height: 72px;
+  border: 1px solid #e0e5e9;
+  border-radius: 7px;
+}
+
+html[data-theme="dark"] .overview-more-links,
+html[data-theme="dark"] .overview-more-list .overview-quicklink {
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] .overview-more-links > summary {
+  color: var(--blue);
+}
+
+@media (max-width: 1180px) {
+  .overview-bottom-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 800px) {
+  .overview-mini-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .overview-bottom-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
+  .overview-more-list {
+    grid-template-columns: 1fr;
+  }
+  /* Keep the published mobile-navigation stylesheet's compact tiles
+     confined to the six primary shortcuts. */
+  body.cd-mobile-home .overview-more-list .overview-quicklink:nth-child(n) {
+    min-height: 72px;
+    flex-direction: row;
+    border: 1px solid #e0e5e9;
+  }
+  body.cd-mobile-home .overview-more-list .overview-link-copy {
+    display: block;
+  }
+  html[data-theme="dark"] body.cd-mobile-home .overview-more-list .overview-quicklink:nth-child(n) {
+    border-color: var(--border);
+  }
+}
+
+@media (max-width: 360px) {
+  .overview-mini-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
 </head>
 <body>
 
@@ -1468,6 +1563,14 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
           <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 4h8v4a4 4 0 0 1-8 0z"></path><path d="M12 12v5M8 21h8M9 17h6M6 5H3v2a4 4 0 0 0 4 4M18 5h3v2a4 4 0 0 1-4 4"></path></svg></span>
           <span><span class="overview-link-title">Stationsrekorde</span><span class="overview-link-copy">Höchste, tiefste und längste Stationswerte</span></span>
         </button>
+        <button class="overview-quicklink" type="button" onclick="switchTab('europeHub')">
+          <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a14 14 0 0 1 0 18"></path><path d="M12 3a14 14 0 0 0 0 18"></path></svg></span>
+          <span><span class="overview-link-title">Europa</span><span class="overview-link-copy">Europa-Stationen und ERA5-Land Europa kompakt gebündelt</span></span>
+        </button>
+      </div>
+      <details class="overview-more-links">
+        <summary>Weitere Auswertungen <span>4 Bereiche</span></summary>
+        <div class="overview-more-list">
 <!-- ANNUAL_HOLIDAY_EXTREMES_OVERVIEW_LINKS_V1 -->
         <button class="overview-quicklink" type="button" onclick="window.location.href='jahresextremwerte.html'">
           <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v15H4z"></path><path d="M8 2v6M16 2v6M7 12h10M7 16h7"></path></svg></span>
@@ -1482,15 +1585,12 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
           <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"></path><path d="M8 8h8M8 12h8M8 16h5"></path></svg></span>
           <span><span class="overview-link-title">Dekadenrekorde</span><span class="overview-link-copy">1.–3. Dekade · Deutschland &amp; Bundesländer</span></span>
         </button>
-        <button class="overview-quicklink" type="button" onclick="switchTab('europeHub')">
-          <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a14 14 0 0 1 0 18"></path><path d="M12 3a14 14 0 0 0 0 18"></path></svg></span>
-          <span><span class="overview-link-title">Europa</span><span class="overview-link-copy">Europa-Stationen und ERA5-Land Europa kompakt gebündelt</span></span>
-        </button>
         <button class="overview-quicklink" type="button" onclick="switchTab('compare')">
           <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4v16M17 4v16M3 8h8M13 16h8"></path><path d="m9 6 2 2-2 2M15 14l-2 2 2 2"></path></svg></span>
           <span><span class="overview-link-title">Vergleiche</span><span class="overview-link-copy">Gebiete, Jahre und Stationen direkt vergleichen</span></span>
         </button>
-      </div>
+        </div>
+      </details>
     </section>
 
     <section class="overview-card overview-stats">
@@ -4096,16 +4196,6 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
 </div>
 
 
-  <footer class="dashboard-footer">
-    <div>© 2026 Climate Dashboard Deutschland</div>
-    <div class="dashboard-footer-links">
-      <a href="#" onclick="switchTab('overview');return false">Übersicht</a>
-      <a href="#" onclick="switchTab('overview');window.setTimeout(()=>document.getElementById('overviewSources')?.scrollIntoView({behavior:'smooth'}),80);return false">Datenquellen</a>
-      <span>Version 17.0</span>
-    </div>
-  </footer>
-</main>
-
 <!-- ================= MEERE / SST ================= -->
 <div id="sst-europe" class="tab-content">
   <div class="section-header sst-europe-header">
@@ -4141,13 +4231,23 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
   </div>
 </div>
 
+  <footer class="dashboard-footer">
+    <div>© 2026 Climate Dashboard Deutschland</div>
+    <div class="dashboard-footer-links">
+      <a href="#" onclick="switchTab('overview');return false">Übersicht</a>
+      <a href="#" onclick="switchTab('overview');window.setTimeout(()=>document.getElementById('overviewSources')?.scrollIntoView({behavior:'smooth'}),80);return false">Datenquellen</a>
+      <span>Version 17.0</span>
+    </div>
+  </footer>
+</main>
+
 <script src="state_monthly_ensemble.js?v=20261116-reference-61-1"></script>
 <script src="t850_ensembles.js?v=20261012-exportmeta1"></script>
 <script src="sst_europe.js?v=20261112-sst-recovery-1"></script>
 <script>
 Chart.register(ChartDataLabels);
-// Schärfere Canvas-Ausgabe auf Standardmonitoren; Retina-Displays behalten ihre höhere Auflösung.
-Chart.defaults.devicePixelRatio=Math.max(2,window.devicePixelRatio||1);
+// Native Canvas-Auflösung verwenden, auf maximal 2× begrenzt.
+Chart.defaults.devicePixelRatio=Math.min(2,window.devicePixelRatio||1);
 
 const DASHBOARD_STATE_KEY="climateDashboardStateV9";
 let dashboardState={};
@@ -5297,7 +5397,7 @@ function overviewMapScale(values,param){
     const abs=Math.max(.5,...finite.map(v=>Math.abs(v)));
     const stops=[-abs,-abs*.66,-abs*.33,0,abs*.33,abs*.66,abs];
     const colors=["#2b5c9a","#79a8d5","#d8e7f3","#f5f5f3","#f6b19b","#e76b55","#b9212f"];
-    const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
+    const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>=stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
     return {color,legend:stops.map((value,i)=>({value,color:colors[i]}))};
   }
   if(param==="rain"){
@@ -6050,7 +6150,7 @@ function regionalMapScale(values,param,mode){
     const abs=Math.max(...finite.map(v=>Math.abs(v)),param==="temp"?.5:1);
     const stops=[-abs,-abs*.66,-abs*.33,0,abs*.33,abs*.66,abs];
     const colors=param==="temp"?["#313695","#74add1","#d7eef5","#f7f7f7","#fdae61","#ef6548","#a50026"]:["#8c510a","#bf812d","#dfc27d","#f5f5f5","#80cdc1","#35978f","#01665e"];
-    const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
+    const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>=stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
     return {color,legend:stops.map((v,i)=>({value:v,color:colors[i]}))};
   }
   if(mode==="percent"){
@@ -6070,7 +6170,7 @@ function regionalMapDifferenceScale(values,param){
   const colors=param==="temp"
     ?["#313695","#74add1","#d7eef5","#f7f7f7","#fdae61","#ef6548","#a50026"]
     :["#8c510a","#bf812d","#dfc27d","#f5f5f5","#80cdc1","#35978f","#01665e"];
-  const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
+  const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>=stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
   return {color,legend:stops.map((v,i)=>({value:v,color:colors[i]}))};
 }
 function renderRegionalMapLegend(scale,param,mode,elementId="regionalMapLegend",difference=false){
