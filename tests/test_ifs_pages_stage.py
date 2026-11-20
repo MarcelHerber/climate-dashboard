@@ -16,11 +16,15 @@ class StageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             for name in root_files:
-                (root / name).write_text('stub')
+                target = root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text('stub')
             (root / 'ifs_weekly_arctic.html').write_text('Arctic map page')
             subprocess.run(['bash', '-c', block], cwd=root, check=True, capture_output=True)
             self.assertTrue((root / '_site/ifs_weekly_arctic.html').is_file(),
                             'Arctic page must be included in the public artifact')
+            for module in ('core', 'uebersicht', 'gebietsmittel'):
+                self.assertEqual((root / f'_site/js/{module}.js').read_text(), 'stub')
 
     def test_nav_link_only_once_in_desktop_and_mobile(self):
         with tempfile.TemporaryDirectory() as d:

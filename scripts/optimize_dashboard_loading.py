@@ -5,7 +5,7 @@ import hashlib
 import re
 from pathlib import Path
 
-MAIN = re.compile(rb"<script>(\s*Chart\.register\(ChartDataLabels\);.*?)</script>", re.S)
+MAIN = re.compile(rb"<script>(\s*(?:Chart\.register\(ChartDataLabels\);|// Start-Abrufe).*?)</script>", re.S)
 EXTERNAL = re.compile(rb"<script\b(?=[^>]*\bsrc=)[^>]*>\s*</script>")
 
 
@@ -100,6 +100,15 @@ def lazy_exports(html, site):
         "mosmix.js": [('  function ensurePdfLibrary(){', '  function ensurePdfLibrary(){\n    if(window.dashboardExportLibraries)return window.dashboardExportLibraries.pdf();')],
         "scientific_vector_actions.js": [('function jsPDF(){', 'function jsPDF(){\n if(root.dashboardExportLibraries)return root.dashboardExportLibraries.pdf();')],
     }
+    # The first thematic split moves the regional-map PNG entry point out
+    # of the remaining main script. Keep the same lazy-export guarantee.
+    regional_guard = edits["dashboard_main.js"][0]
+    if (site / "js/gebietsmittel.js").is_file():
+        edits["dashboard_main.js"].remove(regional_guard)
+        edits["js/gebietsmittel.js"] = [regional_guard, (
+            '  try{\n    const mapObj=mapName===',
+            '  try{\n    ' + CANVAS + '\n    const mapObj=mapName===',
+        )]
     for filename, replacements in edits.items():
         path = site / filename
         original = path.read_bytes().decode()

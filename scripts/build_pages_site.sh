@@ -7,6 +7,9 @@ mkdir -p _site/data
 
 required_root_files=(
   index.html
+  js/core.js
+  js/uebersicht.js
+  js/gebietsmittel.js
   mosmix.html
   datenstatus.html
   dashboard_cleanup.css
@@ -197,7 +200,10 @@ for file in "${required_root_files[@]}"; do
     echo "FEHLER: Für GitHub Pages fehlt: $file"
     exit 1
   fi
-  cp "$file" _site/
+  cp --parents "$file" _site/
+done
+for file in js/core.js js/uebersicht.js js/gebietsmittel.js; do
+  node --check "_site/$file"
 done
 
 # Phase 2: add source-specific vector downloads to existing scientific charts.
@@ -879,7 +885,7 @@ fi
 # Der HYRAS-Balken muss im historischen Chart selbst eingebaut sein.
 python - <<'PY'
 from pathlib import Path
-s=Path("_site/index.html").read_text(encoding="utf-8")
+s=Path("_site/index.html").read_text(encoding="utf-8") + "\n" + "\n".join(p.read_text(encoding="utf-8") for p in Path("_site/js").glob("*.js"))
 for marker in ("function observedMonthlyBar(", "function observedMonthlyHatch(", 'id="monthlyObservedChartNote"', 'label:`${observed.year} vorläufig'):
     assert marker in s, "Vorläufiger HYRAS-Monatsbalken fehlt: "+marker
 assert "monthly_provisional.js" not in s, "Veraltetes separates Overlay noch geladen"
@@ -1190,13 +1196,13 @@ else
   echo "HINWEIS: Schneehöhen-Jahreskurven noch nicht aufgebaut; aktuelle Saison und Klimamittel bleiben verfügbar."
 fi
 
-# index.html leitet große Stationsdateien normalerweise auf raw.githubusercontent
+# uebersicht.js leitet große Stationsdateien normalerweise auf raw.githubusercontent
 # um. Für Schnee liegen die Dateien jetzt bewusst im Pages-Artefakt und werden
 # deshalb same-origin geladen.
 python - <<'PY'
 from pathlib import Path
 
-path = Path("_site/index.html")
+path = Path("_site/js/uebersicht.js")
 text = path.read_text(encoding="utf-8")
 entries = [
     '  "station_snow_height_index.json",\n',
@@ -1207,7 +1213,7 @@ entries = [
 ]
 for entry in entries:
     if entry not in text:
-        raise SystemExit(f"FEHLER: Snow-Raw-Prefix fehlt in index.html: {entry.strip()}")
+        raise SystemExit(f"FEHLER: Snow-Raw-Prefix fehlt in uebersicht.js: {entry.strip()}")
     text = text.replace(entry, "", 1)
 path.write_text(text, encoding="utf-8")
 PY

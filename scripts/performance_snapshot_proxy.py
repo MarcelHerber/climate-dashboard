@@ -41,7 +41,11 @@ def local_file(flow):
     if not path.startswith(PREFIX):
         return None
     name = path[len(PREFIX):]
-    if "/" in name or not name:
+    # Only serve checked-in dashboard module assets from the nested folder;
+    # never allow traversal or arbitrary paths.
+    if not name or ("/" in name and name not in {
+        "js/core.js", "js/uebersicht.js", "js/gebietsmittel.js", "js/gebietsmittel.optimized.js",
+    }):
         return None
     stage = (ROOT / "stage.txt").read_text().strip()
     chosen = ROOT / stage / name

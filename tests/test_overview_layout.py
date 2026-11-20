@@ -48,6 +48,7 @@ class OverviewLayoutTests(unittest.TestCase):
     def setUpClass(cls):
         cls.html = (ROOT / 'index.html').read_text(encoding='utf-8')
         cls.markup = DashboardMarkup(cls.html)
+        cls.code = cls.html + '\n' + '\n'.join(path.read_text(encoding='utf-8') for path in sorted((ROOT / 'js').glob('*.js')))
 
     def evaluate(self, script):
         return json.loads(subprocess.check_output(['node', '-e', script], text=True))
@@ -60,7 +61,7 @@ class OverviewLayoutTests(unittest.TestCase):
             ('regionalMapScale', '[-2,0,2],"rain","anomaly"', '#f5f5f5'),
         ):
             with self.subTest(name=name, arguments=arguments):
-                source = re.search(r'function '+name+r'\([^\n]*\).*?\n}', self.html, re.S).group()
+                source = re.search(r'function '+name+r'\([^\n]*\).*?\n}', self.code, re.S).group()
                 result = self.evaluate(f'{source}; const scale={name}({arguments}); console.log(JSON.stringify([-2,0,2,NaN].map(scale.color)));')
                 self.assertEqual(result[1], expected)
                 self.assertEqual(result[3], '#e5e7eb')
@@ -87,14 +88,14 @@ class OverviewLayoutTests(unittest.TestCase):
         self.assertRegex(tail, r'@media\s*\(max-width:\s*360px\)\s*\{\s*\.overview-mini-grid\s*\{\s*grid-template-columns:\s*1fr')
 
     def test_canvas_uses_native_pixel_ratio_capped_at_two(self):
-        assignment = re.search(r'Chart\.defaults\.devicePixelRatio\s*=.*?;', self.html, re.S).group()
+        assignment = re.search(r'Chart\.defaults\.devicePixelRatio\s*=.*?;', self.code, re.S).group()
         for ratio, expected in ((1, 1), (1.5, 1.5), (2, 2), (3, 2)):
             with self.subTest(ratio=ratio):
                 result = self.evaluate(f'const Chart={{defaults:{{}}}}, window={{devicePixelRatio:{ratio}}}; {assignment} console.log(JSON.stringify(Chart.defaults.devicePixelRatio));')
                 self.assertEqual(result, expected)
 
     def test_overview_retries_when_async_leaflet_becomes_available(self):
-        source = re.search(r'function initializeOverviewControls\([^\n]*\).*?\n}', self.html, re.S).group()
+        source = re.search(r'function initializeOverviewControls\([^\n]*\).*?\n}', self.code, re.S).group()
         result = self.evaluate('''let listener, rendered=0, L;
           const document={querySelectorAll:()=>[],getElementById:id=>id==='overview' ?
             {classList:{contains:()=>true}} : {addEventListener:(event,cb)=>{if(event==='load')listener=cb;}}};
@@ -117,7 +118,7 @@ class OverviewLayoutTests(unittest.TestCase):
         self.assertEqual(result, ['dwdDailyMap','footer'])
 
     def test_overview_map_does_not_measure_hidden_container(self):
-        source = re.search(r'function renderOverviewMap\([^\n]*\).*?\n}', self.html, re.S).group()
+        source = re.search(r'function renderOverviewMap\([^\n]*\).*?\n}', self.code, re.S).group()
         result = self.evaluate('''const document={getElementById:()=>({clientWidth:0,clientHeight:0})};
           const monthlyData=[{}], L={}; let started=0;
           function overviewLatestGermanyRow(){started++;return null;}
