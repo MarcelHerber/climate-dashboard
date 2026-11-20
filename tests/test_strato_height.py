@@ -1,6 +1,11 @@
 import unittest
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from urllib.parse import urlparse, parse_qs
+from unittest.mock import patch
 import numpy as np
+from scripts import strato_height_data as height
 from scripts.strato_height_data import sector_means, reference_means, validate_forecast, NOAA_LEVELS, REGIONS
 
 class HeightTests(unittest.TestCase):
@@ -24,4 +29,23 @@ class HeightTests(unittest.TestCase):
         del dates['2026-11-21']['atlantic']['10']
         self.assertFalse(validate_forecast(payload,'gefs',cycle+timedelta(hours=9)))
 
+    def test_nomads_requests_full_gfs_analysis_file(self):
+        cycle=datetime(2026,11,13,tzinfo=timezone.utc)
+        query=parse_qs(urlparse(height.noaa_url(cycle,0,height.ECMWF_LEVELS,analysis=True)).query)
+        self.assertEqual(query['file'],['gfs.t00z.pgrb2full.0p50.f000'])
+        self.assertEqual(query['dir'],['/gfs.20261113/00/atmos'])
+
+    def test_archive_only_selects_exact_analysis_height_records(self):
+        idx='1:0:d=2026111300:TMP:10 mb:anl:\n2:100:d=2026111300:HGT:10 mb:anl:\n3:300:d=2026111300:HGT:50 mb:anl:\n4:600:d=2026111300:HGT:100 mb:6 hour fcst:\n5:900:d=2026111300:TMP:100 mb:anl:\n'
+        cycle=datetime(2026,11,13,tzinfo=timezone.utc)
+        self.assertEqual(height.archive_ranges(idx,cycle,[10,50,100]),{10:(100,299),50:(300,599)})
+        self.assertEqual(height.archive_ranges(idx,cycle+timedelta(days=1),[10,50]),{})
+
+    def test_gfs_bridge_falls_back_to_archive(self):
+        cycle=datetime(2026,11,13,tzinfo=timezone.utc)
+        expected={r:{str(p):123. for p in height.ECMWF_LEVELS} for r in REGIONS}
+        with patch.object(height,'download',side_effect=OSError('NOMADS unavailable')), patch.object(height,'gfs_archive_step',return_value=expected,create=True):
+            self.assertEqual(height.gefs_step(cycle,0,height.ECMWF_LEVELS,analysis=True),expected)
+
 if __name__=='__main__': unittest.main()
+
