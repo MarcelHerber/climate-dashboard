@@ -116,6 +116,14 @@ class OverviewLayoutTests(unittest.TestCase):
         '''+inject+'''inject(); console.log(JSON.stringify(children.map(x=>x.id)));''')
         self.assertEqual(result, ['dwdDailyMap','footer'])
 
+    def test_overview_map_does_not_measure_hidden_container(self):
+        source = re.search(r'function renderOverviewMap\([^\n]*\).*?\n}', self.html, re.S).group()
+        result = self.evaluate('''const document={getElementById:()=>({clientWidth:0,clientHeight:0})};
+          const monthlyData=[{}], L={}; let started=0;
+          function overviewLatestGermanyRow(){started++;return null;}
+        '''+source+'''renderOverviewMap();console.log(JSON.stringify(started));''')
+        self.assertEqual(result, 0)
+
 
 if __name__ == '__main__':
     unittest.main()

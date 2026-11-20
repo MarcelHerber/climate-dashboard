@@ -89,7 +89,10 @@ def audit_map_colors(page):
     page.wait_for_function('''() => {
       if (!overviewMapLayer) return false;
       const colors={}; overviewMapLayer.eachLayer(l=>colors[l.feature.properties.name]=l.options.fillColor);
-      return colors.Bayern === '#2b5c9a' && colors.Sachsen === '#b9212f';
+      const map=document.getElementById('overviewMap').getBoundingClientRect();
+      const shape=[...document.querySelectorAll('#overviewMap path')].find(e=>e.getAttribute('fill')==='#2b5c9a')?.getBoundingClientRect();
+      return colors.Bayern === '#2b5c9a' && colors.Sachsen === '#b9212f' &&
+        shape && shape.width>10 && shape.height>10 && shape.right>map.left && shape.left<map.right && shape.bottom>map.top && shape.top<map.bottom;
     }''', timeout=15000)
     colors = page.evaluate('''() => {
       const overview={}; overviewMapLayer.eachLayer(l=>{if(['Bayern','Hessen','Sachsen'].includes(l.feature.properties.name)) {
@@ -122,7 +125,7 @@ def main():
                     is_mobile=width<500,has_touch=width<500,color_scheme='light',reduced_motion='reduce')
                 page=context.new_page()
                 errors, console, network = [], [], []
-                page.on('pageerror',lambda exc: errors.append(str(exc)))
+                page.on('pageerror',lambda exc: errors.append({'message':str(exc),'stack':getattr(exc,'stack',None)}))
                 page.on('console',lambda msg: console.append({'type':msg.type,'message':msg.text,'url':msg.location.get('url','')}) if msg.type in ('error','warning') else None)
                 page.on('response',lambda response: network.append({'status':response.status,'url':response.url}) if response.status>=400 else None)
                 page.on('requestfailed',lambda req: network.append({'error':req.failure,'url':req.url}))

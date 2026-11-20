@@ -4567,7 +4567,6 @@ function switchTab(tab,{persist=true}={}){
   if(persist) persistDashboardState("tab",tab);
   if(tab==="overview"){
     renderOverview();
-    window.setTimeout(()=>overviewMap?.invalidateSize(false),80);
   }
   if(tab==="daily"||tab==="extremes"||tab==="compare") ensureDailyDashboardLoaded();
   if(tab==="current") ensureCurrentConditions();
@@ -5437,7 +5436,7 @@ function overviewMetricText(value,param){
 }
 function renderOverviewMap(){
   const container=document.getElementById("overviewMap");
-  if(!container||!monthlyData.length||typeof L==="undefined")return;
+  if(!container||!container.clientWidth||!container.clientHeight||!monthlyData.length||typeof L==="undefined")return;
   const latest=overviewLatestGermanyRow();
   if(!latest)return;
   const param=overviewMapParam;
@@ -5456,14 +5455,14 @@ function renderOverviewMap(){
   document.querySelectorAll("[data-overview-param]").forEach(button=>button.classList.toggle("active",button.dataset.overviewParam===param));
 
   regionalMapLoadGeoJson().then(geo=>{
-    if(!document.getElementById("overviewMap"))return;
+    if(!container.isConnected||!container.clientWidth||!container.clientHeight)return;
     if(!overviewMap){
       container.innerHTML="";
       overviewMap=L.map(container,{
         zoomControl:false,attributionControl:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,
         keyboard:false,dragging:false,touchZoom:false
       }).setView([51.15,10.3],6);
-    }
+    }else overviewMap.invalidateSize({animate:false,pan:false});
     if(overviewMapLayer)overviewMap.removeLayer(overviewMapLayer);
     overviewMapLayer=L.geoJSON(geo,{
       style:feature=>{
@@ -5485,7 +5484,6 @@ function renderOverviewMap(){
     }).addTo(overviewMap);
     const bounds=overviewMapLayer.getBounds();
     if(bounds.isValid())overviewMap.fitBounds(bounds,{padding:[5,5],animate:false});
-    window.setTimeout(()=>overviewMap?.invalidateSize(false),60);
   }).catch(error=>{
     console.warn("Übersichtskarte:",error);
     container.innerHTML=`<div style="padding:24px;color:#64748b;font-size:12px">Deutschlandkarte konnte nicht geladen werden.</div>`;
