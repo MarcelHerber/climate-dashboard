@@ -1,0 +1,81 @@
+name: Lighthouse · Performance baseline
+
+on:
+  push:
+    branches: [perf/dashboard-loading-20261120]
+    paths: ['.github/workflows/lighthouse-performance-baseline.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [mobile, desktop]
+    env:
+      URL: https://marcelherber.github.io/climate-dashboard/index.html?tab=overview
+      LIGHTHOUSE_VERSION: '12.6.0'
+      BASELINE_COMMIT: '3b888474129506f5aa75b75f0bbce04d0ebafc88'
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Record published HTML and runner configuration
+        run: |
+          mkdir -p reports
+          curl --fail --silent --show-error --location -D reports/response-headers.txt "$URL" -o reports/published-index.html
+          grep -q 'dashboardLeafletScript' reports/published-index.html
+          grep -q 'overview-more-links' reports/published-index.html
+          sha256sum reports/published-index.html > reports/published-index.sha256
+          printf '%s\n' "$BASELINE_COMMIT" > reports/baseline-commit.txt
+          google-chrome --version > reports/chrome-version.txt
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/lighthouse-audit" "lighthouse@$LIGHTHOUSE_VERSION"
+      - name: Three independent cold Lighthouse audits
+        run: |
+          set -euo pipefail
+          lighthouse="$RUNNER_TEMP/lighthouse-audit/node_modules/.bin/lighthouse"
+          "$lighthouse" --version > reports/lighthouse-version.txt
+          preset=()
+          if [[ '${{ matrix.device }}' == desktop ]]; then preset+=(--preset=desktop); fi
+          for run in 1 2 3; do
+            "$lighthouse" "$URL" "${preset[@]}" --only-categories=performance --throttling-method=simulate --chrome-flags='--headless --no-sandbox --disable-dev-shm-usage' --output=json --output=html --output-path="reports/${{ matrix.device }}-$run" --quiet
+          done
+      - name: Summarize measured medians
+        run: |
+          python - <<'PY'
+          import json, statistics
+          from pathlib import Path
+          root = Path('reports')
+          rows = []
+          for path in sorted(root.glob('*.report.json')):
+              report = json.loads(path.read_text())
+              if report.get('runtimeError'):
+                  raise SystemExit(f'{path}: {report["runtimeError"]}')
+              metrics = {key: report['audits'][key]['numericValue'] for key in (
+                  'first-contentful-paint', 'largest-contentful-paint',
+                  'speed-index', 'total-blocking-time', 'cumulative-layout-shift',
+                  'interactive', 'total-byte-weight') if key in report['audits']}
+              rows.append({'file': path.name, 'score': report['categories']['performance']['score']*100,
+                           'metrics': metrics, 'fetchTime': report['fetchTime'],
+                           'url': report['finalDisplayedUrl'], 'version': report['lighthouseVersion'],
+                           'config': report['configSettings']})
+          if len(rows) != 3:
+              raise SystemExit(f'Expected 3 reports, got {len(rows)}')
+          summary = {'device': '${{ matrix.device }}', 'runs': rows,
+                     'median': {'score': statistics.median(r['score'] for r in rows),
+                                **{key: statistics.median(r['metrics'][key] for r in rows)
+                                   for key in rows[0]['metrics']}}}
+          (root / 'summary.json').write_text(json.dumps(summary, indent=2))
+          print(json.dumps(summary['median'], indent=2))
+          PY
+      - name: Save complete measurement evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-baseline-${{ matrix.device }}
+          path: reports/
+          retention-days: 90
