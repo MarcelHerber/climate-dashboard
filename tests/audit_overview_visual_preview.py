@@ -6,6 +6,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import shutil
 import sys
 import threading
 from urllib.parse import urlparse
@@ -115,7 +116,7 @@ def main():
     observations, failures, map_colors = [], [], None
     try:
         with sync_playwright() as p:
-            browser=p.chromium.launch(headless=True,args=['--no-sandbox'])
+            browser=p.chromium.launch(headless=True,args=['--no-sandbox'],executable_path=shutil.which('google-chrome'))
             for width in WIDTHS:
                 context=browser.new_context(viewport={'width':width,'height':900},device_scale_factor=1,
                     is_mobile=width<500,has_touch=width<500,color_scheme='light',reduced_motion='reduce')
@@ -142,7 +143,27 @@ def main():
                 page.route(base+'**',route_local)
                 try:
                     page.goto(base+'index.html?tab=overview',wait_until='domcontentloaded',timeout=90000)
-                    page.wait_for_function("typeof Chart!=='undefined' && typeof L!=='undefined' && document.querySelectorAll('#overviewMap path.leaflet-interactive').length>=16 && document.getElementById('overviewTempAnomaly').textContent!=='–'",timeout=90000)
+                    page.wait_for_function("typeof Chart!=='undefined' && document.getElementById('overviewTempAnomaly').textContent!=='–'",timeout=30000)
+                    try:
+                        page.wait_for_function("document.querySelectorAll('#overviewMap path.leaflet-interactive').length>=16",timeout=15000)
+                    except Exception:
+                        diagnostic=page.evaluate(r'''() => ({leaflet:typeof L,chart:typeof Chart,ready:document.readyState,
+                          active:document.querySelector('#overview').classList.contains('active'),
+                          monthlyRows:monthlyData.length,latest:overviewLatestGermanyRow()?.date,
+                          legend:document.querySelector('#overviewMapLegend').innerText,
+                          mapExists:!!overviewMap,layerExists:!!overviewMapLayer,
+                          mapTitle:document.querySelector('#overviewMapTitle').textContent,
+                          mapText:document.querySelector('#overviewMap').innerText,
+                          resources:performance.getEntriesByType('resource').filter(r=>/leaflet|geo\.json/.test(r.name)).map(r=>({name:r.name,status:r.responseStatus,duration:r.duration}))})''')
+                        observations.append({'width':width,'initialMapDiagnostic':diagnostic})
+                        print(f'{width}: initial map diagnostic {diagnostic}',flush=True)
+                        failures.append(f'{width}px: overview map did not render automatically')
+                        page.locator('[data-overview-param="temp"]').click()
+                        try:
+                            page.wait_for_function("document.querySelectorAll('#overviewMap path.leaflet-interactive').length>=16",timeout=15000)
+                        except Exception:
+                            pass
+                        observations.append({'width':width,'mapShapesAfterClick':page.locator('#overviewMap path.leaflet-interactive').count()})
                     for theme in ('light','dark'):
                         if page.locator('html').get_attribute('data-theme') != theme:
                             page.locator('#dashboardThemeToggle').click(timeout=5000)
@@ -166,7 +187,7 @@ def main():
                         observations.append(result)
                     # Exercise the actual tab-switch code and await the real SST archive map.
                     page.evaluate("switchTab('sst-europe')")
-                    page.wait_for_function("document.querySelector('#sst-europe').classList.contains('active') && document.querySelector('#sstMapImage').naturalWidth > 0 && document.querySelector('#sstRegion').options.length > 0 && !document.querySelector('#sstPngDownload').disabled", timeout=90000)
+                    page.wait_for_function("document.querySelector('#sst-europe').classList.contains('active') && document.querySelector('#sstMapImage').naturalWidth > 0 && document.querySelector('#sstRegion').options.length > 0 && !document.querySelector('#sstPngDownload').disabled", timeout=40000)
                     for theme in ('dark','light'):
                         if page.locator('html').get_attribute('data-theme')!=theme:
                             page.locator('#dashboardThemeToggle').click(timeout=5000)
@@ -175,7 +196,7 @@ def main():
                         observations.append({'width':width,'sst':sst})
                         if not (sst['footerAfter'] and sst['contains'] and sst['imgWidth']>0 and sst['overflow']<=3): failures.append(f'SST {width} {theme}: {sst}')
                         page.screenshot(path=str(OUT/f'sst_{width}_{theme}.png'),full_page=True,animations='disabled')
-                    if width==1440:
+                    if width==1440 and page.evaluate('typeof L!=="undefined"'):
                         page.evaluate("switchTab('overview')")
                         map_colors=audit_map_colors(page)
                 except Exception as exc:
