@@ -13,7 +13,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<script async src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script async id="dashboardLeafletScript" src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script defer src="europe_station_basemap.js?v=20261104-3"></script>
 <script src="station_snow_years.js?v=20261104-2"></script>
 <script src="station_snow_accumulation.js?v=20261104-2"></script>
@@ -1243,6 +1243,113 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
 <link rel="stylesheet" href="gebietsmittel_archiv.css?v=20261117">
 <script defer src="dashboard_export_hq.js?v=20261108"></script>
 <script src="hyras_temperature_interactive.js?v=1"></script>
+<style>
+.overview-link-copy,
+.overview-mini-label,
+.overview-mini-detail,
+.overview-map-legend,
+.overview-stat-name,
+.overview-source-table {
+  font-size: 12px;
+}
+
+.overview-bottom-grid {
+  grid-template-columns: 1.08fr 0.82fr 1fr;
+}
+
+.overview-more-links {
+  border-top: 1px solid #e6eaed;
+}
+
+.overview-more-links > summary {
+  padding: 14px 20px;
+  color: #075fad;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.overview-more-links > summary span {
+  float: right;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.overview-more-links > summary:focus-visible {
+  outline: 2px solid var(--blue, #075fad);
+  outline-offset: -2px;
+}
+
+.overview-more-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
+.overview-more-list .overview-quicklink {
+  min-height: 72px;
+  border: 1px solid #e0e5e9;
+  border-radius: 7px;
+}
+
+html[data-theme="dark"] .overview-more-links,
+html[data-theme="dark"] .overview-more-list .overview-quicklink {
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] .overview-more-links > summary {
+  color: var(--blue);
+}
+
+@media (max-width: 1180px) {
+  .overview-bottom-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* The header has more navigation items now; let its brand wrap and
+   reserve the actions' intrinsic width so they remain clickable. */
+@media (min-width: 1321px) {
+  .dashboard-header-inner {
+    grid-template-columns: minmax(180px, 1fr) auto auto;
+    gap: 12px;
+  }
+  .dashboard-brand-title { white-space: normal; }
+  .primary-nav .nav-link,
+  .primary-nav .nav-dropdown-toggle { padding-inline: 10px; }
+}
+
+@media (max-width: 800px) {
+  .overview-mini-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .overview-bottom-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
+  .overview-more-list {
+    grid-template-columns: 1fr;
+  }
+  /* Keep the published mobile-navigation stylesheet's compact tiles
+     confined to the six primary shortcuts. */
+  body.cd-mobile-home .overview-more-list .overview-quicklink:nth-child(n) {
+    min-height: 72px;
+    flex-direction: row;
+    border: 1px solid #e0e5e9;
+  }
+  body.cd-mobile-home .overview-more-list .overview-link-copy {
+    display: block;
+  }
+  html[data-theme="dark"] body.cd-mobile-home .overview-more-list .overview-quicklink:nth-child(n) {
+    border-color: var(--border);
+  }
+}
+
+@media (max-width: 360px) {
+  .overview-mini-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
 </head>
 <body>
 
@@ -1468,6 +1575,14 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
           <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 4h8v4a4 4 0 0 1-8 0z"></path><path d="M12 12v5M8 21h8M9 17h6M6 5H3v2a4 4 0 0 0 4 4M18 5h3v2a4 4 0 0 1-4 4"></path></svg></span>
           <span><span class="overview-link-title">Stationsrekorde</span><span class="overview-link-copy">Höchste, tiefste und längste Stationswerte</span></span>
         </button>
+        <button class="overview-quicklink" type="button" onclick="switchTab('europeHub')">
+          <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a14 14 0 0 1 0 18"></path><path d="M12 3a14 14 0 0 0 0 18"></path></svg></span>
+          <span><span class="overview-link-title">Europa</span><span class="overview-link-copy">Europa-Stationen und ERA5-Land Europa kompakt gebündelt</span></span>
+        </button>
+      </div>
+      <details class="overview-more-links">
+        <summary>Weitere Auswertungen <span>4 Bereiche</span></summary>
+        <div class="overview-more-list">
 <!-- ANNUAL_HOLIDAY_EXTREMES_OVERVIEW_LINKS_V1 -->
         <button class="overview-quicklink" type="button" onclick="window.location.href='jahresextremwerte.html'">
           <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v15H4z"></path><path d="M8 2v6M16 2v6M7 12h10M7 16h7"></path></svg></span>
@@ -1482,15 +1597,12 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
           <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"></path><path d="M8 8h8M8 12h8M8 16h5"></path></svg></span>
           <span><span class="overview-link-title">Dekadenrekorde</span><span class="overview-link-copy">1.–3. Dekade · Deutschland &amp; Bundesländer</span></span>
         </button>
-        <button class="overview-quicklink" type="button" onclick="switchTab('europeHub')">
-          <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a14 14 0 0 1 0 18"></path><path d="M12 3a14 14 0 0 0 0 18"></path></svg></span>
-          <span><span class="overview-link-title">Europa</span><span class="overview-link-copy">Europa-Stationen und ERA5-Land Europa kompakt gebündelt</span></span>
-        </button>
         <button class="overview-quicklink" type="button" onclick="switchTab('compare')">
           <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4v16M17 4v16M3 8h8M13 16h8"></path><path d="m9 6 2 2-2 2M15 14l-2 2 2 2"></path></svg></span>
           <span><span class="overview-link-title">Vergleiche</span><span class="overview-link-copy">Gebiete, Jahre und Stationen direkt vergleichen</span></span>
         </button>
-      </div>
+        </div>
+      </details>
     </section>
 
     <section class="overview-card overview-stats">
@@ -4096,16 +4208,6 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
 </div>
 
 
-  <footer class="dashboard-footer">
-    <div>© 2026 Climate Dashboard Deutschland</div>
-    <div class="dashboard-footer-links">
-      <a href="#" onclick="switchTab('overview');return false">Übersicht</a>
-      <a href="#" onclick="switchTab('overview');window.setTimeout(()=>document.getElementById('overviewSources')?.scrollIntoView({behavior:'smooth'}),80);return false">Datenquellen</a>
-      <span>Version 17.0</span>
-    </div>
-  </footer>
-</main>
-
 <!-- ================= MEERE / SST ================= -->
 <div id="sst-europe" class="tab-content">
   <div class="section-header sst-europe-header">
@@ -4141,13 +4243,23 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
   </div>
 </div>
 
+  <footer class="dashboard-footer">
+    <div>© 2026 Climate Dashboard Deutschland</div>
+    <div class="dashboard-footer-links">
+      <a href="#" onclick="switchTab('overview');return false">Übersicht</a>
+      <a href="#" onclick="switchTab('overview');window.setTimeout(()=>document.getElementById('overviewSources')?.scrollIntoView({behavior:'smooth'}),80);return false">Datenquellen</a>
+      <span>Version 17.0</span>
+    </div>
+  </footer>
+</main>
+
 <script src="state_monthly_ensemble.js?v=20261116-reference-61-1"></script>
 <script src="t850_ensembles.js?v=20261012-exportmeta1"></script>
 <script src="sst_europe.js?v=20261112-sst-recovery-1"></script>
 <script>
 Chart.register(ChartDataLabels);
-// Schärfere Canvas-Ausgabe auf Standardmonitoren; Retina-Displays behalten ihre höhere Auflösung.
-Chart.defaults.devicePixelRatio=Math.max(2,window.devicePixelRatio||1);
+// Native Canvas-Auflösung verwenden, auf maximal 2× begrenzt.
+Chart.defaults.devicePixelRatio=Math.min(2,window.devicePixelRatio||1);
 
 const DASHBOARD_STATE_KEY="climateDashboardStateV9";
 let dashboardState={};
@@ -4455,7 +4567,6 @@ function switchTab(tab,{persist=true}={}){
   if(persist) persistDashboardState("tab",tab);
   if(tab==="overview"){
     renderOverview();
-    window.setTimeout(()=>overviewMap?.invalidateSize(false),80);
   }
   if(tab==="daily"||tab==="extremes"||tab==="compare") ensureDailyDashboardLoaded();
   if(tab==="current") ensureCurrentConditions();
@@ -5297,7 +5408,7 @@ function overviewMapScale(values,param){
     const abs=Math.max(.5,...finite.map(v=>Math.abs(v)));
     const stops=[-abs,-abs*.66,-abs*.33,0,abs*.33,abs*.66,abs];
     const colors=["#2b5c9a","#79a8d5","#d8e7f3","#f5f5f3","#f6b19b","#e76b55","#b9212f"];
-    const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
+    const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>=stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
     return {color,legend:stops.map((value,i)=>({value,color:colors[i]}))};
   }
   if(param==="rain"){
@@ -5325,7 +5436,7 @@ function overviewMetricText(value,param){
 }
 function renderOverviewMap(){
   const container=document.getElementById("overviewMap");
-  if(!container||!monthlyData.length||typeof L==="undefined")return;
+  if(!container||!container.clientWidth||!container.clientHeight||!monthlyData.length||typeof L==="undefined")return;
   const latest=overviewLatestGermanyRow();
   if(!latest)return;
   const param=overviewMapParam;
@@ -5344,14 +5455,14 @@ function renderOverviewMap(){
   document.querySelectorAll("[data-overview-param]").forEach(button=>button.classList.toggle("active",button.dataset.overviewParam===param));
 
   regionalMapLoadGeoJson().then(geo=>{
-    if(!document.getElementById("overviewMap"))return;
+    if(!container.isConnected||!container.clientWidth||!container.clientHeight)return;
     if(!overviewMap){
       container.innerHTML="";
       overviewMap=L.map(container,{
         zoomControl:false,attributionControl:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,
         keyboard:false,dragging:false,touchZoom:false
       }).setView([51.15,10.3],6);
-    }
+    }else overviewMap.invalidateSize({animate:false,pan:false});
     if(overviewMapLayer)overviewMap.removeLayer(overviewMapLayer);
     overviewMapLayer=L.geoJSON(geo,{
       style:feature=>{
@@ -5373,7 +5484,6 @@ function renderOverviewMap(){
     }).addTo(overviewMap);
     const bounds=overviewMapLayer.getBounds();
     if(bounds.isValid())overviewMap.fitBounds(bounds,{padding:[5,5],animate:false});
-    window.setTimeout(()=>overviewMap?.invalidateSize(false),60);
   }).catch(error=>{
     console.warn("Übersichtskarte:",error);
     container.innerHTML=`<div style="padding:24px;color:#64748b;font-size:12px">Deutschlandkarte konnte nicht geladen werden.</div>`;
@@ -5385,6 +5495,11 @@ function renderOverview(){
   if(overviewStatusPayload)updateOverviewStatus(overviewStatusPayload);
 }
 function initializeOverviewControls(){
+  if(typeof L==="undefined"){
+    document.getElementById("dashboardLeafletScript")?.addEventListener("load",()=>{
+      if(document.getElementById("overview")?.classList.contains("active"))renderOverviewMap();
+    },{once:true});
+  }
   document.querySelectorAll("[data-overview-param]").forEach(button=>{
     button.addEventListener("click",()=>{
       overviewMapParam=button.dataset.overviewParam||"temp";
@@ -6050,7 +6165,7 @@ function regionalMapScale(values,param,mode){
     const abs=Math.max(...finite.map(v=>Math.abs(v)),param==="temp"?.5:1);
     const stops=[-abs,-abs*.66,-abs*.33,0,abs*.33,abs*.66,abs];
     const colors=param==="temp"?["#313695","#74add1","#d7eef5","#f7f7f7","#fdae61","#ef6548","#a50026"]:["#8c510a","#bf812d","#dfc27d","#f5f5f5","#80cdc1","#35978f","#01665e"];
-    const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
+    const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>=stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
     return {color,legend:stops.map((v,i)=>({value:v,color:colors[i]}))};
   }
   if(mode==="percent"){
@@ -6070,7 +6185,7 @@ function regionalMapDifferenceScale(values,param){
   const colors=param==="temp"
     ?["#313695","#74add1","#d7eef5","#f7f7f7","#fdae61","#ef6548","#a50026"]
     :["#8c510a","#bf812d","#dfc27d","#f5f5f5","#80cdc1","#35978f","#01665e"];
-  const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
+  const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>=stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
   return {color,legend:stops.map((v,i)=>({value:v,color:colors[i]}))};
 }
 function renderRegionalMapLegend(scale,param,mode,elementId="regionalMapLegend",difference=false){
@@ -18175,7 +18290,7 @@ hyrasSwitchParameter=async function(){
 <!-- Erweiterung 16.2: Gebietsmittel-Kartenvergleich Jahr A / Jahr B / Differenz + Bundesländer-Ranking -->
 <!-- Climate Dashboard Layout v21: professionelles Layout + vollständiges ERA5-Land V8.1 + Europa-Stationen -->
 <!-- Dashboard Layout v23: Europa-Stationen Aktivfilter wiederhergestellt -->
-<script src="monthly_frequency.js?v=20261103-dark-export-v1"></script>
+<script src="monthly_frequency.js?v=20261103-dark-export-v1-footer-order"></script>
 <script src="hyras_historical_temperature_1km.js?v=4"></script>
 <script src="mosmix.js?v=20261028-mosmix-foursteps-v1"></script>
 <script src="station_thresholds.js?v=20261103-white-export-v2"></script>

@@ -23,7 +23,8 @@ function inject(){
   <section class="dwd-daily-card"><div id="dwdDailyStationMap" class="dwd-daily-map"></div><div id="dwdDailyLegend" class="dwd-daily-legend"></div><div id="dwdDailySelected" class="dwd-daily-selected"><h3>Station auswählen</h3><p>Klicke einen Stationspunkt oder einen Ranglisten-Eintrag an.</p></div></section>
   <aside class="dwd-daily-side"><div class="dwd-daily-card"><h3 id="dwdDailyTopTitle">Top 10</h3><div id="dwdDailyTopList" class="dwd-daily-list"></div></div><div class="dwd-daily-card"><h3 id="dwdDailyBottomTitle">Bottom 10</h3><div id="dwdDailyBottomList" class="dwd-daily-list"></div></div><div class="dwd-daily-card"><h3 id="dwdDailyRecordTitle">Rekorde des Tages</h3><p id="dwdDailyRecordSummary" class="note">–</p><div id="dwdDailyRecordList" class="dwd-daily-list"></div></div></aside>
  </div>`;
- document.querySelector("main.dashboard-main")?.appendChild(tab);
+ const main=document.querySelector("main.dashboard-main");
+ main?.insertBefore(tab,main.querySelector(".dashboard-footer"));
  const mobile=$("mobileTabSelect");if(mobile&&!mobile.querySelector('option[value="dwdDailyMap"]')){const o=document.createElement("option");o.value="dwdDailyMap";o.textContent="DWD Tageskarte";mobile.appendChild(o);mobile.addEventListener("change",()=>{if(mobile.value==="dwdDailyMap")setTimeout(load,0)})}
 }
 async function gunzip(url){const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);const b=new Uint8Array(await r.arrayBuffer());if(b[0]===31&&b[1]===139){if(!window.DecompressionStream)throw Error("gzip wird vom Browser nicht unterstützt");const s=new Blob([b]).stream().pipeThrough(new DecompressionStream("gzip"));return JSON.parse(await new Response(s).text())}return JSON.parse(new TextDecoder().decode(b))}
