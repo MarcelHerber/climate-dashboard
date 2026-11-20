@@ -1,0 +1,63 @@
+name: Performance branch · Europa overview browser audit
+on:
+  push:
+    branches: [perf/dashboard-loading-20261120]
+    paths: ['index.html', 'tests/test_europe_hub_overview.py', 'tests/audit_europe_hub.py', '.github/workflows/performance-europe-hub-audit.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  europe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PERF_SNAPSHOT_ROOT: ${{ github.workspace }}/snapshot
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /index.html
+            /scripts/optimize_dashboard_loading.py
+            /scripts/dashboard_export_libraries.js
+            /scripts/performance_snapshot_proxy.py
+            /tests/test_europe_hub_overview.py
+            /tests/audit_europe_hub.py
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tests -p test_europe_hub_overview.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: lighthouse-comparison-mobile
+          run-id: '44709139707'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: frozen
+      - name: Prepare edited hub on frozen snapshot
+        run: |
+          mkdir -p snapshot reports
+          cp -r frozen/snapshot/baseline snapshot/baseline
+          cp -r snapshot/baseline snapshot/lazy
+          python tests/audit_europe_hub.py --prepare snapshot/lazy
+          python scripts/optimize_dashboard_loading.py snapshot/lazy --stage lazy
+          printf 'lazy\n' > snapshot/stage.txt
+          python -m pip install 'mitmproxy==11.1.3' 'playwright==1.57.0'
+      - name: Check layout, themes and direct entry buttons
+        run: |
+          mitmdump --listen-host 127.0.0.1 --listen-port 8089 --set connection_strategy=lazy -s scripts/performance_snapshot_proxy.py > reports/proxy.log 2>&1 &
+          proxy=$!
+          trap 'kill "$proxy" || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS --proxy http://127.0.0.1:8089 --insecure 'https://marcelherber.github.io/climate-dashboard/index.html' -o /dev/null; then break; fi
+            sleep 1
+          done
+          python tests/audit_europe_hub.py --output reports
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-europe-hub-audit
+          path: reports/
+          retention-days: 90

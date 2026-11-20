@@ -1056,6 +1056,7 @@ button.action:hover{background:#1f2937}
 .europe-hub-statlabel{font-size:13px;color:#526172}
 .europe-hub-statvalue{font-size:14px;font-weight:800;color:#1f2a37;white-space:nowrap}
 .europe-hub-note{font-size:12px;color:#6b7787;line-height:1.55}
+.europe-hub-grid .europe-hub-card:nth-child(3){grid-column:1/-1}
 @media(max-width:980px){.europe-hub-layout{grid-template-columns:1fr}.europe-hub-grid{grid-template-columns:1fr}}
 
 /* Europa-Stationen · Stations-V5 */
@@ -1636,27 +1637,27 @@ html[data-theme="dark"] .overview-more-links > summary {
 
 <!-- ================= EUROPA-HUB ================= -->
 <div id="europeHub" class="tab-content">
-  <div class="section-header"><h2>Europa</h2><p>Der Europa-Bereich bündelt die bereits vorhandenen Europa-Module unter einer gemeinsamen, aufgeräumten Oberfläche. In dieser Datei ist der Bereich als sauberer Einstieg vorbereitet, damit die vorhandenen Europa-Stationen und ERA5-Land-Ansichten direkt wieder angedockt werden können.</p><span class="section-status">Europa-Stationen · ERA5-Land Europa · ERA5 Atmosphäre</span></div>
+  <div class="section-header"><h2>Europa</h2><p>Stationsrekorde, hochaufgelöste Reanalyse-Karten und Höhenwetter-Analysen für Europa – gebündelt unter einer einheitlichen Oberfläche.</p><span class="section-status">Europa-Stationen · ERA5-Land Europa · ERA5 Atmosphäre</span></div>
   <div class="europe-hub-layout">
     <div class="europe-hub-main">
       <section class="europe-hub-hero">
-        <h2>Europa-Module im Dashboard</h2>
-        <p>Hier kannst du die europäischen Inhalte als eigenen Bereich mit derselben klaren Designsprache wie im Deutschland-Dashboard führen — ohne dass der Deutschland-Fokus verloren geht. Die Struktur ist bewusst so angelegt, dass bestehende Europa-Ansichten im nächsten Schritt direkt hier eingebunden werden können.</p>
+        <h2>Europa im Dashboard</h2>
+        <p>Der Europa-Bereich ergänzt den Deutschland-Fokus um Beobachtungen und Reanalysen: Stationsrekorde aus mehreren Ländern, ERA5-Land-Karten mit Klimamittel, Rang und Extremen sowie ERA5-Auswertungen der Atmosphäre in verschiedenen Druckniveaus.</p>
         <div class="europe-hub-pillbar">
           <span class="europe-hub-pill">Europa-Stationen</span>
-          <span class="europe-hub-pill">ERA5-Land Europa</span>\n          <span class="europe-hub-pill">ERA5 Atmosphäre</span>
-          <span class="europe-hub-pill">eigener Menüpunkt</span>
+          <span class="europe-hub-pill">ERA5-Land Europa</span>
+          <span class="europe-hub-pill">ERA5 Atmosphäre</span>
         </div>
       </section>
 
       <div class="europe-hub-grid">
         <section class="europe-hub-card">
           <h3>Europa-Stationen</h3>
-          <p>Dieser Block ist für den bestehenden Stationsbereich in Europa gedacht — inklusive Länderabdeckung, Rekorden, Stationsdetails und Kartenansichten. Die visuelle Einordnung bleibt konsistent mit dem restlichen Dashboard.</p>
+          <p>Europaweite Stationsrekorde für Tmax und Tmin mit Top-20-Ranking, Rekordjagd am Kalendertag und Kartenansicht.</p>
           <ul>
-            <li>gemeinsamer Einstieg für Länder und Stationsdaten</li>
-            <li>klar getrennt vom Deutschland-Teil</li>
-            <li>vollständig mit der vorhandenen Europa-Logik verknüpft</li>
+            <li>absolute Rekorde und Kalendertag-Rekorde</li>
+            <li>neue Rekorde im laufenden Jahr nach Land</li>
+            <li>Filter nach Land, Messjahren und aktiven Stationen</li>
           </ul>
           <div class="europe-hub-actions">
             <button class="europe-hub-action primary" type="button" onclick="switchTab('europeStations')">Europa-Stationen öffnen</button>
@@ -1665,14 +1666,27 @@ html[data-theme="dark"] .overview-more-links > summary {
 
         <section class="europe-hub-card">
           <h3>ERA5-Land Europa</h3>
-          <p>Die bestehende ERA5-Land-Auswertung ist hier vollständig als eigener Unterbereich eingebunden – inklusive historischem 0,1°-Kartenarchiv, Rankings, Extremen und Gitterpunktanalyse.</p>
+          <p>Hochaufgelöste Karten aus der ERA5-Land-Reanalyse mit historischem Kartenarchiv, Rankings, Extremen und Gitterpunktanalyse.</p>
           <ul>
-            <li>eigene Bühne für Europa-Karten</li>
-            <li>gleiche Typografie und Kartenästhetik wie im Rest</li>
-            <li>saubere Trennung von Deutschland und Europa</li>
+            <li>Temperatur, Niederschlag, Bodenfeuchte, Wasserhaushalt und Schnee</li>
+            <li>Abweichung vom Mittel 1991–2020 und historischer Rang</li>
+            <li>Top-10/Bottom-10 und Zeitreihen je Gitterpunkt</li>
           </ul>
           <div class="europe-hub-actions">
             <button class="europe-hub-action primary" type="button" onclick="switchTab('era5Europe')">ERA5-Land öffnen</button>
+          </div>
+        </section>
+
+        <section class="europe-hub-card">
+          <h3>ERA5 Atmosphäre</h3>
+          <p>Monatskarten der Atmosphäre ab 1940 als Absolutwert, Abweichung gegenüber 1991–2020 und historischer Rang.</p>
+          <ul>
+            <li>Temperatur in 850, 925, 700 und 500 hPa</li>
+            <li>Geopotential, Wind, Feuchte, Vertikalbewegung und Luftdruck</li>
+            <li>weitere Parameter werden schrittweise nach Prüfung ergänzt</li>
+          </ul>
+          <div class="europe-hub-actions">
+            <button class="europe-hub-action primary" type="button" onclick="switchTab('era5Atmosphere')">ERA5 Atmosphäre öffnen</button>
           </div>
         </section>
       </div>
@@ -1680,23 +1694,22 @@ html[data-theme="dark"] .overview-more-links > summary {
 
     <div class="europe-hub-side">
       <section class="europe-hub-statcard">
-        <h3>Geplanter Aufbau</h3>
+        <h3>Auf einen Blick</h3>
         <div class="europe-hub-statlist">
-          <div class="europe-hub-statrow"><span class="europe-hub-statlabel">Menüeinordnung</span><span class="europe-hub-statvalue">eigener Hauptpunkt</span></div>
-          <div class="europe-hub-statrow"><span class="europe-hub-statlabel">Deutschland-Fokus</span><span class="europe-hub-statvalue">bleibt erhalten</span></div>
-          <div class="europe-hub-statrow"><span class="europe-hub-statlabel">Module</span><span class="europe-hub-statvalue">Stationen + ERA5</span></div>
-          <div class="europe-hub-statrow"><span class="europe-hub-statlabel">Designsprache</span><span class="europe-hub-statvalue">wie Übersicht</span></div>
+          <div class="europe-hub-statrow"><span class="europe-hub-statlabel">Direkteinstiege</span><span class="europe-hub-statvalue">3</span></div>
+          <div class="europe-hub-statrow"><span class="europe-hub-statlabel">Reanalyse</span><span class="europe-hub-statvalue">ERA5 · ERA5-Land</span></div>
+          <div class="europe-hub-statrow"><span class="europe-hub-statlabel">Referenz</span><span class="europe-hub-statvalue">1991–2020</span></div>
+          <div class="europe-hub-statrow"><span class="europe-hub-statlabel">Reanalysequelle</span><span class="europe-hub-statvalue">Copernicus / ECMWF</span></div>
         </div>
       </section>
 
       <section class="europe-hub-statcard">
-        <h3>Europa-Status</h3>
-        <p class="europe-hub-note">Die beiden bestehenden Europa-Module sind vollständig verknüpft: Europa-Stationen mit Rekordkarte und ERA5-Land Europa mit aktuellem und historischem Kartenarchiv, Rankings, Extremen und Gitterpunktanalyse.</p>
+        <h3>Hinweis zu den Daten</h3>
+        <p class="europe-hub-note">Neue Monatskarten erscheinen erst nach erfolgreicher Datenprüfung. Laufende Zeiträume sind vorläufig und können sich noch ändern.</p>
       </section>
     </div>
   </div>
 </div>
-
 
 
 
