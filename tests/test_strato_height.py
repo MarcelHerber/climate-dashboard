@@ -47,5 +47,22 @@ class HeightTests(unittest.TestCase):
         with patch.object(height,'download',side_effect=OSError('NOMADS unavailable')), patch.object(height,'gfs_archive_step',return_value=expected,create=True):
             self.assertEqual(height.gefs_step(cycle,0,height.ECMWF_LEVELS,analysis=True),expected)
 
+    def test_invalid_bridge_checkpoint_is_repaired_and_partial_success_saved(self):
+        today=datetime.now(timezone.utc).date()
+        dates=[(today-timedelta(days=d)).isoformat() for d in range(1,11)]
+        expected={r:{str(p):123. for p in height.ECMWF_LEVELS} for r in REGIONS}
+        with TemporaryDirectory() as td:
+            root=Path(td)
+            height.write_json(root/'bridge.json',{'days':{d:{} for d in dates}})
+            def source(cycle,*args,**kwargs):
+                if cycle.date().isoformat()==dates[0]: raise OSError('Missing day')
+                return expected
+            with patch.object(height,'gefs_step',side_effect=source):
+                with self.assertRaisesRegex(ValueError,'Missing required GFS analysis bridge dates'):
+                    height.build_bridge(root)
+            days=height.read_json(root/'bridge.json')['days']
+            self.assertNotIn(dates[0],days)
+            self.assertEqual(days[dates[1]],expected)
+
 if __name__=='__main__': unittest.main()
 

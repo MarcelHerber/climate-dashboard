@@ -197,7 +197,7 @@ def gefs_step(cycle,lead,levels=NOAA_LEVELS,analysis=False):
         try:
             download(noaa_url(cycle,lead,levels,analysis),path)
             return decode_grib(path,cycle,lead,levels,[0],.5)
-        except (OSError,ValueError) as exc:
+        except Exception as exc:
             if not analysis: raise
             print('GFS NOMADS unavailable; trying NOAA AWS archive',cycle.isoformat(),str(exc)[:150],flush=True)
             return gfs_archive_step(cycle,levels)
@@ -242,13 +242,20 @@ def build_forecast(root,model,probe=False):
 
 def build_bridge(root):
     path=root/'bridge.json'; rows=read_json(path,{'days':{}})['days']; today=datetime.now(timezone.utc).date()
+    def valid_row(row):
+        return isinstance(row,dict) and set(row)==set(REGIONS) and all(
+            isinstance(sector,dict) and set(sector)=={str(p) for p in ECMWF_LEVELS}
+            and all(isinstance(v,(int,float)) and math.isfinite(v) and -150<v<4000 for v in sector.values()) for sector in row.values())
+    rows={k:v for k,v in rows.items() if valid_row(v)}
     def save():
         write_json(path,{'schema':1,'source':'GFS operational 00 UTC analysis','days':{k:v for k,v in rows.items() if k>=(today-timedelta(days=85)).isoformat()}})
     for d in range(1,11):
         day=today-timedelta(days=d); iso=day.isoformat()
         if iso in rows: continue
         try:
-            rows[iso]=gefs_step(datetime(day.year,day.month,day.day,tzinfo=timezone.utc),0,ECMWF_LEVELS,analysis=True)
+            row=gefs_step(datetime(day.year,day.month,day.day,tzinfo=timezone.utc),0,ECMWF_LEVELS,analysis=True)
+            if not valid_row(row): raise ValueError('Incomplete GFS analysis bridge row')
+            rows[iso]=row
             save()
             print('Verified GFS 00 UTC analysis',iso,len(ECMWF_LEVELS),'levels',flush=True)
         except Exception as exc: print('GFS analysis unavailable',iso,str(exc)[:150],flush=True)
