@@ -23,7 +23,11 @@ def key(url):
     parts = urlsplit(url)
     # Ignore time-generated cache busters only on mutable data responses.
     if not parts.path.endswith((".js", ".css", ".html")):
-        query = [(k, v) for k, v in parse_qsl(parts.query) if not (k in ("t", "v") and v.isdigit())]
+        cache_busters = {"t", "v"}
+        # This index is fetched with ?ts=Date.now(); it is not a forecast timestamp.
+        if parts.hostname == SITE and parts.path == PREFIX + "era5_stratosphere/index.json":
+            cache_busters.add("ts")
+        query = [(k, v) for k, v in parse_qsl(parts.query) if not (k in cache_busters and v.isdigit())]
         return urlunsplit(parts._replace(query=urlencode(query)))
     return url
 

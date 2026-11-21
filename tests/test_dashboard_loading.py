@@ -1,13 +1,31 @@
 import re
+import runpy
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/optimize_dashboard_loading.py"
+
+
+class SnapshotKeyTest(unittest.TestCase):
+    def test_stratosphere_index_timestamp_is_a_cache_buster(self):
+        # mitmproxy is runner-only; key() itself needs no HTTP flow.
+        with tempfile.TemporaryDirectory() as root, patch.dict(
+            sys.modules, {"mitmproxy": SimpleNamespace(http=SimpleNamespace(HTTPFlow=object))}
+        ), patch.dict("os.environ", {"PERF_SNAPSHOT_ROOT": root}):
+            key = runpy.run_path(str(ROOT / "scripts/performance_snapshot_proxy.py"))["key"]
+        url = "https://marcelherber.github.io/climate-dashboard/era5_stratosphere/index.json"
+        self.assertEqual(key(url + "?ts=1795294683792"), url)
+        self.assertEqual(key(url + "?ts=1795294698123&model=ifs"), url + "?model=ifs")
+        self.assertEqual(key(url + "?ts=analysis"), url + "?ts=analysis")
+        other = "https://marcelherber.github.io/climate-dashboard/data.json?ts=20261121"
+        self.assertEqual(key(other), other)
 
 
 class DashboardLoadingTest(unittest.TestCase):
