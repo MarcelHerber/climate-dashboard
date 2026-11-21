@@ -20,6 +20,7 @@ jobs:
         run: |
           python -m unittest discover -s tests -p test_dashboard_loading.py -v
           python -m unittest discover -s tests -p test_split_frontend_patches.py -v
+          node --test tests/test_lazy_dashboard_modules.cjs
   split:
     runs-on: ubuntu-24.04
     timeout-minutes: 30

@@ -48,7 +48,7 @@ def local_file(flow):
     # Only serve checked-in dashboard module assets from the nested folder;
     # never allow traversal or arbitrary paths.
     if not name or ("/" in name and name not in {
-        "js/core.js", "js/uebersicht.js", "js/gebietsmittel.js", "js/gebietsmittel.optimized.js",
+        "js/loader.js", "js/loader.optimized.js", "js/core.js", "js/uebersicht.js", "js/gebietsmittel.js", "js/gebietsmittel.optimized.js",
         "js/extreme.js", "js/stationen-kenntage.js", "js/stationen-auswertungen.js", "js/schnee.js",
         "js/stationen-kenntage.optimized.js", "js/stationen-auswertungen.optimized.js",
         "js/export-karten-vergleich.js", "js/stationsprofil.js", "js/aktuell.js",

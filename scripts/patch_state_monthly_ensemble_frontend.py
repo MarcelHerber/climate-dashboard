@@ -213,7 +213,8 @@ def patch_index(text: str, core_source: str = "") -> str:
 
     hook='  if(tab==="europeStations") ensureEuropeStationMap();'
     new_hook=hook+'\n  if(tab==="state-monthly-ensemble") window.ensureStateMonthlyEnsembleLoaded?.();'
-    if new_hook not in text and new_hook not in core_source:
+    lazy_hook='  if(tab==="europeStations") whenTabModulesReady(tab,()=>ensureEuropeStationMap());\n  if(tab==="state-monthly-ensemble") window.ensureStateMonthlyEnsembleLoaded?.();'
+    if new_hook not in text and new_hook not in core_source and lazy_hook not in core_source:
         if hook not in text:
             # switchTab was extracted to js/core.js; keep that integration.
             core=ROOT/"js/core.js"

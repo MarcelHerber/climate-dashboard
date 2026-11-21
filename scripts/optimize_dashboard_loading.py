@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import json
 import re
 from pathlib import Path
 
@@ -19,6 +20,11 @@ def extract(html, site):
     matches = list(MAIN.finditer(html))
     if not matches:
         modules = ("era5-land", "europa-stationen", "dashboard-state", "hyras-tmin", "bootstrap")
+        if b'src="js/loader.js' in html:
+            modules = ("loader", "core", "dashboard-state", "hyras-tmin", "bootstrap")
+            for name in ("aktuell", "era5-land", "europa-stationen", "schnee"):
+                if not (site / f"js/{name}.js").is_file() or f'src="js/{name}.js'.encode() in html:
+                    raise ValueError(f"Missing or eagerly embedded lazy module: {name}")
         positions = []
         for module in modules:
             filename = f"js/{module}.js"
@@ -153,6 +159,7 @@ def lazy_exports(html, site):
         if len(owners) != 1:
             raise ValueError(f"Export integration anchor has unexpected owners: {old!r}: {owners}")
         edits.setdefault(owners[0], []).append((old, new))
+    optimized_modules = {}
     for filename, replacements in edits.items():
         path = site / filename
         original = path.read_bytes().decode()
@@ -167,6 +174,14 @@ def lazy_exports(html, site):
         tags = [tag[0] for tag in EXTERNAL.finditer(html) if re.search(rb'src="' + re.escape(filename.encode()) + rb'(?:\?|")', tag[0])]
         for tag in tags:
             html = html.replace(tag, versioned_script(target, content, True))
+        if not tags and filename in ("js/aktuell.js", "js/era5-land.js", "js/europa-stationen.js", "js/schnee.js") and b'src="js/loader.js' in html:
+            optimized_modules[Path(filename).stem] = target + "?v=" + hashlib.sha256(content).hexdigest()[:16]
+    if optimized_modules:
+        original = (site / "js/loader.js").read_text()
+        content = replace_once(original, "const OPTIMIZED_MODULES={};", "const OPTIMIZED_MODULES=" + json.dumps(optimized_modules) + ";").encode()
+        (site / "js/loader.optimized.js").write_bytes(content)
+        tag = next(tag[0] for tag in EXTERNAL.finditer(html) if b'src="js/loader.js' in tag[0])
+        html = html.replace(tag, versioned_script("js/loader.optimized.js", content, True))
     return html
 
 

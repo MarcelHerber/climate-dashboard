@@ -10,7 +10,7 @@ from audit_europe_hub import prepare as prepare_europe_hub
 from test_europe_hub_overview import SOURCE
 
 OLD_MAIN = re.compile(rb'<script>(\s*Chart\.register\(ChartDataLabels\);.*?)</script>', re.S)
-SPLIT_MAIN = re.compile(rb'<script src="js/core\.js[^"\n]*"></script>.*?(?=<script src="monthly_frequency\.js)', re.S)
+SPLIT_MAIN = re.compile(rb'<script src="js/(?:loader|core)\.js[^"\n]*"></script>.*?(?=<script src="monthly_frequency\.js)', re.S)
 URL = 'https://marcelherber.github.io/climate-dashboard/index.html'
 
 
@@ -46,6 +46,19 @@ def download(page, locator, path, signature):
     assert path.read_bytes().startswith(signature) and path.stat().st_size > 1000, path
 
 
+def click_lazy_tab(page, tab, width):
+    if width < 600:
+        name = {'stationSnow': 'Schneehöhe', 'current': 'Aktuelle DWD-Stationen',
+                'era5Europe': 'ERA5-Land Europa', 'europeStations': 'Europa-Stationen'}[tab]
+        page.locator('#cdMobileMenuButton').click()
+        page.locator('.cdm-search').fill(name)
+        page.locator('.cdm-results').get_by_role('button', name=re.compile(r'^' + re.escape(name) + r'(?:\s|$)')).click()
+    else:
+        group = 'stations' if tab in ('stationSnow', 'current') else 'europe'
+        page.locator(f'.nav-dropdown[data-nav-group="{group}"] .nav-dropdown-toggle').click()
+        page.locator(f'.nav-dropdown[data-nav-group="{group}"] .tab-button[onclick="switchTab(\'{tab}\')"]').click()
+
+
 def audit(browser, root, stage, width, output, export=False):
     (root / 'stage.txt').write_text(stage)
     context = browser.new_context(viewport={'width': width, 'height': 900},
@@ -61,6 +74,8 @@ def audit(browser, root, stage, width, output, export=False):
     key = f'{stage}-{width}'
     try:
         page.goto(URL + '?tab=overview', wait_until='domcontentloaded', timeout=90000)
+        if stage != 'control':
+            assert page.evaluate("typeof DashboardModules !== 'undefined' && !DashboardModules.tabReady('current') && !DashboardModules.tabReady('stationSnow') && !DashboardModules.tabReady('era5Europe')")
         page.wait_for_function("""() => document.querySelector('#overview.active') &&
             document.querySelector('#overviewMap svg path') && document.querySelector('#overviewDotMonthly.ok') &&
             document.querySelector('#overviewTempAnomaly').textContent.includes('°C') &&
@@ -118,7 +133,10 @@ def audit(browser, root, stage, width, output, export=False):
             ('hyras', "document.querySelector('#hyrasMapFrame canvas') || (document.querySelector('#hyrasMapFrame img')?.naturalWidth > 0)"),
             ('maps', "document.querySelector('#stationMap .leaflet-marker-icon') && document.querySelector('#mapSummary strong')"),
         ]:
-            page.evaluate('(tab) => switchTab(tab)', tab)
+            if stage != 'control' and tab in ('stationSnow', 'current'):
+                click_lazy_tab(page, tab, width)
+            else:
+                page.evaluate('(tab) => switchTab(tab)', tab)
             page.locator(f'#{tab}.active').wait_for(state='visible')
             try:
                 page.wait_for_function(condition, timeout=45000)
@@ -126,7 +144,7 @@ def audit(browser, root, stage, width, output, export=False):
             except Exception:
                 stations[tab] = 'not ready: ' + page.locator(f'#{tab} .record-loading:visible').all_text_contents().__str__()
             page.screenshot(path=str(output / f'{key}-{tab}.png'))
-            if tab in ('stationProfile', 'current', 'hyras', 'maps'):
+            if tab in ('stationProfile', 'current', 'hyras', 'maps') or (stage != 'control' and tab == 'stationSnow'):
                 assert stations[tab] == 'rendered', (tab, stations[tab])
             if tab == 'current' and export:
                 download(page, page.locator('#currentMapPngButton'), output / f'{key}-current-map.png', b'\x89PNG\r\n\x1a\n')
@@ -143,17 +161,29 @@ def audit(browser, root, stage, width, output, export=False):
                 page.locator('#hyrasParameterSelect').select_option('precipitation')
                 page.wait_for_function("document.querySelector('#hyrasMapFrame canvas') || document.querySelector('#hyrasMapFrame img')?.naturalWidth > 0", timeout=90000)
         if stage != 'control':
+            for tab, condition in [
+                ('era5Europe', "era5EuropeIndex && document.querySelector('#era5EuropeImageWrap img')?.naturalWidth > 0"),
+                ('europeStations', "europeStationLoaded && europeStationMap && europeStationMarkerById.size > 0"),
+            ]:
+                click_lazy_tab(page, tab, width)
+                page.wait_for_function(f"document.querySelector('#{tab}.active') && ({condition})", timeout=90000)
+                page.screenshot(path=str(output / f'{key}-{tab}-click.png'))
+            page.goto(URL + '?tab=current&s_currentMapMetricSelect=wind', wait_until='domcontentloaded', timeout=90000)
+            page.wait_for_function("document.querySelector('#current.active') && document.getElementById('currentMapMetricSelect').value === 'wind' && document.querySelector('#currentMap .leaflet-marker-icon')", timeout=90000)
+            page.screenshot(path=str(output / f'{key}-current-deeplink.png'))
+            page.goto(URL + '?tab=stationSnow&s_stationSnowStateSelect=Bayern&s_stationSnowStationSelect=05792', wait_until='domcontentloaded', timeout=90000)
+            page.wait_for_function("document.querySelector('#stationSnow.active') && !document.getElementById('stationSnowContent').hidden && Chart.getChart('stationSnowChart')?.data?.datasets?.length", timeout=90000)
+            assert page.locator('#stationSnowStateSelect').input_value() == 'Bayern'
+            assert page.locator('#stationSnowStationSelect').input_value() == '05792'
+            page.screenshot(path=str(output / f'{key}-snow-deeplink.png'))
             # Exercise the modules introduced by Schnitt 5 via restored URLs.
             page.goto(URL + '?tab=era5Europe', wait_until='domcontentloaded', timeout=90000)
             page.wait_for_function("document.querySelector('#era5Europe.active') && era5EuropeIndex && document.querySelector('#era5EuropeImageWrap img')?.naturalWidth > 0", timeout=90000)
             page.screenshot(path=str(output / f'{key}-era5-land.png'))
-            if width < 600:
-                assert page.locator('#mobileTabSelect option[value="europeStations"]').count() == 1
-                page.locator('#mobileTabSelect').evaluate("select => { select.value = 'europeStations'; select.dispatchEvent(new Event('change', {bubbles:true})); }")
-            else:
-                page.goto(URL + '?tab=europeStations', wait_until='domcontentloaded', timeout=90000)
+            page.goto(URL + '?tab=europeStations&s_europeStationParameter=tmin', wait_until='domcontentloaded', timeout=90000)
             page.wait_for_function("document.querySelector('#europeStations.active') && europeStationLoaded && europeStationMap && europeStationMarkerById.size > 0", timeout=90000)
             page.screenshot(path=str(output / f'{key}-europe-stations.png'))
+            assert page.locator('#europeStationParameter').input_value() == 'tmin'
             page.evaluate("switchTab('era5Atmosphere')")
             page.locator('#era5Stratosphere').wait_for(state='visible', timeout=30000)
             assert not any('era5_stratosphere.js' in url for status, url in network), network
@@ -162,6 +192,14 @@ def audit(browser, root, stage, width, output, export=False):
             page.wait_for_function("""document.querySelector('#index.active') && document.getElementById('indexPeriodSelect').value === '02' && document.getElementById('indexAreaSelect').value === 'Deutschland' && Chart.getChart('climateIndexChart')?.data?.datasets?.length""", timeout=90000)
             page.screenshot(path=str(output / f'{key}-index-deeplink.png'), full_page=True)
             if stage == 'source' and width == 1440:
+                # Simulate a failed module transfer, then use the real retry button.
+                page.route('**/js/aktuell.js?*', lambda route: route.abort())
+                page.goto(URL + '?tab=current', wait_until='domcontentloaded', timeout=90000)
+                retry = page.locator('#current .module-load-notice').get_by_role('button', name='Erneut versuchen')
+                retry.wait_for(state='visible', timeout=30000)
+                page.unroute('**/js/aktuell.js?*')
+                retry.click()
+                page.wait_for_function("DashboardModules.tabReady('current') && document.querySelector('#currentMap .leaflet-marker-icon')", timeout=90000)
                 # A slow external Tmin file must not race restored tab state.
                 def delay_tmin(route):
                     time.sleep(0.8)
