@@ -29,7 +29,7 @@ class DashboardLoadingTest(unittest.TestCase):
         return (self.site / "index.html").read_bytes()
 
     def test_split_sources_build_in_order_and_lazy_exports_still_work(self):
-        for name in ("core", "uebersicht", "gebietsmittel", "extreme", "stationen-kenntage", "stationen-auswertungen", "schnee"):
+        for name in ("core", "uebersicht", "gebietsmittel", "extreme", "stationen-kenntage", "stationen-auswertungen", "schnee", "export-karten-vergleich", "stationsprofil", "hyras", "aktuell", "hyras-tmin"):
             self.assertTrue((ROOT / "js" / f"{name}.js").is_file(), name)
         for name in ("dashboard_theme.js", "monthly_frequency.js", "state_monthly_ensemble.js",
                      "t850_ensembles.js", "sst_europe.js", "station_thresholds.js",
@@ -40,7 +40,7 @@ class DashboardLoadingTest(unittest.TestCase):
         for name in ("js/core.js", "js/uebersicht.js", "js/gebietsmittel.optimized.js", "js/extreme.js", "js/stationen-kenntage.optimized.js", "js/stationen-auswertungen.optimized.js", "js/schnee.js", "dashboard_main.js"):
             self.assertEqual(sum(name in tag for tag in tags), 1, name)
         joined = "\n".join(tags)
-        order = [joined.index(name) for name in ("chartjs-plugin-datalabels", "js/core.js", "js/uebersicht.js", "js/gebietsmittel.optimized.js", "js/extreme.js", "js/stationen-kenntage.optimized.js", "js/stationen-auswertungen.optimized.js", "js/schnee.js", "dashboard_main.js", "dashboard_export_hq.js")]
+        order = [joined.index(name) for name in ("chartjs-plugin-datalabels", "js/core.js", "js/uebersicht.js", "js/gebietsmittel.optimized.js", "js/extreme.js", "js/stationen-kenntage.optimized.js", "js/stationen-auswertungen.optimized.js", "js/schnee.js", "dashboard_export_libraries.js", "js/export-karten-vergleich", "js/stationsprofil", "js/hyras.optimized.js", "js/aktuell", "dashboard_main.js", "js/hyras-tmin.optimized.js", "dashboard_export_hq.js")]
         self.assertEqual(order, sorted(order))
         self.assertIn("await window.dashboardExportLibraries.canvas()", (self.site / "js/gebietsmittel.optimized.js").read_text())
         self.assertIn("await window.dashboardExportLibraries.canvas()", (self.site / "js/stationen-auswertungen.optimized.js").read_text())
@@ -50,11 +50,13 @@ class DashboardLoadingTest(unittest.TestCase):
         self.assertNotIn("npm/jspdf@", html)
 
     def test_extract_preserves_script_bytes_and_position(self):
-        match = re.search(rb"<script>(\s*(?:Chart\.register\(ChartDataLabels\);|// Start-Abrufe).*?)</script>", self.original, re.S)
-        self.assertIsNotNone(match)
+        matches = list(re.finditer(rb"<script>(\s*(?:// ================= VERSION 9: ZUSTAND, MOBILE NAVIGATION, CSV|// Start-Abrufe).*?)</script>", self.original, re.S))
+        self.assertEqual(len(matches), 1)
         html = self.optimize("extract")
-        self.assertEqual((self.site / "dashboard_main.js").read_bytes(), match[1])
-        self.assertEqual(re.sub(rb'<script src="dashboard_main\.js\?v=[a-f0-9]+"></script>', lambda _: match[0], html), self.original)
+        for name, match in zip(('dashboard_main.js',), matches):
+            self.assertEqual((self.site / name).read_bytes(), match[1])
+            html = re.sub(rb'<script src="' + re.escape(name.encode()) + rb'\?v=[a-f0-9]+"></script>', lambda _: match[0], html)
+        self.assertEqual(html, self.original)
 
     def test_defer_keeps_dependencies_and_inline_theme(self):
         html = self.optimize("defer").decode()
@@ -84,10 +86,25 @@ class DashboardLoadingTest(unittest.TestCase):
         for script in self.site.rglob("*.js"):
             result = subprocess.run(["node", "--check", str(script)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-        main = (self.site / "dashboard_main.js").read_text()
-        self.assertIn("else await exportChartAsPdf(canvas)", main)
-        self.assertIn("await window.dashboardExportLibraries.canvas()", main)
-        self.assertIn("await window.dashboardExportLibraries.pdf()", main)
+        export = (self.site / "js/export-karten-vergleich.optimized.js").read_text()
+        self.assertIn("else await exportChartAsPdf(canvas)", export)
+        self.assertIn("await window.dashboardExportLibraries.pdf()", export)
+        current = (self.site / "js/aktuell.optimized.js").read_text()
+        self.assertIn("await window.dashboardExportLibraries.canvas()", current)
+        self.assertIn("await window.dashboardExportLibraries.pdf()", current)
+        self.assertEqual((self.site / "js/hyras.optimized.js").read_text().count("await window.dashboardExportLibraries.pdf()"), 2)
+        self.assertEqual((self.site / "js/hyras-tmin.optimized.js").read_text().count("await window.dashboardExportLibraries.pdf()"), 1)
+
+    def test_hyras_classic_scripts_keep_overrides_at_end(self):
+        html = self.original.decode()
+        self.assertNotIn('function hyrasNum(', html)
+        self.assertNotIn('const hyrasSwitchBeforeTmin=', html)
+        self.assertLess(html.index('js/hyras.js?'), html.index('js/aktuell.js?'))
+        self.assertFalse('initializeDashboardState();' in html, 'Bootstrap must not start while the Tmin script is still downloading')
+        late = (ROOT / 'js/hyras-tmin.js').read_text()
+        self.assertLess(late.index('initializeDashboardState();'), late.index('const hyrasSwitchBeforeTmin='))
+        self.assertLess(html.index('function initializeDashboardState()'), html.index('js/hyras-tmin.js?'))
+        self.assertLess(html.index('js/hyras-tmin.js?'), html.index('hyras_historical_temperature_1km.js?'))
 
 
 if __name__ == "__main__":

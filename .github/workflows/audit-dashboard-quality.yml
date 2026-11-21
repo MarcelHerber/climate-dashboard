@@ -10,6 +10,12 @@ on:
       - "scripts/update_station_precip.py"
       - "scripts/build_pages_site.sh"
       - "scripts/audit_payload_sizes.cjs"
+      - "tests/test_split_frontend_patches.py"
+      - "scripts/patch_*_frontend.py"
+      - "scripts/patch_dashboard_lazy_loading.py"
+      - "scripts/fix_hyras_timeseries_rounding.py"
+      - "scripts/move_hyras_top3_below_map.py"
+      - "tests/test_current_station_daily_ui.mjs"
       - "tests/test_dashboard_hq_export.cjs"
       - "tests/test_station_precip_years.cjs"
       - "tests/test_station_precip_years.py"
@@ -17,6 +23,7 @@ on:
   push:
     branches: [main]
     paths:
+      - "js/**"
       - "index.html"
       - "dashboard_export_hq.js"
       - "wettergefahren*"
@@ -44,6 +51,16 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             index.html
+            scripts/patch_dashboard_lazy_loading.py
+            scripts/patch_hyras_live_frontend.py
+            scripts/patch_hyras_click_timeseries_frontend.py
+            scripts/fix_hyras_timeseries_rounding.py
+            scripts/patch_hyras_reference_period_frontend.py
+            scripts/patch_state_monthly_ensemble_frontend.py
+            scripts/move_hyras_top3_below_map.py
+            scripts/patch_t850_ensembles_frontend.py
+            tests/test_split_frontend_patches.py
+            tests/test_current_station_daily_ui.mjs
             js/
             tests/dashboard_source.cjs
             dashboard_export_hq.js
@@ -77,6 +94,10 @@ jobs:
           node --test tests/test_station_snow_accumulation.cjs
           node --test tests/test_station_precip_years.cjs
           python -m unittest discover -s tests -p test_station_precip_years.py -v
+      - name: Wartungsskripte für ausgelagerte Dashboard-Module
+        run: |
+          python -m unittest discover -s tests -p test_split_frontend_patches.py -v
+          node tests/test_current_station_daily_ui.mjs
       - name: Dateigrößen und JSON-Parsezeiten messen
         run: node scripts/audit_payload_sizes.cjs > dashboard-payload-audit.json
       - name: Größenprotokoll anzeigen

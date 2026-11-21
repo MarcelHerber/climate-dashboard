@@ -14,6 +14,15 @@ def remove_optional(text: str, pattern: str, flags: int = 0) -> tuple[str, int]:
 
 def main() -> int:
     text = TARGET.read_text(encoding="utf-8")
+    # The migration has already been applied in the split dashboard sources.
+    # Never try to reinsert the legacy inline blocks or overwrite newer guards.
+    if 'src="js/extreme.js' in text and 'src="js/core.js' in text:
+        extreme = (TARGET.parent / "js/extreme.js").read_text(encoding="utf-8")
+        core = (TARGET.parent / "js/core.js").read_text(encoding="utf-8")
+        if MARKER not in extreme or 'ensureDailyDashboardLoaded();' not in core:
+            raise RuntimeError("Dashboard-Performancepatch fehlt in ausgelagerten Skripten.")
+        print("Dashboard-Performancepatch bereits in js/ aktiv.")
+        return 0
     original = text
 
     # 1) Weltweite GHCN-Stationen vorerst vollständig aus dem Frontend.

@@ -10,7 +10,7 @@ from playwright.sync_api import sync_playwright
 
 
 ROOT = Path(__file__).resolve().parents[1]
-HTML = (ROOT / 'index.html').read_text()
+HTML = '\n'.join((ROOT / name).read_text() for name in ('index.html', 'js/hyras.js', 'js/hyras-tmin.js'))
 JS = (ROOT / 'hyras_temperature_interactive.js').read_text()
 
 
