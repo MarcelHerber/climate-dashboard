@@ -11,7 +11,7 @@ MARKER = "// ERA5_TP_CURRENT_MONTHS_FRONTEND_V1"
 
 def main() -> int:
     text = INDEX.read_text(encoding="utf-8")
-    if MARKER in text or ('src="js/era5-land.js' in text and MARKER in (ROOT / 'js/era5-land.js').read_text(encoding='utf-8')):
+    if MARKER in text or ((ROOT / 'js/era5-land.js').is_file() and MARKER in (ROOT / 'js/era5-land.js').read_text(encoding='utf-8')):
         print("ERA5 aktuelles T/P-Monatsfrontend ist bereits eingebaut.")
         return 0
 

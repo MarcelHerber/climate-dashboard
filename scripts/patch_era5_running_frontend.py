@@ -94,7 +94,7 @@ def patch_text(text: str) -> str:
 
 def main() -> int:
     text = INDEX.read_text(encoding="utf-8")
-    if 'src="js/era5-land.js' in text and MARKER_V2 in (ROOT / 'js/era5-land.js').read_text(encoding='utf-8'):
+    if (ROOT / 'js/era5-land.js').is_file() and MARKER_V2 in (ROOT / 'js/era5-land.js').read_text(encoding='utf-8'):
         print("ERA5 laufendes Frontend V2 ist bereits in js/era5-land.js eingebaut.")
         return 0
     patched = patch_text(text)

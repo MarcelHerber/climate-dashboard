@@ -14,11 +14,16 @@ function persistDashboardState(key,value){
   history.replaceState(null,"",url);
 }
 
-function restoreDashboardControls(){
-  document.querySelectorAll("select[id], input[id]").forEach(control=>{
+let restoringDashboardControls=false;
+function restoreDashboardControls(root=document){
+  if(restoringDashboardControls)return;
+  restoringDashboardControls=true;
+  try{
+  root.querySelectorAll("select[id], input[id]").forEach(control=>{
     // Mobile navigation mirrors dashboardState.tab and must never restore
     // a stale independent value when other station selects are populated.
     if(control.id==="mobileTabSelect")return;
+    if(window.isDashboardLazyPending?.(control))return;
     const saved=dashboardState[control.id];
     if(saved===undefined) return;
     if(control.type==="checkbox"){
@@ -33,6 +38,7 @@ function restoreDashboardControls(){
       control.dispatchEvent(new Event(eventType,{bubbles:true}));
     }
   });
+  }finally{restoringDashboardControls=false;}
 }
 
 function initializeMobileTabNavigation(){
@@ -167,11 +173,13 @@ async function runChartCsvExport(button,canvas){
 function initializeDashboardState(){
   initializeMobileTabNavigation();
   document.addEventListener("input",event=>{
+    if(restoringDashboardControls)return;
     const control=event.target;
     if(!(control instanceof HTMLInputElement) || !control.id || control.type!=="search") return;
     persistDashboardState(control.id,control.value);
   });
   document.addEventListener("change",event=>{
+    if(restoringDashboardControls)return;
     const control=event.target;
     if(!(control instanceof HTMLSelectElement || control instanceof HTMLInputElement) || !control.id) return;
     if(control.id==="mobileTabSelect")return; // persisted by switchTab only

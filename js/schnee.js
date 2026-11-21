@@ -36,6 +36,8 @@ async function ensureStationSnowLoaded(){
   if(stationSnowLoading) return stationSnowLoading;
 
   const loading=document.getElementById("stationSnowLoading");
+  loading.hidden=false;
+  loading.style.color="";
   loading.textContent="Schneehöhen werden geladen …";
 
   stationSnowLoading=Promise.all([
@@ -87,6 +89,7 @@ async function ensureStationSnowLoaded(){
 
     return updateStationSnow().then(()=>historyIndex);
   }).catch(error=>{
+    stationSnowLoading=null;
     loading.textContent=`Schneehöhen konnten nicht geladen werden: ${error.message}`;
     loading.style.color="#7a1010";
     throw error;
@@ -107,7 +110,8 @@ function initializeStationSnowControls(){
     option.textContent=state;
     stateSelect.appendChild(option);
   });
-  stateSelect.value="Deutschland";
+  const savedState=dashboardState.stationSnowStateSelect;
+  stateSelect.value=states.includes(savedState)?savedState:"Deutschland";
 
   function onFilterChange(){
     const before=document.getElementById("stationSnowStationSelect").value;
@@ -230,7 +234,9 @@ function populateStationSnowStations(firstLoad=false){
 
   // A native 5,000-option select is slow and almost unusable on phones.
   // Keep <=45 matched choices and pin any already selected station.
-  const chosen=firstLoad && stations.some(s=>s.id==="05792")?"05792":previous;
+  const savedStation=dashboardState.stationSnowStationSelect;
+  const chosen=firstLoad && stations.some(s=>s.id===savedStation)?savedStation:
+    firstLoad && stations.some(s=>s.id==="05792")?"05792":previous;
   const top=stations.slice(0,45);
   if(chosen && !top.some(s=>s.id===chosen)){
     const pin=stationSnowStationById.get(String(chosen));

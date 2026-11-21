@@ -313,13 +313,13 @@ function switchTab(tab,{persist=true}={}){
     renderOverview();
   }
   if(tab==="daily"||tab==="extremes"||tab==="compare") ensureDailyDashboardLoaded();
-  if(tab==="current") ensureCurrentConditions();
+  if(tab==="current") whenTabModulesReady(tab,()=>ensureCurrentConditions());
   if(tab==="stationObservations") ensureStationObservationsLoaded();
   if(tab==="hyras") ensureHyrasLoaded();
-  if(tab==="era5Europe"){ensureEra5EuropeLoaded();ensureEra5RunningTemperatureRanksLoaded().catch(()=>{});}
+  if(tab==="era5Europe") whenTabModulesReady(tab,()=>Promise.all([ensureEra5EuropeLoaded(),ensureEra5RunningTemperatureRanksLoaded().catch(()=>{})]));
   if(tab==="era5Atmosphere") ensureEra5AtmosphereLoaded();
   if(tab==="era5Synoptic") ensureEra5SynopticLoaded();
-  if(tab==="europeStations") ensureEuropeStationMap();
+  if(tab==="europeStations") whenTabModulesReady(tab,()=>ensureEuropeStationMap());
   if(tab==="state-monthly-ensemble") window.ensureStateMonthlyEnsembleLoaded?.();
   if(tab==="gebietsmittelArchive") window.ensureGebietsmittelArchiveLoaded?.(monthlyData);
   if(tab==="monthly") window.setTimeout(()=>{
@@ -334,7 +334,7 @@ function switchTab(tab,{persist=true}={}){
   if(tab==="index") updateClimateIndex();
   if(tab==="stationProfile") ensureStationProfile();
   if(tab==="stationPrecip") ensureStationPrecipLoaded();
-  if(tab==="stationSnow") ensureStationSnowLoaded();
+  if(tab==="stationSnow") whenTabModulesReady(tab,()=>ensureStationSnowLoaded());
   if(tab==="stationClimateDays") ensureStationClimateDaysLoaded();
   if(tab==="stationHeatwaves") ensureStationHeatwavesLoaded();
   if(tab==="compare") ensureComparisonMode();

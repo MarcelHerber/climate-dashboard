@@ -71,7 +71,9 @@ dashboardFetch("data.json",{cache:"no-store"})
   .catch(error=>showError(`Monatsdaten konnten nicht geladen werden: ${error.message}`));
 
 initializeChartExportButtons();
-preloadEuropeStationData().catch(()=>{});
+// Lazy modules: prefetch only in idle time, not during the initial render.
+DashboardModules.afterIdle(()=>DashboardModules.loadModule("europa-stationen").then(()=>preloadEuropeStationData()).catch(()=>{}),4000);
+DashboardModules.prefetch(["aktuell","era5-land","schnee"]);
 // The state may point to a tab implemented by a later classic or deferred script.
 // DOMContentLoaded waits for those scripts, even when their downloads are slow.
 document.addEventListener("DOMContentLoaded", ()=>{initializeDashboardState();}, {once:true});
