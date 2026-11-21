@@ -2,6 +2,7 @@ const assert=require("node:assert/strict");
 const test=require("node:test");
 const fs=require("node:fs");
 const html=fs.readFileSync("index.html","utf8");
+const source=require('./dashboard_source.cjs')();
 
 test("HYRAS temperature rank archive is an accessible collapsed disclosure",()=>{
   const start=html.indexOf('<details id="hyrasTemperatureRanks"');
@@ -19,11 +20,11 @@ test("HYRAS temperature rank archive is an accessible collapsed disclosure",()=>
 });
 
 test("HYRAS live monthly selection takes priority over last completed period",()=>{
-  assert.ok(html.includes('return periods.find(p=>p.period_type==="month_live")||periods.find(p=>p.period_type==="season_live")'));
-  assert.ok(html.includes('periods.find(p=>p.period_type==="month_live")?.key||hyrasIndex.default_period'));
-  const useLatest=(html.match(/const preferred=periods\.filter\(period=>period\.key\.startsWith\("month_"\)\)/g)||[]).length;
+  assert.ok(source.includes('return periods.find(p=>p.period_type==="month_live")||periods.find(p=>p.period_type==="season_live")'));
+  assert.ok(source.includes('periods.find(p=>p.period_type==="month_live")?.key||hyrasIndex.default_period'));
+  const useLatest=(source.match(/const preferred=periods\.filter\(period=>period\.key\.startsWith\("month_"\)\)/g)||[]).length;
   assert.equal(useLatest,2,"Tmax and Tmin should select most recent observed month");
-  assert.ok(html.includes('["month_live","season_live","summer_live","ytd_live"].includes(period.period_type)'));
+  assert.ok(source.includes('["month_live","season_live","summer_live","ytd_live"].includes(period.period_type)'));
 });
 
 test("all inline scripts still parse",()=>{

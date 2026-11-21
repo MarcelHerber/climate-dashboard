@@ -104,6 +104,7 @@ def audit(browser, root, stage, width, output, export=False):
             assert index_updates, 'Climate index period change did not update chart'
         page.screenshot(path=str(output / f'{key}-index.png'), full_page=True)
         stations = {}
+        hyras_modes = {}
         for tab, condition in [
             ('daily', "Chart.getChart('dailyChart')?.data?.datasets?.length"),
             ('stationClimateDays', "!document.getElementById('stationClimateDaysContent').hidden && Chart.getChart('stationClimateDaysCumulativeChart')?.data?.datasets?.length"),
@@ -129,6 +130,17 @@ def audit(browser, root, stage, width, output, export=False):
             if tab == 'current' and export:
                 download(page, page.locator('#currentMapPngButton'), output / f'{key}-current-map.png', b'\x89PNG\r\n\x1a\n')
                 download(page, page.locator('#currentMapPdfButton'), output / f'{key}-current-map.pdf', b'%PDF-')
+            if tab == 'hyras' and stage != 'control':
+                for parameter, cap in [('tmean', 'Tmean'), ('tmax', 'Tmax'), ('tmin', 'Tmin')]:
+                    page.locator('#hyrasParameterSelect').select_option(parameter)
+                    page.wait_for_function(f"Chart.getChart('hyras{cap}RegionCanvas')?.data?.datasets?.length > 0 && !!document.querySelector('a[data-{parameter}-pdf]')", timeout=90000)
+                    page.locator(f'#hyras{cap}RegionCanvas').scroll_into_view_if_needed()
+                    page.screenshot(path=str(output / f'{key}-hyras-{parameter}.png'))
+                    hyras_modes[parameter] = 'rendered'
+                    if export:
+                        download(page, page.locator(f'a[data-{parameter}-pdf]'), output / f'{key}-hyras-{parameter}.pdf', b'%PDF-')
+                page.locator('#hyrasParameterSelect').select_option('precipitation')
+                page.wait_for_function("document.querySelector('#hyrasMapFrame canvas') || document.querySelector('#hyrasMapFrame img')?.naturalWidth > 0", timeout=90000)
         if stage != 'control':
             page.evaluate("switchTab('era5Atmosphere')")
             page.locator('#era5Stratosphere').wait_for(state='visible', timeout=30000)
@@ -143,13 +155,13 @@ def audit(browser, root, stage, width, output, export=False):
             ['monthlyAreaSelect','paramSelect','monthSelect','monthlyReferenceSelect','regionalMapYearSelect','regionalMapYearBSelect'].map(id=>document.getElementById(id).value).join('|') === 'Deutschland|rain|10|1961-1990|2025|2024' && Chart.getChart('monthlyChart')?.data?.datasets?.length""", timeout=90000)
         page.screenshot(path=str(output / f'{key}-deeplink.png'), full_page=True)
         if stage != 'control':
-            for filename in ('core.js', 'uebersicht.js', 'gebietsmittel', 'extreme.js', 'stationen-kenntage', 'stationen-auswertungen', 'schnee.js', 'export-karten-vergleich', 'stationsprofil', 'aktuell'):
+            for filename in ('core.js', 'uebersicht.js', 'gebietsmittel', 'extreme.js', 'stationen-kenntage', 'stationen-auswertungen', 'schnee.js', 'export-karten-vergleich', 'stationsprofil', 'aktuell', 'hyras.', 'hyras-tmin.'):
                 assert any('/js/' + filename in url for url in loads), filename
             assert not [url for status, url in network if '/js/' in url], network
         assert not errors, errors
         assert not [e for e in console_errors if re.search(r'ReferenceError|SyntaxError|is not defined', e)], console_errors
         return {'stage': stage, 'width': width, 'passed': True, 'overview': overview,
-                'monthly_chart': before, 'index_updates': index_updates, 'stations': stations, 'console_errors': console_errors,
+                'monthly_chart': before, 'index_updates': index_updates, 'stations': stations, 'hyras_modes': hyras_modes, 'console_errors': console_errors,
                 'page_errors': errors, 'network_errors': network}
     except Exception as exc:
         try:

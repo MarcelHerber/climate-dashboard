@@ -132,7 +132,7 @@ def lazy_exports(html, site):
         ))
     # The third split distributes the remaining export entry points across
     # multiple classic scripts. Each anchor must still have exactly one owner.
-    candidates = [name for name in ("dashboard_main.js", "dashboard_hyras.js", "js/export-karten-vergleich.js", "js/stationsprofil.js", "js/aktuell.js") if (site / name).is_file()]
+    candidates = [name for name in ("dashboard_main.js", "dashboard_hyras.js", "js/export-karten-vergleich.js", "js/stationsprofil.js", "js/aktuell.js", "js/hyras.js", "js/hyras-tmin.js") if (site / name).is_file()]
     sources = {name: (site / name).read_text() for name in candidates}
     pending = edits.pop("dashboard_main.js")
     for old, new in pending:

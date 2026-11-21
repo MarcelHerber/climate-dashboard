@@ -3,7 +3,7 @@ from pathlib import Path
 
 # Regression: Top-3 values belong below the HYRAS map, never inside the PNG canvas.
 def test_hyras_top3_is_below_map_and_not_drawn_into_download_canvas():
-    html = Path("index.html").read_text(encoding="utf-8")
+    html = "\n".join(Path(name).read_text(encoding="utf-8") for name in ("index.html", "js/hyras.js", "js/hyras-tmin.js"))
     source = Path("scripts/patch_hyras_click_timeseries_frontend.py").read_text(encoding="utf-8")
 
     for text in (html, source):

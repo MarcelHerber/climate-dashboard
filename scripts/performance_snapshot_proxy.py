@@ -49,6 +49,7 @@ def local_file(flow):
         "js/stationen-kenntage.optimized.js", "js/stationen-auswertungen.optimized.js",
         "js/export-karten-vergleich.js", "js/stationsprofil.js", "js/aktuell.js",
         "js/export-karten-vergleich.optimized.js", "js/stationsprofil.optimized.js", "js/aktuell.optimized.js",
+        "js/hyras.js", "js/hyras.optimized.js", "js/hyras-tmin.js", "js/hyras-tmin.optimized.js",
     }):
         return None
     stage = (ROOT / "stage.txt").read_text().strip()

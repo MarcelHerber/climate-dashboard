@@ -5,11 +5,14 @@ on:
   push:
     paths:
       - "index.html"
+      - "js/hyras.js"
+      - "js/hyras-tmin.js"
       - "dashboard_theme.css"
       - "tests/test_hyras_browser.py"
       - "hyras_temperature_interactive.js"
       - "tests/test_hyras_temperature_map.py"
       - "tests/test_hyras_temperature_map.cjs"
+      - "tests/dashboard_source.cjs"
       - ".github/workflows/test-hyras-browser.yml"
 
 permissions:
@@ -47,4 +50,3 @@ jobs:
           path: hyras-browser-snapshots/*.png
           if-no-files-found: warn
           retention-days: 14
-
