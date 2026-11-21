@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import {readFileSync} from "node:fs";
-const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
+import {createRequire} from "node:module";
+const require=createRequire(import.meta.url);
+const html=require("./dashboard_source.cjs")();
 const liveStart=html.indexOf("function currentHasNumber(");
 const fastEnd=html.indexOf("const CURRENT_GERMAN_STATES=",liveStart);
 assert.ok(liveStart>0&&fastEnd>liveStart);

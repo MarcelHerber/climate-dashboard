@@ -5,6 +5,8 @@ on:
     paths:
       - 'gebietsmittel_archiv.*'
       - 'index.html'
+      - 'js/**'
+      - 'tests/dashboard_source.cjs'
       - 'mobile_navigation.js'
       - 'scripts/build_pages_site.sh'
       - 'tests/test_gebietsmittel_archive*.cjs'
@@ -22,6 +24,8 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             /index.html
+            /js/
+            /tests/dashboard_source.cjs
             /data.json
             /gebietsmittel_archiv.js
             /gebietsmittel_archiv.css

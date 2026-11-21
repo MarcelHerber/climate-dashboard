@@ -12,6 +12,7 @@ TARGETS = [
 
 OLD_NOTE = "Die roten Markierungen 1–3 zeigen die räumlich getrennten Maxima der aktuell dargestellten Karte."
 NEW_NOTE = "Die drei räumlich getrennten Maxima der aktuell dargestellten Karte stehen direkt unter der Karte."
+CURRENT_NOTE = "Die drei räumlich getrennten Kartenmaxima stehen direkt unter der Karte."
 
 
 def patch_text(text: str, label: str) -> str:
@@ -40,7 +41,7 @@ def patch_text(text: str, label: str) -> str:
 
     if OLD_NOTE in text:
         text = text.replace(OLD_NOTE, NEW_NOTE, 1)
-    elif NEW_NOTE not in text:
+    elif NEW_NOTE not in text and CURRENT_NOTE not in text:
         raise RuntimeError(f"{label}: HYRAS-Maxima-Hinweis nicht gefunden")
 
     if "hyrasDrawMapMaxima(" in text:
@@ -55,6 +56,13 @@ def main() -> int:
         if not path.exists():
             raise RuntimeError(f"Datei fehlt: {path}")
         text = path.read_text(encoding="utf-8")
+        if path == ROOT / "index.html" and 'src="js/hyras.js' in text:
+            # The historical migration must already be complete on split sources.
+            # Validate HTML and JS together but never write a concatenated file.
+            combined = text + "\n" + (ROOT / "js/hyras.js").read_text(encoding="utf-8")
+            if patch_text(combined, path.name) != combined:
+                raise RuntimeError("HYRAS Top-3-Migration fehlt in ausgelagerten Skripten")
+            continue
         patched = patch_text(text, path.name)
         if patched != text:
             path.write_text(patched, encoding="utf-8", newline="\n")

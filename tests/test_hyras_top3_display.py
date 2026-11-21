@@ -12,4 +12,5 @@ def test_hyras_top3_is_below_map_and_not_drawn_into_download_canvas():
         assert "hyrasMapMaxima(raster,state)" in text
         assert "wrap.appendChild(strip)" in text
         assert "hyrasDrawMapMaxima(" not in text
-        assert "Die drei räumlich getrennten Maxima der aktuell dargestellten Karte stehen direkt unter der Karte." in text
+        assert ("Die drei räumlich getrennten Maxima der aktuell dargestellten Karte stehen direkt unter der Karte." in text
+                or "Die drei räumlich getrennten Kartenmaxima stehen direkt unter der Karte." in text)

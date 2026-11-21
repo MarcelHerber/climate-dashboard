@@ -17,7 +17,8 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 def main() -> int:
     text = TARGET.read_text(encoding="utf-8")
-    if MARKER in text:
+    split = ROOT / "js/hyras.js"
+    if MARKER in text or ('src="js/hyras.js' in text and MARKER in split.read_text(encoding="utf-8")):
         print("HYRAS-Live-Frontend ist bereits eingebaut.")
         return 0
 

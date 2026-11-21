@@ -122,7 +122,7 @@ PANEL=r'''<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -
 '''
 
 
-def patch_index(text: str) -> str:
+def patch_index(text: str, core_source: str = "") -> str:
     if CSS_TAG not in text:
         if "</head>" not in text:
             raise RuntimeError("</head> fehlt")
@@ -205,7 +205,7 @@ def patch_index(text: str) -> str:
 
     hook='  if(tab==="europeStations") ensureEuropeStationMap();'
     new_hook=hook+'\n  if(tab==="state-monthly-ensemble") window.ensureStateMonthlyEnsembleLoaded?.();'
-    if new_hook not in text:
+    if new_hook not in text and new_hook not in core_source:
         if hook not in text:
             raise RuntimeError("switchTab-Hook fehlt")
         text=text.replace(hook,new_hook,1)
@@ -225,7 +225,8 @@ def patch_build(text: str) -> str:
 
 def main() -> int:
     original=INDEX.read_text(encoding="utf-8")
-    patched=patch_index(original)
+    core_source=(ROOT / "js/core.js").read_text(encoding="utf-8") if 'src="js/core.js' in original else ""
+    patched=patch_index(original, core_source)
     INDEX.write_text(patched,encoding="utf-8")
 
     build_original=BUILD.read_text(encoding="utf-8")

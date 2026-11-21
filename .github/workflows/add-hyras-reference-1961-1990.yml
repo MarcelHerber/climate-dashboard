@@ -253,7 +253,11 @@ jobs:
       - name: Frontend-Patch prüfen
         run: |
           set -euo pipefail
-          grep -q 'HYRAS_REFERENCE_PERIOD_SELECTOR_V1' index.html
+          if [ -f js/hyras.js ]; then
+            grep -q 'HYRAS_REFERENCE_PERIOD_SELECTOR_V1' js/hyras.js
+          else
+            grep -q 'HYRAS_REFERENCE_PERIOD_SELECTOR_V1' index.html
+          fi
           grep -q 'value="1961-1990"' index.html
 
       - name: Frontend veröffentlichen

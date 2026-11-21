@@ -17,7 +17,8 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 def main() -> int:
     text = TARGET.read_text(encoding="utf-8")
-    if MARKER in text:
+    split = ROOT / "js/hyras.js"
+    if MARKER in text or ('src="js/hyras.js' in text and MARKER in split.read_text(encoding="utf-8")):
         print("HYRAS Klick-Zeitreihe und Maxima sind bereits im Frontend eingebaut.")
         return 0
 
