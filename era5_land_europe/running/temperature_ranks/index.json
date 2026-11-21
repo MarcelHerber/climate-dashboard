@@ -1,6 +1,6 @@
 {
   "ready": true,
-  "data_through": "2026-11-14",
+  "data_through": "2026-11-15",
   "current_year": 2026,
   "history_start": 1950,
   "history_end": 2025,
@@ -11,43 +11,43 @@
   "products": {
     "day": {
       "file": "era5_land_europe/running/temperature_ranks/temperature_day_rank.png",
-      "label": "14.11.2026",
+      "label": "15.11.2026",
       "unit": "Rang",
       "history_start": 1950,
       "history_end": 2025,
       "comparison_years": 76,
       "total_rank_positions": 77,
       "rank_direction": "1 = wärmster",
-      "note": "Vergleich des 14.11. mit demselben Kalendertag 1950–2025.",
+      "note": "Vergleich des 15.11. mit demselben Kalendertag 1950–2025.",
       "stats": {
-        "rank1_area_percent": 3.466162407525067,
-        "top3_area_percent": 7.758643397450484,
+        "rank1_area_percent": 0.36782750019077926,
+        "top3_area_percent": 2.1699251526695753,
         "valid_gridpoints": 125942,
         "min_rank": 1,
-        "max_rank": 76
+        "max_rank": 77
       }
     },
     "month_to_date": {
       "file": "era5_land_europe/running/temperature_ranks/temperature_month_to_date_rank.png",
-      "label": "01.–14.11.2026",
+      "label": "01.–15.11.2026",
       "unit": "Rang",
       "history_start": 1950,
       "history_end": 2025,
       "comparison_years": 76,
       "total_rank_positions": 77,
       "rank_direction": "1 = wärmster",
-      "note": "Vergleich 01.–14.11. mit demselben Monatsabschnitt 1950–2025.",
+      "note": "Vergleich 01.–15.11. mit demselben Monatsabschnitt 1950–2025.",
       "stats": {
-        "rank1_area_percent": 0.18154195369551457,
-        "top3_area_percent": 2.332470273475649,
+        "rank1_area_percent": 0.21591986508092081,
+        "top3_area_percent": 2.753752466920049,
         "valid_gridpoints": 125942,
         "min_rank": 1,
-        "max_rank": 72
+        "max_rank": 70
       }
     },
     "season_to_date": {
       "file": "era5_land_europe/running/temperature_ranks/temperature_season_to_date_rank.png",
-      "label": "Herbst · 01.09.2026–14.11.2026",
+      "label": "Herbst · 01.09.2026–15.11.2026",
       "unit": "Rang",
       "season_key": "autumn",
       "season_name": "Herbst",
@@ -56,31 +56,31 @@
       "comparison_years": 76,
       "total_rank_positions": 77,
       "rank_direction": "1 = wärmster",
-      "note": "Vergleich Herbst ab 01.09. bis 14.11. mit demselben Jahreszeitenabschnitt 1950–2025.",
+      "note": "Vergleich Herbst ab 01.09. bis 15.11. mit demselben Jahreszeitenabschnitt 1950–2025.",
       "stats": {
-        "rank1_area_percent": 5.839717876975098,
-        "top3_area_percent": 26.18368271018681,
+        "rank1_area_percent": 6.232727634726541,
+        "top3_area_percent": 25.840454648937957,
         "valid_gridpoints": 125942,
         "min_rank": 1,
-        "max_rank": 69
+        "max_rank": 68
       }
     },
     "year_to_date": {
       "file": "era5_land_europe/running/temperature_ranks/temperature_year_to_date_rank.png",
-      "label": "01.01.–14.11.2026",
+      "label": "01.01.–15.11.2026",
       "unit": "Rang",
       "history_start": 1950,
       "history_end": 2025,
       "comparison_years": 76,
       "total_rank_positions": 77,
       "rank_direction": "1 = wärmster",
-      "note": "Vergleich 01.01.–14.11. mit demselben Jahresabschnitt 1950–2025.",
+      "note": "Vergleich 01.01.–15.11. mit demselben Jahresabschnitt 1950–2025.",
       "stats": {
-        "rank1_area_percent": 18.25133470448996,
-        "top3_area_percent": 29.176949068777375,
+        "rank1_area_percent": 18.229299201826933,
+        "top3_area_percent": 29.0343202968967,
         "valid_gridpoints": 125942,
         "min_rank": 1,
-        "max_rank": 66
+        "max_rank": 65
       }
     }
   },
@@ -402,7 +402,8 @@
     "2026-11-11",
     "2026-11-12",
     "2026-11-13",
-    "2026-11-14"
+    "2026-11-14",
+    "2026-11-15"
   ],
   "archive_index_pattern": "era5_land_europe/running/temperature_ranks/archive/{date}/index.json",
   "archive_image_format": "lossless-webp"
