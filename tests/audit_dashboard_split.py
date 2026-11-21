@@ -52,7 +52,7 @@ def click_lazy_tab(page, tab, width):
                 'era5Europe': 'ERA5-Land Europa', 'europeStations': 'Europa-Stationen'}[tab]
         page.locator('#cdMobileMenuButton').click()
         page.locator('.cdm-search').fill(name)
-        page.locator('.cdm-results').get_by_role('button', name=name, exact=True).click()
+        page.locator('.cdm-results').get_by_role('button', name=re.compile(r'^' + re.escape(name) + r'(?:\s|$)')).click()
     else:
         group = 'stations' if tab in ('stationSnow', 'current') else 'europe'
         page.locator(f'.nav-dropdown[data-nav-group="{group}"] .nav-dropdown-toggle').click()
