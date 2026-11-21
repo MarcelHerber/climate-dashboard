@@ -23,7 +23,11 @@ def key(url):
     parts = urlsplit(url)
     # Ignore time-generated cache busters only on mutable data responses.
     if not parts.path.endswith((".js", ".css", ".html")):
-        query = [(k, v) for k, v in parse_qsl(parts.query) if not (k in ("t", "v") and v.isdigit())]
+        cache_busters = {"t", "v"}
+        # This index is fetched with ?ts=Date.now(); it is not a forecast timestamp.
+        if parts.hostname == SITE and parts.path == PREFIX + "era5_stratosphere/index.json":
+            cache_busters.add("ts")
+        query = [(k, v) for k, v in parse_qsl(parts.query) if not (k in cache_busters and v.isdigit())]
         return urlunsplit(parts._replace(query=urlencode(query)))
     return url
 
@@ -50,6 +54,8 @@ def local_file(flow):
         "js/export-karten-vergleich.js", "js/stationsprofil.js", "js/aktuell.js",
         "js/export-karten-vergleich.optimized.js", "js/stationsprofil.optimized.js", "js/aktuell.optimized.js",
         "js/hyras.js", "js/hyras.optimized.js", "js/hyras-tmin.js", "js/hyras-tmin.optimized.js",
+        "js/era5-land.js", "js/era5-land.optimized.js", "js/europa-stationen.js",
+        "js/dashboard-state.js", "js/bootstrap.js",
     }):
         return None
     stage = (ROOT / "stage.txt").read_text().strip()

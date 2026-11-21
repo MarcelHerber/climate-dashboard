@@ -17,7 +17,7 @@ test("Saharastaub belongs to Sonstiges across desktop and mobile navigation",()=
   const europe=homepage.split('<div class="nav-dropdown" data-nav-group="europe">')[1]?.split('<div class="nav-dropdown" data-nav-group="misc">')[0]||"";
   assert.ok(misc.includes("window.location.href='saharastaub.html'"),"desktop Sonstiges entry missing");
   assert.ok(!europe.includes("saharastaub.html"),"Saharastaub should not appear under Europa");
-  assert.ok(homepage.includes('["saharastaub.html","Sonstiges · Saharastaub-Monitor (ICON-ART-EU)"]'));
+  assert.ok(require('./dashboard_source.cjs')().includes('["saharastaub.html","Sonstiges · Saharastaub-Monitor (ICON-ART-EU)"]'));
   const mobileSonstiges=nav.split('{id:"tools",name:"Sonstiges",items:[')[1]?.split(']}')[0]||"";
   assert.ok(mobileSonstiges.includes('["saharastaub.html","Saharastaub · ICON-ART"]'));
   const mobileEuropa=nav.split('{id:"europe",name:"Europa & Prognosen",items:[')[1]?.split(']}')[0]||"";

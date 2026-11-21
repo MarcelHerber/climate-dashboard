@@ -14,6 +14,7 @@ on:
       - "scripts/patch_*_frontend.py"
       - "scripts/patch_dashboard_lazy_loading.py"
       - "scripts/fix_hyras_timeseries_rounding.py"
+      - "scripts/fix_era5_period_year_labels.py"
       - "scripts/move_hyras_top3_below_map.py"
       - "tests/test_current_station_daily_ui.mjs"
       - "tests/test_dashboard_hq_export.cjs"
@@ -59,6 +60,11 @@ jobs:
             scripts/patch_state_monthly_ensemble_frontend.py
             scripts/move_hyras_top3_below_map.py
             scripts/patch_t850_ensembles_frontend.py
+            scripts/patch_era5_tp_month_frontend.py
+            scripts/patch_era5_current_tp_frontend.py
+            scripts/patch_era5_temperature_rank_frontend.py
+            scripts/fix_era5_period_year_labels.py
+            scripts/patch_era5_running_frontend.py
             tests/test_split_frontend_patches.py
             tests/test_current_station_daily_ui.mjs
             js/

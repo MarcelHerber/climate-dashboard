@@ -143,6 +143,17 @@ def audit(browser, root, stage, width, output, export=False):
                 page.locator('#hyrasParameterSelect').select_option('precipitation')
                 page.wait_for_function("document.querySelector('#hyrasMapFrame canvas') || document.querySelector('#hyrasMapFrame img')?.naturalWidth > 0", timeout=90000)
         if stage != 'control':
+            # Exercise the modules introduced by Schnitt 5 via restored URLs.
+            page.goto(URL + '?tab=era5Europe', wait_until='domcontentloaded', timeout=90000)
+            page.wait_for_function("document.querySelector('#era5Europe.active') && era5EuropeIndex && document.querySelector('#era5EuropeImageWrap img')?.naturalWidth > 0", timeout=90000)
+            page.screenshot(path=str(output / f'{key}-era5-land.png'))
+            if width < 600:
+                assert page.locator('#mobileTabSelect option[value="europeStations"]').count() == 1
+                page.locator('#mobileTabSelect').evaluate("select => { select.value = 'europeStations'; select.dispatchEvent(new Event('change', {bubbles:true})); }")
+            else:
+                page.goto(URL + '?tab=europeStations', wait_until='domcontentloaded', timeout=90000)
+            page.wait_for_function("document.querySelector('#europeStations.active') && europeStationLoaded && europeStationMap && europeStationMarkerById.size > 0", timeout=90000)
+            page.screenshot(path=str(output / f'{key}-europe-stations.png'))
             page.evaluate("switchTab('era5Atmosphere')")
             page.locator('#era5Stratosphere').wait_for(state='visible', timeout=30000)
             assert not any('era5_stratosphere.js' in url for status, url in network), network
@@ -160,13 +171,18 @@ def audit(browser, root, stage, width, output, export=False):
                 page.wait_for_function("document.querySelector('#hyras.active') && document.getElementById('hyrasParameterSelect').value === 'tmin' && Chart.getChart('hyrasTminRegionCanvas')?.data?.datasets?.length > 0", timeout=90000)
                 page.screenshot(path=str(output / f'{key}-hyras-tmin-deeplink.png'))
                 page.unroute('**/js/hyras-tmin.js?*', delay_tmin)
+                # Even a late atmosphere module must be ready before state restoration.
+                page.route('**/era5_europe.js?*', delay_tmin)
+                page.goto(URL + '?tab=era5Atmosphere', wait_until='domcontentloaded', timeout=90000)
+                page.wait_for_function("document.querySelector('#era5Atmosphere.active') && typeof ensureEra5AtmosphereLoaded === 'function'", timeout=90000)
+                page.unroute('**/era5_europe.js?*', delay_tmin)
         # Direct link with multiple persisted control values and Unicode region name.
         page.goto(URL + '?tab=monthly&s_monthlyAreaSelect=Deutschland&s_paramSelect=rain&s_monthSelect=10&s_monthlyReferenceSelect=1961-1990&s_regionalMapYearSelect=2025&s_regionalMapYearBSelect=2024', wait_until='domcontentloaded', timeout=90000)
         page.wait_for_function("""() => document.querySelector('#monthly.active') && monthlyData.length > 1000 &&
             ['monthlyAreaSelect','paramSelect','monthSelect','monthlyReferenceSelect','regionalMapYearSelect','regionalMapYearBSelect'].map(id=>document.getElementById(id).value).join('|') === 'Deutschland|rain|10|1961-1990|2025|2024' && Chart.getChart('monthlyChart')?.data?.datasets?.length""", timeout=90000)
         page.screenshot(path=str(output / f'{key}-deeplink.png'), full_page=True)
         if stage != 'control':
-            for filename in ('core.js', 'uebersicht.js', 'gebietsmittel', 'extreme.js', 'stationen-kenntage', 'stationen-auswertungen', 'schnee.js', 'export-karten-vergleich', 'stationsprofil', 'aktuell', 'hyras.', 'hyras-tmin.'):
+            for filename in ('core.js', 'uebersicht.js', 'gebietsmittel', 'extreme.js', 'stationen-kenntage', 'stationen-auswertungen', 'schnee.js', 'export-karten-vergleich', 'stationsprofil', 'aktuell', 'hyras.', 'hyras-tmin.', 'era5-land.', 'europa-stationen.js', 'dashboard-state.js', 'bootstrap.js'):
                 assert any('/js/' + filename in url for url in loads), filename
             assert not [url for status, url in network if '/js/' in url], network
         assert not errors, errors

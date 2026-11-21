@@ -18,7 +18,7 @@ def replace_once(text: str, pattern: str, replacement: str, *, flags: int = 0, l
 
 def main() -> int:
     text = INDEX.read_text(encoding="utf-8")
-    if MARKER in text:
+    if MARKER in text or ('src="js/era5-land.js' in text and MARKER in (ROOT / 'js/era5-land.js').read_text(encoding='utf-8')):
         print("ERA5 T/P-Monatsfrontend ist bereits eingebaut.")
         return 0
 

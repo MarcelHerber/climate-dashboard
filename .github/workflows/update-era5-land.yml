@@ -2,6 +2,7 @@ name: ERA5-Land Europa aktualisieren
 
 on:
   push:
+    branches: [main]
     paths:
       - "scripts/update_era5_land_europe_palette.py"
       - "scripts/add_era5_current_tp_months_palette.py"

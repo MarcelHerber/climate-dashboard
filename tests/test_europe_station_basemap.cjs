@@ -5,6 +5,7 @@ const vm=require("node:vm");
 
 const SOURCE=fs.readFileSync("europe_station_basemap.js","utf8");
 const HTML=fs.readFileSync("index.html","utf8");
+const DASHBOARD_SOURCE=require('./dashboard_source.cjs')();
 const NATURAL_EARTH=JSON.parse(fs.readFileSync("wettergefahren_basemap.json","utf8"));
 
 function harness({offline=false}={}){
@@ -128,6 +129,6 @@ test("local outlines unavailable report error without stopping OSM",async()=>{
 test("map integration uses shared basemap and waits for Leaflet on first open",()=>{
  assert.match(HTML,/europe_station_basemap\.js\?v=/);
  assert.match(HTML,/id="europeStationBasemapStatus"/);
- assert.match(HTML,/window\.attachEuropeStationBasemap\(europeStationMap\)/);
- assert.match(HTML,/await window\.ensureEuropeStationLeaflet\(\)/);
+ assert.match(DASHBOARD_SOURCE,/window\.attachEuropeStationBasemap\(europeStationMap\)/);
+ assert.match(DASHBOARD_SOURCE,/await window\.ensureEuropeStationLeaflet\(\)/);
 });

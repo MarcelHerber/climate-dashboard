@@ -18,7 +18,11 @@ required_root_files=(
   js/stationsprofil.js
   js/hyras.js
   js/aktuell.js
+  js/era5-land.js
+  js/europa-stationen.js
+  js/dashboard-state.js
   js/hyras-tmin.js
+  js/bootstrap.js
   mosmix.html
   datenstatus.html
   dashboard_cleanup.css
@@ -213,7 +217,7 @@ for file in "${required_root_files[@]}"; do
   fi
   cp --parents "$file" _site/
 done
-for file in js/core.js js/uebersicht.js js/gebietsmittel.js js/extreme.js js/stationen-kenntage.js js/stationen-auswertungen.js js/schnee.js js/export-karten-vergleich.js js/stationsprofil.js js/hyras.js js/aktuell.js js/hyras-tmin.js era5_stratosphere.js; do
+for file in js/core.js js/uebersicht.js js/gebietsmittel.js js/extreme.js js/stationen-kenntage.js js/stationen-auswertungen.js js/schnee.js js/export-karten-vergleich.js js/stationsprofil.js js/hyras.js js/aktuell.js js/era5-land.js js/europa-stationen.js js/dashboard-state.js js/hyras-tmin.js js/bootstrap.js era5_stratosphere.js; do
   node --check "_site/$file"
 done
 
@@ -911,7 +915,7 @@ page=Path("_site/index.html").read_text(encoding="utf-8")
 nav=Path("_site/mobile_navigation.js").read_text(encoding="utf-8")
 assert "window.location.href='saharastaub.html'" in page
 assert 'data-nav-group="misc" type="button" onclick="window.location.href=\'saharastaub.html\'"' in page
-assert '["saharastaub.html","Sonstiges · Saharastaub-Monitor (ICON-ART-EU)"]' in page
+assert '["saharastaub.html","Sonstiges · Saharastaub-Monitor (ICON-ART-EU)"]' in Path("_site/js/dashboard-state.js").read_text(encoding="utf-8")
 assert 'name:"Sonstiges",items:' in nav
 assert nav.count('["saharastaub.html","Saharastaub · ICON-ART"]')==1
 assert "saharastaub-quicklink" not in page
@@ -1860,7 +1864,10 @@ du -sh _site
 # The regular Pages deployment keeps its existing loading behavior.
 if [ -n "${DASHBOARD_LOADING_STAGE:-}" ]; then
   python scripts/optimize_dashboard_loading.py _site --stage "$DASHBOARD_LOADING_STAGE"
-  node --check _site/dashboard_main.js
+  if [[ -f _site/dashboard_main.js ]]; then
+    node --check _site/dashboard_main.js
+  fi
+  find _site/js -maxdepth 1 -type f -name '*.js' -exec node --check {} \;
   if [[ -f _site/dashboard_hyras.js ]]; then
     node --check _site/dashboard_hyras.js
   fi
