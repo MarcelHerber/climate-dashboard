@@ -2,6 +2,14 @@ name: GitHub Pages schnell veröffentlichen
 # Frontend-Deploy-Trigger: nur Änderungen, die die veröffentlichte Website betreffen.
 
 on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'js/**'
+      - 'scripts/build_pages_site.sh'
+      - 'tests/dashboard_source.cjs'
+      - 'tests/test_current_station_daily_ui.mjs'
+      - '.github/workflows/deploy-pages-only.yml'
   push:
     branches:
       - main
@@ -30,12 +38,22 @@ permissions:
 
 concurrency:
   # Isolated group: the old pages-fast-deploy queue is repeatedly cancelling jobs before startup.
-  group: pages-dashboard-v2
+  group: ${{ github.event_name == 'pull_request' && format('pages-dashboard-pr-{0}', github.event.pull_request.number) || 'pages-dashboard-v2' }}
   cancel-in-progress: false
 
 jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Produktions-Build ohne Veröffentlichung prüfen
+        run: bash scripts/build_pages_site.sh
   deploy:
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && ((github.event.workflow_run.name != 'DWD Jahreswechsel · Originalmessungen' && github.event.workflow_run.name != 'DWD Temperaturgegensätze · Originalmessungen' && github.event.workflow_run.name != 'ECMWF IFS 0,1° · 1–15 Tage und ERA5-Referenz' && github.event.workflow_run.name != 'ECMWF IFS 0,1° · Arktis Nordpol 1–15 Tage') || github.event.workflow_run.head_branch == 'main'))
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && ((github.event.workflow_run.name != 'DWD Jahreswechsel · Originalmessungen' && github.event.workflow_run.name != 'DWD Temperaturgegensätze · Originalmessungen' && github.event.workflow_run.name != 'ECMWF IFS 0,1° · 1–15 Tage und ERA5-Referenz' && github.event.workflow_run.name != 'ECMWF IFS 0,1° · Arktis Nordpol 1–15 Tage') || github.event.workflow_run.head_branch == 'main')))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment:
