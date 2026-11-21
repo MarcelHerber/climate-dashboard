@@ -7,7 +7,7 @@ INDEX=ROOT/"index.html"
 BUILD=ROOT/"scripts/build_pages_site.sh"
 
 CSS_TAG='<link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">'
-JS_TAG='<script src="state_monthly_ensemble.js?v=20261116-reference-61-1"></script>'
+JS_TAG='<script src="state_monthly_ensemble.js?v=20261121-freshness-1"></script>'
 NAV_ANCHOR='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">Ensembles</button>'
 NAV_BUTTON='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'state-monthly-ensemble\')">Monatsausblick</button>'
 MARKER='<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -->'
@@ -207,8 +207,12 @@ def patch_index(text: str) -> str:
     new_hook=hook+'\n  if(tab==="state-monthly-ensemble") window.ensureStateMonthlyEnsembleLoaded?.();'
     if new_hook not in text:
         if hook not in text:
-            raise RuntimeError("switchTab-Hook fehlt")
-        text=text.replace(hook,new_hook,1)
+            # switchTab was extracted to js/core.js; keep that integration.
+            core=ROOT/"js/core.js"
+            if not core.is_file() or new_hook not in core.read_text(encoding="utf-8"):
+                raise RuntimeError("switchTab-Hook fehlt")
+        else:
+            text=text.replace(hook,new_hook,1)
 
     return text
 
@@ -237,3 +241,4 @@ def main() -> int:
 
 if __name__=="__main__":
     raise SystemExit(main())
+

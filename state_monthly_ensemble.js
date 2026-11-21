@@ -49,6 +49,30 @@ function num(v){if(v==null||v==="")return null;v=Number(v);return Number.isFinit
 function fmt(v,d=2){v=num(v);return v==null?"–":v.toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d});}
 function dateShort(iso){if(!iso)return"–";const p=String(iso).split("-");return p.length===3?`${p[2]}.${p[1]}.`:iso;}
 function fmtRun(iso){if(!iso)return"Laufzeit nicht gemeldet";const d=new Date(iso);if(Number.isNaN(d.getTime()))return iso;return d.toLocaleString("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+" UTC";}
+function runAgeHours(iso,now=Date.now()){
+  if(typeof iso!=="string"||!iso)return null;
+  const age=(now-Date.parse(iso))/3600000;
+  return Number.isFinite(age)&&age>=-1?Math.max(0,age):null;
+}
+function modelFreshness(m){
+  const age=runAgeHours(m?.run);
+  return age===null?"Laufalter unbekannt":age>24?`veraltet (${Math.round(age)} h)`:(m.retained?"älterer Lauf (API-Störung)":"");
+}
+function freshnessWarning(doc,models,complete=false){
+  const warnings=[],generated=runAgeHours(doc?.generated_at);
+  if(generated===null)warnings.push("Erstellungszeit unbekannt");
+  else if(generated>24)warnings.push(`Datensatz veraltet (${Math.round(generated)} h)`);
+  if(!complete){
+    const missing=MODEL_ORDER.filter(k=>!models?.[k]);
+    if(missing.length)warnings.push(`${missing.length} Modelle fehlen: ${missing.map(k=>MODEL_LABELS[k]).join(", ")}`);
+    for(const k of MODEL_ORDER){
+      if(!models?.[k])continue;
+      const issue=modelFreshness(models[k]);
+      if(issue)warnings.push(`${MODEL_LABELS[k]}: ${issue}`);
+    }
+  }
+  return warnings.length?" · "+warnings.join(" · "):"";
+}
 function setStatus(text,type="info"){const n=el("stateMonthlyStatus");if(!n)return;n.className="state-monthly-status "+type;n.textContent=text;}
 function validData(j){return j&&[1,2].includes(j.schema_version)&&Array.isArray(j.dates)&&j.regions&&Array.isArray(j.regions_order);}
 async function fetchData(force){
@@ -336,7 +360,7 @@ function render(){
     const obsCard=observedOnly&&k===MODEL_ORDER[0];
     card.hidden=!m&&!obsCard;const title=card.querySelector("h3");if(title)title.textContent=obsCard?"Beobachtete Monatssumme":MODEL_LABELS[k]||k;
     const meta=card.querySelector(".state-monthly-model-meta");
-    if(meta)meta.textContent=m?`${m.member_count} Member · Prognose bis ${dateShort(m.forecast_through)} · ${m.support_points} Stützpunkte · Lauf ${fmtRun(m.run)}${m.retained?" · älterer Lauf (API-Störung)":""}`:obsCard?"Nur HYRAS-Beobachtungen":"nicht verfügbar";
+    if(meta)meta.textContent=m?`${m.member_count} Member · Prognose bis ${dateShort(m.forecast_through)} · ${m.support_points} Stützpunkte · Lauf ${fmtRun(m.run)}${modelFreshness(m)?" · "+modelFreshness(m):""}`:obsCard?"Nur HYRAS-Beobachtungen":"nicht verfügbar";
     if(m||obsCard){
       const datasets=displayDatasets(k,r);
       charts[k]=new Chart(canvas,{type:"line",data:{labels:labs,datasets},options:chartOptions(chartBounds(datasets))});
@@ -396,7 +420,8 @@ function renderHeader(r){
     const complete=selectedParameter()==="precipitation"&&d.observation_complete;
     const daySeries=dailyHydroRunning(reg),dayAvailable=oldReferenceSelected()?readyReference(daySeries):daySeries?.some(v=>v!=null);
     const refPending=oldReferenceSelected()&&(!dayAvailable||normal===null);
-    setStatus(`Datenstand ${config.source}: ${d.observation_data_through} · Generiert ${label} · ${complete?"Monat vollständig beobachtet":`${Object.keys(r.models||{}).length}/4 Ensemblemodelle`}${retained?` · ${retained} aus vorherigen Läufen`:""}${qcText}${refPending?` · Klimareferenz ${referenceLabel()} noch nicht vollständig verfügbar`:""}`,!refPending&&(complete||Object.keys(r.models||{}).length===4&&!qcWarning&&!retained)?"ok":"warn");
+    const freshness=freshnessWarning(d,r.models,complete);
+    setStatus(`Datenstand ${config.source}: ${d.observation_data_through} · Generiert ${label} · ${complete?"Monat vollständig beobachtet":`${Object.keys(r.models||{}).length}/4 Ensemblemodelle`}${retained?` · ${retained} aus vorherigen Läufen`:""}${qcText}${refPending?` · Klimareferenz ${referenceLabel()} noch nicht vollständig verfügbar`:""}${freshness}`,!freshness&&!refPending&&(complete||Object.keys(r.models||{}).length===4&&!qcWarning&&!retained)?"ok":"warn");
     const note=el("stateMonthlyDataNote");
     if(note){
       const refNote=dayAvailable?
@@ -436,7 +461,8 @@ function renderHeader(r){
   const gen=new Date(data.generated_at),generated=Number.isNaN(gen.getTime())?data.generated_at:gen.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
   const partial=p&&p.complete_reference_period===false?" · Winter startet mangels Vorjahresdaten erst am 01.01.":"";
   const refPending=oldReferenceSelected()&&climateFinal===null;
-  setStatus(`Datenstand HYRAS ${data.observation_data_through} · Ensemble-Daten erzeugt ${generated} · ${Object.keys(r.models||{}).length}/4 Modelle verfügbar${partial}${refPending?` · Klimareferenz ${referenceLabel()} noch nicht verfügbar`:""}`,Object.keys(r.models||{}).length===4&&!partial&&!refPending?"ok":"warn");
+  const freshness=freshnessWarning(data,r.models);
+  setStatus(`Datenstand HYRAS ${data.observation_data_through} · Ensemble-Daten erzeugt ${generated} · ${Object.keys(r.models||{}).length}/4 Modelle verfügbar${partial}${refPending?` · Klimareferenz ${referenceLabel()} noch nicht verfügbar`:""}${freshness}`,Object.keys(r.models||{}).length===4&&!partial&&!refPending&&!freshness?"ok":"warn");
 }
 function applyView(){
   const view=el("stateMonthlyView")?.value||"four",grid=el("stateMonthlyGrid");if(!grid)return;
@@ -715,3 +741,4 @@ function mount(){
 window.ensureStateMonthlyEnsembleLoaded=function(){return data?Promise.resolve(data):load(false);};
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",mount);else mount();
 })();
+

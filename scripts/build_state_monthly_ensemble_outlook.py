@@ -13,6 +13,7 @@ from threading import Lock
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
+from zoneinfo import ZoneInfo
 
 import requests
 from shapely.geometry import Point, shape
@@ -22,11 +23,30 @@ ENSEMBLE_API = "https://ensemble-api.open-meteo.com/v1/ensemble"
 STATES_URL = "https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json"
 USER_AGENT = "climate-dashboard-state-monthly-ensemble/1.0 (+GitHub Actions)"
 
-# Hourly sunshine and precipitation queries are expensive and share a
-# provider rate limit. Keep their request budget process-wide.
+# All ensemble queries share the provider's weighted request budget.
 _SUNSHINE_API_LOCK = Lock()
 _SUNSHINE_NEXT_REQUEST = 0.0
 _SUNSHINE_REQUEST_GAP_SECONDS = 20.0
+_ENSEMBLE_STOP_REASON: str | None = None
+_HOURLY_PAUSE_USED = False
+
+
+class EnsembleQuotaExhausted(RuntimeError):
+    """No further requests should be made in this execution."""
+
+
+def rate_limit_delay(reason: str, now: datetime) -> float | None:
+    reason = reason.lower()
+    if "daily" in reason or "day limit" in reason or "per day" in reason:
+        return None
+    if "hourly" in reason or "hour limit" in reason or "per hour" in reason:
+        next_hour = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        return max(65.0, (next_hour - now).total_seconds() + 5)
+    return 65.0
+
+
+def month_forecast_days(today: date, year: int, month: int) -> int:
+    return max(1, (date(year, month, calendar.monthrange(year, month)[1]) - today).days + 1)
 
 
 def reserve_sunshine_request() -> None:
@@ -79,12 +99,73 @@ EXPECTED_STATES = [
 REGION_ORDER = ["Deutschland", *EXPECTED_STATES]
 
 
+def validate_available_models(models: Iterable[str]) -> None:
+    keys = set(models)
+    if not keys or not keys <= set(MODEL_CONFIG):
+        raise ValueError(f"Keine gültigen Ensemblemodelle: {sorted(keys)}")
+
+
+def unhealthy_models(models: dict[str, Any], now: datetime) -> dict[str, str]:
+    failures = {}
+    for key in MODEL_CONFIG:
+        if key not in models:
+            failures[key] = "fehlt"
+            continue
+        try:
+            run = datetime.fromisoformat(models[key]["run"].replace("Z", "+00:00"))
+            age = (now - run).total_seconds() / 3600
+            if not -1 <= age <= 36:
+                failures[key] = f"Laufalter {age:.1f} h"
+        except (KeyError, TypeError, ValueError, AttributeError):
+            failures[key] = "Laufzeit fehlt oder ungültig"
+    return failures
+
+
+def select_temperature_models(fresh: dict, cached: dict, observed_through: str, now: datetime) -> tuple[dict, list[str]]:
+    """Retain raw daily member data only while it can be re-anchored without a gap."""
+    next_day = (date.fromisoformat(observed_through) + timedelta(days=1)).isoformat()
+    selected, retained = {}, []
+    for key in MODEL_CONFIG:
+        candidates = []
+        for is_fresh, source in ((True, fresh), (False, cached)):
+            model = source.get(key)
+            if not isinstance(model, dict) or model.get("daily_variable") != "temperature_2m_mean":
+                continue
+            try:
+                run = datetime.fromisoformat(model["run"].replace("Z", "+00:00"))
+                age = (now - run).total_seconds() / 3600
+                if not -1 <= age <= 48:
+                    continue
+            except (KeyError, TypeError, ValueError, AttributeError):
+                if not is_fresh or model.get("run") is not None:
+                    continue
+                run = datetime.min.replace(tzinfo=timezone.utc)
+            try:
+                for region in REGION_ORDER:
+                    r = model["regions"][region]
+                    i = r["dates"].index(next_day)
+                    if not r["member_keys"] or not all(finite(r["members"][m][i]) is not None for m in r["member_keys"]):
+                        raise ValueError("Forecast gap")
+            except (KeyError, IndexError, TypeError, ValueError):
+                continue
+            candidates.append((run, is_fresh, model))
+        if candidates:
+            _, is_fresh, model = max(candidates, key=lambda c: (c[0], c[1]))
+            selected[key] = {**model, "retained": not is_fresh}
+            if not is_fresh:
+                retained.append(key)
+    return selected, retained
+
+
 def fetch_json(url: str, *, params: dict[str, Any] | None = None, timeout: int = 120, retries: int = 4) -> Any:
+    global _ENSEMBLE_STOP_REASON, _HOURLY_PAUSE_USED
     last: Exception | None = None
-    sunshine_request = url == ENSEMBLE_API and (params or {}).get("hourly") in {"sunshine_duration", "precipitation"}
+    ensemble_request = url == ENSEMBLE_API
     for attempt in range(retries):
         try:
-            if sunshine_request:
+            if ensemble_request:
+                if _ENSEMBLE_STOP_REASON:
+                    raise EnsembleQuotaExhausted(_ENSEMBLE_STOP_REASON)
                 reserve_sunshine_request()
             r = requests.get(
                 url,
@@ -93,18 +174,31 @@ def fetch_json(url: str, *, params: dict[str, Any] | None = None, timeout: int =
                 headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
             )
             if r.status_code in {429, 500, 502, 503, 504}:
-                if r.status_code == 429 and sunshine_request:
-                    # The provider explicitly asks for another attempt after a minute.
-                    # Do not recursively subdivide this rate-limit failure.
-                    cooldown_sunshine_requests()
+                if r.status_code == 429 and ensemble_request:
+                    reason = f"HTTP 429: {r.text[:200]}"
+                    delay = rate_limit_delay(reason, datetime.now(timezone.utc))
+                    hourly = any(word in reason.lower() for word in ("hourly", "hour limit", "per hour"))
+                    if delay is None or (hourly and _HOURLY_PAUSE_USED):
+                        _ENSEMBLE_STOP_REASON = reason
+                        raise EnsembleQuotaExhausted(reason)
+                    if hourly:
+                        _HOURLY_PAUSE_USED = True
+                    try:
+                        delay = max(delay, float(r.headers.get("Retry-After", 0)))
+                    except (ValueError, TypeError):
+                        pass
+                    print(f"Ensemble-API: {reason}; Pause {delay:.0f}s", flush=True)
+                    cooldown_sunshine_requests(delay)
                 raise RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
             r.raise_for_status()
             return r.json()
+        except EnsembleQuotaExhausted:
+            raise
         except Exception as exc:
             last = exc
             if attempt + 1 >= retries:
                 break
-            if sunshine_request and "HTTP 429" in str(exc):
+            if ensemble_request and "HTTP 429" in str(exc):
                 # Next attempt is paced by the shared cooldown, not a short retry.
                 continue
             time.sleep(2.0 * (attempt + 1))
@@ -392,14 +486,14 @@ def hourly_precipitation_to_hyras_day(location: dict[str, Any]) -> dict[str, Any
     return {**location, "daily": {"time": complete, **fields}}
 
 
-def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str = "temperature_2m_mean", *, time_resolution: str = "daily") -> tuple[list[LocationRef], list[dict[str, Any]]]:
+def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str = "temperature_2m_mean", *, time_resolution: str = "daily", forecast_days: int | None = None) -> tuple[list[LocationRef], list[dict[str, Any]]]:
     cfg = MODEL_CONFIG[model_key]
     params = {
         "latitude": ",".join(f"{r.latitude:.4f}" for r in refs),
         "longitude": ",".join(f"{r.longitude:.4f}" for r in refs),
         time_resolution: variable,
         "models": cfg["api_model"],
-        "forecast_days": str(cfg["forecast_days"]),
+        "forecast_days": str(min(cfg["forecast_days"], forecast_days) if forecast_days is not None else cfg["forecast_days"]),
         "past_days": "3",
         "timezone": "GMT" if time_resolution == "hourly" else "Europe/Berlin",
         "cell_selection": "land",
@@ -410,7 +504,7 @@ def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str =
         # komplette Modell zu verlieren.
         data = fetch_json(
             ENSEMBLE_API, params=params, timeout=90,
-            retries=4 if time_resolution == "hourly" and variable in {"sunshine_duration", "precipitation"} else 2,
+            retries=4 if time_resolution == "hourly" else 3,
         )
     except Exception as exc:
         if "HTTP 429" in str(exc):
@@ -424,8 +518,8 @@ def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str =
             f"teile in {mid}+{len(refs)-mid}.",
             flush=True,
         )
-        left_refs, left_locations = request_model_chunk(model_key, refs[:mid], variable, time_resolution=time_resolution)
-        right_refs, right_locations = request_model_chunk(model_key, refs[mid:], variable, time_resolution=time_resolution)
+        left_refs, left_locations = request_model_chunk(model_key, refs[:mid], variable, time_resolution=time_resolution, forecast_days=forecast_days)
+        right_refs, right_locations = request_model_chunk(model_key, refs[mid:], variable, time_resolution=time_resolution, forecast_days=forecast_days)
         return left_refs + right_refs, left_locations + right_locations
 
     locations = data if isinstance(data, list) else [data]
@@ -437,8 +531,8 @@ def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str =
                 f"teile Batch in {mid}+{len(refs)-mid}.",
                 flush=True,
             )
-            left_refs, left_locations = request_model_chunk(model_key, refs[:mid], variable, time_resolution=time_resolution)
-            right_refs, right_locations = request_model_chunk(model_key, refs[mid:], variable, time_resolution=time_resolution)
+            left_refs, left_locations = request_model_chunk(model_key, refs[:mid], variable, time_resolution=time_resolution, forecast_days=forecast_days)
+            right_refs, right_locations = request_model_chunk(model_key, refs[mid:], variable, time_resolution=time_resolution, forecast_days=forecast_days)
             return left_refs + right_refs, left_locations + right_locations
         raise RuntimeError(f"{model_key}: {len(locations)} Antworten für {len(refs)} Punkte")
     if time_resolution == "hourly" and variable == "sunshine_duration":
@@ -464,24 +558,24 @@ def model_run_time(model_key: str) -> str | None:
         return None
 
 
-def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], batch_size: int = 24, *, variable: str = "temperature_2m_mean", time_resolution: str = "daily") -> dict[str, Any]:
+def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], batch_size: int = 24, *, variable: str = "temperature_2m_mean", time_resolution: str = "daily", forecast_days: int | None = None) -> dict[str, Any]:
     refs = flatten_support_points(support)
     responses: list[tuple[LocationRef, dict[str, Any]]] = []
 
     # IFS ist bei großen Multi-Location-Abfragen deutlich empfindlicher.
     # Kleinere Start-Batches plus die rekursive Teilung oben sind stabiler.
-    model_batch_size = min(batch_size, 10) if model_key == "ifs" else batch_size
-    workers = 1 if variable == "precipitation" else 2 if model_key == "ifs" else 3
+    model_batch_size = min(batch_size, 10 if model_key == "ifs" else 12) if variable == "temperature_2m_mean" else min(batch_size, 10) if model_key == "ifs" else batch_size
+    workers = 1 if variable in {"temperature_2m_mean", "precipitation"} else 2 if model_key == "ifs" else 3
     batches = list(chunks(refs, model_batch_size))
     print(f"{model_key}: {len(refs)} Stützpunkte in {len(batches)} API-Batches", flush=True)
     if workers == 1:
         # Do not queue more expensive requests after a persistent rate limit.
         for batch in batches:
-            batch_refs, locations = request_model_chunk(model_key, batch, variable, time_resolution=time_resolution)
+            batch_refs, locations = request_model_chunk(model_key, batch, variable, time_resolution=time_resolution, forecast_days=forecast_days)
             responses.extend(zip(batch_refs, locations))
     else:
         with ThreadPoolExecutor(max_workers=min(workers, len(batches))) as pool:
-            futures = [pool.submit(request_model_chunk, model_key, batch, variable, time_resolution=time_resolution) for batch in batches]
+            futures = [pool.submit(request_model_chunk, model_key, batch, variable, time_resolution=time_resolution, forecast_days=forecast_days) for batch in batches]
             for future in as_completed(futures):
                 batch_refs, locations = future.result()
                 responses.extend(zip(batch_refs, locations))
@@ -544,7 +638,7 @@ def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], ba
         "api_model": MODEL_CONFIG[model_key]["api_model"],
         "daily_variable": variable,
         "time_resolution": time_resolution,
-        "forecast_days": MODEL_CONFIG[model_key]["forecast_days"],
+        "forecast_days": min(MODEL_CONFIG[model_key]["forecast_days"], forecast_days) if forecast_days is not None else MODEL_CONFIG[model_key]["forecast_days"],
         "run": model_run_time(model_key),
         "member_count": global_member_count,
         "regions": regions,
@@ -725,6 +819,7 @@ def build_period_region(
             "label": mdata["label"],
             "run": mdata.get("run"),
             "api_model": mdata.get("api_model"),
+            "retained": bool(mdata.get("retained")),
             **merge_running_outlook(obs_dates, obs_values, mdata["regions"][region], dates),
         }
 
@@ -793,6 +888,7 @@ def main() -> int:
     ap.add_argument("--current", required=True)
     ap.add_argument("--climate", required=True)
     ap.add_argument("--output", default="state_monthly_ensemble.json")
+    ap.add_argument("--cache", type=Path, help="Raw temperature member data from the previous run (updated in place)")
     ap.add_argument("--models", default=",".join(MODEL_CONFIG))
     ap.add_argument("--batch-size", type=int, default=24)
     args = ap.parse_args()
@@ -810,22 +906,38 @@ def main() -> int:
 
     model_data: dict[str, dict[str, Any]] = {}
     model_errors: dict[str, str] = {}
+    forecast_days = month_forecast_days(datetime.now(ZoneInfo("Europe/Berlin")).date(), year, month)
     for model_key in requested:
         try:
-            model_data[model_key] = collect_model(model_key, support, args.batch_size)
+            model_data[model_key] = collect_model(model_key, support, args.batch_size, forecast_days=forecast_days)
             print(f"{model_key}: erfolgreich ({model_data[model_key]['member_count']} Member)", flush=True)
         except Exception as exc:
             model_errors[model_key] = str(exc)
             print(f"FEHLER {model_key}: {exc}", flush=True)
 
+    cache = {}
+    if args.cache and args.cache.is_file():
+        try:
+            old = load_json(args.cache)
+            if old.get("schema_version") == 1 and isinstance(old.get("models"), dict):
+                if old.get("observation_data_through", "") > data_through:
+                    raise SystemExit("HYRAS-Datenstand zurückgefallen; bisherige Daten bleiben erhalten.")
+                cache = old["models"]
+        except (OSError, ValueError, TypeError, AttributeError) as exc:
+            print(f"Temperatur-Cache nicht lesbar: {exc}", flush=True)
+    model_data, retained = select_temperature_models(model_data, cache, data_through, datetime.now(timezone.utc))
     if not model_data:
         raise SystemExit("Kein Ensemblemodell konnte geladen werden.")
 
     payload = build_payload(current, climate, model_data, year, month, data_through, support)
     payload["model_errors"] = model_errors
+    payload["retained_models"] = retained
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    if args.cache:
+        args.cache.parent.mkdir(parents=True, exist_ok=True)
+        args.cache.write_text(json.dumps({"schema_version":1,"observation_data_through":data_through,"models":model_data}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"Geschrieben: {output} ({output.stat().st_size/1024:.1f} KiB)", flush=True)
     print("Modelle:", ", ".join(payload["models_order"]), flush=True)
     return 0
@@ -833,3 +945,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

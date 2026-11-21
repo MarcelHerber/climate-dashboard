@@ -116,6 +116,7 @@ def external_archives():
         "mosmix": "mosmix-data/data/mosmix/manifest.json",
         "mosmix_quality": "mosmix-data/data/mosmix/quality_status.json",
         "sun_monthly": "state-monthly-sun/state_monthly_sun.json",
+        "state_monthly": "state-monthly-ensemble/state_monthly_ensemble.json",
         "fast_live": "fast-live/fast_state.json",
         "europe_tmax": "europe-tmax-lab-data/data/europe-tmax-lab/current.json",
         "europe_tmin": "europe-tmin-lab-data/data/europe-tmin-lab/current.json",
@@ -174,7 +175,22 @@ def sst_region_status(manifest, regions):
     return latest, len(complete), recent
 
 
+def add_state_monthly_model_status(items, document):
+    doc = document if isinstance(document, dict) else {}
+    models = (doc.get("regions") or {}).get("Deutschland", {}).get("models") or {}
+    for key, label in (("gefs", "GFS / GEFS"), ("ifs", "ECMWF IFS ENS"),
+                       ("aifs", "ECMWF AIFS ENS"), ("icon_eu", "DWD ICON-EU EPS")):
+        model = models.get(key) or {}
+        run = model.get("run")
+        coverage = f"{model.get('member_count', '–')} Member" if model else "Modell fehlt"
+        items.append(result(f"state_monthly_{key}", f"Monatsausblick · {label}", "Vorhersagen",
+            run, doc.get("generated_at"), coverage,
+            "Modellinitialisierung · Warnschwelle 24 h (nicht das Erstellungsdatum der JSON-Datei)",
+            cadence="hourly", allowed_delay=24))
+
+
 def add_external(items, remote):
+    add_state_monthly_model_status(items, remote.get("state_monthly"))
     mos = remote.get("mosmix")
     if mos:
         steps = mos.get("timesteps") or []
@@ -894,3 +910,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

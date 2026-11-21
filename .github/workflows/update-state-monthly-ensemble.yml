@@ -20,7 +20,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
 
     steps:
       - name: Repository laden
@@ -39,6 +39,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install requests shapely
+
+      - name: Regressionstests
+        run: python -m unittest discover -s tests -p 'test_state_monthly_ensemble_resilience.py' -v
 
       - name: Aktuelle HYRAS-Bundeslanddaten holen
         shell: bash
@@ -62,6 +65,12 @@ jobs:
 
           git show "origin/hyras-data:tmean/regions/$CURRENT_FILE" > /tmp/state-monthly-input/current.json
           git show "origin/hyras-data:tmean/regions/$CLIMATE_FILE" > /tmp/state-monthly-input/climate.json
+          if git fetch origin state-monthly-ensemble --depth=1; then
+            if ! git show FETCH_HEAD:temperature_member_cache.json > /tmp/state-monthly-output/temperature_member_cache.json; then
+              echo 'Noch kein Temperatur-Member-Cache vorhanden.'
+              rm -f /tmp/state-monthly-output/temperature_member_cache.json
+            fi
+          fi
 
           python - <<'PY'
           import json
@@ -74,6 +83,7 @@ jobs:
           python scripts/build_state_monthly_ensemble_outlook.py \
             --current /tmp/state-monthly-input/current.json \
             --climate /tmp/state-monthly-input/climate.json \
+            --cache /tmp/state-monthly-output/temperature_member_cache.json \
             --output /tmp/state-monthly-output/state_monthly_ensemble.json
 
       - name: Ergebnis prüfen
@@ -82,6 +92,7 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
+          from scripts.build_state_monthly_ensemble_outlook import validate_available_models
           p=Path('/tmp/state-monthly-output/state_monthly_ensemble.json')
           d=json.loads(p.read_text())
           assert d['schema_version']==2
@@ -94,8 +105,7 @@ jobs:
           assert d['dates']==d['periods']['month']['dates']
           available=set(d['models_order'])
           expected={'gefs','ifs','aifs','icon_eu'}
-          assert len(available)>=3, d['models_order']
-          assert available <= expected, d['models_order']
+          validate_available_models(available)
           assert len(d['regions'])==17
           for region in d['regions_order']:
               r=d['regions'][region]
@@ -130,7 +140,25 @@ jobs:
           git checkout -b state-monthly-ensemble
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add state_monthly_ensemble.json
+          git add state_monthly_ensemble.json temperature_member_cache.json
           git commit -m "Bundesland Monats-Ensembles aktualisiert"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin state-monthly-ensemble
+
+      - name: Modellaktualität melden (nach Veröffentlichung)
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from scripts.build_state_monthly_ensemble_outlook import unhealthy_models
+          d=json.loads(Path('/tmp/state-monthly-output/state_monthly_ensemble.json').read_text())
+          failures=unhealthy_models(d['regions']['Deutschland']['models'], datetime.now(timezone.utc))
+          if failures:
+              for key, reason in failures.items():
+                  print(f'::error title=Monatsensemble {key}::{reason}')
+              raise SystemExit('Teilaktualisierung veröffentlicht; Modellwarnungen vorhanden.')
+          print('Alle vier Modelllaufzeiten sind höchstens 36 Stunden alt.')
+          PY
+
