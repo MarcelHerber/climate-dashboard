@@ -16,7 +16,7 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 def main() -> int:
     text = INDEX.read_text(encoding="utf-8")
-    if MARKER in text:
+    if MARKER in text or ('src="js/era5-land.js' in text and MARKER in (ROOT / 'js/era5-land.js').read_text(encoding='utf-8')):
         print("ERA5 Perioden-/Jahresbeschriftung ist bereits korrigiert.")
         return 0
 

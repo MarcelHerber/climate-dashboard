@@ -17,6 +17,19 @@ def versioned_script(name, content, defer=False):
 
 def extract(html, site):
     matches = list(MAIN.finditer(html))
+    if not matches:
+        modules = ("era5-land", "europa-stationen", "dashboard-state", "hyras-tmin", "bootstrap")
+        positions = []
+        for module in modules:
+            filename = f"js/{module}.js"
+            tags = [tag for tag in EXTERNAL.finditer(html)
+                    if re.search(rb'src="' + re.escape(filename.encode()) + rb'(?:\?|")', tag[0])]
+            if len(tags) != 1 or not (site / filename).is_file():
+                raise ValueError(f"Missing or duplicate split dashboard module: {filename}")
+            positions.append(tags[0].start())
+        if positions != sorted(positions):
+            raise ValueError("Bootstrap must follow the dashboard definitions and HYRAS overrides")
+        return html
     if len(matches) == 1 and not matches[0][1].lstrip().startswith(HYRAS_START):
         names = ("dashboard_main.js",)
     elif len(matches) == 2 and matches[0][1].lstrip().startswith(HYRAS_START) and matches[1][1].lstrip().startswith(b"// Start-Abrufe"):
@@ -132,7 +145,7 @@ def lazy_exports(html, site):
         ))
     # The third split distributes the remaining export entry points across
     # multiple classic scripts. Each anchor must still have exactly one owner.
-    candidates = [name for name in ("dashboard_main.js", "dashboard_hyras.js", "js/export-karten-vergleich.js", "js/stationsprofil.js", "js/aktuell.js", "js/hyras.js", "js/hyras-tmin.js") if (site / name).is_file()]
+    candidates = [name for name in ("dashboard_main.js", "dashboard_hyras.js", "js/export-karten-vergleich.js", "js/stationsprofil.js", "js/aktuell.js", "js/hyras.js", "js/hyras-tmin.js", "js/era5-land.js", "js/europa-stationen.js", "js/dashboard-state.js", "js/bootstrap.js") if (site / name).is_file()]
     sources = {name: (site / name).read_text() for name in candidates}
     pending = edits.pop("dashboard_main.js")
     for old, new in pending:

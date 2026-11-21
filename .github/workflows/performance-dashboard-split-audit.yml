@@ -9,6 +9,17 @@ permissions:
   actions: read
 
 jobs:
+  production-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prüfe vollständigen Pages-Build ohne Deployment
+        run: bash scripts/build_pages_site.sh
+      - name: Prüfe Split- und Ladevarianten
+        run: |
+          python -m unittest discover -s tests -p test_dashboard_loading.py -v
+          python -m unittest discover -s tests -p test_split_frontend_patches.py -v
   split:
     runs-on: ubuntu-24.04
     timeout-minutes: 30

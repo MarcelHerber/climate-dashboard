@@ -54,6 +54,9 @@ def main() -> int:
     root=Path(__file__).resolve().parents[1]
     path=root/'index.html'
     text=path.read_text(encoding='utf-8')
+    if 'src="js/era5-land.js' in text and MARKER in (root / 'js/era5-land.js').read_text(encoding='utf-8'):
+        print('ERA5 Temperatur-Rangansicht in js/era5-land.js ist bereits aktuell.')
+        return 0
     text,changed=apply_patch(text)
     if changed:
         path.write_text(text,encoding='utf-8')

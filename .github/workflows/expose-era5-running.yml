@@ -67,9 +67,11 @@ jobs:
           assert running_month.get("running_only") is True
           assert running_season.get("running_only") is True
           html = Path("index.html").read_text(encoding="utf-8")
-          assert "// ERA5_RUNNING_FRONTEND_V2" in html
-          assert 'running_autumn' in html
-          assert 'running_winter' in html
+          split = Path("js/era5-land.js")
+          source = split.read_text(encoding="utf-8") if split.is_file() else html
+          assert "// ERA5_RUNNING_FRONTEND_V2" in source
+          assert 'running_autumn' in source
+          assert 'running_winter' in source
           print("Laufender Monat:", running_month.get("label"))
           print("Laufende Saison:", running_season.get("label"))
           print("Saison-ID:", season_id)
