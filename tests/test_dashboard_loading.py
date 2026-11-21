@@ -100,7 +100,10 @@ class DashboardLoadingTest(unittest.TestCase):
         self.assertNotIn('function hyrasNum(', html)
         self.assertNotIn('const hyrasSwitchBeforeTmin=', html)
         self.assertLess(html.index('js/hyras.js?'), html.index('js/aktuell.js?'))
-        self.assertLess(html.index('initializeDashboardState();'), html.index('js/hyras-tmin.js?'))
+        self.assertFalse('initializeDashboardState();' in html, 'Bootstrap must not start while the Tmin script is still downloading')
+        late = (ROOT / 'js/hyras-tmin.js').read_text()
+        self.assertLess(late.index('initializeDashboardState();'), late.index('const hyrasSwitchBeforeTmin='))
+        self.assertLess(html.index('function initializeDashboardState()'), html.index('js/hyras-tmin.js?'))
         self.assertLess(html.index('js/hyras-tmin.js?'), html.index('hyras_historical_temperature_1km.js?'))
 
 

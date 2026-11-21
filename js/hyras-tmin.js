@@ -1,3 +1,8 @@
+initializeChartExportButtons();
+preloadEuropeStationData().catch(()=>{});
+initializeDashboardState();
+
+
 // HYRAS_TMIN_FRONTEND_V1
 let hyrasTminRegionsIndex=null;
 let hyrasTminRegionsCurrent=null;

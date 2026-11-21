@@ -3,6 +3,7 @@ import argparse
 import json
 import re
 import shutil
+import time
 from pathlib import Path
 
 from audit_europe_hub import prepare as prepare_europe_hub
@@ -149,6 +150,16 @@ def audit(browser, root, stage, width, output, export=False):
             page.goto(URL + '?tab=index&s_indexPeriodSelect=02&s_indexAreaSelect=Deutschland', wait_until='domcontentloaded', timeout=90000)
             page.wait_for_function("""document.querySelector('#index.active') && document.getElementById('indexPeriodSelect').value === '02' && document.getElementById('indexAreaSelect').value === 'Deutschland' && Chart.getChart('climateIndexChart')?.data?.datasets?.length""", timeout=90000)
             page.screenshot(path=str(output / f'{key}-index-deeplink.png'), full_page=True)
+            if stage == 'source' and width == 1440:
+                # A slow external Tmin file must not race restored tab state.
+                def delay_tmin(route):
+                    time.sleep(0.8)
+                    route.continue_()
+                page.route('**/js/hyras-tmin.js?*', delay_tmin)
+                page.goto(URL + '?tab=hyras&s_hyrasParameterSelect=tmin', wait_until='domcontentloaded', timeout=90000)
+                page.wait_for_function("document.querySelector('#hyras.active') && document.getElementById('hyrasParameterSelect').value === 'tmin' && Chart.getChart('hyrasTminRegionCanvas')?.data?.datasets?.length > 0", timeout=90000)
+                page.screenshot(path=str(output / f'{key}-hyras-tmin-deeplink.png'))
+                page.unroute('**/js/hyras-tmin.js?*', delay_tmin)
         # Direct link with multiple persisted control values and Unicode region name.
         page.goto(URL + '?tab=monthly&s_monthlyAreaSelect=Deutschland&s_paramSelect=rain&s_monthSelect=10&s_monthlyReferenceSelect=1961-1990&s_regionalMapYearSelect=2025&s_regionalMapYearBSelect=2024', wait_until='domcontentloaded', timeout=90000)
         page.wait_for_function("""() => document.querySelector('#monthly.active') && monthlyData.length > 1000 &&
