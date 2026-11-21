@@ -76,7 +76,7 @@ function modelStats(n){
 function fixture(param){
   const iso=["2026-11-01","2026-11-02","2026-11-03","2026-11-04"];
   const region={observed_through:iso[1],observed_running:[1,3,null,null],observed_current:3,
-    models:{gefs:{stats:modelStats(),control:[null,null,7,11]}}};
+    models:{gefs:{forecast_through:iso[3],stats:modelStats(),control:[null,null,7,11]}}};
   const doc={year:2026,month:11,dates:iso,regions:{Deutschland:region}};
   const reference={months:{"11":{dates:["11-01","11-02","11-03","11-04"],
     regions:{Deutschland:param==="precipitation"?{running_mm:[0,2,4,6]}:{running_h:[0,2,4,6]}}}}};
@@ -96,7 +96,7 @@ for(const param of ["precipitation","sunshine"]){
   assert.equal(nodes.stateMonthlyMetric.options.find(x=>x.value==="anomaly").disabled,false);
   assert.equal(nodes.stateMonthlyMetric.options.find(x=>x.value==="absolute").textContent,`Gesamtsumme (${unit})`);
   const abs=api.displayDatasets("gefs",r);
-  if(param==="precipitation"){
+  {
     const obsOnly=api.displayDatasets("gefs",{...r,models:{}});
     assert.equal(obsOnly[0].data[1],3);
     assert.ok(!obsOnly.some(d=>d.label==="Ensemble-Mittel"));
@@ -199,7 +199,7 @@ for(const param of ["precipitation","sunshine"]){
 nodes.stateMonthlyParameter.value="temperature";
 nodes.stateMonthlyPeriod.value="season";
 const temp={climatology_running:[4,6,8,10],climatology_month_mean:10,
-  observed_running:[2,4,null,null],models:{gefs:{stats:modelStats(),control:[null,null,7,11]}}};
+  observed_running:[2,4,null,null],models:{gefs:{forecast_through:'2024-03-02',stats:modelStats(),control:[null,null,7,11]}}};
 api.setTemperature({year:2024,month:2,periods:{season:{dates:["2024-02-28","2024-02-29","2024-03-01","2024-03-02"]}},regions:{Deutschland:{periods:{season:temp}}}});
 nodes.stateMonthlyReference.value="1961-1990";
 nodes.stateMonthlyMetric.value="anomaly";

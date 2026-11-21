@@ -56,6 +56,8 @@ jobs:
           node --check sst_europe.js
           node --check state_monthly_ensemble.js
           node tests/test_state_monthly_ensemble_status.cjs
+          node tests/test_state_monthly_hydro_metrics.cjs
+          node tests/test_state_monthly_rollover.cjs
           python -m py_compile scripts/patch_state_monthly_ensemble_frontend.py
 
           cp index.html /tmp/state-monthly-index-once.html

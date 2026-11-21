@@ -7,7 +7,7 @@ INDEX=ROOT/"index.html"
 BUILD=ROOT/"scripts/build_pages_site.sh"
 
 CSS_TAG='<link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">'
-JS_TAG='<script src="state_monthly_ensemble.js?v=20261121-freshness-1"></script>'
+JS_TAG='<script src="state_monthly_ensemble.js?v=20261121-rollover-1"></script>'
 NAV_ANCHOR='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">Ensembles</button>'
 NAV_BUTTON='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'state-monthly-ensemble\')">Monatsausblick</button>'
 MARKER='<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -->'
@@ -33,6 +33,7 @@ NEW_SELECTORS=PARAM_SELECTOR+'''    <div class="control-group">
       <label for="stateMonthlyPeriod">Zeitraum</label>
       <select id="stateMonthlyPeriod">
         <option value="month" selected>Laufender Monat</option>
+        <option value="next_month" disabled>Folgemonat (noch keine Prognose)</option>
         <option value="season">Meteorologische Jahreszeit</option>
         <option value="year">Laufendes Jahr</option>
       </select>
@@ -165,6 +166,13 @@ def patch_index(text: str, core_source: str = "") -> str:
         if METRIC_ANCHOR not in text:
             raise RuntimeError("Monatsausblick Darstellungsanker für Klimareferenz fehlt")
         text=text.replace(METRIC_ANCHOR,REFERENCE_SELECTOR+METRIC_ANCHOR,1)
+
+    if 'value="next_month"' not in text:
+        text,count=re.subn(r'(<select\s+id="stateMonthlyPeriod"[^>]*>)(.*?)(</select>)',
+            lambda m:m.group(1)+m.group(2).rstrip()+'\n        <option value="next_month" disabled>Folgemonat (noch keine Prognose)</option>\n      '+m.group(3),
+            text,count=1,flags=re.DOTALL)
+        if count!=1:
+            raise RuntimeError("Monatsausblick Zeitraum-Auswahl fehlt")
 
     # Existing published panel: insert the third selector option once.
     # The original static HTML is also upgraded by this idempotent patch.

@@ -21,6 +21,14 @@ class DuettTests(unittest.TestCase):
             for day in dates for stamp in duett.hour_keys(day)
         ) + "</html>"
 
+    def test_no_first_day_returns_empty_not_zero(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(duett, "get", return_value=b'<html></html>'):
+            payload = duett.build(today=date(2026, 12, 2), previous=None, work=Path(tmp))
+        self.assertEqual(payload['month'], '2026-12')
+        self.assertEqual(payload['dates'], [])
+        self.assertIsNone(payload['data_through'])
+        self.assertTrue(all(r['daily']==[] and r['running']==[] for r in payload['regions'].values()))
+
     def test_index_requires_exact_1km_sdu_file_and_latest_revision(self):
         html = self.listing([date(2026, 11, 1)])
         html += '<a href="SDU_duett_1km_DE_60min_202611010050_009a.nc">NEW</a>'
@@ -28,6 +36,12 @@ class DuettTests(unittest.TestCase):
         listing = duett.source_index(html, "202611")
         self.assertEqual(len(listing), 24)
         self.assertTrue(listing["202611010050"].endswith("_009a.nc"))
+
+    def test_partial_listing_keeps_verified_observations(self):
+        previous = {"schema_version":1,"forecast":False,"month":"2026-11","data_through":"2026-11-03","dates":["2026-11-01","2026-11-02","2026-11-03"],"regions":{r:{"daily":[2,3,4]} for r in duett.REGIONS}}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(duett,"get",return_value=self.listing([date(2026,11,1),date(2026,11,2)]).encode()):
+            payload=duett.build(today=date(2026,11,4),previous=previous,work=Path(tmp))
+        self.assertEqual(payload['data_through'],'2026-11-03')
 
     def test_incomplete_hour_blocks_day_not_zero(self):
         html = self.listing([date(2026, 11, 1), date(2026, 11, 3)])

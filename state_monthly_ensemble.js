@@ -58,13 +58,13 @@ function modelFreshness(m){
   const age=runAgeHours(m?.run);
   return age===null?"Laufalter unbekannt":age>24?`veraltet (${Math.round(age)} h)`:(m.retained?"älterer Lauf (API-Störung)":"");
 }
-function freshnessWarning(doc,models,complete=false){
+function freshnessWarning(doc,models,complete=false,preview=false){
   const warnings=[],generated=runAgeHours(doc?.generated_at);
   if(generated===null)warnings.push("Erstellungszeit unbekannt");
   else if(generated>24)warnings.push(`Datensatz veraltet (${Math.round(generated)} h)`);
   if(!complete){
     const missing=MODEL_ORDER.filter(k=>!models?.[k]);
-    if(missing.length)warnings.push(`${missing.length} Modelle fehlen: ${missing.map(k=>MODEL_LABELS[k]).join(", ")}`);
+    if(missing.length&&!preview)warnings.push(`${missing.length} Modelle fehlen: ${missing.map(k=>MODEL_LABELS[k]).join(", ")}`);
     for(const k of MODEL_ORDER){
       if(!models?.[k])continue;
       const issue=modelFreshness(models[k]);
@@ -126,12 +126,37 @@ function validOldReference(kind,doc){
   });
 }
 function hydroMode(){return selectedParameter()!=="temperature";}
-function parameterDoc(){return hydro[selectedParameter()]||null;}
+function monthKey(doc){return doc?.year&&doc?.month?`${doc.year}-${String(doc.month).padStart(2,"0")}`:null;}
+function calendarMonthKey(today=new Date(),offset=0){
+  const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Berlin",year:"numeric",month:"2-digit"}).formatToParts(today);
+  const year=Number(parts.find(p=>p.type==="year").value),month=Number(parts.find(p=>p.type==="month").value);
+  const target=new Date(Date.UTC(year,month-1+offset,1));
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth()+1).padStart(2,"0")}`;
+}
+let lastCalendarMonth=calendarMonthKey();
+function checkCalendarMonth(){
+  const month=calendarMonthKey();
+  if(lastCalendarMonth===month)return false;
+  lastCalendarMonth=month;
+  const period=el("stateMonthlyPeriod");if(period)period.value="month";
+  return true;
+}
+function activeMonthDoc(root,period="month",today=new Date()){
+  if(!root)return null;
+  if(period==="next_month"){
+    const preview=root.next_month;
+    return monthKey(preview)===calendarMonthKey(today,1)&&preview?.models_order?.length?preview:null;
+  }
+  return monthKey(root.next_month)===calendarMonthKey(today)?root.next_month:root;
+}
+function temperatureDoc(){return activeMonthDoc(data,selectedPeriod());}
+function parameterDoc(){return activeMonthDoc(hydro[selectedParameter()],selectedPeriod());}
+function effectivePeriod(){return selectedPeriod()==="next_month"?"month":selectedPeriod();}
 function paramConfig(){return HYDRO_CONFIG[selectedParameter()]||{label:"Temperatur",unit:"°C",source:"DWD HYRAS-DE-TAS"};}
 function historicalMonthNormal(param,reg){
   const normals=oldReferenceSelected()?oldReferences.monthly:monthlyNormals;
   if(!normals||!HYDRO_CONFIG[param])return null;
-  const doc=hydro[param];
+  const doc=parameterDoc();
   const key=String(doc?.month||"").padStart(2,"0");
   const raw=normals.months?.[key]?.[param]?.[reg]?.month_total;
   const value=num(raw);
@@ -177,7 +202,8 @@ function selectedPeriod(){return el("stateMonthlyPeriod")?.value||"month";}
 function selectedMetric(){return el("stateMonthlyMetric")?.value||"absolute";}
 function periodDates(){
   if(hydroMode())return parameterDoc()?.dates||[];
-  return data?.periods?.[selectedPeriod()]?.dates|| (selectedPeriod()==="month"?data?.dates:[])||[];
+  const doc=temperatureDoc(),period=effectivePeriod();
+  return doc?.periods?.[period]?.dates|| (period==="month"?doc?.dates:[])||[];
 }
 function labels(){return periodDates().map(dateShort);}
 function temperatureRunning(r){
@@ -202,10 +228,10 @@ function temperatureNormal(r){
 function region(){
   const name=el("stateMonthlyRegion")?.value||"Deutschland";
   if(hydroMode())return parameterDoc()?.regions?.[name]||null;
-  const reg=data?.regions?.[name]||null;
+  const doc=temperatureDoc(),reg=doc?.regions?.[name]||null;
   if(!reg)return null;
-  return data?.periods ? reg.periods?.[selectedPeriod()]||null :
-    (selectedPeriod()==="month"?reg:null);
+  return doc?.periods ? reg.periods?.[effectivePeriod()]||null :
+    (effectivePeriod()==="month"?reg:null);
 }
 function palette(model){
   return model==="gefs"?{main:"#111827",control:"#12b76a",min:"#3155a5",max:"#c0362c"}:
@@ -240,26 +266,27 @@ function chartBounds(datasets){
   return{min,max};
 }
 function bandDataset(label,dataArr,bg,fill,target,borderWidth=0){return{label,data:dataArr,borderColor:"rgba(0,0,0,0)",backgroundColor:bg,borderWidth,pointRadius:0,fill:fill?target:false,tension:.15,spanGaps:false};}
+function isolatedRadius(values){return values.filter(v=>num(v)!==null).length===1?3:0;}
 function datasetsFor(modelKey,r){
-  const m=r.models?.[modelKey];
-  if(!m)return selectedParameter()==="precipitation"?[
-    {label:"Beobachtete Monatssumme",data:r.observed_running||[],borderColor:"#f57c00",borderWidth:2.2,pointRadius:0,spanGaps:false},
-    ...hydroReferenceDatasets()
-  ]:[];
-  const s=m.stats||{},p=palette(modelKey),obs=r.observed_running||[],clim=temperatureRunning(r);
+  const m=r.models?.[modelKey],obs=r.observed_running||[],clim=temperatureRunning(r);
+  const base=[
+    {label:hydroMode()?"Beobachtete Monatssumme":"Beobachtetes laufendes Monatsmittel",data:obs,borderColor:"#f57c00",backgroundColor:"#f57c00",borderWidth:2.2,pointRadius:isolatedRadius(obs),tension:.08,spanGaps:false},
+    ...(!hydroMode()?((oldReferenceSelected()?readyReference(clim):clim.some(v=>num(v)!==null))?[{label:`Klimamittel ${referenceLabel()} (${fmt(temperatureNormal(r),2)} °C)`,data:clim,borderColor:"#b044d6",borderWidth:2,borderDash:[11,4,2,4],pointRadius:0,tension:.08,spanGaps:false,isTemperatureClimate:true}]:[]):hydroReferenceDatasets())
+  ];
+  if(!m||!m.forecast_through)return base;
+  const s=m.stats||{},p=palette(modelKey);
   const p05=connectForecast(s.p05,r),p95=connectForecast(s.p95,r),p20=connectForecast(s.p20,r),p80=connectForecast(s.p80,r);
   const min=connectForecast(s.min,r),max=connectForecast(s.max,r),avg=connectForecast(s.mean,r),ctl=connectForecast(m.control,r);
   return[
-    {label:hydroMode()?"Beobachtete Monatssumme":"Beobachtetes laufendes Monatsmittel",data:obs,borderColor:"#f57c00",backgroundColor:"#f57c00",borderWidth:2.2,pointRadius:0,tension:.08,spanGaps:false},
-    ...(!hydroMode()?((oldReferenceSelected()?readyReference(clim):clim.some(v=>num(v)!==null))?[{label:`Klimamittel ${referenceLabel()} (${fmt(temperatureNormal(r),2)} °C)`,data:clim,borderColor:"#b044d6",borderWidth:2,borderDash:[11,4,2,4],pointRadius:0,tension:.08,spanGaps:false,isTemperatureClimate:true}]:[]):hydroReferenceDatasets()),
+    ...base,
     bandDataset("5–95 % Untergrenze",p05,"rgba(120,120,120,0)",false,false),
     bandDataset("5–95 %",p95,"rgba(120,120,120,.18)",true,"-1"),
     bandDataset("20–80 % Untergrenze",p20,"rgba(90,90,90,0)",false,false),
     bandDataset("20–80 %",p80,"rgba(90,90,90,.26)",true,"-1"),
-    {label:"Minimum",data:min,borderColor:p.min,borderWidth:1.4,borderDash:[6,3],pointRadius:0,tension:.12,spanGaps:false},
-    {label:"Maximum",data:max,borderColor:p.max,borderWidth:1.4,borderDash:[6,3],pointRadius:0,tension:.12,spanGaps:false},
-    {label:"Ensemble-Mittel",data:avg,borderColor:p.main,borderWidth:2.4,pointRadius:0,tension:.12,spanGaps:false},
-    {label:"Kontroll-/Basislauf",data:ctl,borderColor:p.control,borderWidth:2,pointRadius:0,tension:.12,spanGaps:false}
+    {label:"Minimum",data:min,borderColor:p.min,borderWidth:1.4,borderDash:[6,3],pointRadius:isolatedRadius(min),tension:.12,spanGaps:false},
+    {label:"Maximum",data:max,borderColor:p.max,borderWidth:1.4,borderDash:[6,3],pointRadius:isolatedRadius(max),tension:.12,spanGaps:false},
+    {label:"Ensemble-Mittel",data:avg,borderColor:p.main,borderWidth:2.4,pointRadius:isolatedRadius(avg),tension:.12,spanGaps:false},
+    {label:"Kontroll-/Basislauf",data:ctl,borderColor:p.control,borderWidth:2,pointRadius:isolatedRadius(ctl),tension:.12,spanGaps:false}
   ];
 }
 // Every ensemble quantile, control run and observation must be compared with
@@ -340,6 +367,7 @@ function renderLegend(){
   n.innerHTML=`<span><i class="sm-swatch obs"></i>Beobachtung</span>${climateLegend}<span><i class="sm-band outer"></i>5–95 %</span><span><i class="sm-band inner"></i>20–80 %</span><span><i class="sm-swatch avg"></i>Ensemble-Mittel</span><span><i class="sm-swatch ctl"></i>Kontroll-/Basislauf</span>`;
 }
 function render(){
+  checkCalendarMonth();
   if(!data&&!parameterDoc())return;
   syncParameterControls();
   destroyCharts();
@@ -354,13 +382,13 @@ function render(){
     return;
   }
   const labs=labels();
-  const observedOnly=selectedParameter()==="precipitation"&&!Object.keys(r.models||{}).length;
+  const observedOnly=r.observed_through&&!Object.values(r.models||{}).some(m=>m.forecast_through);
   MODEL_ORDER.forEach(k=>{
-    const canvas=el("stateMonthlyChart_"+k),card=canvas?.closest(".state-monthly-card"),m=r.models?.[k];if(!canvas||!card)return;
+    const canvas=el("stateMonthlyChart_"+k),card=canvas?.closest(".state-monthly-card"),m=r.models?.[k]?.forecast_through?r.models[k]:null;if(!canvas||!card)return;
     const obsCard=observedOnly&&k===MODEL_ORDER[0];
-    card.hidden=!m&&!obsCard;const title=card.querySelector("h3");if(title)title.textContent=obsCard?"Beobachtete Monatssumme":MODEL_LABELS[k]||k;
+    card.hidden=!m&&!obsCard;const title=card.querySelector("h3");if(title)title.textContent=obsCard?(hydroMode()?"Beobachtete Monatssumme":"Beobachtetes Periodenmittel"):MODEL_LABELS[k]||k;
     const meta=card.querySelector(".state-monthly-model-meta");
-    if(meta)meta.textContent=m?`${m.member_count} Member · Prognose bis ${dateShort(m.forecast_through)} · ${m.support_points} Stützpunkte · Lauf ${fmtRun(m.run)}${modelFreshness(m)?" · "+modelFreshness(m):""}`:obsCard?"Nur HYRAS-Beobachtungen":"nicht verfügbar";
+    if(meta)meta.textContent=m?`${m.member_count} Member · Prognose bis ${dateShort(m.forecast_through)} · ${m.support_points} Stützpunkte · Lauf ${fmtRun(m.run)}${modelFreshness(m)?" · "+modelFreshness(m):""}`:obsCard?`Nur ${paramConfig().source}-Beobachtungen`:"nicht verfügbar";
     if(m||obsCard){
       const datasets=displayDatasets(k,r);
       charts[k]=new Chart(canvas,{type:"line",data:{labels:labs,datasets},options:chartOptions(chartBounds(datasets))});
@@ -378,7 +406,7 @@ function renderHeader(r){
     const normal=historicalMonthNormal(selectedParameter(),reg);
     const normalText=normal===null?`Klimareferenz ${referenceLabel()} noch nicht verfügbar`:`${referenceLabel()}: Monatsgesamtwert ${fmt(normal,1)} ${config.unit}`;
     if(info){
-      info.innerHTML=`<strong>${config.source} bis ${dateShort(r.observed_through)}</strong><span>Bisher ${fmt(r.observed_current,1)} ${config.unit}</span><span>Beobachtung + Ensemblefortschreibung</span><span>${normalText}</span>`;
+      info.innerHTML=(r.observed_through?`<strong>${config.source} bis ${dateShort(r.observed_through)}</strong><span>Bisher ${fmt(r.observed_current,1)} ${config.unit}</span><span>Beobachtung + Ensemblefortschreibung</span>`:`<strong>Noch keine Beobachtungen – reine Ensemble-Prognose</strong>`)+`<span>${normalText}</span>`;
       if(hydroMode()){
         const daily=dailyHydroRunning(reg);
         const index=(d.dates||[]).indexOf(r.observed_through);
@@ -417,11 +445,11 @@ function renderHeader(r){
       info.appendChild(chip);
     }
     const retained=Object.values(r.models||{}).filter(m=>m.retained).length;
-    const complete=selectedParameter()==="precipitation"&&d.observation_complete;
+    const complete=!!d.observation_complete,preview=selectedPeriod()==="next_month";
     const daySeries=dailyHydroRunning(reg),dayAvailable=oldReferenceSelected()?readyReference(daySeries):daySeries?.some(v=>v!=null);
     const refPending=oldReferenceSelected()&&(!dayAvailable||normal===null);
-    const freshness=freshnessWarning(d,r.models,complete);
-    setStatus(`Datenstand ${config.source}: ${d.observation_data_through} · Generiert ${label} · ${complete?"Monat vollständig beobachtet":`${Object.keys(r.models||{}).length}/4 Ensemblemodelle`}${retained?` · ${retained} aus vorherigen Läufen`:""}${qcText}${refPending?` · Klimareferenz ${referenceLabel()} noch nicht vollständig verfügbar`:""}${freshness}`,!freshness&&!refPending&&(complete||Object.keys(r.models||{}).length===4&&!qcWarning&&!retained)?"ok":"warn");
+    const freshness=freshnessWarning(d,r.models,complete,preview);
+    setStatus(`${d.observation_data_through?`Datenstand ${config.source}: ${d.observation_data_through}`:"Noch keine Beobachtungen"} · Generiert ${label} · ${complete?"Monat vollständig beobachtet":`${Object.keys(r.models||{}).length}/4 Ensemblemodelle`}${preview?" · Reichweite je Modell unterschiedlich":""}${retained?` · ${retained} aus vorherigen Läufen`:""}${qcText}${refPending?` · Klimareferenz ${referenceLabel()} noch nicht vollständig verfügbar`:""}${freshness}`,!freshness&&!refPending&&(complete||(preview||Object.keys(r.models||{}).length===4)&&!qcWarning&&!retained)?"ok":"warn");
     const note=el("stateMonthlyDataNote");
     if(note){
       const refNote=dayAvailable?
@@ -441,12 +469,13 @@ function renderHeader(r){
   const note=el("stateMonthlyDataNote");
   if(note)note.textContent=`Beobachtungen und Klimareferenz: DWD HYRAS-DE-TAS, 1-km-Flächenmittel. Ensembleprognosen aus räumlich verteilten Modellstützpunkten. Temperatur-Abweichung gegen das bis zum jeweiligen Tag aufgelaufene Klimamittel ${referenceLabel()}.`;
 
-  const period=selectedPeriod(),p=data.periods?.[period];
-  const month=MONTHS[(data.month||1)-1]||String(data.month);
-  let periodLabel=month+" "+data.year;
-  if(period==="year")periodLabel="Jahr "+data.year;
+  const doc=temperatureDoc();if(!doc)return;
+  const period=effectivePeriod(),p=doc.periods?.[period];
+  const month=MONTHS[(doc.month||1)-1]||String(doc.month);
+  let periodLabel=month+" "+doc.year;
+  if(period==="year")periodLabel="Jahr "+doc.year;
   if(period==="season"){
-    periodLabel=(p?.label||"Jahreszeit")+" "+data.year;
+    periodLabel=(p?.label||"Jahreszeit")+" "+doc.year;
     if(p&&p.end_date.slice(0,4)!==p.start_date.slice(0,4)){
       periodLabel=(p.label||"Winter")+" "+p.start_date.slice(0,4)+"/"+p.end_date.slice(2,4);
     }
@@ -457,12 +486,12 @@ function renderHeader(r){
   const calculatedDiff=reference!=null&&num(r.observed_current)!=null?r.observed_current-reference:null;
   const diff=oldReferenceSelected()?calculatedDiff:num(r.observed_anomaly_to_date)??calculatedDiff;
   const climateFinal=temperatureNormal(r);
-  const info=el("stateMonthlyInfo");if(info)info.innerHTML=`<strong>HYRAS bis ${dateShort(r.observed_through)}</strong><span>bisheriges Periodenmittel ${fmt(r.observed_current,2)} °C</span><span>Klima ${referenceLabel()} bis dahin ${fmt(reference,2)} °C</span><span>Abweichung ${diff==null?"–":`${diff>=0?"+":""}${fmt(diff,2)} K`}</span><span>Klimamittel gesamte Periode ${fmt(climateFinal,2)} °C</span>`;
-  const gen=new Date(data.generated_at),generated=Number.isNaN(gen.getTime())?data.generated_at:gen.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+  const info=el("stateMonthlyInfo");if(info)info.innerHTML=(r.observed_through?`<strong>HYRAS bis ${dateShort(r.observed_through)}</strong><span>bisheriges Periodenmittel ${fmt(r.observed_current,2)} °C</span><span>Klima ${referenceLabel()} bis dahin ${fmt(reference,2)} °C</span><span>Abweichung ${diff==null?"–":`${diff>=0?"+":""}${fmt(diff,2)} K`}</span>`:`<strong>Noch keine Beobachtungen – reine Ensemble-Prognose</strong>`)+`<span>Klimamittel gesamte Periode ${fmt(climateFinal,2)} °C</span>`;
+  const gen=new Date(doc.generated_at),generated=Number.isNaN(gen.getTime())?doc.generated_at:gen.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
   const partial=p&&p.complete_reference_period===false?" · Winter startet mangels Vorjahresdaten erst am 01.01.":"";
   const refPending=oldReferenceSelected()&&climateFinal===null;
-  const freshness=freshnessWarning(data,r.models);
-  setStatus(`Datenstand HYRAS ${data.observation_data_through} · Ensemble-Daten erzeugt ${generated} · ${Object.keys(r.models||{}).length}/4 Modelle verfügbar${partial}${refPending?` · Klimareferenz ${referenceLabel()} noch nicht verfügbar`:""}${freshness}`,Object.keys(r.models||{}).length===4&&!partial&&!refPending&&!freshness?"ok":"warn");
+  const preview=selectedPeriod()==="next_month",complete=r.observed_through===dates[dates.length-1],available=Object.fromEntries(Object.entries(r.models||{}).filter(([,m])=>m.forecast_through)),freshness=freshnessWarning(doc,available,complete,preview);
+  setStatus(`${r.observed_through?`Datenstand HYRAS ${r.observed_through}`:"Noch keine Beobachtungen"} · Ensemble-Daten erzeugt ${generated} · ${complete?"Periode vollständig beobachtet":`${Object.keys(available).length}/4 Modelle verfügbar`}${preview?" · Reichweite je Modell unterschiedlich":""}${partial}${refPending?` · Klimareferenz ${referenceLabel()} noch nicht verfügbar`:""}${freshness}`,(complete||preview||Object.keys(available).length===4)&&!partial&&!refPending&&!freshness?"ok":"warn");
 }
 function applyView(){
   const view=el("stateMonthlyView")?.value||"four",grid=el("stateMonthlyGrid");if(!grid)return;
@@ -483,7 +512,6 @@ async function load(force=false){
 async function fetchHydro(param,force=false){
   const cfg=HYDRO_CONFIG[param];
   if(!cfg)return null;
-  if(force)hydro[param]=null;
   if(hydroLoading[param])return hydroLoading[param];
   const task=(async()=>{
     let last=null;
@@ -495,10 +523,7 @@ async function fetchHydro(param,force=false){
         const json=await response.json();
         if(json.schema_version!==1||json.parameter!==param||!Array.isArray(json.dates)||!json.regions)throw new Error("Ungültiges Datenformat");
         if(json.unit!==cfg.unit)throw new Error("Unerwartete Einheit: "+json.unit);
-        const now=new Date();
-        const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Berlin",year:"numeric",month:"2-digit"}).formatToParts(now);
-        const currentMonth=parts.find(p=>p.type==="year").value+"-"+parts.find(p=>p.type==="month").value;
-        const datasetMonth=`${json.year}-${String(json.month).padStart(2,"0")}`;
+        const currentMonth=calendarMonthKey(),datasetMonth=monthKey(activeMonthDoc(json));
         if(datasetMonth!==currentMonth)throw new Error("Letzter Datenstand "+datasetMonth+" (aktueller Monat "+currentMonth+")");
         hydro[param]=json;
         delete hydroErrors[param];
@@ -625,16 +650,22 @@ async function fetchOldReference(kind,force=false){
 }
 function syncParameterControls(){
   const monthly=hydroMode(),period=el("stateMonthlyPeriod"),metric=el("stateMonthlyMetric");
-  const view=el("stateMonthlyView"),models=monthly?region()?.models:null;
+  if(period){
+    const root=monthly?hydro[selectedParameter()]:data,preview=activeMonthDoc(root,"next_month");
+    const current=activeMonthDoc(root);
+    period.querySelectorAll("option").forEach(option=>{
+      option.disabled=option.value==="next_month"?!preview&&(!!root||!!hydroErrors[selectedParameter()]||period.value!=="next_month"):monthly&&option.value!=="month";
+      if(option.value==="month"&&current?.month)option.textContent=`${MONTHS[current.month-1]} ${current.year} (${monthKey(current)===calendarMonthKey()?"laufend":"zuletzt verfügbar"})`;
+      if(option.value==="next_month")option.textContent=preview?`${MONTHS[preview.month-1]} ${preview.year} (Vorschau)`:"Folgemonat (noch keine Prognose)";
+    });
+    if(period.querySelector(`option[value="${period.value}"]`)?.disabled)period.value="month";
+  }
+  const view=el("stateMonthlyView"),r=region(),models=r?Object.fromEntries(Object.entries(r.models||{}).filter(([,m])=>m.forecast_through)):null;
   if(view){
     view.querySelectorAll("option").forEach(option=>{
       option.disabled=!!models&&option.value!=="four"&&!models[option.value];
     });
     if(view.querySelector(`option[value="${view.value}"]`)?.disabled)view.value="four";
-  }
-  if(period){
-    period.querySelectorAll("option").forEach(option=>{option.disabled=monthly&&option.value!=="month";});
-    if(monthly)period.value="month";
   }
   if(metric){
     const regionName=el("stateMonthlyRegion")?.value||"Deutschland";
@@ -688,7 +719,7 @@ function loadReference(force=false){
 function onParameterChange(){
   syncParameterControls();
   render();
-  if(hydroMode()&&!parameterDoc())fetchHydro(selectedParameter()).catch(()=>{});
+  if(hydroMode()&&!hydro[selectedParameter()])fetchHydro(selectedParameter()).catch(()=>{});
   loadReference();
 }
 function onReferenceChange(){syncParameterControls();render();loadReference();}
@@ -698,10 +729,11 @@ function reloadActive(){
   }else load(true);
   loadReference(true);
 }
-function filename(ext){const reg=(el("stateMonthlyRegion")?.value||"Deutschland").replace(/[^a-z0-9äöüß_-]+/gi,"_");const d=hydroMode()?parameterDoc():data;return `Ensemble_${selectedParameter()}_${selectedPeriod()}_${selectedMetric()}_${selectedReference()}_${d?.year||""}_${String(d?.month||"").padStart(2,"0")}_${reg}.${ext}`;}
+function filename(ext){const reg=(el("stateMonthlyRegion")?.value||"Deutschland").replace(/[^a-z0-9äöüß_-]+/gi,"_");const d=hydroMode()?parameterDoc():temperatureDoc();return `Ensemble_${selectedParameter()}_${selectedPeriod()}_${selectedMetric()}_${selectedReference()}_${d?.year||""}_${String(d?.month||"").padStart(2,"0")}_${reg}.${ext}`;}
 function saveBlob(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);}
 async function withExportControlsLocked(capture){
   if(exporting)return;
+  if(checkCalendarMonth())render();
   exporting=true;
   const controls=["stateMonthlyRegion","stateMonthlyParameter","stateMonthlyPeriod","stateMonthlyMetric","stateMonthlyReference","stateMonthlyView","stateMonthlyReload","stateMonthlyPng","stateMonthlyPdf"].map(el).filter(Boolean);
   const disabled=controls.map(control=>control.disabled);
@@ -716,6 +748,10 @@ async function exportPng(){return withExportControlsLocked(async()=>{try{if(!win
 async function exportPdf(){return withExportControlsLocked(async()=>{try{if(!window.html2canvas||!window.jspdf?.jsPDF)throw new Error("PDF-Bibliothek fehlt");const name=filename("pdf"),c=await window.captureDashboardWithWhiteBackground(el("stateMonthlyExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false}),J=window.jspdf.jsPDF,p=new J({orientation:"landscape",unit:"mm",format:"a4"}),pw=p.internal.pageSize.getWidth(),ph=p.internal.pageSize.getHeight(),m=7,s=Math.min((pw-2*m)/c.width,(ph-2*m)/c.height),w=c.width*s,h=c.height*s;p.addImage(c.toDataURL("image/jpeg",.93),"JPEG",(pw-w)/2,(ph-h)/2,w,h);p.save(name);}catch(e){alert("PDF konnte nicht erstellt werden: "+e.message);}});}
 function mount(){
   if(!el("state-monthly-ensemble"))return;
+  const period=el("stateMonthlyPeriod");
+  if(period&&!period.querySelector('option[value="next_month"]')){
+    const option=document.createElement("option");option.value="next_month";option.textContent="Folgemonat";option.disabled=true;period.appendChild(option);
+  }
   // Insert the control in older cached index documents too.
   if(!el("stateMonthlyReference")){
     const metric=el("stateMonthlyMetric"),group=metric?.closest(".control-group");
@@ -734,7 +770,10 @@ function mount(){
   el("stateMonthlyMetric")?.addEventListener("change",render);
   el("stateMonthlyReload")?.addEventListener("click",reloadActive);el("stateMonthlyPng")?.addEventListener("click",exportPng);el("stateMonthlyPdf")?.addEventListener("click",exportPdf);
   const panel=el("state-monthly-ensemble");
-  new MutationObserver(()=>{if(panel.classList.contains("active")){if(!data)load(false);window.setTimeout(()=>Object.values(charts).forEach(c=>c?.resize()),80);}}).observe(panel,{attributes:true,attributeFilter:["class"]});
+  const refreshCalendar=()=>{if(!exporting&&checkCalendarMonth()){render();reloadActive();}};
+  new MutationObserver(()=>{if(panel.classList.contains("active")){refreshCalendar();if(!data)load(false);window.setTimeout(()=>Object.values(charts).forEach(c=>c?.resize()),80);}}).observe(panel,{attributes:true,attributeFilter:["class"]});
+  window.setInterval(()=>{if(panel.classList.contains("active"))refreshCalendar();},30000);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden&&panel.classList.contains("active"))refreshCalendar();});
   syncParameterControls();
   if(panel.classList.contains("active"))load(false);
 }

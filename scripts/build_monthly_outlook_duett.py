@@ -143,9 +143,12 @@ def build(*, today: date, previous: dict | None, work: Path, workers: int = 8) -
     month = target_day.strftime("%Y-%m")
     index = source_index(get(BASE, timeout=120).decode("utf-8", errors="replace"), target_day.strftime("%Y%m"))
     available = consecutive_days(index, target_day)
-    if not available:
-        raise RuntimeError(f"No complete DUETT daily sunshine files in {month}")
     existing_days, daily = validate_previous(previous or {}, month)
+    if len(available) < len(existing_days) or not available:
+        # No complete first day yet is a legitimate observation-free outlook.
+        # Keep verified observations if a temporary listing omission occurs.
+        print(f"Incomplete DUETT listing in {month}; retaining {len(existing_days)} verified days", flush=True)
+        available = existing_days
     # Only reuse prior days fully within the currently complete contiguous range.
     keep = 0
     while keep < len(existing_days) and keep < len(available) and existing_days[keep] == available[keep]:
@@ -185,7 +188,7 @@ def build(*, today: date, previous: dict | None, work: Path, workers: int = 8) -
         "source": "DWD DUETT SDU 1km synoptic 60min (satellite + stations)",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "month": month,
-        "data_through": dates[-1],
+        "data_through": dates[-1] if dates else None,
         "dates": dates,
         "days_in_month": calendar.monthrange(target_day.year, target_day.month)[1],
         "regions_order": list(REGIONS),

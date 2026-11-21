@@ -14,10 +14,12 @@ import math
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from build_state_monthly_ensemble_outlook import (
     MODEL_CONFIG, REGION_ORDER, build_support_points, collect_model,
-    load_geometries, merge_running_outlook, running_sum,
+    load_geometries, merge_running_outlook, running_sum, outlook_months,
+    month_observations, empty_hydro_observations, month_forecast_days, merge_month_caches,
 )
 
 
@@ -27,15 +29,15 @@ def validate_observed(doc: dict[str, Any]) -> tuple[list[str], list[str]]:
     if doc.get("unit") != "mm":
         raise ValueError("HYRAS precipitation must be in millimetres")
     observed_dates = doc.get("dates")
-    if not isinstance(observed_dates, list) or not observed_dates:
-        raise ValueError("No observed HYRAS daily dates available")
+    if not isinstance(observed_dates, list):
+        raise ValueError("Invalid observed HYRAS daily dates")
     month = str(doc.get("month"))
     if len(month) != 7 or any(day[:7] != month for day in observed_dates):
         raise ValueError("Observed days span more than one month")
     start = date.fromisoformat(month + "-01")
     expected = [(start.fromordinal(start.toordinal() + i)).isoformat()
                 for i in range(len(observed_dates))]
-    if observed_dates != expected or observed_dates[-1] != doc.get("data_through"):
+    if observed_dates != expected or (observed_dates[-1] if observed_dates else None) != doc.get("data_through"):
         raise ValueError("HYRAS daily dates are not contiguous")
     if set(doc.get("regions", {})) != set(REGION_ORDER):
         raise ValueError("Not all 17 regions have precipitation observations")
@@ -48,14 +50,15 @@ def validate_observed(doc: dict[str, Any]) -> tuple[list[str], list[str]]:
     return observed_dates, [*REGION_ORDER]
 
 
-def build_payload(doc: dict[str, Any], model_data: dict[str, dict], support: dict) -> dict:
-    observed_dates, regions_order = validate_observed(doc)
-    year, month = map(int, doc["month"].split("-"))
+def build_payload(doc: dict[str, Any], model_data: dict[str, dict], support: dict, *, target=None) -> dict:
+    _, regions_order = validate_observed(doc)
+    year, month = target or tuple(map(int, doc["month"].split("-")))
+    observed_dates, daily = month_observations(doc, year, month)
     full_dates = [date(year, month, d).isoformat()
                   for d in range(1, calendar.monthrange(year, month)[1] + 1)]
     regions = {}
     for region in regions_order:
-        observed_values = doc["regions"][region]["daily"]
+        observed_values = daily[region]
         run = running_sum(observed_values)
         curves = {}
         for key, mdata in model_data.items():
@@ -70,9 +73,9 @@ def build_payload(doc: dict[str, Any], model_data: dict[str, dict], support: dic
                 ),
             }
         regions[region] = {
-            "observed_through": observed_dates[-1],
+            "observed_through": observed_dates[-1] if observed_dates else None,
             "observed_running": [round(v, 3) for v in run] + [None] * (len(full_dates) - len(run)),
-            "observed_current": round(run[-1], 3),
+            "observed_current": round(run[-1], 3) if run else None,
             "models": curves,
         }
     return {
@@ -87,7 +90,7 @@ def build_payload(doc: dict[str, Any], model_data: dict[str, dict], support: dic
         "regions_order": regions_order,
         "models_order": list(model_data),
         "observation_source": "DWD HYRAS-DE-PRE 1 km",
-        "observation_data_through": observed_dates[-1],
+        "observation_data_through": observed_dates[-1] if observed_dates else None,
         "climatology_available": False,
         "forecast_source": "Open-Meteo Ensemble API",
         "method": {
@@ -111,7 +114,8 @@ def usable_run(value, now):
 def usable_curve(curve, payload):
     """Require a forecast immediately after the observed period, never a gap."""
     try:
-        index = payload["dates"].index(payload["observation_data_through"]) + 1
+        cutoff = payload["observation_data_through"]
+        index = payload["dates"].index(cutoff) + 1 if cutoff else 0
         dates = payload["dates"]
         end = dates.index(curve["forecast_through"])
         if index > end or curve["forecast_from"] != dates[index] or curve["member_count"] <= 0:
@@ -130,11 +134,11 @@ def usable_curve(curve, payload):
         return False
 
 
-def build_resilient_payload(observed, fresh, cached, previous, errors, now):
-    payload = build_payload(observed, {}, {})
+def build_resilient_payload(observed, fresh, cached, previous, errors, now, *, target=None):
+    payload = build_payload(observed, {}, {}, target=target)
     if (isinstance(previous, dict) and previous.get("parameter") == "precipitation"
             and isinstance(previous.get("observation_data_through"), str)
-            and previous["observation_data_through"] > payload["observation_data_through"]):
+            and previous["observation_data_through"] > (payload["observation_data_through"] or (date.fromisoformat(payload['dates'][0])-timedelta(days=1)).isoformat())):
         raise ValueError("HYRAS observation date regressed; previous publication preserved")
     if not isinstance(cached, dict):
         cached = {}
@@ -148,7 +152,7 @@ def build_resilient_payload(observed, fresh, cached, previous, errors, now):
     retained = []
     for key in MODEL_CONFIG:
         candidates = []
-        for is_cached, source in ((False, fresh), (True, cached)):
+        for is_cached, source in ((False, fresh), (True, cached), (True, cached.get("__preview", {}))):
             model = source.get(key)
             if not isinstance(model, dict):
                 continue
@@ -156,7 +160,7 @@ def build_resilient_payload(observed, fresh, cached, previous, errors, now):
             if run is None and (is_cached or model.get("run") is not None):
                 continue
             try:
-                built = build_payload(observed, {key: model}, {})
+                built = build_payload(observed, {key: model}, {}, target=target)
                 curves = {r: built["regions"][r]["models"][key] for r in REGION_ORDER}
                 if all(usable_curve(c, payload) for c in curves.values()):
                     candidates.append((run or datetime.min.replace(tzinfo=timezone.utc), not is_cached, curves, model))
@@ -199,6 +203,25 @@ def build_resilient_payload(observed, fresh, cached, previous, errors, now):
     return payload, next_cache
 
 
+def build_precip_documents(observed, fresh, cached, previous, errors, now, today):
+    current, preview_target = outlook_months(today)
+    prev_preview = previous.get("next_month") if isinstance(previous, dict) else None
+    def previous_for(target):
+        for doc in (previous, prev_preview):
+            if isinstance(doc, dict) and (doc.get("year"), doc.get("month")) == target:
+                return doc
+        return None
+    payload, current_cache = build_resilient_payload(
+        observed, fresh, cached, previous_for(current), errors, now, target=current)
+    preview, preview_cache = build_resilient_payload(
+        observed, fresh, cached, previous_for(preview_target), {}, now, target=preview_target)
+    if preview["models_order"]:
+        # Limited lead time is expected in a preview, not an acquisition error.
+        preview["model_errors"] = {k: v for k, v in preview["model_errors"].items() if k in preview["models_order"]}
+        payload["next_month"] = preview
+    return payload, merge_month_caches(current_cache, preview_cache)
+
+
 def read_previous(path):
     if path is None or not path.exists():
         return None
@@ -211,33 +234,37 @@ def read_previous(path):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--observed", type=Path, required=True)
+    ap.add_argument("--observed", type=Path)
     ap.add_argument("--output", type=Path, required=True)
     ap.add_argument("--previous", type=Path)
     ap.add_argument("--cache", type=Path, help="Daily regional member cache, read and updated in place")
     ap.add_argument("--models", default=",".join(MODEL_CONFIG))
     ap.add_argument("--batch-size", type=int, default=8)
     args = ap.parse_args()
-    observed = json.loads(args.observed.read_text(encoding="utf-8"))
+    today = datetime.now(ZoneInfo("Europe/Berlin")).date()
+    observed = (json.loads(args.observed.read_text(encoding="utf-8"))
+                if args.observed and args.observed.is_file() else empty_hydro_observations(today, "mm"))
     validate_observed(observed)
     requested = [s.strip() for s in args.models.split(",") if s.strip()]
     if not requested or any(key not in MODEL_CONFIG for key in requested):
         raise ValueError("Unknown or empty model selection")
 
     forecasts, errors = {}, {}
-    complete = date.fromisoformat(observed["data_through"]).day == calendar.monthrange(*map(int, observed["month"].split("-")))[1]
-    support = {} if complete else build_support_points(load_geometries())
-    for key in (() if complete else requested):
+    support = build_support_points(load_geometries())
+    horizon = month_forecast_days(today, *outlook_months(today)[1])
+    for key in requested:
         try:
             forecasts[key] = collect_model(
-                key, support, args.batch_size, variable="precipitation", time_resolution="hourly")
+                key, support, args.batch_size, variable="precipitation", time_resolution="hourly", forecast_days=horizon)
             print(key, "Niederschlagsmember:", forecasts[key]["member_count"], flush=True)
         except Exception as exc:
             errors[key] = str(exc)
             print(key, "nicht verfügbar:", exc, flush=True)
     old_cache = read_previous(args.cache)
     cached = old_cache.get("models", {}) if isinstance(old_cache, dict) and old_cache.get("schema_version") == 1 else {}
-    payload, next_cache = build_resilient_payload(observed, forecasts, cached, read_previous(args.previous), errors, datetime.now(timezone.utc))
+    payload, next_cache = build_precip_documents(observed, forecasts, cached, read_previous(args.previous), errors, datetime.now(timezone.utc), today)
+    if not payload["models_order"] and not payload["observation_data_through"] and not payload.get("next_month"):
+        raise RuntimeError("No precipitation observations or valid forecasts")
     if not payload["models_order"] and not payload["observation_complete"]:
         print("No usable ensemble precipitation models available; publishing valid observations only", flush=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)

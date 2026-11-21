@@ -49,6 +49,27 @@ def month_forecast_days(today: date, year: int, month: int) -> int:
     return max(1, (date(year, month, calendar.monthrange(year, month)[1]) - today).days + 1)
 
 
+def next_month(year: int, month: int) -> tuple[int, int]:
+    return (year + 1, 1) if month == 12 else (year, month + 1)
+
+
+def outlook_months(today: date) -> tuple[tuple[int, int], tuple[int, int]]:
+    return (today.year, today.month), next_month(today.year, today.month)
+
+
+def month_observations(doc, year, month):
+    """Select a validated monthly observation file, without inventing days."""
+    if doc["month"] == f"{year:04d}-{month:02d}":
+        return doc["dates"], {r: doc["regions"][r]["daily"] for r in REGION_ORDER}
+    return [], {r: [] for r in REGION_ORDER}
+
+
+def empty_hydro_observations(today, unit, **metadata):
+    return {"schema_version": 1, "forecast": False, "unit": unit,
+            "month": today.strftime("%Y-%m"), "dates": [], "data_through": None,
+            "regions": {r: {"daily": []} for r in REGION_ORDER}, **metadata}
+
+
 def reserve_sunshine_request() -> None:
     global _SUNSHINE_NEXT_REQUEST
     with _SUNSHINE_API_LOCK:
@@ -127,7 +148,7 @@ def select_temperature_models(fresh: dict, cached: dict, observed_through: str, 
     selected, retained = {}, []
     for key in MODEL_CONFIG:
         candidates = []
-        for is_fresh, source in ((True, fresh), (False, cached)):
+        for is_fresh, source in ((True, fresh), (False, cached), (False, cached.get("__preview", {}))):
             model = source.get(key)
             if not isinstance(model, dict) or model.get("daily_variable") != "temperature_2m_mean":
                 continue
@@ -683,6 +704,8 @@ def period_definitions(year: int, month: int) -> dict[str, dict[str, Any]]:
 
 
 def observed_period(current: dict[str, Any], region: str, period_dates: list[str]) -> tuple[list[str], list[float]]:
+    if str(current["data_through"]) < period_dates[0]:
+        return [], []
     source = dict(zip(current.get("dates", []), current.get("regions", {}).get(region, [])))
     out_dates: list[str] = []
     out_values: list[float] = []
@@ -723,13 +746,13 @@ def merge_running_outlook(
     """
     if aggregation not in ("mean", "sum"):
         raise ValueError(f"Unknown aggregation: {aggregation}")
-    if not observed_dates or len(observed_dates) != len(observed_values):
-        raise ValueError("Observed dates and values must be nonempty and aligned")
+    if len(observed_dates) != len(observed_values):
+        raise ValueError("Observed dates and values must be aligned")
     if any(finite(v) is None for v in observed_values):
         raise ValueError("Observed series contains missing days")
     if aggregation == "sum" and any(float(v) < 0 for v in observed_values):
         raise ValueError("Observed accumulated quantity cannot be negative")
-    obs_through = observed_dates[-1]
+    obs_through = observed_dates[-1] if observed_dates else None
     obs_sum = sum(observed_values)
     obs_n = len(observed_values)
     if observed_dates != period_dates[:obs_n]:
@@ -746,7 +769,7 @@ def merge_running_outlook(
         count = obs_n
         curve = [None] * len(period_dates)
         for i, d in enumerate(period_dates):
-            if d <= obs_through:
+            if obs_through is not None and d <= obs_through:
                 continue
             idx = date_idx.get(d)
             if idx is None:
@@ -811,7 +834,7 @@ def build_period_region(
         raise RuntimeError(f"HYRAS Klimakurve {region}: Lücken im Zeitraum {dates[0]}–{dates[-1]}")
     clim_run = [round(v, 3) if v is not None else None for v in running(clim_daily)]
     climate_final = clim_run[-1]
-    reference_to_date = clim_run[len(obs_dates) - 1]
+    reference_to_date = clim_run[len(obs_dates) - 1] if obs_dates else None
 
     models: dict[str, Any] = {}
     for key, mdata in model_data.items():
@@ -824,14 +847,14 @@ def build_period_region(
         }
 
     return {
-        "observed_through": obs_dates[-1],
+        "observed_through": obs_dates[-1] if obs_dates else None,
         "observed_running": observed_running,
-        "observed_current": round(obs_run[-1], 3),
+        "observed_current": round(obs_run[-1], 3) if obs_run else None,
         "climatology_running": clim_run,
         "climatology_month_mean": climate_final,  # historische Frontend-Kompatibilität
         "climatology_period_mean": climate_final,
         "climatology_to_date": reference_to_date,
-        "observed_anomaly_to_date": round(obs_run[-1] - reference_to_date, 3),
+        "observed_anomaly_to_date": round(obs_run[-1] - reference_to_date, 3) if obs_run else None,
         "models": models,
     }
 
@@ -868,7 +891,8 @@ def build_payload(
         "dates": periods["month"]["dates"],
         "periods": periods,
         "observation_source": "DWD HYRAS-DE-TAS",
-        "observation_data_through": data_through,
+        "observation_data_through": regions[REGION_ORDER[0]]["observed_through"],
+        "observation_source_through": data_through,
         "climatology_reference": "1991-2020",
         "forecast_source": "Open-Meteo Ensemble API",
         "method": {
@@ -883,6 +907,85 @@ def build_payload(
     }
 
 
+def build_temperature_documents(current, climate, fresh, cached, today, support, now):
+    """Use one collection of raw members for both calendar months."""
+    (year, month), (ny, nm) = outlook_months(today)
+    through = current["data_through"]
+    first = date(year, month, 1)
+    next_first = date(ny, nm, 1)
+    anchor = max(date.fromisoformat(through), first - timedelta(days=1))
+    models, retained = select_temperature_models(fresh, cached, anchor.isoformat(), now)
+    # A preview starts independently: November's sum/mean cannot enter December.
+    preview_models, preview_retained = select_temperature_models(
+        fresh, cached, (next_first - timedelta(days=1)).isoformat(), now)
+    payload = build_payload(current, climate, models, year, month, through, support)
+    payload["retained_models"] = retained
+    if preview_models:
+        preview = build_payload(current, climate, preview_models, ny, nm, through, support)
+        preview["retained_models"] = preview_retained
+        payload["next_month"] = preview
+    return payload, merge_month_caches(models, preview_models)
+
+
+def merge_month_caches(current, preview):
+    """Keep distinct selected raw runs; legacy one-run-per-model caches still work."""
+    result = {**preview, **current}
+    alternate = {key: model for key, model in preview.items() if key in current and model.get("run") != current[key].get("run")}
+    if alternate:
+        result["__preview"] = alternate
+    return result
+
+
+def validate_monthly_document(doc):
+    """Validate publication including an independently anchored preview."""
+    def require(condition, message):
+        if not condition:
+            raise ValueError(message)
+
+    def check_month(item, preview=False):
+        is_temperature = item.get("product") == "state_monthly_ensemble_temperature"
+        require(item.get("schema_version") == (2 if is_temperature else 1), "Invalid schema")
+        dates = month_dates(item["year"], item["month"])
+        require(item["dates"] == dates, "Invalid date axis")
+        require(item["regions_order"] == REGION_ORDER and set(item["regions"]) == set(REGION_ORDER), "Missing regions")
+        keys = item["models_order"]
+        require(len(keys) == len(set(keys)) and set(keys) <= set(MODEL_CONFIG), "Invalid model keys")
+        if preview:
+            require(bool(keys) and item["observation_data_through"] is None, "Invalid forecast-only preview")
+        wanted_periods = {"month", "season", "year"}
+        if is_temperature:
+            require(set(item["periods"]) == wanted_periods and item["periods"]["month"]["dates"] == dates, "Invalid periods")
+        for name in REGION_ORDER:
+            region = item["regions"][name]
+            periods = region["periods"] if is_temperature else {"month": region}
+            require(set(periods) == (wanted_periods if is_temperature else {"month"}), f"Invalid periods {name}")
+            for period_key, series in periods.items():
+                axis = item["periods"][period_key]["dates"] if is_temperature else dates
+                require(bool(axis), "Empty period")
+                if is_temperature:
+                    p = item["periods"][period_key]
+                    require(p["start_date"] == axis[0] and p["end_date"] == axis[-1], "Invalid period bounds")
+                    require(len(series["climatology_running"]) == len(axis) and all(finite(v) is not None for v in series["climatology_running"]), "Incomplete climatology")
+                observed = series["observed_running"]
+                cutoff = series["observed_through"]
+                n = axis.index(cutoff)+1 if cutoff else 0
+                require(len(observed) == len(axis) and all(finite(v) is not None for v in observed[:n]) and all(v is None for v in observed[n:]), f"Invalid observations {name}/{period_key}")
+                require(series["observed_current"] == (observed[n-1] if n else None), "Invalid observed summary")
+                if period_key == "month":
+                    require(cutoff == item["observation_data_through"], "Inconsistent cutoff")
+                require(set(series["models"]) == set(keys), "Inconsistent model keys")
+                for m in series["models"].values():
+                    require(m["member_count"] > 0 and len(m["control"]) == len(axis), "Invalid member series")
+                    require(all(len(m["stats"][k]) == len(axis) for k in ("min","p05","p20","mean","p80","p95","max")), "Invalid percentile series")
+                    if preview and period_key == "month":
+                        require(m["forecast_from"] == axis[0] and finite(m["stats"]["mean"][0]) is not None, "Forecast does not reach first preview day")
+    check_month(doc)
+    if "next_month" in doc:
+        following = doc["next_month"]
+        require((following["year"], following["month"]) == next_month(doc["year"], doc["month"]) and "next_month" not in following, "Invalid next month")
+        check_month(following, preview=True)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--current", required=True)
@@ -893,7 +996,9 @@ def main() -> int:
     ap.add_argument("--batch-size", type=int, default=24)
     args = ap.parse_args()
 
-    current, climate, year, month, data_through = load_regions(Path(args.current), Path(args.climate))
+    current, climate, _, _, data_through = load_regions(Path(args.current), Path(args.climate))
+    today = datetime.now(ZoneInfo("Europe/Berlin")).date()
+    year, month = today.year, today.month
     print(f"HYRAS Datenstand: {data_through}; Zielmonat {year}-{month:02d}", flush=True)
 
     support = build_support_points(load_geometries())
@@ -906,7 +1011,7 @@ def main() -> int:
 
     model_data: dict[str, dict[str, Any]] = {}
     model_errors: dict[str, str] = {}
-    forecast_days = month_forecast_days(datetime.now(ZoneInfo("Europe/Berlin")).date(), year, month)
+    forecast_days = month_forecast_days(today, *next_month(year, month))
     for model_key in requested:
         try:
             model_data[model_key] = collect_model(model_key, support, args.batch_size, forecast_days=forecast_days)
@@ -925,19 +1030,19 @@ def main() -> int:
                 cache = old["models"]
         except (OSError, ValueError, TypeError, AttributeError) as exc:
             print(f"Temperatur-Cache nicht lesbar: {exc}", flush=True)
-    model_data, retained = select_temperature_models(model_data, cache, data_through, datetime.now(timezone.utc))
-    if not model_data:
+    payload, selected = build_temperature_documents(current, climate, model_data, cache, today, support, datetime.now(timezone.utc))
+    if not payload["models_order"] and not payload.get("next_month") and not payload["observation_data_through"]:
         raise SystemExit("Kein Ensemblemodell konnte geladen werden.")
-
-    payload = build_payload(current, climate, model_data, year, month, data_through, support)
+    for model_key in model_data.keys() - set(payload["models_order"]):
+        model_errors.setdefault(model_key, "Keine gültigen Member für den ersten Prognosetag oder Laufalter außerhalb der Grenzen")
+        print(f"WARNUNG {model_key}: {model_errors[model_key]}", flush=True)
     payload["model_errors"] = model_errors
-    payload["retained_models"] = retained
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     if args.cache:
         args.cache.parent.mkdir(parents=True, exist_ok=True)
-        args.cache.write_text(json.dumps({"schema_version":1,"observation_data_through":data_through,"models":model_data}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        args.cache.write_text(json.dumps({"schema_version":1,"observation_data_through":data_through,"models":selected}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"Geschrieben: {output} ({output.stat().st_size/1024:.1f} KiB)", flush=True)
     print("Modelle:", ", ".join(payload["models_order"]), flush=True)
     return 0

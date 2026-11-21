@@ -15,6 +15,7 @@ on:
       - "scripts/build_state_monthly_ensemble_outlook.py"
       - "tests/test_state_monthly_precip_outlook.py"
       - "tests/test_state_monthly_hydro_sum.py"
+      - "tests/test_state_monthly_rollover.py"
       - ".github/workflows/update-state-monthly-precip.yml"
 
 permissions:
@@ -50,6 +51,7 @@ jobs:
           python -m py_compile scripts/build_state_monthly_ensemble_outlook.py scripts/build_state_monthly_precip_outlook.py
           python -m unittest discover -s tests -p test_state_monthly_hydro_sum.py -v
           python -m unittest discover -s tests -p test_state_monthly_precip_outlook.py -v
+          python -m unittest discover -s tests -p test_state_monthly_rollover.py -v
 
       - name: Beobachtete HYRAS-Tagessummen holen
         id: observation
@@ -58,24 +60,12 @@ jobs:
           set -euo pipefail
           git fetch origin +refs/heads/hyras-data:refs/remotes/origin/hyras-data --depth=1
           mkdir -p /tmp/state-monthly-precip
-          if ! git show origin/hyras-data:monthly_outlook/observed_precip.json > /tmp/state-monthly-precip/observed_precip.json; then
-            echo "HYRAS-Monatsbeobachtungen noch nicht veröffentlicht."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          if git cat-file -e origin/hyras-data:monthly_outlook/observed_precip.json; then
+            git show origin/hyras-data:monthly_outlook/observed_precip.json > /tmp/state-monthly-precip/observed_precip.json
+          else
+            echo "HYRAS-Monatsbeobachtungen noch nicht veröffentlicht; Prognose ohne Messwerte."
           fi
-          export TZ=Europe/Berlin
-          READY=$(python - <<'PY'
-          import calendar, json
-          from datetime import date, timedelta
-          doc=json.load(open('/tmp/state-monthly-precip/observed_precip.json'))
-          today=date.today()
-          previous_end=today.replace(day=1)-timedelta(days=1)
-          current=today.strftime('%Y-%m')
-          previous=previous_end.strftime('%Y-%m')
-          print('true' if doc['month']==current or (doc['month']==previous and doc['data_through']==previous_end.isoformat()) else 'false')
-          PY
-          )
-          echo "ready=$READY" >> "$GITHUB_OUTPUT"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Vorherige Prognosen und Tagesmember laden
         if: steps.observation.outputs.ready == 'true'
@@ -105,17 +95,11 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
+          from scripts.build_state_monthly_ensemble_outlook import validate_monthly_document
           p=Path('/tmp/state-monthly-precip/state_monthly_precip.json')
           doc=json.loads(p.read_text())
           assert doc['schema_version']==1 and doc['parameter']=='precipitation'
-          assert len(doc['regions_order'])==17
-          assert isinstance(doc['models_order'],list)
-          for name in doc['regions_order']:
-              region=doc['regions'][name]
-              assert region['observed_current']>=0
-              assert len(region['observed_running'])==len(doc['dates'])
-              for m in region['models'].values():
-                  assert len(m['stats']['mean'])==len(doc['dates'])
+          validate_monthly_document(doc)
           print('Niederschlagsprodukt bereit:',doc['year'],doc['month'],p.stat().st_size)
           PY
 

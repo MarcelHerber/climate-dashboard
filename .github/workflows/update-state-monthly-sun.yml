@@ -13,6 +13,7 @@ on:
       - "scripts/build_state_monthly_ensemble_outlook.py"
       - "tests/test_monthly_outlook_duett.py"
       - "tests/test_state_monthly_sun_outlook.py"
+      - "tests/test_state_monthly_rollover.py"
       - ".github/workflows/update-state-monthly-sun.yml"
 
 permissions:
@@ -51,6 +52,7 @@ jobs:
           python -m unittest discover -s tests -p test_check_duett_station_sun.py -v
           python -m unittest discover -s tests -p test_state_monthly_sun_outlook.py -v
           python -m unittest discover -s tests -p test_state_monthly_hydro_sum.py -v
+          python -m unittest discover -s tests -p test_state_monthly_rollover.py -v
 
       - name: Alten Sonnen-Datenstand zur Wiederverwendung holen
         shell: bash
@@ -71,22 +73,28 @@ jobs:
             --workers 8
 
       - name: DUETT-Beobachtungen prüfen
+        id: observation
         run: |
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
           d=json.loads(Path('/tmp/monthly-sun/observed/observed_sun.json').read_text())
           assert d['forecast'] is False and d['unit'] == 'h'
           assert len(d['regions_order'])==17
-          assert len(d['dates'])>=1
+          assert isinstance(d['dates'], list)
+          assert d['data_through']==(d['dates'][-1] if d['dates'] else None)
           for r in d['regions_order']:
               samples=d['regions'][r]['daily']
               assert len(samples)==len(d['dates'])
               assert all(0<=value<=24 for value in samples)
           print('DUETT regions',len(d['regions_order']),'through',d['data_through'])
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output:
+              output.write(f"has_observations={'true' if d['dates'] else 'false'}\n")
           PY
 
       - name: Stations-SDK als Qualitätsvergleich einlesen (ohne Doppelzählung)
+        if: steps.observation.outputs.has_observations == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -99,6 +107,7 @@ jobs:
             --stations /tmp/monthly-sun/stations.json
 
       - name: DUETT-Beobachtungsbranch veröffentlichen
+        if: steps.observation.outputs.has_observations == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -126,15 +135,10 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
+          from scripts.build_state_monthly_ensemble_outlook import validate_monthly_document
           d=json.loads(Path('/tmp/monthly-sun/forecast/state_monthly_sun.json').read_text())
           assert d['schema_version']==1 and d['parameter']=='sunshine' and d['unit']=='h'
-          assert len(d['regions_order'])==17 and len(d['models_order'])>=1
-          for region in d['regions_order']:
-              series=d['regions'][region]
-              assert series['observed_current']>=0
-              assert len(series['observed_running'])==len(d['dates'])
-              for model in series['models'].values():
-                  assert len(model['stats']['mean'])==len(d['dates'])
+          validate_monthly_document(d)
           print('Sonnenensemble',d['year'],d['month'],'Modelle',d['models_order'])
           PY
 

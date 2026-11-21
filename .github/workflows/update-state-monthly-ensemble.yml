@@ -8,6 +8,7 @@ on:
     branches: ["main"]
     paths:
       - "scripts/build_state_monthly_ensemble_outlook.py"
+      - "tests/test_state_monthly_rollover.py"
       - ".github/workflows/update-state-monthly-ensemble.yml"
 
 permissions:
@@ -41,7 +42,7 @@ jobs:
           python -m pip install requests shapely
 
       - name: Regressionstests
-        run: python -m unittest discover -s tests -p 'test_state_monthly_ensemble_resilience.py' -v
+        run: python -m unittest discover -s tests -p 'test_state_monthly*.py' -v
 
       - name: Aktuelle HYRAS-Bundeslanddaten holen
         shell: bash
@@ -92,35 +93,13 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          from scripts.build_state_monthly_ensemble_outlook import validate_available_models
+          from scripts.build_state_monthly_ensemble_outlook import validate_monthly_document
           p=Path('/tmp/state-monthly-output/state_monthly_ensemble.json')
           d=json.loads(p.read_text())
           assert d['schema_version']==2
-          assert len(d['regions_order'])==17
-          assert set(d['periods'])=={'month','season','year'},d['periods']
-          for key,period in d['periods'].items():
-              assert period['dates'],key
-              assert period['start_date']==period['dates'][0],key
-              assert period['end_date']==period['dates'][-1],key
-          assert d['dates']==d['periods']['month']['dates']
+          validate_monthly_document(d)
           available=set(d['models_order'])
           expected={'gefs','ifs','aifs','icon_eu'}
-          validate_available_models(available)
-          assert len(d['regions'])==17
-          for region in d['regions_order']:
-              r=d['regions'][region]
-              assert r['observed_running']
-              assert r['climatology_running']
-              assert set(r['periods'])=={'month','season','year'},region
-              for period_key,series in r['periods'].items():
-                  dates=d['periods'][period_key]['dates']
-                  assert len(series['observed_running'])==len(dates),(region,period_key)
-                  assert len(series['climatology_running'])==len(dates),(region,period_key)
-                  assert set(series['models'])==available,(region,period_key)
-                  assert series['observed_anomaly_to_date'] is not None,(region,period_key)
-                  for key,m in series['models'].items():
-                      assert m['member_count']>0,(region,period_key,key)
-                      assert len(m['stats']['mean'])==len(dates),(region,period_key,key)
           missing=sorted(expected-available)
           if missing:
               print('WARNUNG: temporär fehlende Modelle:',', '.join(missing))
