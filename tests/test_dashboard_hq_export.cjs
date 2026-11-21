@@ -77,7 +77,7 @@ test("Phase 2 export uses a parameter subtitle and wraps long source notes",()=>
   assert.equal(images.length,1);
 });
 test("snow selector retains shared years instead of resetting on station change",()=>{
-  const html=fs.readFileSync("index.html","utf8");
+  const html=require("./dashboard_source.cjs")();
   const body=html.slice(html.indexOf("function stationSnowPopulateYearPicker("),
     html.indexOf("function stationSnowDailyObjects("));
   assert.match(body,/const stationChanged=stationSnowYearStationId!==station.id/);

@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "index.html"
+      - "js/**"
       - "dashboard_export_hq.js"
       - "wettergefahren*"
       - "scripts/update_station_precip.py"
@@ -43,6 +44,8 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             index.html
+            js/
+            tests/dashboard_source.cjs
             dashboard_export_hq.js
             wettergefahren_export.js
             wettergefahren.html

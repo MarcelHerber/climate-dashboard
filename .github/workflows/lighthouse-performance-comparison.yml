@@ -1,0 +1,113 @@
+name: Lighthouse · Isolated loading comparison
+
+on:
+  push:
+    branches: [perf/dashboard-loading-20261120]
+    paths:
+      - '.github/workflows/lighthouse-performance-comparison.yml'
+      - 'scripts/optimize_dashboard_loading.py'
+      - 'scripts/dashboard_export_libraries.js'
+      - 'scripts/*performance*.py'
+      - 'tests/test_dashboard_loading.py'
+      - 'tests/audit_performance_preview.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [mobile, desktop]
+    env:
+      URL: https://marcelherber.github.io/climate-dashboard/index.html?tab=overview
+      LIGHTHOUSE_VERSION: '12.6.0'
+      PERF_SNAPSHOT_ROOT: ${{ github.workspace }}/snapshot
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*.html
+            /*.js
+            /js/
+            /scripts/
+            /tests/test_dashboard_loading.py
+            /tests/test_overview_layout.py
+            /tests/audit_performance_preview.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: lighthouse-baseline-mobile
+          run-id: '44692937072'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: archived-baseline
+      - name: Regression tests and frozen HTML verification
+        run: |
+          python -m unittest discover -s tests -p test_dashboard_loading.py -v
+          python -m unittest discover -s tests -p test_overview_layout.py -v
+          mkdir -p reports
+          python scripts/prepare_performance_snapshot.py archived-baseline/published-index.html "$PERF_SNAPSHOT_ROOT"
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/lighthouse-audit" "lighthouse@$LIGHTHOUSE_VERSION"
+          python -m pip install 'mitmproxy==11.1.3' 'playwright==1.57.0'
+          google-chrome --version > reports/chrome-version.txt
+          "$RUNNER_TEMP/lighthouse-audit/node_modules/.bin/lighthouse" --version > reports/lighthouse-version.txt
+      - name: Four variants, three independent cold starts each
+        run: |
+          set -euo pipefail
+          mitmdump --listen-host 127.0.0.1 --listen-port 8089 --set connection_strategy=lazy -s scripts/performance_snapshot_proxy.py > reports/proxy.log 2>&1 &
+          proxy=$!
+          trap 'kill "$proxy" || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS --proxy http://127.0.0.1:8089 --insecure "$URL" -o /dev/null; then break; fi
+            sleep 1
+          done
+          lighthouse="$RUNNER_TEMP/lighthouse-audit/node_modules/.bin/lighthouse"
+          preset=()
+          if [[ '${{ matrix.device }}' == desktop ]]; then preset+=(--preset=desktop); fi
+          # Freeze upstream responses before the scored runs. Lighthouse still
+          # launches a new browser with a cold browser cache on every audit.
+          mkdir -p warmup
+          for stage in baseline extract defer lazy; do
+            printf '%s\n' "$stage" > "$PERF_SNAPSHOT_ROOT/stage.txt"
+            "$lighthouse" "$URL" "${preset[@]}" --only-categories=performance --throttling-method=simulate --chrome-flags='--headless --no-sandbox --disable-dev-shm-usage --proxy-server=http://127.0.0.1:8089 --ignore-certificate-errors' --output=json --output-path="warmup/$stage.json" --quiet
+          done
+          touch "$PERF_SNAPSHOT_ROOT/sealed.txt"
+          for run in 1 2 3; do
+            for stage in baseline extract defer lazy; do
+              printf '%s\n' "$stage" > "$PERF_SNAPSHOT_ROOT/stage.txt"
+              "$lighthouse" "$URL" "${preset[@]}" --only-categories=performance --throttling-method=simulate --chrome-flags='--headless --no-sandbox --disable-dev-shm-usage --proxy-server=http://127.0.0.1:8089 --ignore-certificate-errors' --output=json --output=html --output-path="reports/$stage-$run" --quiet
+            done
+          done
+          if [[ -s "$PERF_SNAPSHOT_ROOT/late-data-requests.txt" ]]; then
+            cat "$PERF_SNAPSHOT_ROOT/late-data-requests.txt"
+            exit 1
+          fi
+          python scripts/summarize_performance_comparison.py reports '${{ matrix.device }}'
+          rm "$PERF_SNAPSHOT_ROOT/sealed.txt"
+          printf 'lazy\n' > "$PERF_SNAPSHOT_ROOT/stage.txt"
+          python tests/audit_performance_preview.py --device '${{ matrix.device }}' --output reports/browser
+      - name: Save frozen reference manifest and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-comparison-${{ matrix.device }}
+          path: |
+            reports/
+            snapshot/snapshot-manifest.json
+            snapshot/baseline-asset-sha256.txt
+            snapshot/baseline/
+            snapshot/payloads/
+            snapshot/late-data-requests.txt
+            warmup/
+          retention-days: 90

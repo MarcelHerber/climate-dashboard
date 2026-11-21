@@ -27,6 +27,8 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             index.html
+            js/
+            tests/dashboard_source.cjs
             monthly_climate_bars.js
             dashboard_cleanup.css
             monthly_layout.js
