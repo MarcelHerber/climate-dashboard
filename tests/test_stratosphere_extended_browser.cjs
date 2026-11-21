@@ -1,0 +1,42 @@
+const { chromium } = require('playwright');
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const cycle=new Date(Date.now()-3*86400000).toISOString().slice(0,10)+'T00:00:00Z';
+const dates=Array.from({length:47},(_,i)=>new Date(Date.parse(cycle)+i*86400000).toISOString().slice(0,10));
+const members={c00:Array(47).fill(10)};
+for(let i=1;i<=100;i++)members['p'+String(i).padStart(3,'0')]=Array.from({length:47},(_,d)=>d>14&&i<21?-10:10);
+const data={schema_version:1,provider:'ECMWF IFS Sub-seasonal S2S',cycle_utc:cycle,latitude_deg:60,level_hpa:10,units:'m/s',member_count:101,valid_dates:dates,forecast_step_hours:dates.map((_,i)=>i*24),members};
+const runPath='runs/'+cycle.slice(0,10).replaceAll('-','')+'.json';
+(async()=>{
+ const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{})});
+ try{
+  const page=await browser.newPage({viewport:{width:1280,height:900},acceptDownloads:true});
+  await page.route('https://raw.githubusercontent.com/**',r=>r.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(r.request().url().includes('index.json')?{provider:data.provider,runs:[{cycle_utc:cycle,path:runPath}]}:data)}));
+  await page.route('https://charts.ecmwf.int/opencharts-api/**',r=>r.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify({data:{type:'graphical_product',attributes:{name:'extended-zonal-mean-zonal-wind'},link:{type:'image/png',href:'https://charts.ecmwf.int/content/fixture.png'}}})}));
+  await page.route('https://charts.ecmwf.int/content/fixture.png',r=>r.fulfill({status:200,contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+X2doAAAAASUVORK5CYII=','base64')}));
+  const html=fs.readFileSync('stratosphaere.html','utf8').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'');
+  await page.setContent(html);
+  await page.addScriptTag(process.env.CHART_JS_PATH?{path:process.env.CHART_JS_PATH}:{url:'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'});
+  for(const file of ['stratosphere_chart_visibility.js','stratosphere_chart_export.js','stratosphere_ecmwf_runs.js','stratosphere_ecmwf_ens.js','stratosphere_extended_range.js'])await page.addScriptTag({path:path.resolve(file)});
+  await page.click('#stratoExtendedTab');
+  await page.waitForFunction(()=>!document.getElementById('stratoExtendedPng').disabled);
+  await page.waitForFunction(()=>document.getElementById('stratoExtendedOfficialImage').naturalWidth>0);
+  assert.equal(await page.locator('#stratoExtendedTab').getAttribute('aria-pressed'),'true');
+  assert.equal(await page.locator('#stratoGefsView').isVisible(),false);
+  assert.equal(await page.locator('#stratoGefsMainActions').isVisible(),false);
+  assert.match(await page.locator('#stratoExtendedDataStatus').innerText(),/101\/101/);
+  assert.equal(await page.locator('#stratoExtendedP14').innerText(),'0 %');
+  assert.equal(await page.locator('#stratoExtendedP28').innerText(),'19,8 %');
+  assert.equal(await page.evaluate(()=>Chart.getChart('stratoExtendedCanvas').data.datasets.filter(d=>d.label.startsWith('_Mitglied')).length),100);
+  await page.setViewportSize({width:390,height:844});
+  assert.ok(await page.locator('#stratoExtendedOfficialImage').isVisible());
+  await page.uncheck('#stratoExtendedMembers');
+  assert.equal(await page.evaluate(()=>Chart.getChart('stratoExtendedCanvas').data.datasets.filter(d=>d.label.startsWith('_Mitglied')).length),0);
+  const d=page.waitForEvent('download');await page.click('#stratoExtendedCsv');assert.match((await d).suggestedFilename(),/ECMWF_46Tage/);
+  const png=page.waitForEvent('download');await page.click('#stratoExtendedPng');assert.match((await png).suggestedFilename(),/\.png$/);
+  await page.click('#stratoEpsTab');assert.equal(await page.locator('#stratoExtendedView').isVisible(),false);
+  await page.click('#stratoGefsTab');assert.equal(await page.locator('#stratoGefsView').isVisible(),true);
+  console.log('Extended Range mobile/desktop, 101 members, probabilities, CSV, model switch: verified');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

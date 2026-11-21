@@ -1,0 +1,87 @@
+name: ECMWF Extended Range · 46 Tage · 101 Mitglieder
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 5,22 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build_ecmwf_extended_u60.py'
+      - 'tests/test_ecmwf_extended_u60.py'
+      - 'tests/test_stratosphere_extended*.cjs'
+      - 'stratosphere_extended_range.js'
+      - 'stratosphaere.html'
+      - '.github/workflows/update-ecmwf-extended-range.yml'
+permissions:
+  contents: write
+concurrency:
+  group: strato-ecmwf-extended-range
+  cancel-in-progress: false
+jobs:
+  browser-test:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            /stratosphaere.html
+            /stratosphere*.js
+            /tests/test_stratosphere_extended*.cjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Test ensemble calculations
+        run: node --test tests/test_stratosphere_extended_range.cjs
+      - name: Install browser test dependencies
+        run: |
+          npm install --no-save playwright chart.js@4.4.1
+          npx playwright install --with-deps chromium
+      - name: Desktop and mobile with deterministic ensemble fixture
+        run: CHART_JS_PATH="$PWD/node_modules/chart.js/dist/chart.umd.js" node tests/test_stratosphere_extended_browser.cjs
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            scripts
+            tests
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install data clients
+        run: python -m pip install 'numpy>=1.26,<3' 'eccodes>=2,<3' 'cdsapi>=0.7,<1'
+      - name: Scientific validation
+        run: python -m unittest discover -s tests -p test_ecmwf_extended_u60.py -v
+      - name: Load independent archive branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/stratosphere-ecmwf-extended-data >/dev/null 2>&1; then
+            git clone --quiet --single-branch --depth 1 --branch stratosphere-ecmwf-extended-data "$remote" /tmp/extended-range
+          else
+            mkdir -p /tmp/extended-range
+            git -C /tmp/extended-range init -q -b stratosphere-ecmwf-extended-data
+            git -C /tmp/extended-range remote add origin "$remote"
+          fi
+      - name: Retrieve complete ECMWF 101-member 46-day run
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        run: python scripts/build_ecmwf_extended_u60.py --directory /tmp/extended-range/data/stratosphere/extended
+      - name: Publish verified forecast archive
+        run: |
+          set -euo pipefail
+          cd /tmp/extended-range
+          touch .nojekyll
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/stratosphere/extended .nojekyll
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'ECMWF S2S verified 46-day polar vortex ensemble'
+          git push origin HEAD:refs/heads/stratosphere-ecmwf-extended-data

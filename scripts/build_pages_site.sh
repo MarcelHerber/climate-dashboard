@@ -106,6 +106,7 @@ required_root_files=(
   stratosphere_chart_visibility.css
   stratosphere_ecmwf_runs.js
   stratosphere_ecmwf_ens.js
+  stratosphere_extended_range.js
   stratosphere_run_trends.js
   stratosphere_reversal_diagnostics.js
   stratosphere_winter_stats.js

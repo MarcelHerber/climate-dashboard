@@ -13,6 +13,7 @@
 <script defer src="stratosphere_ensemble.js?v=20261023-gefs-fresh"></script>
 <script defer src="stratosphere_ecmwf_runs.js?v=20261104-ifs-export-ready"></script>
 <script defer src="stratosphere_ecmwf_ens.js?v=20261108-wind-expose1"></script>
+<script defer src="stratosphere_extended_range.js?v=20261121-1"></script>
 <script defer src="stratosphere_joint_comparison.js?v=20261108-joint1"></script>
 <script defer src="stratosphere_nasa_common.js?v=20261108-observed1"></script>
 <script defer src="stratosphere_analysis_forecast.js?v=20261108-analysis1"></script>
@@ -123,7 +124,11 @@ main > section.card.method {display:grid !important;}
 .strato-view-switch .view-hint{margin-left:6px;font-size:12px;color:#596f85}
 body.strato-forecast-only main > :not(.intro):not(#stratoViewSwitch):not(#stratoEnsembleCard){display:none!important}
 body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
-#stratoGefsView[hidden],#stratoEcmwfView[hidden]{display:none!important}
+#stratoGefsView[hidden],#stratoEcmwfView[hidden],#stratoExtendedView[hidden]{display:none!important}
+#stratoExtendedOfficialImage{width:100%;max-width:1150px;height:auto;display:block;margin:12px auto;border-radius:5px}
+#stratoExtendedOfficialImage[hidden],#stratoExtendedOfficialLink[hidden]{display:none!important}
+#stratoGefsMainActions[hidden]{display:none!important}
+#stratoExtendedView .extended-prob-chart{height:240px;min-height:210px}
 .strato-model-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 12px;border-bottom:1px solid #d6e0e9;padding-bottom:12px}
 .strato-model-tabs button{padding:9px 15px;background:#eef3f8;border:1px solid #bdccda;border-radius:9px;color:#30495f;font-size:14px;font-weight:800}
 .strato-model-tabs button[aria-pressed="true"]{background:#145e99;color:white;border-color:#145e99}
@@ -275,8 +280,8 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
 <section class="card" id="stratoEnsembleCard">
  <div class="levels-heading"><div>
  <h2>Polarwirbel-Prognosen · 60° N / 10 hPa</h2>
- <p>Wähle zwischen NOAA GEFS (31 Mitglieder), ECMWF IFS ENS (50 gestörte Mitglieder plus Kontrolllauf) und dem archivierten ECMWF-IFS-Laufvergleich. Die Ensemblewahrscheinlichkeit wird nur aus verifizierten Einzelmitgliedern berechnet.</p>
- </div><div class="levels-actions">
+ <p>Wähle zwischen NOAA GEFS (31 Mitglieder), ECMWF IFS ENS (50 gestörte Mitglieder plus Kontrolllauf), ECMWF Sub-seasonal (101 Mitglieder, 46 Tage) und dem archivierten IFS-Laufvergleich. Die Ensemblewahrscheinlichkeit wird nur aus verifizierten Einzelmitgliedern berechnet.</p>
+ </div><div class="levels-actions" id="stratoGefsMainActions">
  <button id="stratoEnsembleReload" class="btn" type="button">Ensemble prüfen</button>
  <button id="stratoEnsemblePng" class="btn" type="button" disabled>PNG speichern</button>
  <button id="stratoEnsembleCsv" class="btn" type="button" disabled>CSV speichern</button>
@@ -285,6 +290,7 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
   <button type="button" id="stratoGefsTab" aria-pressed="true">NOAA GEFS · 31 Mitglieder</button>
   <button type="button" id="stratoEpsTab" aria-pressed="false">ECMWF ENS · 50 + Kontrolllauf</button>
   <button type="button" id="stratoEcmwfTab" aria-pressed="false">ECMWF IFS · Laufvergleich</button>
+  <button type="button" id="stratoExtendedTab" aria-pressed="false">ECMWF Extended Range · 46 Tage</button>
  </div>
  <div id="stratoGefsView">
  <div class="forecast-main-controls">
@@ -378,6 +384,40 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
   <div class="ecmwf-meta" id="stratoEcmwfSummary">Prüfe verfügbare Läufe.</div>
 <div class="strato-model-diagnostics" id="stratoModelDiagnostics" aria-live="polite">Modellvergleich folgt. ECMWF-Gültigkeit 12 UTC, GEFS-Tageswerte 00 UTC.</div>
   <p class="legendnotes">ECMWF IFS Open Data · CC BY 4.0 · 0,25°-Datenraster · Prognose bis +360 h (15 Tage). Ein 30-Tage-Laufvergleich entsteht erst durch unser fortlaufendes Archiv; nicht vorhandene Läufe werden nicht rekonstruiert. Der IFS-Laufvergleich ist <strong>kein EPS-Ensemble</strong>. 0 m/s bedeutet Windumkehr am Messniveau, nicht automatisch ein bestätigtes Major SSW. Quelle: <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener noreferrer">ECMWF Open Data</a>.</p>
+ </div>
+ <div id="stratoExtendedView" hidden>
+  <h3>ECMWF Sub-seasonal · 46 Tage · 100 + Kontrolllauf</h3>
+  <p>Eigenständiges Langfristensemble, täglich 00 UTC. Die Originalgrafik zeigt den jüngsten ECMWF-Lauf; die numerischen S2S-Daten sind frühestens 48 Stunden nach Initialisierung frei abrufbar.</p>
+  <div class="strato-prob-panel">
+   <h3>Aktuelle ECMWF-Originalgrafik</h3>
+   <div class="info" id="stratoExtendedOfficialStatus" role="status" aria-live="polite">Warte auf ECMWF …</div>
+   <img id="stratoExtendedOfficialImage" alt="ECMWF Sub-seasonal forecast: zonal gemittelter Wind bei 60°N auf 10 hPa" hidden>
+   <p class="legendnotes">Quelle: © ECMWF · CC BY 4.0 · <a href="https://charts.ecmwf.int/products/extended-zonal-mean-zonal-wind?area=nh" target="_blank" rel="noopener noreferrer">ECMWF Open Charts</a> · <a id="stratoExtendedOfficialLink" target="_blank" rel="noopener noreferrer" hidden>Original-PNG öffnen</a></p>
+  </div>
+  <h3>Interaktives 46-Tage-Ensemble · S2S</h3>
+  <div class="forecast-main-controls">
+   <label>Lauf<select id="stratoExtendedCycle"><option>Neuester verfügbarer Lauf</option></select></label>
+   <label><input type="checkbox" id="stratoExtendedMembers" checked disabled> 100 Störmitglieder</label>
+   <label><input type="checkbox" id="stratoExtendedBands" checked disabled> P10–P90 / P25–P75</label>
+   <label><input type="checkbox" id="stratoExtendedCompare" disabled> Frühere Ensemble-Mittel (bis zu 7 Läufe)</label>
+   <button type="button" class="btn" id="stratoExtendedReload">Aktualisieren</button>
+   <button type="button" class="btn" id="stratoExtendedPng" disabled>PNG speichern</button>
+   <button type="button" class="btn" id="stratoExtendedCsv" disabled>CSV speichern</button>
+  </div>
+  <div class="info" id="stratoExtendedDataStatus" role="status" aria-live="polite">Warte auf geprüfte S2S-Originaldaten …</div>
+  <div class="chart ensemble-chart"><canvas id="stratoExtendedCanvas" aria-label="46-Tage-Ensemble des Zonalwinds mit 101 Mitgliedern"></canvas></div>
+  <div class="strato-prob-panel">
+   <h3>Windumkehr · 60° N / 10 hPa</h3>
+   <p>Mindestens ein Übergang von U ≥ 0 auf U &lt; 0 m/s innerhalb des jeweiligen Zeitraums ab Modellinitialisierung. Keine automatische Major-SSW-Klassifizierung.</p>
+   <div class="strato-prob-kpis">
+    <div><small>14 Tage</small><strong id="stratoExtendedP14">–</strong></div>
+    <div><small>28 Tage</small><strong id="stratoExtendedP28">–</strong></div>
+    <div><small>42 Tage</small><strong id="stratoExtendedP42">–</strong></div>
+    <div><small>46 Tage</small><strong id="stratoExtendedP46">–</strong></div>
+   </div>
+   <div class="chart extended-prob-chart"><canvas id="stratoExtendedProbCanvas" aria-label="Täglicher Anteil mit Ostwind bei 60°N auf 10 hPa"></canvas></div>
+  </div>
+  <p class="legendnotes">Quelle: <a href="https://ecds.ecmwf.int/datasets/s2s-forecasts" target="_blank" rel="noopener noreferrer">ECMWF Data Store · S2S</a> · CC BY 4.0 · 1,5° Archivgitter · vollständiger 60°N-Breitenkreis · täglich 00 UTC. Fehlende Mitglieder werden nicht ersetzt.</p>
  </div>
  <div class="strato-prob-panel" id="stratoComparePanel">
   <h3>Windumkehr · GEFS gegenüber ECMWF ENS</h3>
