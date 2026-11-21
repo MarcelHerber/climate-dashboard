@@ -47,6 +47,8 @@ def local_file(flow):
         "js/core.js", "js/uebersicht.js", "js/gebietsmittel.js", "js/gebietsmittel.optimized.js",
         "js/extreme.js", "js/stationen-kenntage.js", "js/stationen-auswertungen.js", "js/schnee.js",
         "js/stationen-kenntage.optimized.js", "js/stationen-auswertungen.optimized.js",
+        "js/export-karten-vergleich.js", "js/stationsprofil.js", "js/aktuell.js",
+        "js/export-karten-vergleich.optimized.js", "js/stationsprofil.optimized.js", "js/aktuell.optimized.js",
     }):
         return None
     stage = (ROOT / "stage.txt").read_text().strip()

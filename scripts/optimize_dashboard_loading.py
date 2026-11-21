@@ -5,7 +5,8 @@ import hashlib
 import re
 from pathlib import Path
 
-MAIN = re.compile(rb"<script>(\s*(?:Chart\.register\(ChartDataLabels\);|// Start-Abrufe).*?)</script>", re.S)
+HYRAS_START = b"// ================= VERSION 9: ZUSTAND, MOBILE NAVIGATION, CSV ================="
+MAIN = re.compile(rb"<script>(\s*(?:Chart\.register\(ChartDataLabels\);|// Start-Abrufe|" + re.escape(HYRAS_START) + rb").*?)</script>", re.S)
 EXTERNAL = re.compile(rb"<script\b(?=[^>]*\bsrc=)[^>]*>\s*</script>")
 
 
@@ -16,12 +17,17 @@ def versioned_script(name, content, defer=False):
 
 def extract(html, site):
     matches = list(MAIN.finditer(html))
-    if len(matches) != 1:
-        raise ValueError("Expected exactly one classic dashboard main script")
-    match = matches[0]
-    content = match[1]
-    (site / "dashboard_main.js").write_bytes(content)
-    return html[:match.start()] + versioned_script("dashboard_main.js", content) + html[match.end():]
+    if len(matches) == 1 and not matches[0][1].lstrip().startswith(HYRAS_START):
+        names = ("dashboard_main.js",)
+    elif len(matches) == 2 and matches[0][1].lstrip().startswith(HYRAS_START) and matches[1][1].lstrip().startswith(b"// Start-Abrufe"):
+        names = ("dashboard_hyras.js", "dashboard_main.js")
+    else:
+        raise ValueError("Unexpected dashboard inline-script layout")
+    for match, name in reversed(list(zip(matches, names))):
+        content = match[1]
+        (site / name).write_bytes(content)
+        html = html[:match.start()] + versioned_script(name, content) + html[match.end():]
+    return html
 
 
 def defer_scripts(html):
@@ -60,7 +66,7 @@ def lazy_exports(html, site):
     (site / "dashboard_export_libraries.js").write_bytes(loader)
     for name in (b"npm/jspdf@", b"npm/html2canvas@"):
         html, count = EXTERNAL.subn(lambda match: b"" if name in match[0] else match[0], html)
-    main_tag = next(tag[0] for tag in EXTERNAL.finditer(html) if b"dashboard_main.js?" in tag[0])
+    main_tag = next(tag[0] for tag in EXTERNAL.finditer(html) if b"js/export-karten-vergleich.js?" in tag[0] or b"dashboard_main.js?" in tag[0])
     html = html.replace(main_tag, versioned_script("dashboard_export_libraries.js", loader, True) + b"\n" + main_tag)
 
     edits = {
@@ -124,6 +130,16 @@ def lazy_exports(html, site):
             '  try{\n    controls.forEach(node=>{node.style.display="none";});',
             '  try{\n    ' + CANVAS + '\n    controls.forEach(node=>{node.style.display="none";});',
         ))
+    # The third split distributes the remaining export entry points across
+    # multiple classic scripts. Each anchor must still have exactly one owner.
+    candidates = [name for name in ("dashboard_main.js", "dashboard_hyras.js", "js/export-karten-vergleich.js", "js/stationsprofil.js", "js/aktuell.js") if (site / name).is_file()]
+    sources = {name: (site / name).read_text() for name in candidates}
+    pending = edits.pop("dashboard_main.js")
+    for old, new in pending:
+        owners = [name for name in candidates if old in sources[name]]
+        if len(owners) != 1:
+            raise ValueError(f"Export integration anchor has unexpected owners: {old!r}: {owners}")
+        edits.setdefault(owners[0], []).append((old, new))
     for filename, replacements in edits.items():
         path = site / filename
         original = path.read_bytes().decode()
@@ -132,7 +148,7 @@ def lazy_exports(html, site):
             modified = replace_once(modified, old, new)
         content = modified.encode()
         # Keep standalone pages using the unchanged original module.
-        target = filename if filename == "dashboard_main.js" else filename.removesuffix(".js") + ".optimized.js"
+        target = filename if filename in ("dashboard_main.js", "dashboard_hyras.js") else filename.removesuffix(".js") + ".optimized.js"
         (site / target).write_bytes(content)
         # Some modules are injected only by the Pages build.
         tags = [tag[0] for tag in EXTERNAL.finditer(html) if re.search(rb'src="' + re.escape(filename.encode()) + rb'(?:\?|")', tag[0])]

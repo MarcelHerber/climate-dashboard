@@ -9,7 +9,7 @@ from audit_europe_hub import prepare as prepare_europe_hub
 from test_europe_hub_overview import SOURCE
 
 OLD_MAIN = re.compile(rb'<script>(\s*Chart\.register\(ChartDataLabels\);.*?)</script>', re.S)
-SPLIT_MAIN = re.compile(rb'((?:<script src="js/[^"\n]+"></script>\n)+<script>\s*// Start-Abrufe.*?)</script>', re.S)
+SPLIT_MAIN = re.compile(rb'<script src="js/core\.js[^"\n]*"></script>.*?(?=<script src="monthly_frequency\.js)', re.S)
 URL = 'https://marcelherber.github.io/climate-dashboard/index.html'
 
 
@@ -36,6 +36,13 @@ def prepare(site):
 
 def chart_data(page, chart):
     return page.evaluate(f"JSON.stringify(Chart.getChart('{chart}')?.data?.datasets?.map(x=>x.data) ?? null)")
+
+
+def download(page, locator, path, signature):
+    with page.expect_download(timeout=90000) as event:
+        locator.click()
+    event.value.save_as(path)
+    assert path.read_bytes().startswith(signature) and path.stat().st_size > 1000, path
 
 
 def audit(browser, root, stage, width, output, export=False):
@@ -77,13 +84,14 @@ def audit(browser, root, stage, width, output, export=False):
         page.wait_for_function("document.querySelector('#regionalMapTitleA').textContent.includes('2024')")
         page.screenshot(path=str(output / f'{key}-monthly.png'), full_page=True)
         if export:
-            assert not page.evaluate('!!window.html2canvas || !!window.jspdf')
-            with page.expect_download(timeout=60000) as event:
-                page.locator('#regionalMapDownloadA').click()
-            file = output / f'{key}-regional-map.png'
-            event.value.save_as(file)
-            assert file.read_bytes().startswith(b'\x89PNG\r\n\x1a\n') and file.stat().st_size > 10000
-            assert page.evaluate('!!window.html2canvas && !window.jspdf')
+            if stage == 'lazy':
+                assert not page.evaluate('!!window.html2canvas || !!window.jspdf')
+            download(page, page.locator('#regionalMapDownloadA'), output / f'{key}-regional-map.png', b'\x89PNG\r\n\x1a\n')
+            if stage == 'lazy':
+                assert page.evaluate('!!window.html2canvas && !window.jspdf')
+            tools = page.locator('.chart-export-tools[data-canvas-id="monthlyChart"]')
+            download(page, tools.get_by_role('button', name='PNG', exact=True), output / f'{key}-chart.png', b'\x89PNG\r\n\x1a\n')
+            download(page, tools.get_by_role('button', name='PDF', exact=True), output / f'{key}-chart.pdf', b'%PDF-')
         page.evaluate("switchTab('index')")
         page.locator('#index.active').wait_for(state='visible')
         page.wait_for_function("Chart.getChart('climateIndexChart')?.data?.datasets?.length")
@@ -103,6 +111,10 @@ def audit(browser, root, stage, width, output, export=False):
             ('stationPrecip', "!document.getElementById('stationPrecipContent').hidden && Chart.getChart('stationPrecipChart')?.data?.datasets?.length"),
             ('records', "!document.getElementById('recordContent').hidden && document.querySelector('#stationRecordTable tbody tr') && !document.getElementById('stationStreakContent').hidden && document.querySelector('#stationStreakTable tbody tr')"),
             ('stationSnow', "!document.getElementById('stationSnowContent').hidden && Chart.getChart('stationSnowChart')?.data?.datasets?.length"),
+            ('stationProfile', "!document.getElementById('stationProfileContent').hidden && document.querySelector('#stationProfileMap .leaflet-marker-icon') && Chart.getChart('stationProfileTemperatureChart')?.data?.datasets?.length"),
+            ('current', "document.querySelector('#currentMap .leaflet-marker-icon') && Chart.getChart('currentConditionsChart')?.data?.datasets?.length"),
+            ('hyras', "document.querySelector('#hyrasMapFrame canvas') || (document.querySelector('#hyrasMapFrame img')?.naturalWidth > 0)"),
+            ('maps', "document.querySelector('#stationMap .leaflet-marker-icon') && document.querySelector('#mapSummary strong')"),
         ]:
             page.evaluate('(tab) => switchTab(tab)', tab)
             page.locator(f'#{tab}.active').wait_for(state='visible')
@@ -112,6 +124,11 @@ def audit(browser, root, stage, width, output, export=False):
             except Exception:
                 stations[tab] = 'not ready: ' + page.locator(f'#{tab} .record-loading:visible').all_text_contents().__str__()
             page.screenshot(path=str(output / f'{key}-{tab}.png'))
+            if tab in ('stationProfile', 'current', 'hyras', 'maps'):
+                assert stations[tab] == 'rendered', (tab, stations[tab])
+            if tab == 'current' and export:
+                download(page, page.locator('#currentMapPngButton'), output / f'{key}-current-map.png', b'\x89PNG\r\n\x1a\n')
+                download(page, page.locator('#currentMapPdfButton'), output / f'{key}-current-map.pdf', b'%PDF-')
         if stage != 'control':
             page.evaluate("switchTab('era5Atmosphere')")
             page.locator('#era5Stratosphere').wait_for(state='visible', timeout=30000)
@@ -126,8 +143,9 @@ def audit(browser, root, stage, width, output, export=False):
             ['monthlyAreaSelect','paramSelect','monthSelect','monthlyReferenceSelect','regionalMapYearSelect','regionalMapYearBSelect'].map(id=>document.getElementById(id).value).join('|') === 'Deutschland|rain|10|1961-1990|2025|2024' && Chart.getChart('monthlyChart')?.data?.datasets?.length""", timeout=90000)
         page.screenshot(path=str(output / f'{key}-deeplink.png'), full_page=True)
         if stage != 'control':
-            for filename in ('core.js', 'uebersicht.js', 'gebietsmittel', 'extreme.js', 'stationen-kenntage', 'stationen-auswertungen', 'schnee.js'):
+            for filename in ('core.js', 'uebersicht.js', 'gebietsmittel', 'extreme.js', 'stationen-kenntage', 'stationen-auswertungen', 'schnee.js', 'export-karten-vergleich', 'stationsprofil', 'aktuell'):
                 assert any('/js/' + filename in url for url in loads), filename
+            assert not [url for status, url in network if '/js/' in url], network
         assert not errors, errors
         assert not [e for e in console_errors if re.search(r'ReferenceError|SyntaxError|is not defined', e)], console_errors
         return {'stage': stage, 'width': width, 'passed': True, 'overview': overview,
@@ -157,7 +175,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
         browser = p.chromium.launch(channel='chrome', headless=True, proxy={'server': 'http://127.0.0.1:8089'}, args=['--ignore-certificate-errors', '--no-sandbox'])
-        rows = [audit(browser, args.root, stage, width, args.output, export=(stage == 'lazy' and width == 1440))
+        rows = [audit(browser, args.root, stage, width, args.output, export=(stage != 'control' and width == 1440))
                 for stage, width in [('control', 1440), ('source', 1440), ('lazy', 1440), ('lazy', 390)]]
         browser.close()
     control = rows[0]

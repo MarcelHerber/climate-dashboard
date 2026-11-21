@@ -14,6 +14,9 @@ required_root_files=(
   js/stationen-kenntage.js
   js/stationen-auswertungen.js
   js/schnee.js
+  js/export-karten-vergleich.js
+  js/stationsprofil.js
+  js/aktuell.js
   mosmix.html
   datenstatus.html
   dashboard_cleanup.css
@@ -207,7 +210,7 @@ for file in "${required_root_files[@]}"; do
   fi
   cp --parents "$file" _site/
 done
-for file in js/core.js js/uebersicht.js js/gebietsmittel.js js/extreme.js js/stationen-kenntage.js js/stationen-auswertungen.js js/schnee.js era5_stratosphere.js; do
+for file in js/core.js js/uebersicht.js js/gebietsmittel.js js/extreme.js js/stationen-kenntage.js js/stationen-auswertungen.js js/schnee.js js/export-karten-vergleich.js js/stationsprofil.js js/aktuell.js era5_stratosphere.js; do
   node --check "_site/$file"
 done
 
@@ -1855,5 +1858,8 @@ du -sh _site
 if [ -n "${DASHBOARD_LOADING_STAGE:-}" ]; then
   python scripts/optimize_dashboard_loading.py _site --stage "$DASHBOARD_LOADING_STAGE"
   node --check _site/dashboard_main.js
+  if [[ -f _site/dashboard_hyras.js ]]; then
+    node --check _site/dashboard_hyras.js
+  fi
 fi
 
