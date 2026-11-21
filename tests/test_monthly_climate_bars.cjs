@@ -6,7 +6,7 @@ const vm=require("node:vm");
 
 const source=fs.readFileSync("monthly_climate_bars.js","utf8");
 const css=fs.readFileSync("dashboard_cleanup.css","utf8");
-const html=fs.readFileSync("index.html","utf8");
+const html=require("./dashboard_source.cjs")();
 const builder=fs.readFileSync("scripts/build_pages_site.sh","utf8");
 
 function pluginInstance(){

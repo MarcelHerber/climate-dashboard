@@ -23,8 +23,9 @@ class StageTests(unittest.TestCase):
             subprocess.run(['bash', '-c', block], cwd=root, check=True, capture_output=True)
             self.assertTrue((root / '_site/ifs_weekly_arctic.html').is_file(),
                             'Arctic page must be included in the public artifact')
-            for module in ('core', 'uebersicht', 'gebietsmittel'):
+            for module in ('core', 'uebersicht', 'gebietsmittel', 'extreme', 'stationen-kenntage', 'stationen-auswertungen', 'schnee'):
                 self.assertEqual((root / f'_site/js/{module}.js').read_text(), 'stub')
+            self.assertEqual((root / '_site/era5_stratosphere.js').read_text(), 'stub')
 
     def test_nav_link_only_once_in_desktop_and_mobile(self):
         with tempfile.TemporaryDirectory() as d:

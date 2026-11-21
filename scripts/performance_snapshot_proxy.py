@@ -45,6 +45,8 @@ def local_file(flow):
     # never allow traversal or arbitrary paths.
     if not name or ("/" in name and name not in {
         "js/core.js", "js/uebersicht.js", "js/gebietsmittel.js", "js/gebietsmittel.optimized.js",
+        "js/extreme.js", "js/stationen-kenntage.js", "js/stationen-auswertungen.js", "js/schnee.js",
+        "js/stationen-kenntage.optimized.js", "js/stationen-auswertungen.optimized.js",
     }):
         return None
     stage = (ROOT / "stage.txt").read_text().strip()

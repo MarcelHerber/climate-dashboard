@@ -1,4 +1,4 @@
-name: Performance branch · First thematic script split
+name: Performance branch · Thematic script split
 on:
   push:
     branches: [perf/dashboard-loading-20261120]
@@ -11,7 +11,7 @@ permissions:
 jobs:
   split:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       PERF_SNAPSHOT_ROOT: ${{ github.workspace }}/snapshot
     steps:
@@ -21,6 +21,7 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             /index.html
+            /era5_stratosphere.js
             /js/
             /scripts/optimize_dashboard_loading.py
             /scripts/dashboard_export_libraries.js

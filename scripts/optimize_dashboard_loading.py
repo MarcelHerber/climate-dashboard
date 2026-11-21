@@ -109,6 +109,21 @@ def lazy_exports(html, site):
             '  try{\n    const mapObj=mapName===',
             '  try{\n    ' + CANVAS + '\n    const mapObj=mapName===',
         )]
+    if (site / "js/stationen-kenntage.js").is_file():
+        main_edits = edits["dashboard_main.js"]
+        for filename, anchors in {
+            "js/stationen-kenntage.js": ('stationProfileClimateValuesExportArea', 'const {jsPDF}=window.jspdf||{};if(!jsPDF)'),
+            "js/stationen-auswertungen.js": ('  if(typeof html2canvas!=="function"){\n',),
+        }.items():
+            moved = [edit for edit in main_edits if any(anchor in edit[0] for anchor in anchors)]
+            assert len(moved) == len(anchors)
+            edits[filename] = moved
+            for edit in moved:
+                main_edits.remove(edit)
+        edits["js/stationen-auswertungen.js"].append((
+            '  try{\n    controls.forEach(node=>{node.style.display="none";});',
+            '  try{\n    ' + CANVAS + '\n    controls.forEach(node=>{node.style.display="none";});',
+        ))
     for filename, replacements in edits.items():
         path = site / filename
         original = path.read_bytes().decode()

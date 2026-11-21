@@ -4,7 +4,7 @@ const fs=require("node:fs");
 const vm=require("node:vm");
 
 const index=JSON.parse(fs.readFileSync("station_snow_height_index.json","utf8"));
-const html=fs.readFileSync("index.html","utf8");
+const html=require("./dashboard_source.cjs")();
 const short=(index.stations||[]).filter(s=>Number(s.accepted_history_years||0)<30);
 const long=(index.stations||[]).filter(s=>Number(s.accepted_history_years||0)>=30);
 

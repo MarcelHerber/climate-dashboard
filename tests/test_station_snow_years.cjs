@@ -3,7 +3,7 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const vm=require("node:vm");
 const script=fs.readFileSync("station_snow_years.js","utf8");
-const html=fs.readFileSync("index.html","utf8");
+const html=require("./dashboard_source.cjs")();
 const context={window:{}};
 vm.runInNewContext(script,context);
 const api=context.window.StationSnowYears;

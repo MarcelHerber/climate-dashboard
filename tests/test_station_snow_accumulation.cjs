@@ -4,7 +4,7 @@ const fs=require("node:fs");
 const vm=require("node:vm");
 
 const source=fs.readFileSync("station_snow_accumulation.js","utf8");
-const html=fs.readFileSync("index.html","utf8");
+const html=require("./dashboard_source.cjs")();
 const build=fs.readFileSync("scripts/build_pages_site.sh","utf8");
 const context={window:{}};
 vm.runInNewContext(source,context,{timeout:3000});

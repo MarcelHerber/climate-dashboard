@@ -5,7 +5,7 @@ const fs=require("node:fs");
 const vm=require("node:vm");
 
 const src=fs.readFileSync("station_snow_explorer.js","utf8");
-const html=fs.readFileSync("index.html","utf8");
+const html=require("./dashboard_source.cjs")();
 const base=JSON.parse(fs.readFileSync("station_snow_height_index.json","utf8"));
 const additionalPath="station_snow_height_additional_index.json";
 const extra=fs.existsSync(additionalPath)

@@ -10,6 +10,10 @@ required_root_files=(
   js/core.js
   js/uebersicht.js
   js/gebietsmittel.js
+  js/extreme.js
+  js/stationen-kenntage.js
+  js/stationen-auswertungen.js
+  js/schnee.js
   mosmix.html
   datenstatus.html
   dashboard_cleanup.css
@@ -155,6 +159,7 @@ required_root_files=(
   scientific_vector_actions.js
   t850_ensembles.css
   era5_europe.js
+  era5_stratosphere.js
   era5_europe.css
   temperatur_anomalie_europa.html
   cpc_europe.js
@@ -202,7 +207,7 @@ for file in "${required_root_files[@]}"; do
   fi
   cp --parents "$file" _site/
 done
-for file in js/core.js js/uebersicht.js js/gebietsmittel.js; do
+for file in js/core.js js/uebersicht.js js/gebietsmittel.js js/extreme.js js/stationen-kenntage.js js/stationen-auswertungen.js js/schnee.js era5_stratosphere.js; do
   node --check "_site/$file"
 done
 

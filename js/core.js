@@ -331,6 +331,7 @@ function switchTab(tab,{persist=true}={}){
     updateRegionalMap();
     if(regionalMap) regionalMap.invalidateSize();
   },80);
+  if(tab==="index") updateClimateIndex();
   if(tab==="stationProfile") ensureStationProfile();
   if(tab==="stationPrecip") ensureStationPrecipLoaded();
   if(tab==="stationSnow") ensureStationSnowLoaded();

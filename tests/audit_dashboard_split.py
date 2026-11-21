@@ -9,7 +9,7 @@ from audit_europe_hub import prepare as prepare_europe_hub
 from test_europe_hub_overview import SOURCE
 
 OLD_MAIN = re.compile(rb'<script>(\s*Chart\.register\(ChartDataLabels\);.*?)</script>', re.S)
-SPLIT_MAIN = re.compile(rb'(<script src="js/core\.js[^\n]*\n<script src="js/uebersicht\.js[^\n]*\n<script src="js/gebietsmittel\.js[^\n]*\n<script>\s*// Start-Abrufe.*?)</script>', re.S)
+SPLIT_MAIN = re.compile(rb'((?:<script src="js/[^"\n]+"></script>\n)+<script>\s*// Start-Abrufe.*?)</script>', re.S)
 URL = 'https://marcelherber.github.io/climate-dashboard/index.html'
 
 
@@ -22,6 +22,7 @@ def prepare(site):
     assert len(old) == len(split) == 1
     index.write_bytes(html[:old[0].start()] + split[0][0] + html[old[0].end():])
     shutil.copytree(SOURCE.parent / 'js', site / 'js')
+    shutil.copyfile(SOURCE.parent / 'era5_stratosphere.js', site / 'era5_stratosphere.js')
     # The production builder also makes the staged snow archives same-origin.
     path = site / 'js/uebersicht.js'
     source = path.read_text()
@@ -83,26 +84,54 @@ def audit(browser, root, stage, width, output, export=False):
             event.value.save_as(file)
             assert file.read_bytes().startswith(b'\x89PNG\r\n\x1a\n') and file.stat().st_size > 10000
             assert page.evaluate('!!window.html2canvas && !window.jspdf')
-        index_before = chart_data(page, 'climateIndexChart')
         page.evaluate("switchTab('index')")
         page.locator('#index.active').wait_for(state='visible')
-        assert index_before != 'null', 'Climate index not initialized while Gebietsmittel active'
-        page.locator('#indexPeriodSelect').select_option('01')
+        page.wait_for_function("Chart.getChart('climateIndexChart')?.data?.datasets?.length")
+        index_before = chart_data(page, 'climateIndexChart')
+        target = '02' if page.locator('#indexPeriodSelect').input_value() == '01' else '01'
+        page.locator('#indexPeriodSelect').select_option(target)
         page.wait_for_timeout(300)
         index_updates = chart_data(page, 'climateIndexChart') != index_before
+        if stage != 'control':
+            assert index_updates, 'Climate index period change did not update chart'
         page.screenshot(path=str(output / f'{key}-index.png'), full_page=True)
+        stations = {}
+        for tab, condition in [
+            ('daily', "Chart.getChart('dailyChart')?.data?.datasets?.length"),
+            ('stationClimateDays', "!document.getElementById('stationClimateDaysContent').hidden && Chart.getChart('stationClimateDaysCumulativeChart')?.data?.datasets?.length"),
+            ('stationHeatwaves', "!document.getElementById('stationHeatwavesContent').hidden && Chart.getChart('stationHeatwavesBarChart')?.data?.datasets?.length"),
+            ('stationPrecip', "!document.getElementById('stationPrecipContent').hidden && Chart.getChart('stationPrecipChart')?.data?.datasets?.length"),
+            ('records', "!document.getElementById('recordContent').hidden && document.querySelector('#stationRecordTable tbody tr') && !document.getElementById('stationStreakContent').hidden && document.querySelector('#stationStreakTable tbody tr')"),
+            ('stationSnow', "!document.getElementById('stationSnowContent').hidden && Chart.getChart('stationSnowChart')?.data?.datasets?.length"),
+        ]:
+            page.evaluate('(tab) => switchTab(tab)', tab)
+            page.locator(f'#{tab}.active').wait_for(state='visible')
+            try:
+                page.wait_for_function(condition, timeout=45000)
+                stations[tab] = 'rendered'
+            except Exception:
+                stations[tab] = 'not ready: ' + page.locator(f'#{tab} .record-loading:visible').all_text_contents().__str__()
+            page.screenshot(path=str(output / f'{key}-{tab}.png'))
+        if stage != 'control':
+            page.evaluate("switchTab('era5Atmosphere')")
+            page.locator('#era5Stratosphere').wait_for(state='visible', timeout=30000)
+            assert not any('era5_stratosphere.js' in url for status, url in network), network
+            page.screenshot(path=str(output / f'{key}-stratosphere.png'))
+            page.goto(URL + '?tab=index&s_indexPeriodSelect=02&s_indexAreaSelect=Deutschland', wait_until='domcontentloaded', timeout=90000)
+            page.wait_for_function("""document.querySelector('#index.active') && document.getElementById('indexPeriodSelect').value === '02' && document.getElementById('indexAreaSelect').value === 'Deutschland' && Chart.getChart('climateIndexChart')?.data?.datasets?.length""", timeout=90000)
+            page.screenshot(path=str(output / f'{key}-index-deeplink.png'), full_page=True)
         # Direct link with multiple persisted control values and Unicode region name.
         page.goto(URL + '?tab=monthly&s_monthlyAreaSelect=Deutschland&s_paramSelect=rain&s_monthSelect=10&s_monthlyReferenceSelect=1961-1990&s_regionalMapYearSelect=2025&s_regionalMapYearBSelect=2024', wait_until='domcontentloaded', timeout=90000)
         page.wait_for_function("""() => document.querySelector('#monthly.active') && monthlyData.length > 1000 &&
             ['monthlyAreaSelect','paramSelect','monthSelect','monthlyReferenceSelect','regionalMapYearSelect','regionalMapYearBSelect'].map(id=>document.getElementById(id).value).join('|') === 'Deutschland|rain|10|1961-1990|2025|2024' && Chart.getChart('monthlyChart')?.data?.datasets?.length""", timeout=90000)
         page.screenshot(path=str(output / f'{key}-deeplink.png'), full_page=True)
         if stage != 'control':
-            for filename in ('core.js', 'uebersicht.js', 'gebietsmittel'):
+            for filename in ('core.js', 'uebersicht.js', 'gebietsmittel', 'extreme.js', 'stationen-kenntage', 'stationen-auswertungen', 'schnee.js'):
                 assert any('/js/' + filename in url for url in loads), filename
         assert not errors, errors
         assert not [e for e in console_errors if re.search(r'ReferenceError|SyntaxError|is not defined', e)], console_errors
         return {'stage': stage, 'width': width, 'passed': True, 'overview': overview,
-                'monthly_chart': before, 'index_updates': index_updates, 'console_errors': console_errors,
+                'monthly_chart': before, 'index_updates': index_updates, 'stations': stations, 'console_errors': console_errors,
                 'page_errors': errors, 'network_errors': network}
     except Exception as exc:
         try:
@@ -134,7 +163,7 @@ def main():
     control = rows[0]
     for result in rows[1:]:
         if result['passed'] and control['passed']:
-            for name in ('overview', 'monthly_chart', 'index_updates'):
+            for name in ('overview', 'monthly_chart', 'stations'):
                 if result[name] != control[name]:
                     result['passed'] = False
                     result['error'] = 'Behavior differs from control: ' + name

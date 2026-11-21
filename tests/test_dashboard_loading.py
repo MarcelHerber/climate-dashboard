@@ -29,7 +29,7 @@ class DashboardLoadingTest(unittest.TestCase):
         return (self.site / "index.html").read_bytes()
 
     def test_split_sources_build_in_order_and_lazy_exports_still_work(self):
-        for name in ("core", "uebersicht", "gebietsmittel"):
+        for name in ("core", "uebersicht", "gebietsmittel", "extreme", "stationen-kenntage", "stationen-auswertungen", "schnee"):
             self.assertTrue((ROOT / "js" / f"{name}.js").is_file(), name)
         for name in ("dashboard_theme.js", "monthly_frequency.js", "state_monthly_ensemble.js",
                      "t850_ensembles.js", "sst_europe.js", "station_thresholds.js",
@@ -37,12 +37,15 @@ class DashboardLoadingTest(unittest.TestCase):
             shutil.copyfile(ROOT / name, self.site / name)
         html = self.optimize("lazy").decode()
         tags = re.findall(r'<script\b[^>]*\bsrc=[^>]*>', html)
-        for name in ("js/core.js", "js/uebersicht.js", "js/gebietsmittel.optimized.js", "dashboard_main.js"):
+        for name in ("js/core.js", "js/uebersicht.js", "js/gebietsmittel.optimized.js", "js/extreme.js", "js/stationen-kenntage.optimized.js", "js/stationen-auswertungen.optimized.js", "js/schnee.js", "dashboard_main.js"):
             self.assertEqual(sum(name in tag for tag in tags), 1, name)
         joined = "\n".join(tags)
-        order = [joined.index(name) for name in ("chartjs-plugin-datalabels", "js/core.js", "js/uebersicht.js", "js/gebietsmittel.optimized.js", "dashboard_main.js", "dashboard_export_hq.js")]
+        order = [joined.index(name) for name in ("chartjs-plugin-datalabels", "js/core.js", "js/uebersicht.js", "js/gebietsmittel.optimized.js", "js/extreme.js", "js/stationen-kenntage.optimized.js", "js/stationen-auswertungen.optimized.js", "js/schnee.js", "dashboard_main.js", "dashboard_export_hq.js")]
         self.assertEqual(order, sorted(order))
         self.assertIn("await window.dashboardExportLibraries.canvas()", (self.site / "js/gebietsmittel.optimized.js").read_text())
+        self.assertIn("await window.dashboardExportLibraries.canvas()", (self.site / "js/stationen-auswertungen.optimized.js").read_text())
+        for library in ('canvas', 'pdf'):
+            self.assertIn(f"await window.dashboardExportLibraries.{library}()", (self.site / "js/stationen-kenntage.optimized.js").read_text())
         self.assertNotIn("npm/html2canvas@", html)
         self.assertNotIn("npm/jspdf@", html)
 

@@ -921,7 +921,7 @@ const indexGuidesPlugin={
 Chart.register(indexGuidesPlugin);
 
 function updateClimateIndex(){
-  if(!document.getElementById("monthly")?.classList.contains("active")) return;
+  if(!document.getElementById("indexPeriodSelect")?.closest(".tab-content")?.classList.contains("active")) return;
   if(!monthlyData.length) return;
   const area=document.getElementById("indexAreaSelect").value;
   const selection=document.getElementById("indexPeriodSelect").value;
