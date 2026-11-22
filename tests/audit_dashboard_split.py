@@ -62,14 +62,9 @@ def click_lazy_tab(page, tab, width):
                 'state-monthly-ensemble':'Monatsausblick','gebietsmittelArchive':'Gebietsmittel Archiv','era5Atmosphere':'ERA5 Atmosphäre'}[tab]
         page.locator('#cdMobileMenuButton').click()
         page.locator('.cdm-search').fill(name)
-        page.locator('.cdm-results').get_by_role('button', name=re.compile(r'^' + re.escape(name) + r'(?:\s|$)')).click()
+        page.locator('.cdm-results button.cdm-search-item').filter(has_text=name).click()
     else:
-        if tab=='gebietsmittelArchive':
-            page.locator('.nav-dropdown[data-nav-group="germany"] .nav-dropdown-toggle').click()
-            page.locator('.nav-dropdown[data-nav-group="germany"] .tab-button[onclick="switchTab(\'monthly\')"]').click()
-            page.locator('.monthly-section-link[onclick="switchTab(\'gebietsmittelArchive\')"]').click()
-            return
-        group = 'stations' if tab in ('stationSnow', 'current') else 'germany' if tab=='hyras' else 'europe'
+        group = 'stations' if tab in ('stationSnow', 'current') else 'germany' if tab in ('hyras','gebietsmittelArchive') else 'europe'
         page.locator(f'.nav-dropdown[data-nav-group="{group}"] .nav-dropdown-toggle').click()
         page.locator(f'.nav-dropdown[data-nav-group="{group}"] .tab-button[onclick="switchTab(\'{tab}\')"]').click()
 
