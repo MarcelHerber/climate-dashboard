@@ -127,7 +127,7 @@ test("local outlines unavailable report error without stopping OSM",async()=>{
 });
 
 test("map integration uses shared basemap and waits for Leaflet on first open",()=>{
- assert.match(HTML,/europe_station_basemap\.js\?v=/);
+ assert.match(DASHBOARD_SOURCE,/europe_station_basemap\.js\?v=/);
  assert.match(HTML,/id="europeStationBasemapStatus"/);
  assert.match(DASHBOARD_SOURCE,/window\.attachEuropeStationBasemap\(europeStationMap\)/);
  assert.match(DASHBOARD_SOURCE,/await window\.ensureEuropeStationLeaflet\(\)/);

@@ -2,7 +2,7 @@ name: Performance branch · Thematic script split
 on:
   push:
     branches: [perf/dashboard-loading-20261120]
-    paths: ['index.html', 'js/**', 'tests/audit_dashboard_split.py', '.github/workflows/performance-dashboard-split-audit.yml']
+    paths: ['index.html', 'js/**', 'scripts/build_pages_site.sh', 'scripts/optimize_dashboard_loading.py', 'tests/audit_dashboard_split.py', 'tests/test_europe_station_basemap.cjs', '.github/workflows/performance-dashboard-split-audit.yml']
 
 permissions:
   contents: read
