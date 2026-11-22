@@ -36,7 +36,7 @@ jobs:
           grep -q "stateMonthlyParameter" index.html
           EXPECTED_TAG=$(python -c 'from scripts.patch_state_monthly_ensemble_frontend import JS_TAG; print(JS_TAG)')
           test -n "$EXPECTED_TAG"
-          grep -Fq "$EXPECTED_TAG" index.html
+          grep -Fq "$EXPECTED_TAG" index.html || grep -Fq '"state_monthly_ensemble":["state_monthly_ensemble.js",' js/loader.js
 
   live-cache:
     runs-on: ubuntu-latest

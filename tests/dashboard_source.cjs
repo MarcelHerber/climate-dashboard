@@ -8,12 +8,24 @@ module.exports = function dashboardSource() {
   // Reconstruct the thematic source order for static assertions, including
   // modules referenced by the dynamic loader rather than by HTML tags.
   if (html.includes('src="js/loader.js')) {
+    const loader = fs.readFileSync(path.join(root, 'js/loader.js'), 'utf8');
+    if (loader.includes('const MODULES=')) {
+      for (const match of loader.matchAll(/"([^"]+)":\["([^"]+\.js)","([^"]+)"\]/g)) {
+        const [,name,src,version]=match;
+        const tag='<script src="'+src+'?v='+version+'"></script>\n';
+        if(src.startsWith('js/')) {
+          const anchor=name==='schnee'?'export-karten-vergleich':name==='hyras-tmin'?'bootstrap':'dashboard-state';
+          html=html.replace('<script src="js/'+anchor+'.js',tag+'<script src="js/'+anchor+'.js');
+        } else html=html.replace('</head>',tag+'</head>');
+      }
+    } else {
     for (const [anchor, modules] of [
       ['export-karten-vergleich', ['schnee']],
       ['dashboard-state', ['aktuell', 'era5-land', 'europa-stationen']],
     ]) {
       html = html.replace('<script src="js/' + anchor + '.js', modules.map(name =>
         '<script src="js/' + name + '.js"></script>').join('\n') + '\n<script src="js/' + anchor + '.js');
+    }
     }
   }
   return html.replace(

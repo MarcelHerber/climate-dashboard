@@ -10,7 +10,7 @@ metrics = ("first-contentful-paint", "largest-contentful-paint", "speed-index",
            "total-blocking-time", "cumulative-layout-shift", "interactive", "total-byte-weight")
 stages = {}
 config = None
-for stage in ("baseline", "extract", "defer", "lazy"):
+for stage in (sys.argv[3:] or ("baseline", "extract", "defer", "lazy")):
     rows = []
     for path in sorted(root.glob(f"{stage}-*.report.json")):
         report = json.loads(path.read_text())
@@ -28,7 +28,7 @@ for stage in ("baseline", "extract", "defer", "lazy"):
         raise SystemExit(f"Expected three cold audits for {stage}, got {len(rows)}")
     stages[stage] = {"runs": rows, "median": {key: statistics.median(row[key] for row in rows)
                     for key in ("score", *metrics)}}
-baseline = stages["baseline"]["median"]
+baseline = next(iter(stages.values()))["median"]
 for stage, entry in stages.items():
     entry["delta_vs_baseline"] = {key: value - baseline[key] for key, value in entry["median"].items()}
 summary = {"device": device, "config": config, "stages": stages}

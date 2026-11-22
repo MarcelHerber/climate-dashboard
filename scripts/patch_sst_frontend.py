@@ -59,7 +59,7 @@ def patch_html(text: str) -> str:
                       lambda _: re.search(r'<p class="sst-europe-source">.*?</p>', PANEL).group(0), text, count=1)
         text = re.sub(r'(<div class="section-header sst-europe-header">\s*<h2>Meere / SST</h2>\s*)<p>.*?</p>\s*<span class="section-status">.*?</span>',
                       lambda m: m.group(1) + re.search(r'<p>Tägliche.*?</span>', PANEL, re.S).group(0), text, count=1, flags=re.S)
-    if all(marker in text for marker in (CSS_TAG, JS_TAG, 'id="sst-europe"', "switchTab('sst-europe')")):
+    if all(marker in text for marker in (CSS_TAG, 'id="sst-europe"', "switchTab('sst-europe')")) and (JS_TAG in text or 'src="js/loader.js' in text):
         return text
 
     if "</head>" not in text:

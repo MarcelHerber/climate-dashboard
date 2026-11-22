@@ -609,6 +609,11 @@ for filename in ("monthly_frequency.js","t850_ensembles.js"):
     pattern=re.escape(filename)+r"(?:\?v=[A-Za-z0-9_.-]+)?"
     version="20261118-ensemble-classic-v1" if filename=="t850_ensembles.js" else "20261113-phase2-exports-v1"
     html,count=re.subn(pattern,filename+"?v="+version,html)
+    if count==0 and filename=="t850_ensembles.js":
+        loader=Path("_site/js/loader.js")
+        source=loader.read_text(encoding="utf-8")
+        updated,count=re.subn(r'("t850_ensembles":\["t850_ensembles\.js",")[^"]+("\])',r'\g<1>'+version+r'\2',source)
+        if count==1:loader.write_text(updated,encoding="utf-8")
     if count!=1:
         raise SystemExit(f"Phase 2: missing/duplicate chart asset {filename}: {count}")
 path.write_text(html,encoding="utf-8")
@@ -1317,14 +1322,14 @@ node --test tests/test_station_snow_years.cjs
 node --test tests/test_station_snow_accumulation.cjs
 node --test tests/test_station_snow_coverage.cjs
 grep -q 'stationSnowCumChart' _site/index.html
-grep -q 'station_snow_accumulation.js' _site/index.html
+grep -q 'station_snow_accumulation.js' _site/js/loader.js
 grep -q 'stationSnowYearsList' _site/index.html
-grep -q 'station_snow_years.js' _site/index.html
-grep -q 'station_snow_explorer.js' _site/index.html
+grep -q 'station_snow_years.js' _site/js/loader.js
+grep -q 'station_snow_explorer.js' _site/js/loader.js
 grep -q 'station_snow_explorer.css' _site/index.html
 node --check _site/europe_station_basemap.js
 node --test tests/test_europe_station_basemap.cjs
-grep -q 'europe_station_basemap.js' _site/index.html
+grep -q 'europe_station_basemap.js' _site/js/loader.js
 grep -q 'europeStationBasemapStatus' _site/index.html
 
 # Europa-Stationskarte: Der komplette veröffentlichte Datenordner wird benötigt.

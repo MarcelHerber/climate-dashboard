@@ -16,6 +16,7 @@ PATCHES = (
     "patch_state_monthly_ensemble_frontend.py",
     "move_hyras_top3_below_map.py",
     "patch_t850_ensembles_frontend.py",
+    "patch_sst_frontend.py",
     "patch_era5_tp_month_frontend.py",
     "patch_era5_current_tp_frontend.py",
     "patch_era5_temperature_rank_frontend.py",

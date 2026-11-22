@@ -45,7 +45,7 @@ jobs:
           grep -q "t850-ensembles" index.html
           grep -q 'id="t850-ensembles" class="tab-content"' index.html
           grep -q 'href="t850_ensembles.css' index.html
-          grep -q 'src="t850_ensembles.js' index.html
+          grep -q 'src="t850_ensembles.js' index.html || grep -Fq '"t850_ensembles":["t850_ensembles.js",' js/loader.js
           cp index.html /tmp/t850-index-once.html
           python scripts/patch_t850_ensembles_frontend.py --file index.html
           cmp -s /tmp/t850-index-once.html index.html

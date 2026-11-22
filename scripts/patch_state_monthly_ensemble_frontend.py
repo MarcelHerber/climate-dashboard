@@ -205,7 +205,7 @@ def patch_index(text: str, core_source: str = "") -> str:
     old_tag=r'<script src="state_monthly_ensemble\.js(?:\?[^"]*)?"></script>'
     if re.search(old_tag,text):
         text=re.sub(old_tag,lambda _: JS_TAG,text,count=1)
-    else:
+    elif not ('src="js/loader.js' in text and 'whenTabModulesReady(tab,()=>window.ensureStateMonthlyEnsembleLoaded?.())' in core_source):
         anchor='<script src="t850_ensembles.js?v=20260922-7"></script>'
         if anchor not in text:
             raise RuntimeError("T850-Scriptanker fehlt")
@@ -214,7 +214,8 @@ def patch_index(text: str, core_source: str = "") -> str:
     hook='  if(tab==="europeStations") ensureEuropeStationMap();'
     new_hook=hook+'\n  if(tab==="state-monthly-ensemble") window.ensureStateMonthlyEnsembleLoaded?.();'
     lazy_hook='  if(tab==="europeStations") whenTabModulesReady(tab,()=>ensureEuropeStationMap());\n  if(tab==="state-monthly-ensemble") window.ensureStateMonthlyEnsembleLoaded?.();'
-    if new_hook not in text and new_hook not in core_source and lazy_hook not in core_source:
+    lazy_group_hook=lazy_hook.replace('window.ensureStateMonthlyEnsembleLoaded?.();','whenTabModulesReady(tab,()=>window.ensureStateMonthlyEnsembleLoaded?.());')
+    if new_hook not in text and new_hook not in core_source and lazy_hook not in core_source and lazy_group_hook not in core_source:
         if hook not in text:
             # switchTab was extracted to js/core.js; keep that integration.
             core=ROOT/"js/core.js"

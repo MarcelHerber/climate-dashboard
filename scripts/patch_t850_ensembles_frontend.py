@@ -140,7 +140,7 @@ def patch_html(text: str) -> str:
     </div>'''
         text = text.replace(marker, select + "\n" + marker, 1)
 
-    if JS_TAG not in text:
+    if JS_TAG not in text and 'src="js/loader.js' not in text:
         marker = '<script src="sst_europe.js"></script>'
         if marker not in text:
             marker = "<script>\nChart.register(ChartDataLabels);"

@@ -42,7 +42,7 @@ test('background load does not restore hidden controls, but first later visit do
   let calls = 0;
   modules.whenTabReady('europeStations', () => calls++);
   tab.active = false;
-  scripts[0].onload(); await tick();
+  for(let i=0;i<scripts.length;i++){scripts[i].onload(); await tick();}
   assert.equal(calls, 0); assert.deepEqual(restored, []);
   tab.active = true;
   modules.whenTabReady('europeStations', () => calls++); await tick();
@@ -60,6 +60,29 @@ test('failed script is removed and retry loads it exactly once', async () => {
   assert.equal(notice.children[1].textContent, 'Erneut versuchen');
   notice.children[1].click();
   assert.equal(scripts.length, 2); assert.ok(scripts[0].removed);
-  scripts[1].onload(); await tick();
+  for(let i=1;i<scripts.length;i++){scripts[i].onload(); await tick();}
   assert.equal(calls, 1); assert.equal(modules.tabReady('stationSnow'), true);
+});
+
+test('HYRAS overrides execute in sequence and a failed dependency cannot execute later overrides', async () => {
+  const { modules, scripts, makeTab } = harness();
+  const tab = makeTab('hyras'); tab.active = true;
+  let calls = 0;
+  modules.whenTabReady('hyras', () => calls++);
+  await tick();
+  assert.match(scripts[0]?.src || '', /^hyras_temperature_interactive\.js\?/);
+  assert.equal(scripts.length,1);
+  scripts[0].onload(); await tick();
+  assert.match(scripts[1]?.src || '', /^js\/hyras\.js\?/);
+  scripts[1].onload(); await tick();
+  assert.match(scripts[2]?.src || '', /^js\/hyras-tmin\.js\?/);
+  scripts[2].onerror(); await tick();
+  assert.equal(scripts.length,3);
+  assert.equal(calls,0);
+  tab.notices.find(n => !n.removed).children[1].click(); await tick();
+  assert.match(scripts[3]?.src || '', /^js\/hyras-tmin\.js\?/);
+  scripts[3].onload(); await tick();
+  assert.match(scripts[4]?.src || '', /^hyras_historical_temperature_1km\.js\?/);
+  scripts[4].onload(); await tick();
+  assert.equal(calls,1); assert.equal(modules.tabReady('hyras'),true);
 });

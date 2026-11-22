@@ -20,6 +20,10 @@ def await_deployment():
             with urllib.request.urlopen(BASE+"t850_vector_export.js?fresh="+str(time.time()),timeout=20) as res:
                 js=res.read().decode("utf8")
             if VERSION in html and "T850VectorExport" in js:return
+            if 'src="js/loader.js' in html and "T850VectorExport" in js:
+                with urllib.request.urlopen(BASE+"js/loader.js?fresh="+str(time.time()),timeout=20) as res:
+                    loader=res.read().decode("utf8")
+                if '"t850_ensembles":["t850_ensembles.js","20261118-ensemble-classic-v1"]' in loader:return
         except Exception as exc:print("Publish probe:",str(exc)[:100],flush=True)
         time.sleep(12)
     raise AssertionError("Current Pages T850 vector exporter was not deployed.")
@@ -61,9 +65,9 @@ def run(browser,width):
     status={"width":width,"ok":False}
     try:
         page.goto(BASE+"index.html?test=t850",wait_until="domcontentloaded",timeout=90000)
-        page.wait_for_function("()=>typeof window.mountT850Ensembles==='function' && typeof window.switchTab==='function'",timeout=90000)
+        page.wait_for_function("()=>typeof window.switchTab==='function'",timeout=90000)
         page.evaluate("switchTab('t850-ensembles')")
-        page.wait_for_function("()=>!!document.getElementById('t850SvgDownload')",timeout=20000)
+        page.wait_for_function("()=>typeof window.mountT850Ensembles==='function' && !!document.getElementById('t850SvgDownload')",timeout=90000)
         page.locator("#t850LocationInput").fill("Frankfurt am Main")
         page.locator("#t850LoadButton").click()
         page.wait_for_function("""()=>{

@@ -21,7 +21,15 @@ def prepare(site):
     old = list(OLD_MAIN.finditer(html))
     split = list(SPLIT_MAIN.finditer(SOURCE.read_bytes()))
     assert len(old) == len(split) == 1
-    index.write_bytes(html[:old[0].start()] + split[0][0] + html[old[0].end():])
+    html = html[:old[0].start()] + split[0][0] + html[old[0].end():]
+    loader=(SOURCE.parent / 'js/loader.js').read_text()
+    dynamic=re.findall(r'"([^"]+\.js)"\s*,\s*"[^"]+"\]',loader)
+    for filename in dynamic:
+        html=re.sub(rb'<script\b[^>]*src="'+re.escape(filename.encode())+rb'(?:\?[^"]*)?"[^>]*>\s*</script>',b'',html)
+        if '/' not in filename:
+            shutil.copyfile(SOURCE.parent / filename, site / filename)
+    html=re.sub(rb'<script src="(https://cdn\.jsdelivr\.net/npm/(?:jspdf|html2canvas)@[^"]+)"',rb'<script defer src="\1"',html)
+    index.write_bytes(html)
     shutil.copytree(SOURCE.parent / 'js', site / 'js')
     shutil.copyfile(SOURCE.parent / 'era5_stratosphere.js', site / 'era5_stratosphere.js')
     # The production builder also makes the staged snow archives same-origin.
@@ -49,12 +57,14 @@ def download(page, locator, path, signature):
 def click_lazy_tab(page, tab, width):
     if width < 600:
         name = {'stationSnow': 'Schneehöhe', 'current': 'Aktuelle DWD-Stationen',
-                'era5Europe': 'ERA5-Land Europa', 'europeStations': 'Europa-Stationen'}[tab]
+                'era5Europe': 'ERA5-Land Europa', 'europeStations': 'Europa-Stationen',
+                'hyras':'HYRAS-Flächenkarten','t850-ensembles':'Ensembleprognosen','sst-europe':'Meere / SST',
+                'state-monthly-ensemble':'Monatsausblick','gebietsmittelArchive':'Gebietsmittel Archiv','era5Atmosphere':'ERA5 Atmosphäre'}[tab]
         page.locator('#cdMobileMenuButton').click()
         page.locator('.cdm-search').fill(name)
-        page.locator('.cdm-results').get_by_role('button', name=re.compile(r'^' + re.escape(name) + r'(?:\s|$)')).click()
+        page.locator('.cdm-results button.cdm-search-item').filter(has_text=name).click()
     else:
-        group = 'stations' if tab in ('stationSnow', 'current') else 'europe'
+        group = 'stations' if tab in ('stationSnow', 'current') else 'germany' if tab in ('hyras','gebietsmittelArchive') else 'europe'
         page.locator(f'.nav-dropdown[data-nav-group="{group}"] .nav-dropdown-toggle').click()
         page.locator(f'.nav-dropdown[data-nav-group="{group}"] .tab-button[onclick="switchTab(\'{tab}\')"]').click()
 
@@ -75,7 +85,7 @@ def audit(browser, root, stage, width, output, export=False):
     try:
         page.goto(URL + '?tab=overview', wait_until='domcontentloaded', timeout=90000)
         if stage != 'control':
-            assert page.evaluate("typeof DashboardModules !== 'undefined' && !DashboardModules.tabReady('current') && !DashboardModules.tabReady('stationSnow') && !DashboardModules.tabReady('era5Europe')")
+            assert page.evaluate("typeof DashboardModules !== 'undefined' && ['current','stationSnow','era5Europe','hyras','sst-europe','t850-ensembles','state-monthly-ensemble','gebietsmittelArchive','era5Atmosphere'].every(tab=>!DashboardModules.tabReady(tab))")
         page.wait_for_function("""() => document.querySelector('#overview.active') &&
             document.querySelector('#overviewMap svg path') && document.querySelector('#overviewDotMonthly.ok') &&
             document.querySelector('#overviewTempAnomaly').textContent.includes('°C') &&
@@ -133,7 +143,7 @@ def audit(browser, root, stage, width, output, export=False):
             ('hyras', "document.querySelector('#hyrasMapFrame canvas') || (document.querySelector('#hyrasMapFrame img')?.naturalWidth > 0)"),
             ('maps', "document.querySelector('#stationMap .leaflet-marker-icon') && document.querySelector('#mapSummary strong')"),
         ]:
-            if stage != 'control' and tab in ('stationSnow', 'current'):
+            if stage != 'control' and tab in ('stationSnow', 'current', 'hyras'):
                 click_lazy_tab(page, tab, width)
             else:
                 page.evaluate('(tab) => switchTab(tab)', tab)
@@ -150,6 +160,15 @@ def audit(browser, root, stage, width, output, export=False):
                 download(page, page.locator('#currentMapPngButton'), output / f'{key}-current-map.png', b'\x89PNG\r\n\x1a\n')
                 download(page, page.locator('#currentMapPdfButton'), output / f'{key}-current-map.pdf', b'%PDF-')
             if tab == 'hyras' and stage != 'control':
+                # Rank slider and step controls are active only once the archive is available.
+                page.locator('#hyrasRankSlider').evaluate("el=>el.closest('details')?.setAttribute('open','')")
+                page.wait_for_function("Number(document.getElementById('hyrasRankSlider').max)>0", timeout=90000)
+                page.locator('#hyrasRankSlider').evaluate("el=>{el.value=el.max;el.dispatchEvent(new Event('input',{bubbles:true}));}")
+                value=int(page.locator('#hyrasRankSlider').input_value())
+                page.locator('#hyrasRankPrev').click()
+                assert int(page.locator('#hyrasRankSlider').input_value())==value-1
+                page.locator('#hyrasRankNext').click()
+                assert int(page.locator('#hyrasRankSlider').input_value())==value
                 for parameter, cap in [('tmean', 'Tmean'), ('tmax', 'Tmax'), ('tmin', 'Tmin')]:
                     page.locator('#hyrasParameterSelect').select_option(parameter)
                     page.wait_for_function(f"Chart.getChart('hyras{cap}RegionCanvas')?.data?.datasets?.length > 0 && !!document.querySelector('a[data-{parameter}-pdf]')", timeout=90000)
@@ -161,6 +180,40 @@ def audit(browser, root, stage, width, output, export=False):
                 page.locator('#hyrasParameterSelect').select_option('precipitation')
                 page.wait_for_function("document.querySelector('#hyrasMapFrame canvas') || document.querySelector('#hyrasMapFrame img')?.naturalWidth > 0", timeout=90000)
         if stage != 'control':
+            page.wait_for_function("!document.getElementById('era5SynopticNav').hidden", timeout=30000)
+            # Execute all new modules with real datasets, both from navigation and direct links.
+            for tab, condition in [
+                ('sst-europe', "document.getElementById('sstMapImage')?.naturalWidth>0 && !document.getElementById('sstPdfDownload').disabled"),
+                ('state-monthly-ensemble', "Chart.getChart('stateMonthlyChart_gefs')?.data.datasets.some(d=>d.data.some(v=>Number.isFinite(v)))"),
+                ('gebietsmittelArchive', "document.querySelectorAll('#gaMonths .ga-period').length===12 && document.querySelectorAll('#gaTableBody tr').length>0"),
+                ('era5Atmosphere', "document.getElementById('era5AtmosImage')?.naturalWidth>0"),
+            ]:
+                click_lazy_tab(page,tab,width)
+                page.wait_for_function(f"document.getElementById('{tab}').classList.contains('active') && ({condition})", timeout=90000)
+                page.screenshot(path=str(output / f'{key}-{tab}-click.png'))
+                if export and tab=='sst-europe':
+                    download(page,page.locator('#sstPngDownload'),output / f'{key}-sst.png',b'\x89PNG\r\n\x1a\n')
+                    download(page,page.locator('#sstPdfDownload'),output / f'{key}-sst.pdf',b'%PDF-')
+                if export and tab=='state-monthly-ensemble':
+                    download(page,page.locator('#stateMonthlyPng'),output / f'{key}-state.png',b'\x89PNG\r\n\x1a\n')
+                    download(page,page.locator('#stateMonthlyPdf'),output / f'{key}-state.pdf',b'%PDF-')
+                if export and tab=='gebietsmittelArchive':
+                    download(page,page.locator('#gaPng'),output / f'{key}-archive.png',b'\x89PNG\r\n\x1a\n')
+                    download(page,page.locator('#gaPdf'),output / f'{key}-archive.pdf',b'%PDF-')
+                page.goto(URL + '?tab='+tab,wait_until='domcontentloaded',timeout=90000)
+                page.wait_for_function(f"document.getElementById('{tab}').classList.contains('active') && ({condition})",timeout=90000)
+                page.screenshot(path=str(output / f'{key}-{tab}-deeplink.png'))
+            for direct in (False, True):
+                if direct:page.goto(URL+'?tab=t850-ensembles',wait_until='domcontentloaded',timeout=90000)
+                else:click_lazy_tab(page,'t850-ensembles',width)
+                page.wait_for_function("typeof window.mountT850Ensembles==='function' && !!document.getElementById('t850YAxisMode')",timeout=90000)
+                page.locator('#t850LocationInput').fill('Frankfurt am Main')
+                page.locator('#t850LoadButton').click()
+                page.wait_for_function("Chart.getChart('t850ChartGefs')?.data?.datasets?.length>0 && !document.getElementById('t850PdfDownload').disabled",timeout=120000)
+                page.screenshot(path=str(output / f'{key}-t850-{"deeplink" if direct else "click"}.png'))
+                if export and not direct:
+                    download(page,page.locator('#t850PngDownload'),output / f'{key}-t850.png',b'\x89PNG\r\n\x1a\n')
+                    download(page,page.locator('#t850PdfDownload'),output / f'{key}-t850.pdf',b'%PDF-')
             for tab, condition in [
                 ('era5Europe', "era5EuropeIndex && document.querySelector('#era5EuropeImageWrap img')?.naturalWidth > 0"),
                 ('europeStations', "europeStationLoaded && europeStationMap && europeStationMarkerById.size > 0"),
@@ -184,6 +237,9 @@ def audit(browser, root, stage, width, output, export=False):
             page.wait_for_function("document.querySelector('#europeStations.active') && europeStationLoaded && europeStationMap && europeStationMarkerById.size > 0", timeout=90000)
             page.screenshot(path=str(output / f'{key}-europe-stations.png'))
             assert page.locator('#europeStationParameter').input_value() == 'tmin'
+            page.goto(URL + '?tab=hyras&s_hyrasParameterSelect=tmin', wait_until='domcontentloaded', timeout=90000)
+            page.wait_for_function("document.querySelector('#hyras.active') && document.getElementById('hyrasParameterSelect').value === 'tmin' && Chart.getChart('hyrasTminRegionCanvas')?.data?.datasets?.length > 0", timeout=90000)
+            page.screenshot(path=str(output / f'{key}-hyras-deeplink.png'))
             page.evaluate("switchTab('era5Atmosphere')")
             page.locator('#era5Stratosphere').wait_for(state='visible', timeout=30000)
             assert not any('era5_stratosphere.js' in url for status, url in network), network
@@ -209,6 +265,15 @@ def audit(browser, root, stage, width, output, export=False):
                 page.wait_for_function("document.querySelector('#hyras.active') && document.getElementById('hyrasParameterSelect').value === 'tmin' && Chart.getChart('hyrasTminRegionCanvas')?.data?.datasets?.length > 0", timeout=90000)
                 page.screenshot(path=str(output / f'{key}-hyras-tmin-deeplink.png'))
                 page.unroute('**/js/hyras-tmin.js?*', delay_tmin)
+                # Failed middle group dependency must not execute a later override.
+                page.route('**/js/hyras-tmin.js?*',lambda route:route.abort())
+                page.goto(URL+'?tab=hyras&s_hyrasParameterSelect=tmin',wait_until='domcontentloaded',timeout=90000)
+                retry=page.locator('#hyras .module-load-notice').get_by_role('button', name='Erneut versuchen')
+                retry.wait_for(state='visible',timeout=30000)
+                assert page.evaluate("typeof hyrasRenderBeforeTmin === 'undefined' && !DashboardModules.tabReady('hyras')")
+                page.unroute('**/js/hyras-tmin.js?*')
+                retry.click()
+                page.wait_for_function("DashboardModules.tabReady('hyras') && Chart.getChart('hyrasTminRegionCanvas')?.data.datasets.length>0",timeout=90000)
                 # Even a late atmosphere module must be ready before state restoration.
                 page.route('**/era5_europe.js?*', delay_tmin)
                 page.goto(URL + '?tab=era5Atmosphere', wait_until='domcontentloaded', timeout=90000)
