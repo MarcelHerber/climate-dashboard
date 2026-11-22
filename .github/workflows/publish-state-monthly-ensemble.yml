@@ -49,9 +49,9 @@ jobs:
           grep -q 'id="state-monthly-ensemble" class="tab-content"' index.html
           grep -q "switchTab('state-monthly-ensemble')" index.html
           grep -q 'href="state_monthly_ensemble.css' index.html
-          grep -q 'src="state_monthly_ensemble.js' index.html
+          grep -q 'src="state_monthly_ensemble.js' index.html || grep -Fq '"state_monthly_ensemble":["state_monthly_ensemble.js",' js/loader.js
           grep -q 'state_monthly_ensemble.js' scripts/build_pages_site.sh
-          grep -q 'src="sst_europe.js' index.html
+          grep -q 'src="sst_europe.js' index.html || grep -Fq '"sst_europe":["sst_europe.js",' js/loader.js
           grep -q 'sst_europe.js' scripts/build_pages_site.sh
           node --check sst_europe.js
           node --check state_monthly_ensemble.js

@@ -18,8 +18,6 @@ async function hyrasFetchJson(path){
   return response.json();
 }
 // HYRAS_REFERENCE_PERIOD_SELECTOR_V1
-function hyrasReferencePeriod(){return document.getElementById("hyrasReferenceSelect")?.value||"1991-2020";}
-function hyrasReferenceDisplay(){return hyrasReferencePeriod().replace("-","–");}
 function hyrasReferenceYears(){const parts=hyrasReferencePeriod().split("-").map(Number);return {start:parts[0]||1991,end:parts[1]||2020};}
 function hyrasReferenceSlug(){return hyrasReferencePeriod().replace("-","_");}
 function hyrasReferenceFiles(manifest){
@@ -602,7 +600,6 @@ function hyrasInstallClickAnalysis(canvas,stage,wrap,state,geoLookupPath,raster,
   if(hyrasSelectedGridPoint){hyrasPlaceSelectedPin(stage,hyrasSelectedGridPoint);hyrasUpdatePointAnalysis(state,geoLookupPath,hyrasSelectedGridPoint).catch(error=>console.error("HYRAS Punktzeitreihe aktualisieren:",error));}
 }
 // HYRAS_TMEAN_FRONTEND_V1
-function hyrasParameter(){return document.getElementById("hyrasParameterSelect")?.value||"precipitation";}
 function hyrasTmeanBase(){return `${HYRAS_DATA_BASE}/tmean`;}
 async function hyrasTmeanFetchJson(path){
   const response=await fetch(`${hyrasTmeanBase()}/${path}?t=${encodeURIComponent(hyrasTmeanIndex?.data_through||Date.now())}`,{cache:"no-store"});

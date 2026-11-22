@@ -1,6 +1,6 @@
 import unittest
 
-from scripts.patch_sst_frontend import patch_html
+from scripts.patch_sst_frontend import JS_TAG, patch_html
 
 
 FIXTURE = '''<!DOCTYPE html>
@@ -69,7 +69,7 @@ class SstFrontendPatcherTests(unittest.TestCase):
         self.assertIn('<link rel="stylesheet" href="sst_europe.css">', patched)
         self.assertIn("switchTab('sst-europe')", patched)
         self.assertIn('id="sst-europe" class="tab-content"', patched)
-        self.assertRegex(patched, r'<script src="sst_europe\.js(?:\?[^\"]*)?"></script>')
+        self.assertIn(JS_TAG, patched)
         for control_id in (
             "sstRegion", "sstView", "sstDate", "sstPrevDay", "sstLatestDay",
             "sstNextDay", "sstTimeline", "sstMapImage", "sstStatus",
@@ -84,7 +84,7 @@ class SstFrontendPatcherTests(unittest.TestCase):
         patched_again = patch_html(patched)
         self.assertEqual(patched_again, patched)
         self.assertEqual(patched.count('href="sst_europe.css"'), 1)
-        self.assertEqual(patched.count('src="sst_europe.js'), 1)
+        self.assertEqual(patched.count(JS_TAG), 1)
         self.assertEqual(patched.count("switchTab('sst-europe')"), 1)
 
     def test_adds_sst_to_current_europe_dropdown_and_remains_idempotent(self):
@@ -113,4 +113,3 @@ class SstFrontendPatcherTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

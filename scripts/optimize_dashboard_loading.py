@@ -21,10 +21,15 @@ def extract(html, site):
     if not matches:
         modules = ("era5-land", "europa-stationen", "dashboard-state", "hyras-tmin", "bootstrap")
         if b'src="js/loader.js' in html:
-            modules = ("loader", "core", "dashboard-state", "hyras-tmin", "bootstrap")
-            for name in ("aktuell", "era5-land", "europa-stationen", "schnee"):
-                if not (site / f"js/{name}.js").is_file() or f'src="js/{name}.js'.encode() in html:
-                    raise ValueError(f"Missing or eagerly embedded lazy module: {name}")
+            modules = ("loader", "core", "dashboard-state", "bootstrap")
+            loader_source = (site / "js/loader.js").read_text()
+            dynamic_paths = re.findall(r'"([^"]+\.js)"\s*,\s*"[^"]+"\]', loader_source)
+            if not dynamic_paths: # stage 3a frozen sources
+                dynamic_paths = [f"js/{name}.js" for name in ("aktuell", "era5-land", "europa-stationen", "schnee")]
+                modules = ("loader", "core", "dashboard-state", "hyras-tmin", "bootstrap")
+            for filename in dynamic_paths:
+                if not (site / filename).is_file() or f'src="{filename}'.encode() in html:
+                    raise ValueError(f"Missing or eagerly embedded lazy module: {filename}")
         positions = []
         for module in modules:
             filename = f"js/{module}.js"
@@ -174,7 +179,10 @@ def lazy_exports(html, site):
         tags = [tag[0] for tag in EXTERNAL.finditer(html) if re.search(rb'src="' + re.escape(filename.encode()) + rb'(?:\?|")', tag[0])]
         for tag in tags:
             html = html.replace(tag, versioned_script(target, content, True))
-        if not tags and filename in ("js/aktuell.js", "js/era5-land.js", "js/europa-stationen.js", "js/schnee.js") and b'src="js/loader.js' in html:
+        if not tags and b'src="js/loader.js' in html and (
+            filename in ("js/aktuell.js", "js/era5-land.js", "js/europa-stationen.js", "js/schnee.js")
+            or f'"{filename}"' in (site / "js/loader.js").read_text()
+        ):
             optimized_modules[Path(filename).stem] = target + "?v=" + hashlib.sha256(content).hexdigest()[:16]
     if optimized_modules:
         original = (site / "js/loader.js").read_text()

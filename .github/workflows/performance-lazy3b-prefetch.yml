@@ -1,0 +1,98 @@
+name: Lighthouse · Lazy 3b prefetch comparison
+on:
+  push:
+    branches: [perf/dashboard-loading-20261120]
+    paths: ['index.html', 'js/**', '.github/workflows/performance-lazy3b-prefetch.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [mobile, desktop]
+    env:
+      URL: https://marcelherber.github.io/climate-dashboard/index.html?tab=overview
+      LIGHTHOUSE_VERSION: '12.6.0'
+      PERF_SNAPSHOT_ROOT: ${{ github.workspace }}/snapshot
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /index.html
+            /*.js
+            /js/
+            /scripts/
+            /tests/test_europe_hub_overview.py
+            /tests/audit_europe_hub.py
+            /tests/audit_dashboard_split.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: lighthouse-comparison-mobile
+          run-id: '44709139707'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: frozen
+      - name: Prepare identical variants, only prefetch differs
+        run: |
+          mkdir -p snapshot reports warmup
+          cp -r frozen/snapshot/baseline snapshot/baseline
+          cp -r snapshot/baseline snapshot/prefetch-on
+          python tests/audit_dashboard_split.py --prepare snapshot/prefetch-on
+          python scripts/optimize_dashboard_loading.py snapshot/prefetch-on --stage lazy
+          cp -r snapshot/prefetch-on snapshot/prefetch-off
+          sed -i 's/const PREFETCH_DELAY=6000;/const PREFETCH_DELAY=false;/' snapshot/prefetch-off/js/loader.optimized.js
+          grep -q 'const PREFETCH_DELAY=false;' snapshot/prefetch-off/js/loader.optimized.js
+          printf 'prefetch-on\n' > snapshot/stage.txt
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/lighthouse-audit" "lighthouse@$LIGHTHOUSE_VERSION"
+          python -m pip install 'mitmproxy==11.1.3'
+          google-chrome --version > reports/chrome-version.txt
+          "$RUNNER_TEMP/lighthouse-audit/node_modules/.bin/lighthouse" --version > reports/lighthouse-version.txt
+      - name: Prefetch on and off, three cold runs per variant
+        run: |
+          set -euo pipefail
+          mitmdump --listen-host 127.0.0.1 --listen-port 8089 --set connection_strategy=lazy -s scripts/performance_snapshot_proxy.py > reports/proxy.log 2>&1 &
+          proxy=$!
+          trap 'kill "$proxy" || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS --proxy http://127.0.0.1:8089 --insecure "$URL" -o /dev/null; then break; fi
+            sleep 1
+          done
+          lighthouse="$RUNNER_TEMP/lighthouse-audit/node_modules/.bin/lighthouse"
+          preset=()
+          if [[ '${{ matrix.device }}' == desktop ]]; then preset+=(--preset=desktop); fi
+          for stage in prefetch-on prefetch-off; do
+            printf '%s\n' "$stage" > snapshot/stage.txt
+            "$lighthouse" "$URL" "${preset[@]}" --only-categories=performance --throttling-method=simulate --chrome-flags='--headless --no-sandbox --disable-dev-shm-usage --proxy-server=http://127.0.0.1:8089 --ignore-certificate-errors' --output=json --output-path="warmup/$stage.json" --quiet
+          done
+          touch snapshot/sealed.txt
+          for run in 1 2 3; do
+            for stage in prefetch-on prefetch-off; do
+              printf '%s\n' "$stage" > snapshot/stage.txt
+              "$lighthouse" "$URL" "${preset[@]}" --only-categories=performance --throttling-method=simulate --chrome-flags='--headless --no-sandbox --disable-dev-shm-usage --proxy-server=http://127.0.0.1:8089 --ignore-certificate-errors' --output=json --output=html --output-path="reports/$stage-$run" --quiet
+            done
+          done
+          if [[ -s snapshot/late-data-requests.txt ]]; then cat snapshot/late-data-requests.txt; exit 1; fi
+          python scripts/summarize_performance_comparison.py reports '${{ matrix.device }}' prefetch-on prefetch-off
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lazy3b-prefetch-${{ matrix.device }}
+          path: |
+            reports/
+            warmup/
+            snapshot/late-data-requests.txt
+            snapshot/snapshot-manifest.json
+          retention-days: 90

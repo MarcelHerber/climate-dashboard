@@ -72,8 +72,8 @@ dashboardFetch("data.json",{cache:"no-store"})
 
 initializeChartExportButtons();
 // Lazy modules: prefetch only in idle time, not during the initial render.
-DashboardModules.afterIdle(()=>DashboardModules.loadModule("europa-stationen").then(()=>preloadEuropeStationData()).catch(()=>{}),4000);
-DashboardModules.prefetch(["aktuell","era5-land","schnee"]);
+DashboardModules.afterIdle(()=>DashboardModules.loadTab("europeStations").then(()=>preloadEuropeStationData()).catch(()=>{}),4000);
+DashboardModules.prefetch(["aktuell","era5-land","schnee","hyras_temperature_interactive","hyras","hyras-tmin","hyras_historical_temperature_1km"]);
 // The state may point to a tab implemented by a later classic or deferred script.
 // DOMContentLoaded waits for those scripts, even when their downloads are slow.
 document.addEventListener("DOMContentLoaded", ()=>{initializeDashboardState();}, {once:true});

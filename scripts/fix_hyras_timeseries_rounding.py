@@ -11,7 +11,7 @@ MARKER = "// HYRAS_TIMESERIES_ROUNDING_V1"
 def main() -> int:
     text = TARGET.read_text(encoding="utf-8")
     split = ROOT / "js/hyras.js"
-    if MARKER in text or ('src="js/hyras.js' in text and MARKER in split.read_text(encoding="utf-8")):
+    if MARKER in text or (split.is_file() and MARKER in split.read_text(encoding="utf-8")):
         print("HYRAS-Zeitreihenwerte sind bereits auf eine Nachkommastelle formatiert.")
         return 0
 

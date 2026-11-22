@@ -56,7 +56,7 @@ def main() -> int:
         if not path.exists():
             raise RuntimeError(f"Datei fehlt: {path}")
         text = path.read_text(encoding="utf-8")
-        if path == ROOT / "index.html" and 'src="js/hyras.js' in text:
+        if path == ROOT / "index.html" and (ROOT / "js/hyras.js").is_file():
             # The historical migration must already be complete on split sources.
             # Validate HTML and JS together but never write a concatenated file.
             combined = text + "\n" + (ROOT / "js/hyras.js").read_text(encoding="utf-8")

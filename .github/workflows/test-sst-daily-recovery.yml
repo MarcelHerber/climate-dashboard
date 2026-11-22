@@ -49,7 +49,7 @@ jobs:
       - name: SST-Frontend in GitHub Pages idempotent integrieren
         run: |
           python scripts/patch_sst_frontend.py --file index.html
-          grep -Fq "$(python -c 'from scripts.patch_sst_frontend import JS_TAG; print(JS_TAG)')" index.html
+          grep -Fq "$(python -c 'from scripts.patch_sst_frontend import JS_TAG; print(JS_TAG)')" index.html || grep -Fq '"sst_europe":["sst_europe.js",' js/loader.js
           cp index.html /tmp/sst-recovery-index.html
           python scripts/patch_sst_frontend.py --file index.html
           cmp -s /tmp/sst-recovery-index.html index.html

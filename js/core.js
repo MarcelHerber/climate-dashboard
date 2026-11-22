@@ -296,6 +296,11 @@ async function openAlpenwetter(){
   }
 }
 
+// Shared chart labels use these even outside the HYRAS tab.
+function hyrasReferencePeriod(){return document.getElementById("hyrasReferenceSelect")?.value||"1991-2020";}
+function hyrasReferenceDisplay(){return hyrasReferencePeriod().replace("-","–");}
+function hyrasParameter(){return document.getElementById("hyrasParameterSelect")?.value||"precipitation";}
+
 function switchTab(tab,{persist=true}={}){
   const target=document.getElementById(tab);
   if(!target) tab="overview";
@@ -315,13 +320,15 @@ function switchTab(tab,{persist=true}={}){
   if(tab==="daily"||tab==="extremes"||tab==="compare") ensureDailyDashboardLoaded();
   if(tab==="current") whenTabModulesReady(tab,()=>ensureCurrentConditions());
   if(tab==="stationObservations") ensureStationObservationsLoaded();
-  if(tab==="hyras") ensureHyrasLoaded();
+  if(tab==="hyras") whenTabModulesReady(tab,()=>ensureHyrasLoaded());
   if(tab==="era5Europe") whenTabModulesReady(tab,()=>Promise.all([ensureEra5EuropeLoaded(),ensureEra5RunningTemperatureRanksLoaded().catch(()=>{})]));
-  if(tab==="era5Atmosphere") ensureEra5AtmosphereLoaded();
+  if(tab==="era5Atmosphere") whenTabModulesReady(tab,()=>ensureEra5AtmosphereLoaded());
   if(tab==="era5Synoptic") ensureEra5SynopticLoaded();
   if(tab==="europeStations") whenTabModulesReady(tab,()=>ensureEuropeStationMap());
-  if(tab==="state-monthly-ensemble") window.ensureStateMonthlyEnsembleLoaded?.();
-  if(tab==="gebietsmittelArchive") window.ensureGebietsmittelArchiveLoaded?.(monthlyData);
+  if(tab==="state-monthly-ensemble") whenTabModulesReady(tab,()=>window.ensureStateMonthlyEnsembleLoaded?.());
+  if(tab==="gebietsmittelArchive") whenTabModulesReady(tab,()=>window.ensureGebietsmittelArchiveLoaded?.(monthlyData));
+  if(tab==="t850-ensembles") whenTabModulesReady(tab,()=>window.mountT850Ensembles());
+  if(tab==="sst-europe") whenTabModulesReady(tab,()=>window.mountSstEurope());
   if(tab==="monthly") window.setTimeout(()=>{
     updateMonthly();
     updateMonthlyAnomalyTable();
