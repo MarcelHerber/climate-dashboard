@@ -1879,3 +1879,15 @@ if [ -n "${DASHBOARD_LOADING_STAGE:-}" ]; then
   fi
 fi
 
+# Cache-Versionen erst NACH allen Frontend-Patches und dem optionalen
+# Performance-Build erstellen. Die Daten- und Bildkopien oben bleiben erhalten.
+# Auch zusätzliche HTML-Unterseiten werden geprüft; keine alte handgepflegte
+# JS/CSS-Kopierliste wird als alleinige Quelle verwendet.
+mapfile -t asset_html < <(find _site -maxdepth 1 -type f -name '*.html' -printf '%f\n' | sort)
+if (( ${#asset_html[@]} == 0 )); then
+  echo "FEHLER: Keine HTML-Seiten im Pages-Build"
+  exit 1
+fi
+python tools/version_assets.py --root _site --html "${asset_html[@]}" \
+  --manifest _site/asset-manifest.json --verify-dir _site
+python tools/version_assets.py --root _site --html "${asset_html[@]}" --check

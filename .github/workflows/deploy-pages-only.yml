@@ -7,6 +7,8 @@ on:
       - 'index.html'
       - 'js/**'
       - 'scripts/build_pages_site.sh'
+      - 'tools/version_assets.py'
+      - 'tests/test_asset_versioning.py'
       - 'tests/dashboard_source.cjs'
       - 'tests/test_current_station_daily_ui.mjs'
       - '.github/workflows/deploy-pages-only.yml'
@@ -50,6 +52,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
+      - name: Hash-Versionierung auf fehlende und veraltete Assets testen
+        run: python -m unittest discover -s tests -p test_asset_versioning.py -v
       - name: Produktions-Build ohne Veröffentlichung prüfen
         run: bash scripts/build_pages_site.sh
   deploy:
