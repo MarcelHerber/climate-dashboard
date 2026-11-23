@@ -1879,6 +1879,13 @@ if [ -n "${DASHBOARD_LOADING_STAGE:-}" ]; then
   fi
 fi
 
+# Lokale Bibliotheken samt Leaflet-Markern, CSS und Bilddateien veröffentlichen.
+# Fehlerhaftes oder fehlendes vendor/ muss den Build stoppen – kein CDN-Fallback.
+test -s vendor/leaflet/1.9.4/dist/leaflet.js
+test -s vendor/leaflet/1.9.4/dist/leaflet.css
+test -s vendor/chart.js/4.4.1/dist/chart.umd.min.js
+cp -a vendor _site/
+
 # Cache-Versionen erst NACH allen Frontend-Patches und dem optionalen
 # Performance-Build erstellen. Die Daten- und Bildkopien oben bleiben erhalten.
 # Auch zusätzliche HTML-Unterseiten werden geprüft; keine alte handgepflegte
@@ -1888,6 +1895,6 @@ if (( ${#asset_html[@]} == 0 )); then
   echo "FEHLER: Keine HTML-Seiten im Pages-Build"
   exit 1
 fi
-python tools/version_assets.py --root _site --html "${asset_html[@]}" \
+python tools/version_assets.py --root _site --static-dir vendor --html "${asset_html[@]}" \
   --manifest _site/asset-manifest.json --verify-dir _site
-python tools/version_assets.py --root _site --html "${asset_html[@]}" --check
+python tools/version_assets.py --root _site --static-dir vendor --html "${asset_html[@]}" --check
