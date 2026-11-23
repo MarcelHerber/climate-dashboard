@@ -378,10 +378,10 @@
     if(window.L)return Promise.resolve();
     if(leafletLoadPromise)return leafletLoadPromise;
     const status=document.getElementById("mosmixSectionStatus");
-    if(status)status.textContent="MOSMIX-Daten vorhanden. Lade Kartenbibliothek über Ersatzserver …";
+    if(status)status.textContent="MOSMIX-Daten vorhanden. Lade lokale Kartenbibliothek …";
     leafletLoadPromise=new Promise(function(resolve,reject){
       const script=document.createElement("script");
-      script.src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
+      script.src="vendor/leaflet/1.9.4/dist/leaflet.js?v=0";
       script.async=true;
       let done=false;
       let timer=null;
@@ -400,12 +400,12 @@
         if(window.L)finish();
         else finish(new Error("Kartenbibliothek wurde geladen, aber nicht initialisiert."));
       };
-      script.onerror=function(){finish(new Error("Kartenbibliothek über beide Server nicht verfügbar."));};
+      script.onerror=function(){finish(new Error("Lokale Kartenbibliothek fehlt (vendor/leaflet)."));};
       if(!document.getElementById("mosmix-leaflet-css-fallback")){
         const css=document.createElement("link");
         css.id="mosmix-leaflet-css-fallback";
         css.rel="stylesheet";
-        css.href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
+        css.href="vendor/leaflet/1.9.4/dist/leaflet.css?v=0";
         document.head.appendChild(css);
       }
       document.head.appendChild(script);
@@ -439,7 +439,7 @@
   function ensureCharts(){
     if(window.Chart)return Promise.resolve();
     if(!chartLoadPromise)chartLoadPromise=loadLibrary(
-      "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",
+      "vendor/chart.js/4.4.1/dist/chart.umd.min.js?v=0",
       "Chart.js").then(function(){
         if(!window.Chart)throw new Error("Chart.js konnte nicht initialisiert werden.");
       }).finally(function(){chartLoadPromise=null;});
@@ -448,7 +448,7 @@
   function ensurePdfLibrary(){
     if(window.jspdf?.jsPDF)return Promise.resolve();
     if(!pdfLoadPromise)pdfLoadPromise=loadLibrary(
-      "https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js",
+      "vendor/jspdf/4.2.1/dist/jspdf.umd.min.js?v=0",
       "PDF-Bibliothek").then(function(){
         if(!window.jspdf?.jsPDF)throw new Error("PDF-Bibliothek konnte nicht initialisiert werden.");
       }).finally(function(){pdfLoadPromise=null;});
