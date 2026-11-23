@@ -7,6 +7,9 @@ Ersetzt alle ?v=-Versionen durch einen Hash des Dateiinhalts (SHA-256, erste 10 
   2. die Modultabelle im Lader (js/loader.js:  "name":["pfad.js","version"])
   3. Dateiverweise in JS-Zeichenketten, z. B. 'era5_stratosphere.js?v=1' in era5_europe.js
 
+Relative CSS-url(...)-Dateien (Leaflet-Icons etc.) werden in das Manifest aufgenommen.
+Mit --static-dir vendor wird der ganze lokale Bibliotheksordner verifiziert.
+
 Verweist eine Datei auf eine andere, wird zuerst die referenzierte Datei gehasht und danach die
 verweisende (ihr Inhalt enthält ja die neue Version). Ändert sich eine Datei, ändern sich daher
 automatisch auch alle Dateien, die auf sie verweisen (z. B. loader.js und die index.html).
@@ -16,6 +19,7 @@ Nur Python-Standardbibliothek. Beispiele:
   python tools/version_assets.py                       # Versionen schreiben
   python tools/version_assets.py --check               # nur prüfen (Exit-Code 1, wenn veraltet)
   python tools/version_assets.py --manifest asset-manifest.json
+  python tools/version_assets.py --static-dir vendor
   python tools/version_assets.py --copy-to _site       # kopiert genau die Dateien, die die Seite braucht
   python tools/version_assets.py --verify-dir _site    # prüft, ob alle Dateien im Build vorhanden
                                                        # und aktuell sind (hätte den 404 bei
@@ -27,6 +31,7 @@ Exit-Codes: 0 = ok, 1 = veraltete Versionen (--check) bzw. Verifikation fehlgesc
 import argparse
 import hashlib
 import json
+import posixpath
 import re
 import shutil
 import sys
@@ -39,6 +44,8 @@ LOCAL_EXTENSIONS = (".js", ".css")
 HTML_REF = re.compile(r'(<(?:script|link)\b[^>]*?\b(?:src|href)\s*=\s*")([^"]+)(")', re.IGNORECASE)
 # 'datei.js?v=…' als Zeichenkette in JS
 JS_REF = re.compile(r'''(["'`])([A-Za-z0-9_./-]+\.(?:js|css))\?v=([^"'`&\s]*)\1''')
+# Relative url(...) references in local CSS (Leaflet marker and layer images).
+CSS_URL = re.compile(r'url\(\s*(?!["\']?(?:data:|https?:|//|#|/))["\']?([^"\')\s]+)["\']?\s*\)', re.IGNORECASE)
 # Modultabelle im Lader: ["pfad.js","version"]
 TABLE_REF = re.compile(r'\["([A-Za-z0-9_./-]+\.js)","([^"]*)"\]')
 
@@ -71,6 +78,7 @@ class Versioner:
         self.original = {}  # rel -> alter_text
         self.referenced_by = {}
         self.missing = []
+        self.static = {}    # rel -> referencing CSS files / explicit static dirs
         self.warnings = []
 
     def _read(self, rel):
@@ -103,6 +111,15 @@ class Versioner:
                     version = self._child_hash(child, rel, stack + (rel,))
                     return match.group(0) if version is None else f'["{child}","{version}"]'
                 new_text = TABLE_REF.sub(table_sub, new_text)
+        if rel.endswith(".css"):
+            base = posixpath.dirname(rel)
+            for match in CSS_URL.finditer(new_text):
+                target = posixpath.normpath(posixpath.join(
+                    base, match.group(1).split("?", 1)[0].split("#", 1)[0]))
+                if (self.root / target).is_file():
+                    self.static.setdefault(target, set()).add(rel)
+                else:
+                    self.missing.append((rel, target))
         result = (new_text, digest(new_text))
         self.done[rel] = result
         return result
@@ -146,6 +163,7 @@ def main():
     parser.add_argument("--check", action="store_true", help="nichts schreiben; Exit-Code 1, wenn Versionen veraltet sind")
     parser.add_argument("--manifest", help="schreibt eine Liste aller referenzierten Dateien (JSON)")
     parser.add_argument("--allow-missing", action="store_true", help="fehlende referenzierte Dateien nur melden (z. B. bei unvollständigem Checkout)")
+    parser.add_argument("--static-dir", action="append", default=[], help="Ordner vollständig in Manifest/Kopie/Verifikation aufnehmen (z. B. vendor)")
     parser.add_argument("--copy-to", help="kopiert HTML-Dateien und alle referenzierten JS/CSS-Dateien (inkl. dynamisch geladener) in diesen Ordner")
     parser.add_argument("--verify-dir", help="prüft, ob alle Dateien des Manifests im Ordner vorhanden und aktuell sind")
     args = parser.parse_args()
@@ -173,6 +191,18 @@ def main():
 
     changed = [rel for rel, (text, _h) in tool.done.items() if text != tool.original[rel]]
     assets = {rel: h for rel, (text, h) in tool.done.items() if h is not None}
+    for folder in args.static_dir:
+        base_dir = Path(args.root) / folder
+        if not base_dir.is_dir():
+            print(f"FEHLER: --static-dir {folder} existiert nicht", file=sys.stderr)
+            return 2
+        for file in sorted(base_dir.rglob("*")):
+            if file.is_file():
+                tool.static.setdefault(file.relative_to(args.root).as_posix(), set()).add("--static-dir " + folder)
+    static_hashes = {rel: digest((Path(args.root) / rel).read_bytes()) for rel in tool.static}
+    assets.update(static_hashes)
+    for rel, parents in tool.static.items():
+        tool.referenced_by.setdefault(rel, set()).update(parents)
 
     if args.manifest:
         manifest = {

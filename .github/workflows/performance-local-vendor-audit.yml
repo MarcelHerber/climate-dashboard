@@ -1,0 +1,132 @@
+name: Performance · Local vendor browser and Lighthouse
+
+on:
+  push:
+    branches: [perf/local-vendor-20261123]
+    paths:
+      - '.github/workflows/performance-local-vendor-audit.yml'
+      - 'tests/audit_local_vendor_browser.py'
+      - 'tests/audit_asset_hash_browser.py'
+      - 'tests/serve_performance_ab.py'
+      - 'tools/version_assets.py'
+      - 'scripts/build_pages_site.sh'
+      - 'index.html'
+      - 'vendor/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build the exact Pages production artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+          if ! bash scripts/build_pages_site.sh > reports/build.log 2>&1; then
+            tail -n 160 reports/build.log
+            exit 1
+          fi
+          tail -n 30 reports/build.log
+          test -s _site/asset-manifest.json
+          test "$(find _site/vendor -type f | wc -l)" -eq 13
+      - name: Install real Chromium and Lighthouse 12.6.0
+        run: |
+          python -m pip install 'playwright==1.57.0'
+          python -m playwright install --with-deps chromium
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/lighthouse-audit" 'lighthouse@12.6.0'
+          google-chrome --version | tee reports/chrome-version.txt
+          "$RUNNER_TEMP/lighthouse-audit/node_modules/.bin/lighthouse" --version | tee reports/lighthouse-version.txt
+      - name: Chromium library demo and all main-page tabs (desktop/mobile)
+        run: python -u tests/audit_local_vendor_browser.py --site _site --output reports/vendor-browser
+      - name: Chromium content-hash and lazy-module regression test
+        run: python -u tests/audit_asset_hash_browser.py --site _site --output reports/hash-browser
+      - name: Compare same-build CDN and local-vendor variants with gzip
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_URL='http://127.0.0.1:8765/index.html?tab=overview&variant=cdn'
+          TEST_URL='http://127.0.0.1:8765/index.html?tab=overview&variant=local'
+          # Both variants use the exact same Pages build, origin and gzip
+          # server; only the eight pinned dependency URLs differ.
+          python -u tests/serve_performance_ab.py --site _site --port 8765 > reports/server.log 2>&1 &
+          server=$!
+          trap 'kill "$server" || true' EXIT
+          for attempt in {1..30}; do
+            if curl --compressed -fsS "$BASE_URL" -o /dev/null &&
+               curl --compressed -fsS "$TEST_URL" -o /dev/null; then break; fi
+            sleep 1
+          done
+          lh="$RUNNER_TEMP/lighthouse-audit/node_modules/.bin/lighthouse"
+          mkdir -p reports/lighthouse
+          for device in mobile desktop; do
+            preset=()
+            if [[ "$device" == desktop ]]; then preset+=(--preset=desktop); fi
+            for pass in 1 2 3; do
+              for variant in baseline candidate; do
+                url="$BASE_URL"
+                if [[ "$variant" == candidate ]]; then url="$TEST_URL"; fi
+                echo "Lighthouse $device $variant pass=$pass"
+                "$lh" "$url" "${preset[@]}" --only-categories=performance \
+                  --throttling-method=simulate \
+                  --chrome-flags='--headless --no-sandbox --disable-dev-shm-usage' \
+                  --output=json --output-path="reports/lighthouse/$device-$variant-$pass.json" --quiet
+              done
+            done
+          done
+          python - <<'PY'
+          import json,statistics
+          from pathlib import Path
+          root=Path("reports/lighthouse")
+          metrics=["first-contentful-paint","largest-contentful-paint",
+                   "total-blocking-time","cumulative-layout-shift",
+                   "speed-index","total-byte-weight"]
+          report={"method":"Three independent cold Lighthouse 12.6.0 runs/device/variant, same Pages build and gzip origin",
+                  "baseline":"same build with original CDN dependency URLs",
+                  "candidate":"same build with local vendor URLs",
+                  "devices":{}}
+          for device in ("mobile","desktop"):
+              data={}
+              for variant in ("baseline","candidate"):
+                  rows=[]
+                  for pass_no in (1,2,3):
+                      p=root/f"{device}-{variant}-{pass_no}.json"
+                      x=json.loads(p.read_text())
+                      if x.get("runtimeError"):
+                          raise SystemExit(f"{p}: {x['runtimeError']}")
+                      rows.append({"score":round(x["categories"]["performance"]["score"]*100,1),
+                          **{m:x["audits"][m]["numericValue"] for m in metrics if m in x["audits"]},
+                          "url":x.get("finalDisplayedUrl"),"fetch_time":x.get("fetchTime"),
+                          "lh_version":x.get("lighthouseVersion")})
+                  keys=["score"]+[m for m in metrics if m in rows[0]]
+                  data[variant]={"runs":rows,"median":{k:round(statistics.median(x[k] for x in rows),2)
+                      for k in keys}}
+              diffs={m:round(data["candidate"]["median"][m]-data["baseline"]["median"][m],2)
+                  for m in data["baseline"]["median"] if m in data["candidate"]["median"]}
+              data["difference_candidate_minus_baseline"]=diffs
+              report["devices"][device]=data
+          Path("reports/lighthouse-summary.json").write_text(
+              json.dumps(report,indent=2)+"\n")
+          print(json.dumps({k:{"baseline":v["baseline"]["median"],
+              "candidate":v["candidate"]["median"],
+              "diff":v["difference_candidate_minus_baseline"]}
+              for k,v in report["devices"].items()},indent=2))
+          PY
+      - name: Save full browser and performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-vendor-browser-lighthouse
+          path: reports/
+          retention-days: 90

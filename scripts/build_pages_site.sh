@@ -1883,11 +1883,14 @@ fi
 # Performance-Build erstellen. Die Daten- und Bildkopien oben bleiben erhalten.
 # Auch zusätzliche HTML-Unterseiten werden geprüft; keine alte handgepflegte
 # JS/CSS-Kopierliste wird als alleinige Quelle verwendet.
+# All runtime libraries are shipped locally; a forgotten vendor upload is a hard error.
+test -d vendor || { echo "FEHLER: vendor/ fehlt"; exit 1; }
+cp -a vendor _site/vendor
 mapfile -t asset_html < <(find _site -maxdepth 1 -type f -name '*.html' -printf '%f\n' | sort)
 if (( ${#asset_html[@]} == 0 )); then
   echo "FEHLER: Keine HTML-Seiten im Pages-Build"
   exit 1
 fi
 python tools/version_assets.py --root _site --html "${asset_html[@]}" \
-  --manifest _site/asset-manifest.json --verify-dir _site
-python tools/version_assets.py --root _site --html "${asset_html[@]}" --check
+  --static-dir vendor --manifest _site/asset-manifest.json --verify-dir _site
+python tools/version_assets.py --root _site --html "${asset_html[@]}" --static-dir vendor --check

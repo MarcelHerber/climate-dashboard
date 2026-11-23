@@ -375,40 +375,19 @@
   let leafletLoadPromise=null;
 
   function ensureLeaflet(){
-    if(window.L)return Promise.resolve();
+    if(window.L?.map)return Promise.resolve();
     if(leafletLoadPromise)return leafletLoadPromise;
     const status=document.getElementById("mosmixSectionStatus");
-    if(status)status.textContent="MOSMIX-Daten vorhanden. Lade Kartenbibliothek über Ersatzserver …";
+    if(status)status.textContent="MOSMIX-Daten vorhanden. Prüfe lokale Kartenbibliothek …";
     leafletLoadPromise=new Promise(function(resolve,reject){
-      const script=document.createElement("script");
-      script.src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
-      script.async=true;
-      let done=false;
-      let timer=null;
-      function finish(error){
-        if(done)return;
-        done=true;
-        clearTimeout(timer);
-        script.onload=null;script.onerror=null;
-        if(error)reject(error);
-        else resolve();
-      }
-      timer=setTimeout(function(){
-        finish(new Error("Kartenbibliothek nach 10 Sekunden nicht erreichbar. Bitte Netzwerk oder Skriptblocker prüfen."));
-      },10000);
-      script.onload=function(){
-        if(window.L)finish();
-        else finish(new Error("Kartenbibliothek wurde geladen, aber nicht initialisiert."));
-      };
-      script.onerror=function(){finish(new Error("Kartenbibliothek über beide Server nicht verfügbar."));};
-      if(!document.getElementById("mosmix-leaflet-css-fallback")){
-        const css=document.createElement("link");
-        css.id="mosmix-leaflet-css-fallback";
-        css.rel="stylesheet";
-        css.href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
-        document.head.appendChild(css);
-      }
-      document.head.appendChild(script);
+      const start=Date.now();
+      const timer=setInterval(function(){
+        if(window.L?.map){clearInterval(timer);resolve();}
+        else if(Date.now()-start>=10000){
+          clearInterval(timer);
+          reject(new Error("Lokale Kartenbibliothek fehlt: vendor/leaflet/1.9.4/dist/leaflet.js"));
+        }
+      },100);
     }).finally(function(){leafletLoadPromise=null;});
     return leafletLoadPromise;
   }
@@ -439,7 +418,7 @@
   function ensureCharts(){
     if(window.Chart)return Promise.resolve();
     if(!chartLoadPromise)chartLoadPromise=loadLibrary(
-      "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",
+      "./vendor/chart.js/4.4.1/dist/chart.umd.min.js",
       "Chart.js").then(function(){
         if(!window.Chart)throw new Error("Chart.js konnte nicht initialisiert werden.");
       }).finally(function(){chartLoadPromise=null;});
@@ -448,7 +427,7 @@
   function ensurePdfLibrary(){
     if(window.jspdf?.jsPDF)return Promise.resolve();
     if(!pdfLoadPromise)pdfLoadPromise=loadLibrary(
-      "https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js",
+      "./vendor/jspdf/4.2.1/dist/jspdf.umd.min.js",
       "PDF-Bibliothek").then(function(){
         if(!window.jspdf?.jsPDF)throw new Error("PDF-Bibliothek konnte nicht initialisiert werden.");
       }).finally(function(){pdfLoadPromise=null;});

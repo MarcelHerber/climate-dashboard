@@ -21,49 +21,20 @@
   }
 
   function ensureLeaflet() {
-    if (window.L?.map && window.L?.tileLayer && window.L?.geoJSON) {
-      return Promise.resolve(window.L);
-    }
+    const ready = () => window.L?.map && window.L?.tileLayer && window.L?.geoJSON;
+    if (ready()) return Promise.resolve(window.L);
     if (leafletLoadPromise) return leafletLoadPromise;
     leafletLoadPromise = new Promise((resolve, reject) => {
-      let finished = false;
-      let fallbackStarted = false;
-      const started = Date.now();
-      const finish = error => {
-        if (finished) return;
-        finished = true;
-        clearInterval(interval);
-        if (error) reject(error);
-        else resolve(window.L);
-      };
-      function check() {
-        if (window.L?.map && window.L?.tileLayer && window.L?.geoJSON) {
-          finish();
-          return;
+      const start = Date.now();
+      const timer = setInterval(() => {
+        if (ready()) {
+          clearInterval(timer);
+          resolve(window.L);
+        } else if (Date.now() - start >= 10000) {
+          clearInterval(timer);
+          reject(new Error("Lokale Kartenbibliothek fehlt oder ist nicht geladen: vendor/leaflet/1.9.4/dist/leaflet.js"));
         }
-        const elapsed = Date.now() - started;
-        if (elapsed >= 2500 && !fallbackStarted) {
-          fallbackStarted = true;
-          if (!document.getElementById("europeStationLeafletFallbackCss")) {
-            const style = document.createElement("link");
-            style.id = "europeStationLeafletFallbackCss";
-            style.rel = "stylesheet";
-            style.href = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
-            document.head.appendChild(style);
-          }
-          const script = document.createElement("script");
-          script.src = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
-          script.async = true;
-          script.onload = check;
-          // A failed fallback CDN must not suppress a late response from
-          // the original unpkg Leaflet script in index.html.
-          script.onerror = () => {};
-          document.head.appendChild(script);
-        }
-        if (elapsed >= 13000) finish(new Error("Kartenbibliothek nicht erreichbar (unpkg und jsDelivr)."));
-      }
-      const interval = setInterval(check, 100);
-      check();
+      }, 100);
     }).finally(() => { leafletLoadPromise = null; });
     return leafletLoadPromise;
   }
