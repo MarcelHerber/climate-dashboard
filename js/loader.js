@@ -4,7 +4,7 @@
 (function(){
   "use strict";
 
-  // Dateiversionen. In Schritt 4 (automatische Cache-Versionierung) wird diese Tabelle generiert.
+  // Dateiversionen werden beim Pages-Build von tools/version_assets.py erzeugt.
   const MODULES={
     "aktuell":["js/aktuell.js","20261120-1"],
     "era5-land":["js/era5-land.js","20261121-1"],
