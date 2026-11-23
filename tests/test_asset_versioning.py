@@ -71,6 +71,7 @@ class AssetVersioningTests(unittest.TestCase):
         (vendor / "leaflet.css").write_text(
             "div{background:url(images/marker.png)}\\n", encoding="utf-8")
         (images / "marker.png").write_bytes(b"PNG-TEST")
+        (images / "marker-icon-2x.png").write_bytes(b"JS-LOADED-ICON")
         (vendor / "leaflet.js").write_bytes(b"/* pinned dependency */")
         site = self.root / "site"
         site.mkdir()
@@ -93,9 +94,11 @@ class AssetVersioningTests(unittest.TestCase):
         run()
         run("--check")
         # Regression: self-comparison (--verify-dir site) falsely passed here.
-        (site / "vendor/leaflet/dist/images/marker.png").unlink()
+        # Leaflet requests this image in JS, not from CSS. Only the independent
+        # static-reference inventory can catch this missing file.
+        (site / "vendor/leaflet/dist/images/marker-icon-2x.png").unlink()
         self.assertIn("fehlt im Build", run("--check", expected=1))
-        shutil.copy2(images / "marker.png", site / "vendor/leaflet/dist/images/marker.png")
+        shutil.copy2(images / "marker-icon-2x.png", site / "vendor/leaflet/dist/images/marker-icon-2x.png")
         (site / "vendor/leaflet/dist/leaflet.css").write_text(
             "div{background:red}\\n", encoding="utf-8")
         self.assertIn("weicht von der Vorlage ab", run("--check", expected=1))
