@@ -7,6 +7,7 @@ on:
       - '.github/workflows/performance-local-vendor-audit.yml'
       - 'tests/audit_local_vendor_browser.py'
       - 'tests/audit_asset_hash_browser.py'
+      - 'tests/serve_performance_ab.py'
       - 'tools/version_assets.py'
       - 'scripts/build_pages_site.sh'
       - 'index.html'
@@ -51,19 +52,20 @@ jobs:
         run: python -u tests/audit_local_vendor_browser.py --site _site --output reports/vendor-browser
       - name: Chromium content-hash and lazy-module regression test
         run: python -u tests/audit_asset_hash_browser.py --site _site --output reports/hash-browser
-      - name: Record published baseline and run interleaved cold Lighthouse audits
+      - name: Compare same-build CDN and local-vendor variants with gzip
         shell: bash
         run: |
           set -euo pipefail
-          BASE_URL='https://marcelherber.github.io/climate-dashboard/index.html?tab=overview'
-          TEST_URL='http://127.0.0.1:8765/index.html?tab=overview'
-          curl --fail --silent --show-error --location "$BASE_URL" -o reports/live-baseline-index.html
-          sha256sum reports/live-baseline-index.html > reports/live-baseline-index.sha256
-          python -m http.server 8765 --bind 127.0.0.1 --directory _site > reports/server.log 2>&1 &
+          BASE_URL='http://127.0.0.1:8765/index.html?tab=overview&variant=cdn'
+          TEST_URL='http://127.0.0.1:8765/index.html?tab=overview&variant=local'
+          # Both variants use the exact same Pages build, origin and gzip
+          # server; only the eight pinned dependency URLs differ.
+          python -u tests/serve_performance_ab.py --site _site --port 8765 > reports/server.log 2>&1 &
           server=$!
           trap 'kill "$server" || true' EXIT
           for attempt in {1..30}; do
-            if curl -fsS 'http://127.0.0.1:8765/index.html' -o /dev/null; then break; fi
+            if curl --compressed -fsS "$BASE_URL" -o /dev/null &&
+               curl --compressed -fsS "$TEST_URL" -o /dev/null; then break; fi
             sleep 1
           done
           lh="$RUNNER_TEMP/lighthouse-audit/node_modules/.bin/lighthouse"
@@ -90,9 +92,9 @@ jobs:
           metrics=["first-contentful-paint","largest-contentful-paint",
                    "total-blocking-time","cumulative-layout-shift",
                    "speed-index","total-byte-weight"]
-          report={"method":"Three independent cold Lighthouse 12.6.0 runs per device and variant",
-                  "baseline":"published GitHub Pages main",
-                  "candidate":"locally served production artifact of PR branch",
+          report={"method":"Three independent cold Lighthouse 12.6.0 runs/device/variant, same Pages build and gzip origin",
+                  "baseline":"same build with original CDN dependency URLs",
+                  "candidate":"same build with local vendor URLs",
                   "devices":{}}
           for device in ("mobile","desktop"):
               data={}
