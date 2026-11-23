@@ -56,6 +56,33 @@ class AssetVersioningTests(unittest.TestCase):
         (self.root / "js/hyras.js").unlink()
         self.run_tool(success=2)
 
+    def test_vendor_directory_and_css_images_are_in_manifest(self):
+        vendor = self.root / "vendor" / "leaflet" / "1.9.4" / "dist"
+        images = vendor / "images"
+        images.mkdir(parents=True)
+        (images / "layers.png").write_bytes(b"valid test image bytes")
+        (images / "marker-shadow.png").write_bytes(b"marker loaded dynamically by JavaScript")
+        (vendor / "leaflet.css").write_text(
+            ".leaflet-control-layers{background-image:url(images/layers.png)}\\n",
+            encoding="utf-8")
+        path = self.root / "index.html"
+        path.write_text(path.read_text(encoding="utf-8") +
+            '<link href="vendor/leaflet/1.9.4/dist/leaflet.css" rel="stylesheet">\\n',
+            encoding="utf-8")
+        target = self.root / "site"
+        manifest_path = self.root / "manifest.json"
+        self.run_tool("--static-dir", "vendor", "--copy-to", str(target),
+                      "--verify-dir", str(target), "--manifest", str(manifest_path))
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertIn("vendor/leaflet/1.9.4/dist/images/layers.png", manifest["assets"])
+        self.assertIn("vendor/leaflet/1.9.4/dist/images/marker-shadow.png", manifest["assets"])
+        self.run_tool("--static-dir", "vendor", "--check", "--verify-dir", str(target))
+        (target / "vendor/leaflet/1.9.4/dist/images/marker-shadow.png").unlink()
+        self.run_tool("--static-dir", "vendor", "--verify-dir", str(target), success=1)
+
+    def test_absent_vendor_directory_fails(self):
+        self.run_tool("--static-dir", "vendor", success=2)
+
     def test_tampered_html_must_fail_verification(self):
         target = self.root / "site"
         self.run_tool("--copy-to", str(target))

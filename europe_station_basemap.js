@@ -48,19 +48,18 @@
             const style = document.createElement("link");
             style.id = "europeStationLeafletFallbackCss";
             style.rel = "stylesheet";
-            style.href = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
+            style.href = "vendor/leaflet/1.9.4/dist/leaflet.css?v=0";
             document.head.appendChild(style);
           }
           const script = document.createElement("script");
-          script.src = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
+          script.src = "vendor/leaflet/1.9.4/dist/leaflet.js?v=0";
           script.async = true;
           script.onload = check;
-          // A failed fallback CDN must not suppress a late response from
-          // the original unpkg Leaflet script in index.html.
-          script.onerror = () => {};
+          // If the local vendor file is missing, fail visibly instead of requesting a CDN.
+          script.onerror = () => finish(new Error("Lokale Kartenbibliothek fehlt (vendor/leaflet)."));
           document.head.appendChild(script);
         }
-        if (elapsed >= 13000) finish(new Error("Kartenbibliothek nicht erreichbar (unpkg und jsDelivr)."));
+        if (elapsed >= 13000) finish(new Error("Lokale Kartenbibliothek nicht erreichbar (vendor/leaflet)."));
       }
       const interval = setInterval(check, 100);
       check();
