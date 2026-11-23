@@ -1,0 +1,40 @@
+{
+  "ready": true,
+  "month": "2026-10",
+  "hours": 744,
+  "sample_coverage": "100% of expected hourly timestamps",
+  "min_grid_hour_coverage": 0.95,
+  "grid": "0.5°",
+  "products": {
+    "cape1000": {
+      "label": "CAPE ≥ 1000 J/kg",
+      "unit": "%",
+      "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-synoptic-events-2026-v1/2026-10-cape1000.png",
+      "denominator_hours": 744
+    },
+    "ivt500": {
+      "label": "IVT ≥ 500 kg/(m·s)",
+      "unit": "%",
+      "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-synoptic-events-2026-v1/2026-10-ivt500.png",
+      "denominator_hours": 744
+    },
+    "jet40": {
+      "label": "250-hPa-Wind ≥ 40 m/s",
+      "unit": "%",
+      "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-synoptic-events-2026-v1/2026-10-jet40.png",
+      "denominator_hours": 744
+    },
+    "lift700": {
+      "label": "Omega 700 hPa ≤ −0,2 Pa/s",
+      "unit": "%",
+      "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-synoptic-events-2026-v1/2026-10-lift700.png",
+      "denominator_hours": 744
+    },
+    "vo500_10": {
+      "label": "Vorticity 500 hPa ≥ 10 · 10⁻⁵ s⁻¹",
+      "unit": "%",
+      "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-synoptic-events-2026-v1/2026-10-vo500_10.png",
+      "denominator_hours": 744
+    }
+  }
+}
