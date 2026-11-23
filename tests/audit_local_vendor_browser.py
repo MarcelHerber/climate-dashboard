@@ -32,7 +32,8 @@ def run(root, output):
     for path,expected in static.items():
         content=(root/path).read_bytes()
         assert hashlib.sha256(content).hexdigest()==expected,(path,expected)
-        assert asset_manifest["assets"][path]["hash"]==expected[:10],path
+        content_hash=hashlib.sha256(content.replace(b"\r\n",b"\n")).hexdigest()[:10]
+        assert asset_manifest["assets"][path]["hash"]==content_hash,(path,content_hash)
 
     server=ThreadingHTTPServer(("127.0.0.1",0),functools.partial(QuietHandler,directory=str(root)))
     thread=threading.Thread(target=server.serve_forever,daemon=True)
@@ -85,11 +86,12 @@ def run(root, output):
                         # Fetch the exact hashed URLs from a real browser.
                         if width==1440 and direct=="overview":
                             for path,expected in static.items():
+                                version=asset_manifest["assets"][path]["hash"]
                                 fetched=page.evaluate("""async info=>{
                                   const r=await fetch('./'+info.path+'?v='+info.hash,{cache:'no-store'});
                                   const bytes=new Uint8Array(await r.arrayBuffer());
                                   return {status:r.status, bytes:Array.from(bytes)};
-                                }""",{"path":path,"hash":expected[:10]})
+                                }""",{"path":path,"hash":version})
                                 assert fetched["status"]==200,path
                                 assert hashlib.sha256(bytes(fetched["bytes"])).hexdigest()==expected,path
 
