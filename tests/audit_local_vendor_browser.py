@@ -100,7 +100,7 @@ def audit(site: Path, output: Path) -> None:
                         }""")
                         page.wait_for_timeout(600)
                         tabs = page.evaluate("""() => Array.from(document.querySelectorAll('button.tab-button[onclick]'))
-                          .map(el=>(el.getAttribute('onclick')||'').match(/switchTab\\('([^']+)'\\)/)?.[1])
+                          .map(el=>(el.getAttribute('onclick')||'').match(/switchTab\('([^']+)'\)/)?.[1])
                           .filter(Boolean)""")
                         # Audit each main-page tab, not external subpages. Hidden navigation
                         # entries can still be selected programmatically.
