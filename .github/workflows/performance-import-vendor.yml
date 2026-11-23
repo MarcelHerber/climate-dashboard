@@ -42,7 +42,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add vendor/
+          git add --sparse vendor/
           if git diff --cached --quiet; then
             echo 'Vendor-Originaldateien bereits vorhanden'
           else
