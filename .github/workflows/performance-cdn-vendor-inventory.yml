@@ -1,0 +1,32 @@
+name: Performance · CDN Bibliotheken und Prüfsummen inventarisieren
+
+on:
+  push:
+    branches:
+      - perf/vendor-cdn-inventory-20261123
+    paths:
+      - 'tools/audit_cdn_vendor.py'
+      - '.github/workflows/performance-cdn-vendor-inventory.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cdn-inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Exakte CDN-Originaldateien laden und SHA-256 prüfen
+        run: python -u tools/audit_cdn_vendor.py
+      - name: Prüfbericht und Originaldateien aufbewahren
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: climate-dashboard-cdn-inventory
+          path: reports/vendor-cdn-inventory/
+          retention-days: 30
