@@ -1,0 +1,51 @@
+name: Performance Step 5 - geprüfte CDN-Bibliotheken importieren
+
+on:
+  push:
+    branches: [perf/local-vendor-step5-20261123]
+    paths:
+      - 'tools/import_vendor_assets.py'
+      - '.github/workflows/performance-import-vendor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  import-vendor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: perf/local-vendor-step5-20261123
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /tools/import_vendor_assets.py
+            /.github/workflows/performance-import-vendor.yml
+          persist-credentials: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: climate-dashboard-cdn-inventory
+          run-id: '45191436145'
+          github-token: ${{ github.token }}
+          path: vendor-artifact
+      - name: Prüfsummen kontrollieren und exakt 13 Dateien importieren
+        run: python tools/import_vendor_assets.py --artifact-dir vendor-artifact
+      - name: Verifizierte Bibliotheken auf Testbranch versionieren
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add vendor/
+          if git diff --cached --quiet; then
+            echo 'Vendor-Originaldateien bereits vorhanden'
+          else
+            git commit -m 'vendor: pin 13 checked Chart.js/Leaflet/export assets'
+            git push origin HEAD:perf/local-vendor-step5-20261123
+          fi
