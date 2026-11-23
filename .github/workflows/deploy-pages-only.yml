@@ -5,6 +5,9 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'vendor/**'
+      - 'europe_station_basemap.js'
+      - 'mosmix.js'
       - 'js/**'
       - 'scripts/build_pages_site.sh'
       - 'tools/version_assets.py'
