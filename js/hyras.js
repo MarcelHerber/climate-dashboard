@@ -227,7 +227,7 @@ async function hyrasDrawInteractiveMap({state,title,subtitle,boundaryOverlay,geo
   if(window.HyrasRegional&&geoLookup){
     const period=hyrasSelectedPeriod();
     const preset=state===hyrasPresetState;
-    window.HyrasRegional.setSource({canvas:raw,owner:wrap,lookupUrl:HYRAS_DATA_BASE+"/"+geoLookup,parameter:"precipitation",metric,reference:hyrasReferencePeriod(),start:state.start||(preset?period?.start_date:null),end:state.end||(preset?period?.end_date:null),resolution:Number(state.resolutionKm||1),title,subtitle:subtitle+" · "+hyrasMetricConfig(metric).label,legendNode:legend});
+    window.HyrasRegional.setSource({canvas:raw,numeric:{values:raster.values,valid:raster.valid,breaks:cfg.breaks,rgb:cfg.colors.map(hyrasHexRgb)},owner:wrap,lookupUrl:HYRAS_DATA_BASE+"/"+geoLookup,parameter:"precipitation",metric,reference:hyrasReferencePeriod(),start:state.start||(preset?period?.start_date:null),end:state.end||(preset?period?.end_date:null),resolution:Number(state.resolutionKm||1),title,subtitle:subtitle+" · "+hyrasMetricConfig(metric).label,legendNode:legend});
   }
   const link=document.getElementById("hyrasOpenImage");if(link){link.textContent="PNG herunterladen";link.target="";link.download=downloadName||`hyras_${metric}.png`;link.href=canvas.toDataURL("image/png");link.style.display="inline-block";}
 }
