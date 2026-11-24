@@ -24,7 +24,7 @@ export function cloudLabPage(){
  return '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
  '<meta name="robots" content="noindex,nofollow,noarchive"><title>Wolkenfilm-Studio · Privat</title><style>'+
  LAB_CSS+'</style></head><body><header><div><div class="sub">Climate Dashboard · privates Studio</div><strong>ICON Wolkenfilm-Studio</strong> <span class="badge">Geschützt</span></div>'+
- '<nav><a href="/dynamik">Dynamik- &amp; Jetstream-Studio</a><a href="/wolkenlabor/europa-tmax">Europa Tmax <span class="badge">Test</span></a><a href="/wolkenlabor/europa-tmin">Europa Tmin <span class="badge">Test</span></a><a href="/">Alpenwetter</a><form action="/logout" method="POST"><button type="submit">Abmelden</button></form></nav></header>'+
+ '<nav><a href="/dynamik">Dynamik- &amp; Jetstream-Studio</a><a href="/wolkenlabor/europa-tmax">Europa Tmax <span class="badge">Test</span></a><a href="/wolkenlabor/europa-tmin">Europa Tmin <span class="badge">Test</span></a><a href="/wolkenlabor/deutschland-tmax">Deutschland Tmax · ICON-D2</a><a href="/wolkenlabor/deutschland-tmin">Deutschland Tmin · ICON-D2</a><a href="/">Alpenwetter</a><form action="/logout" method="POST"><button type="submit">Abmelden</button></form></nav></header>'+
  '<main><h1>Wolkenfilm-Studio</h1><p class="lead">Sendefähige Wolkenfilm-Darstellung aus echten DWD-Modellfeldern. Wolkenschichten individuell in Graustufen einstellen; bei ICON-D2 auf Wunsch mit stündlichen Regen- und Schneefeldern. Keine künstlich erzeugten Wetterdaten.</p>'+
  '<div class="model-switch" role="group" aria-label="Vorhersagemodell und Region">'+
  '<button id="modelEU" type="button" aria-pressed="true">Europa · ICON-EU</button>'+
@@ -79,6 +79,13 @@ export async function cloudLabData(request,url,securityHeaders){
  }
  else if(/^mixer\/(?:icon-d2-ruc|gfs|ecmwf-aifs|ecmwf-ifs-0p1|ecmwf-ifs|gem|arome|harmonie)\/frames\/\d{10}\/(?:clcl|clcm|clch|clct)_\d{3}\.png$/.test(suffix)){
    source=MIXER_SOURCE+suffix.slice(6);mime="image/png";
+ }
+ else if(/^deutschland-t(?:min|max)\/(?:current\.json|stations_catalog\.json|geo\.json|icon_t(?:min|max)_(?:raw_)?\d{4}-\d{2}-\d{2}\.png)$/.test(suffix)){
+   const [product,file]=suffix.split("/");
+   const kind=product.endsWith("tmin")?"tmin":"tmax";
+   if(file.startsWith("icon_")&&!file.startsWith("icon_"+kind+"_"))return new Response("Ungültiger Datenpfad",{status:404,headers:securityHeaders({})});
+   source="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/germany-temperature-lab-data/data/"+kind+"/"+file;
+   mime=file.endsWith(".png")?"image/png":"application/json; charset=utf-8";
  }
  else if(suffix==="europa-tmin/current.json"){
    source=EUROPE_TMIN_SOURCE+"current.json";mime="application/json; charset=utf-8";

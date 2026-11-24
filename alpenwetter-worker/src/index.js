@@ -7,6 +7,7 @@ import {canariasRadarPage,canariasRadarLoginPage,canariasRadarData} from "./cana
 import {azoresRadarPage,azoresRadarLoginPage,azoresRadarData} from "./azores-radar-lab.js";
 import { europeTmaxPage } from "./europe-tmax.js";
 import { europeTminPage } from "./europe-tmin.js";
+import {germanyTemperaturePage} from "./germany-temperature.js";
 
 const SESSION_COOKIE = "alpenwetter_session";
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
@@ -62,7 +63,7 @@ export default {
       if (url.pathname.startsWith("/wolkenlabor/data/")) {
         return jsonResponse({ error: "Nur nach Anmeldung für den Laborbereich erreichbar" }, 401);
       }
-      if (url.pathname === "/wolkenlabor" || url.pathname === "/wolkenlabor/" || (url.pathname === "/wolkenlabor/europa-tmax" || url.pathname === "/wolkenlabor/europa-tmin")) {
+      if (url.pathname === "/wolkenlabor" || url.pathname === "/wolkenlabor/" || (url.pathname === "/wolkenlabor/europa-tmax" || url.pathname === "/wolkenlabor/europa-tmin" || /^\/wolkenlabor\/deutschland-t(?:min|max)$/.test(url.pathname))) {
         return htmlResponse(cloudLabLoginPage());
       }
       if (url.pathname.startsWith("/api/")) {
@@ -115,6 +116,9 @@ export default {
       return htmlResponse(cloudLabPage());
     }
 
+    if (/^\/wolkenlabor\/deutschland-t(?:min|max)$/.test(url.pathname)) {
+      return htmlResponse(germanyTemperaturePage(url.pathname.endsWith("tmin")?"tmin":"tmax"));
+    }
     if (url.pathname === "/wolkenlabor/europa-tmax") {
       return htmlResponse(europeTmaxPage());
     }

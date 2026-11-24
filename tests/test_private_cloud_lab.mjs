@@ -261,3 +261,22 @@ assert.match(protectedPage.headers.get("x-robots-tag"),/noindex/);
 assert.match(LAB_JS,/MediaRecorder/);
 assert.match(LAB_CSS,/\.stage/);
 console.log("PASS: Cloud Lab private route, login session, anti-leakage and basic film controls.");
+
+
+// Germany temperature editor uses the same session guard as Europe.
+for(const kind of ["tmin","tmax"]){
+ const path="/wolkenlabor/deutschland-"+kind;
+ const locked=await request(path);
+ assert.equal(locked.status,200);
+ assert.doesNotMatch(await locked.text(),/id="tmaxCanvas"/);
+ const denied=await request("/wolkenlabor/data/deutschland-"+kind+"/current.json");
+ assert.equal(denied.status,401);
+ const page=await request(path,{headers:{Cookie:cookie}});
+ assert.equal(page.status,200);
+ const html=await page.text();
+ assert.match(html,/id="germanyRegion"/);
+ assert.match(html,/id="germanyBorders"/);
+ assert.match(html,/id="germany4k"/);
+ assert.ok(html.includes("data/deutschland-"+kind+"/"));
+ assert.doesNotThrow(()=>new Function(html.match(/<script>([\s\S]*?)<\/script>/)[1]));
+}

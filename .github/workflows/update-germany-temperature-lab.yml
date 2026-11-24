@@ -1,0 +1,62 @@
+name: Deutschland Tmin und Tmax · ICON-D2 + MOSMIX (privates Wolkenlabor)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '40 */3 * * *'
+  push:
+    branches: [main]
+    paths:
+      - scripts/build_germany_temperature_lab.py
+      - tests/test_germany_temperature_lab.py
+      - .github/workflows/update-germany-temperature-lab.yml
+permissions:
+  contents: write
+concurrency:
+  group: germany-temperature-lab-data
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install 'numpy>=2,<3' 'pillow>=11,<13' 'scipy>=1.13,<2' 'eccodes>=2,<3'
+      - run: |
+          python -m py_compile scripts/build_germany_temperature_lab.py
+          python -m unittest discover -s tests -p test_germany_temperature_lab.py -v
+      - name: Prepare independent data branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          origin="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/germany-temperature-lab-data >/dev/null 2>&1; then
+            git clone --quiet --single-branch --depth 1 --branch germany-temperature-lab-data "$origin" /tmp/germany-data
+          else
+            git init -q -b germany-temperature-lab-data /tmp/germany-data
+            git -C /tmp/germany-data remote add origin "$origin"
+          fi
+      - name: Calculate and publish only verified products
+        run: |
+          set -euo pipefail
+          git -C /tmp/germany-data config user.name github-actions
+          git -C /tmp/germany-data config user.email github-actions@github.com
+          ok=0
+          for kind in tmin tmax; do
+            if python scripts/build_germany_temperature_lab.py --kind "$kind" --out "/tmp/result/$kind"; then
+              mkdir -p "/tmp/germany-data/data/$kind"
+              cp -a "/tmp/result/$kind/." "/tmp/germany-data/data/$kind/"
+              git -C /tmp/germany-data add "data/$kind"
+              ok=$((ok+1))
+            else
+              echo "::warning::No complete forecast for $kind; keeping previous verified product"
+            fi
+          done
+          if [ "$ok" -eq 0 ]; then exit 1; fi
+          if ! git -C /tmp/germany-data diff --cached --quiet; then
+            git -C /tmp/germany-data commit -m "Update verified Germany ICON-D2/MOSMIX temperature forecasts"
+            git -C /tmp/germany-data push origin HEAD:refs/heads/germany-temperature-lab-data
+          fi
