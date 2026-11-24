@@ -47,10 +47,14 @@ def run(site,output):
                         page.wait_for_function("() => !!Chart.getChart('climateIndexChart')",timeout=35000)
                         labels=page.evaluate("""() => {
                            const c=Chart.getChart('climateIndexChart');
-                           const opts=c.options.plugins.datalabels;
+                           // Chart.js options is a scriptable resolver. Access the
+                           // raw config callback rather than invoking its resolver
+                           // without a Chart.js plugin context.
+                           const display=c.config.options.plugins.datalabels.display;
+                           if(typeof display!=='function')throw Error('Raw datalabels callback absent');
                            const data=c.data.datasets[0];
                            return {points:data.data.length,visible:data.data.filter((v,i)=>
-                             opts.display({datasetIndex:0,dataIndex:i,dataset:data})).length};
+                             display({chart:c,datasetIndex:0,dataIndex:i,dataset:data})).length};
                         }""")
                         assert labels["points"]>=20,labels
                         if width<=600:assert labels["visible"]<=labels["points"]/3,labels
