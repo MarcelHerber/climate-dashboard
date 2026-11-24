@@ -1,0 +1,24 @@
+name: Open-Meteo browser backoff regression
+on:
+  push:
+    branches: [fix/open-meteo-browser-backoff-20261124]
+    paths: ['t850_ensembles.js','tests/test_open_meteo_browser_backoff.cjs','.github/workflows/open-meteo-browser-backoff.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            /t850_ensembles.js
+            /tests/test_open_meteo_browser_backoff.cjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check t850_ensembles.js
+      - run: node --test tests/test_open_meteo_browser_backoff.cjs
