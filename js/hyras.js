@@ -224,6 +224,11 @@ async function hyrasDrawInteractiveMap({state,title,subtitle,boundaryOverlay,geo
   // selected temperature view after its boundary overlay finished loading.
   if(hyrasParameter()!=="precipitation")return;
   const frame=document.getElementById("hyrasMapFrame");frame.innerHTML="";const wrap=document.createElement("div");wrap.className="hyras-dynamic-wrap";wrap.innerHTML=`<div class="hyras-dynamic-title">${title}</div><div class="hyras-dynamic-subtitle">${subtitle} · ${hyrasMetricConfig(metric).label}</div>`;const stage=document.createElement("div");stage.className="hyras-canvas-stage";stage.appendChild(canvas);wrap.appendChild(stage);const legend=document.createElement("div");legend.className="hyras-dynamic-legend";legend.innerHTML=hyrasDynamicLegend(metric);wrap.appendChild(legend);frame.appendChild(wrap);hyrasAttachMouseover(canvas,wrap,state,geoLookup);hyrasInstallClickAnalysis(canvas,stage,wrap,state,geoLookup,raster,metric);
+  if(window.HyrasRegional&&geoLookup){
+    const period=hyrasSelectedPeriod();
+    const preset=state===hyrasPresetState;
+    window.HyrasRegional.setSource({canvas:raw,owner:wrap,lookupUrl:HYRAS_DATA_BASE+"/"+geoLookup,parameter:"precipitation",metric,reference:hyrasReferencePeriod(),start:state.start||(preset?period?.start_date:null),end:state.end||(preset?period?.end_date:null),resolution:Number(state.resolutionKm||1),title,subtitle:subtitle+" · "+hyrasMetricConfig(metric).label,legendNode:legend});
+  }
   const link=document.getElementById("hyrasOpenImage");if(link){link.textContent="PNG herunterladen";link.target="";link.download=downloadName||`hyras_${metric}.png`;link.href=canvas.toDataURL("image/png");link.style.display="inline-block";}
 }
 async function hyrasLoadPresetState(period){
