@@ -10,6 +10,8 @@ on:
       - 'scripts/update_grosswetterlagen.py'
       - 'scripts/update_grosswetterlagen_historical.py'
       - 'tests/test_grosswetterlagen_historical.py'
+      - 'tests/test_grosswetterlagen_browser.py'
+      - 'grosswetterlagen.html'
       - 'grosswetterlagen.js'
   schedule:
     - cron: '15 7 * * 1'
@@ -23,6 +25,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /grosswetterlagen.html
+            /grosswetterlagen.js
+            /scripts/update_grosswetterlagen*.py
+            /tests/test_grosswetterlagen*
+            /data/grosswetterlagen/
+            /vendor/chart.js/4.4.1/dist/chart.umd.min.js
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -33,6 +44,10 @@ jobs:
         run: |
           command -v pdftotext || (sudo apt-get update && sudo apt-get install -y poppler-utils)
           python scripts/update_grosswetterlagen_historical.py
+      - name: Desktop and mobile browser checks with original data
+        run: |
+          pip install playwright
+          python tests/test_grosswetterlagen_browser.py
       - name: Publish validated catalogues
         if: github.ref == 'refs/heads/main'
         run: |
