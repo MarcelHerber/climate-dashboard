@@ -167,8 +167,17 @@ def device(browser,width,out):
             page.evaluate("switchTab('monthly')")
             page.locator("#monthlyFrequencyButton").click(timeout=30000)
             page.wait_for_function("""() => window.Chart?.getChart?.('monthlyFrequencyChart')?.data?.datasets
-               ?.some(ds=>ds.data?.some(x=>typeof x==='number'&&Number.isFinite(x)))""",timeout=75000)
-            ev={"source":"real DWD monthly data","downloads":[]}
+               ?.some(ds=>ds.data?.some(x=>
+                 (typeof x==='number'&&Number.isFinite(x)) ||
+                 (x && typeof x==='object' && Number.isFinite(x.x) && Number.isFinite(x.y))
+               ))""",timeout=45000)
+            chart_counts=page.evaluate("""() => {
+               const chart=Chart.getChart('monthlyFrequencyChart');
+               return chart.data.datasets.map(ds=>({label:ds.label,
+                 finite:ds.data.filter(x=>typeof x==='number'&&Number.isFinite(x) ||
+                   x && typeof x==='object' && Number.isFinite(x.x) && Number.isFinite(x.y)).length}));
+            }""")
+            ev={"source":"real DWD monthly data","dataset_counts":chart_counts,"downloads":[]}
             for ext,selector in [("png","#monthlyFrequencyPngButton"),("pdf","#monthlyFrequencyPdfButton")]:
                 ev["downloads"].append(export(page,out,selector,ext,f"{width}-monthly"))
             return ev
