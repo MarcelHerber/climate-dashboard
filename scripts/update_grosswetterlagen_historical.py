@@ -188,8 +188,33 @@ def layout_from_pdf(pdf):
             expected=list(range(start,stop))
             print(f"PDF page {105+i}: rotation={page.rotation}, month={month}, years={candidates}")
             if sorted(candidates)!=expected:
-                raise ValueError(f"PDF page {105+i}: missing/duplicate years; missing {sorted(set(expected)-set(candidates))}")
+                missing=sorted(set(expected)-set(candidates))
+                if i==34 and missing==[1970] and sorted(candidates)==[y for y in expected if y!=1970]:
+                    print("December 1970: require independently extracted original row from pdftotext")
+                else:
+                    raise ValueError(f"PDF page {105+i}: missing/duplicate years; missing {missing}")
     return "\n".join(output)
+
+def reconcile_original_rows(coordinate, reference):
+    """Use only exact rows from the same PDF, never estimate or interpolate."""
+    if len(reference)<46386:
+        raise ValueError(f"Too few independent legacy cross-check rows: {len(reference)}")
+    overlap=coordinate.keys() & reference.keys()
+    disagreements=[d for d in sorted(overlap) if coordinate[d]!=reference[d]]
+    if disagreements:
+        raise ValueError(f"Extraction disagreement on {len(disagreements)} days; first {disagreements[:10]}")
+    expected={START+timedelta(days=i) for i in range((END-START).days+1)}
+    missing=expected-coordinate.keys()
+    allowed={date(1970,12,i) for i in range(1,32)}
+    if missing not in (set(),allowed) or not missing<=reference.keys():
+        raise ValueError(f"Unresolved or unexpected coordinate gaps: {sorted(missing)[:35]}")
+    rows={**reference,**coordinate}
+    if rows.keys()!=expected or set(rows.values())!=CODES:
+        raise ValueError("Reconciled historical catalogue failed complete date/type coverage")
+    if not all(date(y,m,d) in coordinate for y in (1902,1903) for m in range(1,13) for d in range(1,calendar.monthrange(y,m)[1]+1)):
+        raise ValueError("Previously missing years were not recovered by coordinate extraction")
+    print(f"Independent extraction agreement: {len(overlap)} days; {len(coordinate.keys()-reference.keys())} additional coordinate days; {len(missing)} exact original days recovered via pdftotext")
+    return rows
 
 def main():
     parser = argparse.ArgumentParser()
@@ -202,15 +227,10 @@ def main():
                 pdf.write_bytes(res.read(40_000_001))
         if not pdf.read_bytes().startswith(b"%PDF-"):
             raise ValueError("Not an original PDF")
-        rows = parse_layout(layout_from_pdf(pdf))
+        coordinate = parse_layout(layout_from_pdf(pdf), require_complete=False)
         legacy = subprocess.check_output(["pdftotext","-f","104","-layout",str(pdf),"-"],text=True,encoding="utf-8")
         reference = parse_layout(legacy, require_complete=False)
-        if len(reference)<46386:
-            raise ValueError(f"Too few independent legacy cross-check rows: {len(reference)}")
-        disagreements=[d for d,v in reference.items() if rows.get(d)!=v]
-        if disagreements:
-            raise ValueError(f"Extraction disagreement on {len(disagreements)} days; first {disagreements[:10]}")
-        print(f"Independent extraction agreement: {len(reference)} original days; recovered {len(rows)-len(reference)} additional days")
+        rows = reconcile_original_rows(coordinate, reference)
         # Independently spot-check the previously missing January rows in the printed original.
         anchors = {date(1902,1,1):"WZ",date(1902,1,31):"HNA",date(1903,1,1):"WS",date(1903,1,31):"WA"}
         if any(rows[d]!=v for d,v in anchors.items()):
