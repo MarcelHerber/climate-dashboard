@@ -18,7 +18,7 @@
       ["stationHeatwaves","Stations-Hitzewellen"],["maps","Stationskarten"],["records","Stationsrekorde"]]},
     {id:"europe",name:"Europa & Prognosen",items:[
       ["europeHub","Europa-Überblick"],["europeStations","Europa-Stationen"],
-      ["era5Europe","ERA5-Land Europa"],["temperatur_anomalie_europa.html","Aktuelle Temperaturabweichung · NOAA CPC"],["era5Atmosphere","ERA5 Atmosphäre"],
+      ["era5Europe","ERA5-Land Europa"],["temperatur_anomalie_europa.html","Aktuelle Temperaturabweichung · NOAA CPC"],["era5Atmosphere","ERA5 Atmosphäre"],["era5Synoptic","ERA5 Tageskarten & Ereignisse"],
       ["sst-europe","Meere / SST"],["t850-ensembles","Ensembleprognosen"],
       ["state-monthly-ensemble","Monatsausblick"],["saisonal_europa.html","Saisonale Prognose (SEAS5)"],
       ["wettergefahren.html","ICON-EU Wettergefahren"],["stratosphaere.html","Stratosphäre"],
@@ -47,6 +47,11 @@
   function isHome(){
     const leaf=window.location.pathname.split("/").pop().toLowerCase();
     return !leaf||leaf==="index.html";
+  }
+  function itemAvailable(id){
+    if(id!=="era5Synoptic" || !isHome())return true;
+    const entry=document.getElementById("era5SynopticNav");
+    return !!entry && !entry.hidden;
   }
   function current(){
     if(isHome()){
@@ -106,7 +111,7 @@
   }
   function updateRecent(){
     recentBlock.replaceChildren();
-    const ids=recent().filter(id=>id!==current());
+    const ids=recent().filter(id=>id!==current()&&itemAvailable(id));
     recentBlock.hidden=ids.length===0;
     if(!ids.length)return;
     recentBlock.appendChild(el("h3","cdm-section-title","Zuletzt geöffnet"));
@@ -121,18 +126,19 @@
     sections.replaceChildren();
     const active=current();
     for(const group of CATEGORIES){
+      const visibleItems=group.items.filter(([id])=>itemAvailable(id));
       const detail=el("details","cdm-category");
       const summary=el("summary","cdm-category-summary");
       summary.appendChild(el("span","cdm-category-name",group.name));
-      summary.appendChild(el("span","cdm-category-count",String(group.items.length)));
+      summary.appendChild(el("span","cdm-category-count",String(visibleItems.length)));
       detail.appendChild(summary);
       const container=el("div","cdm-category-links");
-      for(const [id,name] of group.items){
+      for(const [id,name] of visibleItems){
         const b=link({id,name});
         container.appendChild(b);
       }
       detail.appendChild(container);
-      if(group.items.some(item=>item[0]===active))detail.open=true;
+      if(visibleItems.some(item=>item[0]===active))detail.open=true;
       detail.addEventListener("toggle",()=>{
         if(!detail.open)return;
         sections.querySelectorAll("details.cdm-category").forEach(other=>{
@@ -150,7 +156,7 @@
     results.hidden=!visible;
     results.replaceChildren();
     if(!visible)return;
-    const matching=flat.filter(x=>normalize(x.name+" "+(x.category||"")+" "+x.id).includes(term));
+    const matching=flat.filter(x=>itemAvailable(x.id) && normalize(x.name+" "+(x.category||"")+" "+x.id).includes(term));
     results.appendChild(el("h3","cdm-section-title","Suchergebnisse · "+matching.length));
     if(!matching.length){
       results.appendChild(el("p","cdm-empty","Keine passenden Bereiche gefunden."));
