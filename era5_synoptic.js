@@ -15,6 +15,7 @@ async function era5SynopticDiscover(){
     const hasData=(idx.days?.length||0)+(idx.monthly_events?.length||0)>0;
     const link=document.getElementById("era5SynopticNav");
     if(link)link.hidden=!hasData;
+    document.dispatchEvent(new Event("climate:era5-synoptic-availability"));
     return idx;
   }catch(error){
     console.info("ERA5-Synoptikarchiv noch nicht veröffentlicht",error);
