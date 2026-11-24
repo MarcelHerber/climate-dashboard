@@ -5,6 +5,9 @@ on:
       batch:
         description: Historical years per parameter
         default: '3'
+  push:
+    branches: [main]
+    paths: ['scripts/build_bundeslaender_daily.py', '.github/workflows/bundeslaender-daily.yml']
   schedule:
     - cron: '25 5 * * *'
 permissions:
@@ -29,6 +32,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - run: node --test tests/test_bundeslaender_rekord.cjs
       - run: pip install numpy xarray netCDF4 h5netcdf requests pyproj matplotlib pillow scipy
       - name: Restore regional archive
         env:
@@ -39,7 +43,7 @@ jobs:
             git fetch --depth=1 origin "$BRANCH"
             git worktree add --detach /tmp/region-data FETCH_HEAD
           else
-            git worktree add --detach /tmp/region-data HEAD
+            git worktree add --detach --no-checkout /tmp/region-data HEAD
             cd /tmp/region-data
             git switch --orphan "$BRANCH"
           fi
