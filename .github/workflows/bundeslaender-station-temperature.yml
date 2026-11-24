@@ -21,6 +21,7 @@ jobs:
           fetch-depth: 1
           sparse-checkout: |
             scripts/build_bundeslaender_station_temperature.py
+            tests/test_bundeslaender_station_temperature.py
             station_threshold_daily
             station_climate_days_current
             station_climate_days_index.json
@@ -29,6 +30,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install numpy
+      - run: python tests/test_bundeslaender_station_temperature.py
       - run: python scripts/build_bundeslaender_station_temperature.py --output /tmp/station-result
       - name: Publish independent station series
         run: |
