@@ -76,7 +76,6 @@ def run(site,output):
                             page.wait_for_function("""() => [...document.querySelectorAll('#cdMobileMenu .cdm-item')]
                               .some(el=>el.textContent.includes('ERA5 Tageskarten'))""",timeout=5000)
                             row["era5_mobile_menu"]=True
-                            page.locator("#cdMobileMenuButton").click()
                         row["local_http_errors"]=local_http[:12]
                         row["page_errors"]=errors[:12]
                         assert not local_http,f"Local resource failure: {local_http[:5]}"
