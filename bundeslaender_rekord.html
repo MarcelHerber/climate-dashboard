@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Bundesländer-Rekordmonitor · Climate Dashboard</title>
+<link rel="stylesheet" href="dashboard_theme.css">
+<style>
+:root{color-scheme:light dark;font-family:system-ui,sans-serif;--line:light-dark(#d5dde4,#3b4858);--panel:light-dark(#f3f7fb,#182331)}
+body{margin:0;background:light-dark(#fff,#101720);color:light-dark(#152438,#e5edf7)}main{max-width:1320px;margin:auto;padding:20px}h1{font-size:clamp(1.5rem,4vw,2.3rem)}a{color:light-dark(#145cb2,#8abaff)}.controls{display:flex;flex-wrap:wrap;gap:12px;background:var(--panel);padding:16px;border-radius:12px}label{display:grid;gap:5px;font-size:.85rem;flex:1 1 145px}select,input,button{font:inherit;padding:9px;border:1px solid var(--line);border-radius:6px;background:light-dark(white,#172231);color:inherit}button{cursor:pointer}#status{padding:12px 0}#tablewrap{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:8px}table{border-collapse:collapse;width:100%;font-size:.88rem;white-space:nowrap}th,td{padding:10px;text-align:left;border-bottom:1px solid var(--line)}th{position:sticky;top:0;background:var(--panel);z-index:1}.cold{color:light-dark(#1758a8,#91c5ff)}.warm{color:light-dark(#b22a26,#ffa69b)}small{color:light-dark(#526578,#aebed0)}@media(max-width:600px){main{padding:12px}.controls{padding:10px}th,td{padding:8px}}
+</style></head><body><main>
+<a href="index.html">← Climate Dashboard</a><h1>Bundesländer-Rekordmonitor</h1>
+<p>Tägliche Flächenmittel · Deutschland und alle 16 Bundesländer · historische Einordnung ohne Prognosedaten.</p>
+<div class="controls">
+<label>Parameter<select id="parameter"><option value="tmin">Tmin · Tagesminimum</option><option value="tmax">Tmax · Tagesmaximum</option><option value="tmean">Tmean · Tagesmittel</option><option value="precipitation">Niederschlag</option><option value="sunshine">Sonnenscheindauer</option></select></label>
+<label>Datum<input id="day" type="date"></label>
+<label>Gebiet<select id="region"><option value="">Alle Gebiete</option></select></label>
+<label>Vergleich<select id="period"><option value="">Alle Vergleiche</option><option value="day">Kalendertag</option><option value="decade">Monatsdekade</option><option value="month">Monat</option><option value="season">Jahreszeit</option><option value="year">Ganzes Jahr</option></select></label>
+<label>Richtung<select id="direction"><option value="">Beide</option><option value="low">Niedrigste</option><option value="high">Höchste</option></select></label>
+<label>Mindestens so lange unübertroffen<select id="years"><option value="0">Alle</option><option value="5">5 Jahre</option><option value="10">10 Jahre</option><option value="20">20 Jahre</option><option value="30">30 Jahre</option><option value="50">50 Jahre</option></select></label>
+</div><p id="status" role="status" aria-live="polite"></p>
+<button id="csv" disabled>CSV herunterladen</button>
+<p><small>Verglichen werden einzelne Tage bis zum gewählten Datum, nicht Monatssummen. Gleiche Werte werden separat ausgewiesen. Rang und Dauer beziehen sich auf die lückenlos belegte Vergleichszeit; bei unvollständigem Archiv wird kein absoluter Rekord behauptet. Tmin bezeichnet das Tagesminimum, nicht ausschließlich die Nacht.</small></p>
+<div id="tablewrap" tabindex="0"><table><thead><tr><th>Gebiet</th><th>Vergleich</th><th>Richtung</th><th>Flächenmittel</th><th>Zuletzt gleich / extremer</th><th>Volle Jahre ohne gleich / extremer</th><th>Rang / Tage</th><th>Gleichstände</th><th>Belegt ab</th></tr></thead><tbody id="rows"></tbody></table></div>
+</main><script src="bundeslaender_rekord_core.js"></script><script src="bundeslaender_rekord.js"></script></body></html>
