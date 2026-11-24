@@ -157,9 +157,16 @@ def rows_from_chars(raw):
         result.append(out.strip())
     return result
 
+def verify_month_years(month, years):
+    expected = list(range(1881,2010))
+    if sorted(years) != expected:
+        counts = Counter(years)
+        raise ValueError(f"Month {month}: missing years {sorted(set(expected)-set(years))}; duplicated years {sorted(y for y,n in counts.items() if n>1)}")
+
 def layout_from_pdf(pdf):
     import fitz
     output=[]
+    month_years={m:[] for m in range(1,13)}
     with fitz.open(pdf) as doc:
         if len(doc)<140:
             raise ValueError("Original report incomplete")
@@ -183,16 +190,13 @@ def layout_from_pdf(pdf):
                     raise ValueError(f"PDF page {105+i}: mismatched year labels: {line}")
                 candidates.append(year)
                 output.append(" ".join(parts))
-            start=[1881,1926,1971][i%3]
-            stop=[1926,1971,2010][i%3]
-            expected=list(range(start,stop))
             print(f"PDF page {105+i}: rotation={page.rotation}, month={month}, years={candidates}")
-            if sorted(candidates)!=expected:
-                missing=sorted(set(expected)-set(candidates))
-                if i==34 and missing==[1970] and sorted(candidates)==[y for y in expected if y!=1970]:
-                    print("December 1970: require independently extracted original row from pdftotext")
-                else:
-                    raise ValueError(f"PDF page {105+i}: missing/duplicate years; missing {missing}")
+            if not candidates or candidates != sorted(set(candidates)):
+                raise ValueError(f"PDF page {105+i}: empty, unordered or duplicate year rows")
+            month_years[month].extend(candidates)
+            if i%3 == 2:
+                verify_month_years(month, month_years[month])
+                print(f"Month {month}: all 129 original year rows validated across three pages")
     return "\n".join(output)
 
 def reconcile_original_rows(coordinate, reference):
@@ -205,9 +209,8 @@ def reconcile_original_rows(coordinate, reference):
         raise ValueError(f"Extraction disagreement on {len(disagreements)} days; first {disagreements[:10]}")
     expected={START+timedelta(days=i) for i in range((END-START).days+1)}
     missing=expected-coordinate.keys()
-    allowed={date(1970,12,i) for i in range(1,32)}
-    if missing not in (set(),allowed) or not missing<=reference.keys():
-        raise ValueError(f"Unresolved or unexpected coordinate gaps: {sorted(missing)[:35]}")
+    if missing:
+        raise ValueError(f"Unresolved coordinate gaps: {sorted(missing)[:35]}")
     rows={**reference,**coordinate}
     if rows.keys()!=expected or set(rows.values())!=CODES:
         raise ValueError("Reconciled historical catalogue failed complete date/type coverage")
@@ -227,7 +230,7 @@ def main():
                 pdf.write_bytes(res.read(40_000_001))
         if not pdf.read_bytes().startswith(b"%PDF-"):
             raise ValueError("Not an original PDF")
-        coordinate = parse_layout(layout_from_pdf(pdf), require_complete=False)
+        coordinate = parse_layout(layout_from_pdf(pdf))
         legacy = subprocess.check_output(["pdftotext","-f","104","-layout",str(pdf),"-"],text=True,encoding="utf-8")
         reference = parse_layout(legacy, require_complete=False)
         rows = reconcile_original_rows(coordinate, reference)
