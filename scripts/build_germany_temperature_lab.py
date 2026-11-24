@@ -93,6 +93,17 @@ def make_map(cycle,a,b,kind,date,out):
         with Image.open(out/name) as img:img.verify()
     return {"date":date,"icon_png":names[0],"icon_raw_png":names[1],"coverage":round(coverage,4),"icon_intervals":sorted(intervals)}
 
+def geography(out):
+    base=json.loads(tx.request_bytes("https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/seasonal-europe-data/data/seasonal-europe/geography_50m.json"))
+    states=json.loads(tx.request_bytes("https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json"))
+    base["states"]=[]
+    for feature in states["features"]:
+        g=feature["geometry"]
+        polygons=[g["coordinates"]] if g["type"]=="Polygon" else g["coordinates"] if g["type"]=="MultiPolygon" else []
+        base["states"].append({"p":polygons})
+    if len(base["states"])!=16 or not base.get("countries"):raise RuntimeError("Kartengrenzen unvollständig")
+    (out/"geo.json").write_text(json.dumps(base,ensure_ascii=False,separators=(",",":")),encoding="utf8")
+
 def build(kind,out):
     now=datetime.now(timezone.utc)
     module=tx if kind=="tmax" else tn; key="tx" if kind=="tmax" else "tn"
@@ -100,6 +111,7 @@ def build(kind,out):
     module.CITIES=CITIES;module.MAX_DISTANCE_KM=35
     cycle0=now.replace(hour=now.hour//3*3,minute=0,second=0,microsecond=0)
     out.mkdir(parents=True,exist_ok=True)
+    geography(out)
     mos=tx.request_bytes(tx.MOS_URL)
     errors=[]
     for lag in range(9):
