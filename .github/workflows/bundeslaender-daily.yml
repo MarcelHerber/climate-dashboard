@@ -1,0 +1,62 @@
+name: Bundesländer daily archive
+on:
+  workflow_dispatch:
+    inputs:
+      batch:
+        description: Historical years per parameter
+        default: '3'
+  schedule:
+    - cron: '25 5 * * *'
+permissions:
+  contents: write
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        parameter: [tmin, tmax, tmean, precipitation]
+    concurrency:
+      group: bundeslaender-archive-${{ matrix.parameter }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy xarray netCDF4 h5netcdf requests pyproj matplotlib pillow scipy
+      - name: Restore regional archive
+        env:
+          BRANCH: bundeslaender-data-${{ matrix.parameter }}
+        run: |
+          mkdir -p /tmp/region-data
+          if git ls-remote --exit-code --heads origin "$BRANCH"; then
+            git fetch --depth=1 origin "$BRANCH"
+            git worktree add --detach /tmp/region-data FETCH_HEAD
+          else
+            git worktree add --detach /tmp/region-data HEAD
+            cd /tmp/region-data
+            git switch --orphan "$BRANCH"
+          fi
+      - name: Extract and validate daily observations
+        env:
+          PARAM: ${{ matrix.parameter }}
+          BATCH: ${{ inputs.batch || '3' }}
+        run: python scripts/build_bundeslaender_daily.py --parameter "$PARAM" --batch "$BATCH" --output /tmp/region-data --work /tmp/region-work
+      - name: Publish compact archive
+        env:
+          BRANCH: bundeslaender-data-${{ matrix.parameter }}
+        run: |
+          cd /tmp/region-data
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add -- '*.json'
+          if ! git diff --cached --quiet; then
+            git commit -m "Update observed regional daily archive"
+            git push origin HEAD:"refs/heads/$BRANCH"
+          fi
