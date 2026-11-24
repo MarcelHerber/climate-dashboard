@@ -1,0 +1,36 @@
+name: Grosswetterlagen catalogue
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/grosswetterlagen.yml'
+      - 'scripts/update_grosswetterlagen.py'
+      - 'grosswetterlagen.js'
+  schedule:
+    - cron: '15 7 * * 1'
+permissions:
+  contents: write
+concurrency:
+  group: grosswetterlagen-catalogue
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: node --test tests/test_grosswetterlagen.cjs
+      - run: python scripts/update_grosswetterlagen.py
+      - name: Publish validated catalogue
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add data/grosswetterlagen/rea.csv
+          if ! git diff --cached --quiet; then
+            git commit -m "Update DWD GWL-REA catalogue"
+            git push
+          fi
