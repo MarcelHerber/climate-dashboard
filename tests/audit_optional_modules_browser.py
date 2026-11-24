@@ -87,7 +87,15 @@ def audit(site:Path,output:Path):
                             for u in request_urls) for name in HEAVY}
                         row["page_errors"]=errors[:20]
                         row["local_http_errors"]=failed[:20]
-                        assert not failed,f"Local HTTP failures: {failed[:5]}"
+                        # MOSMIX treats quality_status.json as optional evidence:
+                        # it legitimately falls back to a second source on 404.
+                        # Keep the HTTP event visible, but do not misclassify this
+                        # documented missing quality file as a broken JS module.
+                        optional=[x for x in failed if x[0]==404 and
+                            urlsplit(x[1]).path=="/data/mosmix/quality_status.json"]
+                        critical=[x for x in failed if x not in optional]
+                        row["optional_quality_source_404"]=optional
+                        assert not critical,f"Unexpected local HTTP failures: {critical[:5]}"
                         assert not errors,f"Runtime JS errors: {errors[:5]}"
                         page.screenshot(path=str(output/f"lazy-{width}-mosmix.png"),
                             animations="disabled",full_page=False)
