@@ -19,3 +19,11 @@ test("missing day limits continuous coverage, missing target does not rank",()=>
  assert.equal(coverage(s,"2026-11-24","day"),"2025-11-24");
  assert.equal(compare(s,"2026-11-22","month","low"),null);
 });
+
+test("annual November extremes may come from different stations and dates",()=>{
+ const {annualExtremes}=require("../bundeslaender_rekord_core.js");
+ const a=[{date:"2023-11-29",value:-8,stationId:"1"},{date:"2024-11-30",value:-4.6,stationId:"2"},{date:"2024-10-30",value:-10,stationId:"1"},{date:"2025-11-30",value:-6.6,stationId:"3"},{date:"2026-11-24",value:-7,stationId:"1"}];
+ const rows=annualExtremes(a,"2026-11-24","month","low",2022);
+ assert.deepEqual(rows.map(x=>[x.year,x.entry?.value??null]),[[2025,-6.6],[2024,-4.6],[2023,-8],[2022,null]]);
+ assert.equal(rows[0].entry.stationId,"3");
+});
