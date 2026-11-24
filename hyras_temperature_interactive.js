@@ -71,7 +71,12 @@
       const empty=panel.querySelector('.hyras-tmean-anomaly-preview-empty');if(empty)empty.hidden=true;
       status.before(native);status.textContent='DWD HYRAS-DE · Originalraster 1 km · '+cfg.reference.replace('-','–');
       if(root.HyrasRegional&&regionalRaster){
-        root.HyrasRegional.setSource({canvas:regionalRaster,owner:native,lookupUrl:cfg.base+'/interactive/geo_lookup_1km.json',parameter:cfg.parameter,metric:'anomaly',reference:cfg.reference,start:cfg.start,end:cfg.end,resolution:1,title:'Temperaturabweichung · '+cfg.parameter.toUpperCase(),subtitle:cfg.start+' – '+cfg.end+' · Referenz '+cfg.reference,legendNode:legend});
+        const values=new Float32Array(plane.width*plane.height),valid=new Uint8Array(values.length);
+        for(let i=0;i<values.length;i++){
+          const q=plane.view.getInt16(i*2,true);
+          if(q!==-32768){values[i]=q/100;valid[i]=1;}else values[i]=NaN;
+        }
+        root.HyrasRegional.setSource({canvas:regionalRaster,numeric:{values,valid,breaks:boundaries,rgb},owner:native,lookupUrl:cfg.base+'/interactive/geo_lookup_1km.json',parameter:cfg.parameter,metric:'anomaly',reference:cfg.reference,start:cfg.start,end:cfg.end,resolution:1,title:'Temperaturabweichung · '+cfg.parameter.toUpperCase(),subtitle:cfg.start+' – '+cfg.end+' · Referenz '+cfg.reference,legendNode:legend});
       }
     }catch(error){if(live()){status.textContent='Rasterabfrage derzeit nicht verfügbar – vorhandene Karte bleibt sichtbar.';console.warn('HYRAS Temperatur-Raster:',error);}}
   }
