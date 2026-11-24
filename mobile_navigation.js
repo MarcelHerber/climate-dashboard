@@ -312,6 +312,11 @@
       if(byId.has(page))remember(page);
     }
   }
+  document.addEventListener("climate:era5-synoptic-availability",()=>{
+    if(!sections)return;
+    buildGroups();
+    if(searchInput)showSearch();
+  });
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});
   else init();
 })();
