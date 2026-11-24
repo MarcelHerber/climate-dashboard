@@ -58,6 +58,7 @@ jobs:
           if [ "$PARAM" = sunshine ]; then
             python scripts/build_bundeslaender_sunshine.py --output /tmp/region-data
           else
+            if [ "$PARAM" = precipitation ]; then BATCH=1; fi
             python scripts/build_bundeslaender_daily.py --parameter "$PARAM" --batch "$BATCH" --output /tmp/region-data --work /tmp/region-work --checkpoint-branch "$BRANCH"
           fi
       - name: Publish compact archive
