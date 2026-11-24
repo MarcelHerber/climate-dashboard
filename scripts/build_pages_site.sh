@@ -53,6 +53,7 @@ required_root_files=(
   stations_temperaturgegensatz.js
   monthly_layout.js
   monthly_climate_bars.js
+  optional_dashboard_modules.js
   gebietsmittel_archiv.js
   gebietsmittel_archiv.css
   stratosphaere.html
@@ -614,7 +615,11 @@ for filename in ("monthly_frequency.js","t850_ensembles.js"):
         source=loader.read_text(encoding="utf-8")
         updated,count=re.subn(r'("t850_ensembles":\["t850_ensembles\.js",")[^"]+("\])',r'\g<1>'+version+r'\2',source)
         if count==1:loader.write_text(updated,encoding="utf-8")
-    if count!=1:
+    # A small optional loader supplies the frequency module only when the
+    # monthly view is selected; absence of an eager script tag is deliberate.
+    lazy_frequency=(filename=="monthly_frequency.js" and count==0
+                    and 'optional_dashboard_modules.js' in html)
+    if count!=1 and not lazy_frequency:
         raise SystemExit(f"Phase 2: missing/duplicate chart asset {filename}: {count}")
 path.write_text(html,encoding="utf-8")
 print("Phase 2: Klima-Häufigkeiten und Ensembles mit aktualisiertem PNG/PDF-Export veröffentlicht.")
