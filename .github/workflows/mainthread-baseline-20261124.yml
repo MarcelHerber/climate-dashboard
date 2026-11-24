@@ -1,0 +1,151 @@
+name: Mainthread trace · historical baseline versus current
+on:
+  push:
+    branches: [perf/mainthread-baseline-20261124]
+    paths: ['.github/workflows/mainthread-baseline-20261124.yml','tests/profile_startup_mainthread.py','tests/audit_live_mosmix_entry.py']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  live-mosmix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: tests/audit_live_mosmix_entry.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install playwright==1.57.0
+      - run: python -u tests/audit_live_mosmix_entry.py
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-mosmix-menu-deeplink
+          path: reports/
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: current
+      - uses: actions/checkout@v6
+        with:
+          ref: 3b888474129506f5aa75b75f0bbce04d0ebafc88
+          path: baseline
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build both historical snapshots without deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+          for variant in baseline current; do
+            (cd "$variant" && git rev-parse HEAD && bash scripts/build_pages_site.sh) > "reports/$variant-build.log" 2>&1 || {
+              tail -n 100 "reports/$variant-build.log"; exit 1;
+            }
+          done
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          out={}
+          for variant in ('baseline','current'):
+            root=Path(variant)/'_site'
+            out[variant]={}
+            for name in ('index.html','data.json','update_status.json'):
+              raw=(root/name).read_bytes()
+              out[variant][name]={'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
+          print(json.dumps(out,indent=2))
+          Path('reports/snapshot-inputs.json').write_text(json.dumps(out,indent=2))
+          PY
+      - name: Identical Chrome, Lighthouse and compressed local server
+        shell: bash
+        run: |
+          set -euo pipefail
+          google-chrome --version | tee reports/chrome.txt
+          pip install playwright==1.57.0
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/lighthouse" lighthouse@12.6.0
+          cat > "$RUNNER_TEMP/gzip_server.py" <<'PY'
+          import functools,gzip,sys
+          from pathlib import Path
+          from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
+          from urllib.parse import urlsplit
+          class Handler(SimpleHTTPRequestHandler):
+            def log_message(self,*args):pass
+            def do_GET(self):
+              path=Path(self.translate_path(self.path))
+              if not path.is_file() or path.suffix not in ('.html','.js','.css','.json','.geojson','.svg'):
+                return super().do_GET()
+              raw=path.read_bytes()
+              zipped='gzip' in self.headers.get('Accept-Encoding','')
+              body=gzip.compress(raw,compresslevel=6) if zipped else raw
+              self.send_response(200)
+              self.send_header('Content-Type',self.guess_type(str(path)))
+              self.send_header('Content-Length',str(len(body)))
+              self.send_header('Vary','Accept-Encoding')
+              if zipped:self.send_header('Content-Encoding','gzip')
+              self.end_headers()
+              try:self.wfile.write(body)
+              except (BrokenPipeError,ConnectionResetError):pass
+          ThreadingHTTPServer(('127.0.0.1',int(sys.argv[1])),functools.partial(Handler,directory=sys.argv[2])).serve_forever()
+          PY
+          python "$RUNNER_TEMP/gzip_server.py" 8765 "$PWD/baseline/_site" &
+          a=$!
+          python "$RUNNER_TEMP/gzip_server.py" 8766 "$PWD/current/_site" &
+          b=$!
+          trap 'kill "$a" "$b" || true' EXIT
+          for port in 8765 8766; do
+            for i in {1..30}; do
+              if curl -fsS --compressed "http://127.0.0.1:$port/index.html?tab=overview" -o /dev/null; then break; fi
+              sleep 1
+            done
+          done
+          lh="$RUNNER_TEMP/lighthouse/node_modules/.bin/lighthouse"
+          for device in mobile desktop; do
+            preset=()
+            if [[ "$device" == desktop ]]; then preset+=(--preset=desktop); fi
+            for i in {1..7}; do
+              variants=(baseline current)
+              if (( i % 2 == 0 )); then variants=(current baseline); fi
+              for variant in "${variants[@]}"; do
+                port=8765; [[ "$variant" != current ]] || port=8766
+                mkdir -p "reports/$variant"
+                "$lh" "http://127.0.0.1:$port/index.html?tab=overview" "${preset[@]}" \
+                  --only-categories=performance --throttling-method=simulate \
+                  --chrome-flags='--headless --no-sandbox --disable-dev-shm-usage' \
+                  --output=json --output-path="reports/$variant/$device-$i.json" --quiet
+              done
+            done
+          done
+          python - <<'PY'
+          import json,statistics
+          from pathlib import Path
+          keys=('first-contentful-paint','largest-contentful-paint','total-blocking-time','speed-index','cumulative-layout-shift','total-byte-weight','mainthread-work-breakdown','bootup-time','dom-size')
+          out={}
+          for device in ('mobile','desktop'):
+            out[device]={}
+            for variant in ('baseline','current'):
+              rows=[]
+              for i in range(1,8):
+                r=json.loads(Path(f'reports/{variant}/{device}-{i}.json').read_text())
+                if r.get('runtimeError'):raise ValueError(r['runtimeError'])
+                rows.append({'score':r['categories']['performance']['score']*100,**{k:r['audits'][k]['numericValue'] for k in keys if k in r['audits'] and r['audits'][k].get('numericValue') is not None}})
+              out[device][variant]={'runs':rows,'summary':{k:{'median':statistics.median(r[k] for r in rows),'min':min(r[k] for r in rows),'max':max(r[k] for r in rows),'iqr':statistics.quantiles([r[k] for r in rows],n=4)[2]-statistics.quantiles([r[k] for r in rows],n=4)[0]} for k in rows[0]}}
+          Path('reports/historical-summary.json').write_text(json.dumps(out,indent=2))
+          print(json.dumps({d:{v:out[d][v]['summary'] for v in ('baseline','current')} for d in out},indent=2))
+          PY
+          python -u current/tests/profile_startup_mainthread.py 'http://127.0.0.1:8765/index.html?tab=overview' baseline
+          python -u current/tests/profile_startup_mainthread.py 'http://127.0.0.1:8766/index.html?tab=overview' current
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-baseline-and-mainthread-traces
+          path: reports/
+          retention-days: 90
