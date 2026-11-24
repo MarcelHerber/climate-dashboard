@@ -1,5 +1,6 @@
 """Regression tests for local content-hash asset versioning."""
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -61,6 +62,57 @@ class AssetVersioningTests(unittest.TestCase):
         self.run_tool("--copy-to", str(target))
         (target / "index.html").write_text("stale html", encoding="utf-8")
         self.run_tool("--check", "--verify-dir", str(target), success=1)
+
+
+    def test_static_reference_detects_missing_tampered_and_extra_vendor(self):
+        vendor = self.root / "vendor" / "leaflet" / "dist"
+        images = vendor / "images"
+        images.mkdir(parents=True)
+        (vendor / "leaflet.css").write_text(
+            "div{background:url(images/marker.png)}\\n", encoding="utf-8")
+        (images / "marker.png").write_bytes(b"PNG-TEST")
+        (images / "marker-icon-2x.png").write_bytes(b"JS-LOADED-ICON")
+        (vendor / "leaflet.js").write_bytes(b"/* pinned dependency */")
+        site = self.root / "site"
+        site.mkdir()
+        shutil.copytree(self.root / "vendor", site / "vendor")
+        shutil.copytree(self.root / "js", site / "js")
+        for path in ("index.html", "second.html", "style.css"):
+            shutil.copy2(self.root / path, site / path)
+        with (site / "index.html").open("a", encoding="utf-8") as out:
+            out.write('<link href="vendor/leaflet/dist/leaflet.css">\\n')
+
+        cmd = [sys.executable, str(TOOL), "--root", str(site), "--html",
+               "index.html", "second.html", "--static-dir", "vendor",
+               "--static-reference", str(self.root)]
+
+        def run(*extra, expected=0):
+            result = subprocess.run(cmd + list(extra), capture_output=True, text=True)
+            self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+            return result.stdout + result.stderr
+
+        run()
+        run("--check")
+        # Regression: self-comparison (--verify-dir site) falsely passed here.
+        # Leaflet requests this image in JS, not from CSS. Only the independent
+        # static-reference inventory can catch this missing file.
+        (site / "vendor/leaflet/dist/images/marker-icon-2x.png").unlink()
+        self.assertIn("fehlt im Build", run("--check", expected=1))
+        shutil.copy2(images / "marker-icon-2x.png", site / "vendor/leaflet/dist/images/marker-icon-2x.png")
+        (site / "vendor/leaflet/dist/leaflet.css").write_text(
+            "div{background:red}\\n", encoding="utf-8")
+        self.assertIn("weicht von der Vorlage ab", run("--check", expected=1))
+        shutil.copy2(vendor / "leaflet.css", site / "vendor/leaflet/dist/leaflet.css")
+        (site / "vendor/leaflet/dist/extra.txt").write_text("unexpected")
+        self.assertIn("unerwartete Datei", run("--check", expected=1))
+        (site / "vendor/leaflet/dist/extra.txt").unlink()
+        run("--check")
+
+        original = (site / "vendor/leaflet/dist/leaflet.js").read_bytes()
+        run("--copy-to", str(site))
+        self.assertEqual((site / "vendor/leaflet/dist/leaflet.js").read_bytes(), original)
+        run("--check")
+        run("--static-reference", str(site), "--check", expected=2)
 
 
 if __name__ == "__main__":

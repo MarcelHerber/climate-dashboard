@@ -378,14 +378,47 @@
     if(window.L?.map)return Promise.resolve();
     if(leafletLoadPromise)return leafletLoadPromise;
     const status=document.getElementById("mosmixSectionStatus");
-    if(status)status.textContent="MOSMIX-Daten vorhanden. Prüfe lokale Kartenbibliothek …";
+    if(status)status.textContent="MOSMIX-Daten vorhanden. Lade lokale Kartenbibliothek …";
     leafletLoadPromise=new Promise(function(resolve,reject){
+      const primary=document.getElementById("dashboardLeafletScript");
+      let script=primary;
+      let finished=false;
+      let timer;
+      const fail=message=>{
+        if(finished)return;
+        finished=true;
+        clearInterval(timer);
+        const error=new Error(message);
+        if(status)status.textContent=message;
+        console.error("[MOSMIX] "+message,error);
+        reject(error);
+      };
+      if(!primary){
+        if(!document.getElementById("mosmix-leaflet-css")){
+          const css=document.createElement("link");
+          css.id="mosmix-leaflet-css";
+          css.rel="stylesheet";
+          css.href="./vendor/leaflet/1.9.4/dist/leaflet.css";
+          document.head.appendChild(css);
+        }
+        script=document.createElement("script");
+        script.id="mosmix-leaflet-local";
+        script.src="./vendor/leaflet/1.9.4/dist/leaflet.js";
+        script.async=true;
+        script.onerror=()=>fail("Kartenbibliothek fehlt oder ist nicht erreichbar: vendor/leaflet/1.9.4/dist/leaflet.js");
+        document.head.appendChild(script);
+      }
       const start=Date.now();
-      const timer=setInterval(function(){
-        if(window.L?.map){clearInterval(timer);resolve();}
-        else if(Date.now()-start>=10000){
+      timer=setInterval(()=>{
+        if(finished)return;
+        if(window.L?.map){
+          finished=true;
           clearInterval(timer);
-          reject(new Error("Lokale Kartenbibliothek fehlt: vendor/leaflet/1.9.4/dist/leaflet.js"));
+          resolve();
+        }else if(script?.dataset.failed==="1"){
+          fail("Kartenbibliothek fehlt oder ist nicht erreichbar: vendor/leaflet/1.9.4/dist/leaflet.js");
+        }else if(Date.now()-start>=10000){
+          fail("Lokale Kartenbibliothek wurde nicht rechtzeitig geladen: vendor/leaflet/1.9.4/dist/leaflet.js");
         }
       },100);
     }).finally(function(){leafletLoadPromise=null;});
@@ -411,7 +444,7 @@
         if(error)reject(error);else resolve();
       }
       script.onload=function(){finish();};
-      script.onerror=function(){finish(new Error(label+" konnte nicht geladen werden."));};
+      script.onerror=function(){console.error("[MOSMIX] "+label+" konnte nicht geladen werden: "+url);finish(new Error(label+" konnte nicht geladen werden."));};
       document.head.appendChild(script);
     });
   }

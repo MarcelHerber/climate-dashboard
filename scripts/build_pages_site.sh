@@ -1892,5 +1892,5 @@ if (( ${#asset_html[@]} == 0 )); then
   exit 1
 fi
 python tools/version_assets.py --root _site --html "${asset_html[@]}" \
-  --static-dir vendor --manifest _site/asset-manifest.json --verify-dir _site
-python tools/version_assets.py --root _site --html "${asset_html[@]}" --static-dir vendor --check
+  --static-dir vendor --static-reference . --manifest _site/asset-manifest.json
+python tools/version_assets.py --root _site --html "${asset_html[@]}" --static-dir vendor --static-reference . --check

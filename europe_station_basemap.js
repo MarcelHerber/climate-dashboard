@@ -24,15 +24,25 @@
     const ready = () => window.L?.map && window.L?.tileLayer && window.L?.geoJSON;
     if (ready()) return Promise.resolve(window.L);
     if (leafletLoadPromise) return leafletLoadPromise;
+    const tag = document.getElementById("dashboardLeafletScript");
+    const message = "vendor/leaflet/1.9.4/dist/leaflet.js fehlt oder ist nicht erreichbar";
     leafletLoadPromise = new Promise((resolve, reject) => {
-      const start = Date.now();
+      const started = Date.now();
+      const fail = text => {
+        clearInterval(timer);
+        const error = new Error(text);
+        console.error("[Europa-Stationen] " + text, error);
+        setStatus(text);
+        reject(error);
+      };
       const timer = setInterval(() => {
         if (ready()) {
           clearInterval(timer);
           resolve(window.L);
-        } else if (Date.now() - start >= 10000) {
-          clearInterval(timer);
-          reject(new Error("Lokale Kartenbibliothek fehlt oder ist nicht geladen: vendor/leaflet/1.9.4/dist/leaflet.js"));
+        } else if (!tag || tag.dataset.failed === "1") {
+          fail(message);
+        } else if (Date.now() - started >= 10000) {
+          fail("Kartenbibliothek (Leaflet) wurde nicht rechtzeitig geladen: " + message);
         }
       }, 100);
     }).finally(() => { leafletLoadPromise = null; });

@@ -8,7 +8,8 @@ Ersetzt alle ?v=-Versionen durch einen Hash des Dateiinhalts (SHA-256, erste 10 
   3. Dateiverweise in JS-Zeichenketten, z. B. 'era5_stratosphere.js?v=1' in era5_europe.js
 
 Relative CSS-url(...)-Dateien (Leaflet-Icons etc.) werden in das Manifest aufgenommen.
-Mit --static-dir vendor wird der ganze lokale Bibliotheksordner verifiziert.
+Mit --static-dir vendor wird der ganze lokale Bibliotheksordner erfasst.
+Mit --static-reference . wird die Build-Kopie unabhängig gegen das Original geprüft.
 
 Verweist eine Datei auf eine andere, wird zuerst die referenzierte Datei gehasht und danach die
 verweisende (ihr Inhalt enthält ja die neue Version). Ändert sich eine Datei, ändern sich daher
@@ -39,6 +40,7 @@ from pathlib import Path
 
 HASH_LENGTH = 10
 LOCAL_EXTENSIONS = (".js", ".css")
+THIRD_PARTY_PREFIXES = ("vendor/",)  # vendor files are hashed, never rewritten
 
 # <script … src="X"> und <link … href="X">
 HTML_REF = re.compile(r'(<(?:script|link)\b[^>]*?\b(?:src|href)\s*=\s*")([^"]+)(")', re.IGNORECASE)
@@ -99,7 +101,7 @@ class Versioner:
             raise AssetError("Datei fehlt: " + rel)
         self.original[rel] = text
         new_text = text
-        if rel.endswith(".js"):
+        if rel.endswith(".js") and not rel.startswith(THIRD_PARTY_PREFIXES):
             def js_sub(match):
                 quote, child, _old = match.groups()
                 version = self._child_hash(child, rel, stack + (rel,))
@@ -164,6 +166,7 @@ def main():
     parser.add_argument("--manifest", help="schreibt eine Liste aller referenzierten Dateien (JSON)")
     parser.add_argument("--allow-missing", action="store_true", help="fehlende referenzierte Dateien nur melden (z. B. bei unvollständigem Checkout)")
     parser.add_argument("--static-dir", action="append", default=[], help="Ordner vollständig in Manifest/Kopie/Verifikation aufnehmen (z. B. vendor)")
+    parser.add_argument("--static-reference", help="compare every --static-dir folder in --root to an independent source root, e.g. .")
     parser.add_argument("--copy-to", help="kopiert HTML-Dateien und alle referenzierten JS/CSS-Dateien (inkl. dynamisch geladener) in diesen Ordner")
     parser.add_argument("--verify-dir", help="prüft, ob alle Dateien des Manifests im Ordner vorhanden und aktuell sind")
     args = parser.parse_args()
@@ -199,6 +202,29 @@ def main():
         for file in sorted(base_dir.rglob("*")):
             if file.is_file():
                 tool.static.setdefault(file.relative_to(args.root).as_posix(), set()).add("--static-dir " + folder)
+    reference_problems = []
+    if args.static_reference:
+        reference_root = Path(args.static_reference).resolve()
+        target_root = Path(args.root).resolve()
+        for folder in args.static_dir:
+            source = reference_root / folder
+            target = target_root / folder
+            if not source.is_dir():
+                print(f"FEHLER: --static-reference: {source} existiert nicht", file=sys.stderr)
+                return 2
+            if source.resolve() == target.resolve():
+                print("FEHLER: --static-reference darf nicht derselbe Ordner wie --root sein", file=sys.stderr)
+                return 2
+            expected = {p.relative_to(source).as_posix(): p for p in source.rglob("*") if p.is_file()}
+            actual = {p.relative_to(target).as_posix(): p for p in target.rglob("*") if p.is_file()}
+            for rel in sorted(expected.keys() - actual.keys()):
+                reference_problems.append(f"fehlt im Build: {folder}/{rel}")
+            for rel in sorted(actual.keys() - expected.keys()):
+                reference_problems.append(f"unerwartete Datei im Build: {folder}/{rel}")
+            for rel in sorted(expected.keys() & actual.keys()):
+                import hashlib
+                if hashlib.sha256(expected[rel].read_bytes()).digest() != hashlib.sha256(actual[rel].read_bytes()).digest():
+                    reference_problems.append(f"weicht von der Vorlage ab: {folder}/{rel}")
     static_hashes = {rel: digest((Path(args.root) / rel).read_bytes()) for rel in tool.static}
     assets.update(static_hashes)
     for rel, parents in tool.static.items():
@@ -236,8 +262,11 @@ def main():
         target_root = Path(args.copy_to)
         for rel in sorted(list(assets) + list(args.html)):
             target = target_root / rel
+            source = Path(args.root) / rel
+            if target.exists() and target.resolve() == source.resolve():
+                continue  # --copy-to points at --root, no operation
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(Path(args.root) / rel, target)
+            shutil.copy2(source, target)
         print(f"{len(assets) + len(args.html)} Dateien nach {target_root} kopiert.")
 
     if args.verify_dir:
@@ -259,6 +288,11 @@ def main():
             status = 1
         else:
             print(f"Verifikation ok: {len(assets) + len(args.html)} Dateien in {base} vorhanden und aktuell")
+    if reference_problems:
+        print("UNVOLLSTÄNDIGE ODER VERÄNDERTE KOPIE (--static-reference):", file=sys.stderr)
+        for problem in reference_problems:
+            print("  " + problem, file=sys.stderr)
+        status = 1
     return status
 
 
