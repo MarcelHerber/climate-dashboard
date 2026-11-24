@@ -1,7 +1,7 @@
 import calendar
 import unittest
 from datetime import date
-from scripts.update_grosswetterlagen_historical import parse_layout, layout_from_bbox, rows_from_chars, MONTHS, CODES
+from scripts.update_grosswetterlagen_historical import parse_layout, layout_from_bbox, rows_from_chars, verify_month_years, MONTHS, CODES
 
 class HistoricalTest(unittest.TestCase):
     @classmethod
@@ -74,3 +74,13 @@ class HistoricalTest(unittest.TestCase):
                 page.insert_text(point(-27,1),"105",fontsize=7,fontname="cour",rotate=(rotation+90)%360)
                 expected=["JANUAR",*[" ".join([str(y)]+["WZ"]*10+["HNFZ"]+["WZ"]*20+[str(y)]) for y in (1902,1903)]]
                 self.assertEqual(rows_from_chars(page.get_text("rawdict")),expected)
+
+    def test_month_validation_accepts_different_page_boundaries(self):
+        january=list(range(1881,1926))+list(range(1926,1971))+list(range(1971,2010))
+        december=list(range(1881,1926))+list(range(1926,1970))+list(range(1970,2010))
+        verify_month_years(1,january)
+        verify_month_years(12,december)
+        with self.assertRaises(ValueError):
+            verify_month_years(12,[y for y in december if y!=1970])
+        with self.assertRaises(ValueError):
+            verify_month_years(12,december+[1970])
