@@ -1,7 +1,7 @@
 import calendar
 import unittest
 from datetime import date
-from scripts.update_grosswetterlagen_historical import parse_layout, MONTHS, CODES
+from scripts.update_grosswetterlagen_historical import parse_layout, layout_from_bbox, MONTHS, CODES
 
 class HistoricalTest(unittest.TestCase):
     @classmethod
@@ -38,3 +38,18 @@ class HistoricalTest(unittest.TestCase):
             lines[idx]=prefix+lines[idx]+suffix
         rows=parse_layout("\n".join(lines))
         self.assertEqual(rows,parse_layout("\n".join(self.lines)))
+
+    def test_coordinate_extraction_ignores_rotated_margin(self):
+        # Two adjacent rows plus a rotated number spanning both rows.
+        def word(x,y,value,w=12,h=6):
+            return f'<word xMin="{x}" xMax="{x+w}" yMin="{y}" yMax="{y+h}">{value}</word>'
+        fragments=[word(400,70,"JANUAR"),word(24,300,"105",6,22)]
+        for year,y in [(1902,300),(1903,308)]:
+            fragments.append(word(56,y,str(year),18))
+            fragments.extend(word(79+i*22.5,y,"WZ") for i in range(31))
+            fragments.append(word(782,y,str(year),18))
+        xml='<html xmlns="http://www.w3.org/1999/xhtml"><body><doc><page width="842" height="595">'+''.join(reversed(fragments))+'</page></doc></body></html>'
+        lines=layout_from_bbox(xml,expected_pages=1).splitlines()
+        self.assertEqual(lines[0],"JANUAR")
+        self.assertEqual(lines[1].split(),["1902"]+["WZ"]*31+["1902"])
+        self.assertEqual(lines[2].split(),["1903"]+["WZ"]*31+["1903"])
