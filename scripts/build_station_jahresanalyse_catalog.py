@@ -47,7 +47,7 @@ def build(root: Path) -> dict:
             entry = stations.setdefault(sid, {
                 "id": sid, "name": str(source.get("name") or sid),
                 "state": source.get("state") or "", "temp": False,
-                "precip": False, "snow": False,
+                "precip": False, "snow": False, "sun": False,
             })
             # Geographic selection for the new Phase 3 station record laboratory.
             # Coordinates originate in the same official DWD station indices.
@@ -68,8 +68,24 @@ def build(root: Path) -> dict:
                 entry["name"] = str(source.get("name") or sid)
             if not entry["state"]:
                 entry["state"] = source.get("state") or ""
+    # SDK capability is based on the original daily archive, not on a
+    # station merely having temperature or precipitation data.
+    for source in load(root, "data/rekordlabor/calendar/index.json").get("stations", []):
+        sid = str(source.get("id", "")).zfill(5)
+        if not sid.isdigit() or len(sid) != 5 or not source.get("metrics", {}).get("sun"):
+            continue
+        filename = f"data/rekordlabor/calendar/{sid}.json"
+        if not (root / filename).is_file():
+            continue
+        entry = stations.setdefault(sid, {
+            "id": sid, "name": str(source.get("name") or sid),
+            "state": source.get("state") or "", "temp": False,
+            "precip": False, "snow": False, "sun": False,
+        })
+        entry["sun"] = True
+        entry["sun_file"] = filename
     rows = sorted(stations.values(), key=lambda s: (s["name"].casefold(), s["id"]))
-    totals = {kind: sum(1 for s in rows if s[kind]) for kind in ("temp", "precip", "snow")}
+    totals = {kind: sum(1 for s in rows if s[kind]) for kind in ("temp", "precip", "snow", "sun")}
     return {"schema": 1, "reference": "1991-2020",
             "source": "DWD CDC · bereits veröffentlichte Originaldatenarchive",
             "stations": rows, "totals": totals}
