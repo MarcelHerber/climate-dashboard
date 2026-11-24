@@ -32,25 +32,27 @@ jobs:
       - run: pip install numpy
       - run: python tests/test_bundeslaender_station_temperature.py
       - run: python scripts/build_bundeslaender_station_temperature.py --output /tmp/station-result
+      - name: Check out existing station data branch
+        uses: actions/checkout@v4
+        with:
+          ref: bundeslaender-station-data
+          path: station-publish
+          fetch-depth: 1
+          persist-credentials: true
       - name: Publish independent station series
+        working-directory: station-publish
         run: |
           set -euo pipefail
-          git init /tmp/station-publish
-          cd /tmp/station-publish
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git remote add origin "$(git -C "$GITHUB_WORKSPACE" remote get-url origin)"
-          if git -C "$GITHUB_WORKSPACE" ls-remote --exit-code --heads origin bundeslaender-station-data; then
-            git -C "$GITHUB_WORKSPACE" fetch --depth=1 origin bundeslaender-station-data
-            git fetch "$GITHUB_WORKSPACE" FETCH_HEAD
-            git checkout -b bundeslaender-station-data FETCH_HEAD
-          else
-            git checkout -b bundeslaender-station-data
-          fi
+          for parameter in tmin tmax tmean; do
+            for direction in low high; do
+              test -s "/tmp/station-result/extremes/$parameter/$direction/index.json"
+            done
+          done
           cp -a /tmp/station-result/. .
-          git add .
+          git add -- tmin tmax tmean extremes
           if ! git diff --cached --quiet; then
-            git commit -m "Update DWD fixed-panel station temperatures"
-            git -C "$GITHUB_WORKSPACE" fetch /tmp/station-publish HEAD
-            git -C "$GITHUB_WORKSPACE" push origin FETCH_HEAD:refs/heads/bundeslaender-station-data
+            git commit -m "Update DWD station extrema and fixed-panel temperatures"
+            git push origin HEAD:refs/heads/bundeslaender-station-data
           fi
