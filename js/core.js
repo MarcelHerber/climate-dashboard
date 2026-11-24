@@ -339,6 +339,7 @@ function switchTab(tab,{persist=true}={}){
     if(regionalMap) regionalMap.invalidateSize();
   },80);
   if(tab==="index") updateClimateIndex();
+  if(tab==="accumulation") updateAccumulation();
   if(tab==="stationProfile") ensureStationProfile();
   if(tab==="stationPrecip") ensureStationPrecipLoaded();
   if(tab==="stationSnow") whenTabModulesReady(tab,()=>ensureStationSnowLoaded());
