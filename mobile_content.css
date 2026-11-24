@@ -316,3 +316,21 @@
    padding:8px 3px;font-size:11px
  }
 }
+
+/* Step 6: keep Leaflet zoom accessible next to the stations overlay on
+   small phones. Reserve a dedicated 48px map-side rail, not a transparent
+   control hidden underneath the station filter panel. */
+@media(max-width:520px){
+ body.cd-mobile-ready #europeStations .europe-station-panel{
+   width:calc(100% - 68px);
+   max-width:340px;
+ }
+ body.cd-mobile-ready #europeStationMap .leaflet-top.leaflet-left{
+   left:auto;
+   right:9px;
+   top:7px;
+ }
+ body.cd-mobile-ready #europeStationMap .leaflet-control-zoom{
+   margin:0;
+ }
+}
