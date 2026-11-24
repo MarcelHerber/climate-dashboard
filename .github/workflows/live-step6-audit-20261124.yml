@@ -1,0 +1,36 @@
+name: Live browser acceptance · Step 6
+on:
+  push:
+    branches: [perf/prefetch-live-audit-20261124]
+    paths:
+      - 'tests/audit_step6_live.py'
+      - '.github/workflows/live-step6-audit-20261124.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /tests/audit_step6_live.py
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install browser
+        run: |
+          python -m pip install "playwright==1.57.0"
+          python -m playwright install --with-deps chromium
+      - name: Test the PUBLIC site with real DWD, ECMWF and ensemble data
+        run: python -u tests/audit_step6_live.py --output reports/live
+      - name: Always retain detailed network, screenshot and export artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: step6-public-live-browser-real-data
+          path: reports/live/
+          retention-days: 60
