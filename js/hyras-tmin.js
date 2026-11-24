@@ -334,6 +334,10 @@ function hyrasTminRenderCurveChart(region,period,rows){
       </a>
       <div class="hyras-temperature-raster-status" role="status">Rasterabfrage wird geladen …</div>
     </div>`:`<div class="hyras-tmean-anomaly-preview"><div class="hyras-tmean-anomaly-preview-empty">Für diesen Zeitraum ist keine fertige Tmin-Abweichungskarte verfügbar.</div><div class="hyras-temperature-raster-status" role="status">Rasterabfrage wird geladen …</div></div>`}
+    <div class="hyras-tmean-downloads" role="group" aria-label="HYRAS-Karten als PNG herunterladen">
+      <a class="${absClass}" ${maps.absolute?`href="${hyrasTminMapHref(maps.absolute)}" data-tmin-map="${maps.absolute}" data-tmin-filename="hyras_tmin_${period.key}_temperatur.png"`:""}>Tmin-Karte herunterladen</a>
+      <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTminMapHref(maps.anomaly)}" data-tmin-map="${maps.anomaly}" data-tmin-filename="hyras_tmin_${period.key}_abweichung_${hyrasReferencePeriod().replace("-","_")}.png"`:""}>Abweichungskarte ${hyrasReferenceDisplay()} herunterladen</a>
+    </div>
     <div class="hyras-tmean-region-head">
       <div>
         <h3>Tagesminimum – ${region}</h3>
@@ -343,12 +347,11 @@ function hyrasTminRenderCurveChart(region,period,rows){
     <div class="hyras-tmean-chart-wrap">
       <canvas id="hyrasTminRegionCanvas"></canvas>
     </div>
-    ${hyrasDailyAnomalyPanelHtml("tmin")}
-    <div class="hyras-tmean-downloads">
-      <a class="${absClass}" ${maps.absolute?`href="${hyrasTminMapHref(maps.absolute)}" data-tmin-map="${maps.absolute}" data-tmin-filename="hyras_tmin_${period.key}_temperatur.png"`:""}>Tmin-Karte herunterladen</a>
-      <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTminMapHref(maps.anomaly)}" data-tmin-map="${maps.anomaly}" data-tmin-filename="hyras_tmin_${period.key}_abweichung_${hyrasReferencePeriod().replace("-","_")}.png"`:""}>Abweichungskarte ${hyrasReferenceDisplay()} herunterladen</a>
+    <div class="hyras-tmean-downloads hyras-curve-downloads">
       <a class="hyras-tmean-download" href="#" data-tmin-pdf="1">Kurve als PDF herunterladen</a>
     </div>
+    ${hyrasDailyAnomalyPanelHtml("tmin")}
+
     <p class="hyras-tmean-region-note">
       ${maps.anomaly
         ?"Absolute Tmin- und Anomaliekarte stehen als fertige PNGs bereit."
