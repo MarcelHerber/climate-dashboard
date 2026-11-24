@@ -1,0 +1,54 @@
+name: Bundesländer Stations-Temperaturarchiv
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['scripts/build_bundeslaender_station_temperature.py', '.github/workflows/bundeslaender-station-temperature.yml']
+  schedule:
+    - cron: '50 6,12,18 * * *'
+permissions:
+  contents: write
+concurrency:
+  group: bundeslaender-station-data
+  cancel-in-progress: false
+jobs:
+  station-temperature:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts/build_bundeslaender_station_temperature.py
+            station_threshold_daily
+            station_climate_days_current
+            station_climate_days_index.json
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy
+      - run: python scripts/build_bundeslaender_station_temperature.py --output /tmp/station-result
+      - name: Publish independent station series
+        run: |
+          set -euo pipefail
+          git init /tmp/station-publish
+          cd /tmp/station-publish
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git remote add origin "$(git -C "$GITHUB_WORKSPACE" remote get-url origin)"
+          if git -C "$GITHUB_WORKSPACE" ls-remote --exit-code --heads origin bundeslaender-station-data; then
+            git -C "$GITHUB_WORKSPACE" fetch --depth=1 origin bundeslaender-station-data
+            git fetch "$GITHUB_WORKSPACE" FETCH_HEAD
+            git checkout -b bundeslaender-station-data FETCH_HEAD
+          else
+            git checkout -b bundeslaender-station-data
+          fi
+          cp -a /tmp/station-result/. .
+          git add .
+          if ! git diff --cached --quiet; then
+            git commit -m "Update DWD fixed-panel station temperatures"
+            git -C "$GITHUB_WORKSPACE" fetch /tmp/station-publish HEAD
+            git -C "$GITHUB_WORKSPACE" push origin FETCH_HEAD:refs/heads/bundeslaender-station-data
+          fi
