@@ -1,7 +1,7 @@
 import calendar
 import unittest
 from datetime import date
-from scripts.update_grosswetterlagen_historical import parse_layout, layout_from_bbox, MONTHS, CODES
+from scripts.update_grosswetterlagen_historical import parse_layout, layout_from_bbox, rows_from_chars, MONTHS, CODES
 
 class HistoricalTest(unittest.TestCase):
     @classmethod
@@ -53,3 +53,24 @@ class HistoricalTest(unittest.TestCase):
         self.assertEqual(lines[0],"JANUAR")
         self.assertEqual(lines[1].split(),["1902"]+["WZ"]*31+["1902"])
         self.assertEqual(lines[2].split(),["1903"]+["WZ"]*31+["1903"])
+
+    def test_real_pdf_glyph_coordinates_all_rotations(self):
+        import fitz
+        for rotation in (0,90,180,270):
+            with self.subTest(rotation=rotation), fitz.open() as doc:
+                page=doc.new_page(width=842,height=842)
+                origin={0:(56,300),90:(300,786),180:(786,542),270:(542,56)}[rotation]
+                dx,dy={0:(1,0),90:(0,-1),180:(-1,0),270:(0,1)}[rotation]
+                def point(x,y):
+                    return (origin[0]+x*dx-y*dy,origin[1]+x*dy+y*dx)
+                def put(x,y,value):
+                    page.insert_text(point(x,y),value,fontsize=7,fontname="cour",rotate=rotation)
+                put(350,-20,"JANUAR")
+                for year,y in [(1902,0),(1903,8)]:
+                    put(0,y,str(year))
+                    for i in range(31):
+                        put(24+i*22,y,"HNFZ" if i==10 else "WZ")
+                    put(735,y,str(year))
+                page.insert_text(point(-27,1),"105",fontsize=7,fontname="cour",rotate=(rotation+90)%360)
+                expected=["JANUAR",*[" ".join([str(y)]+["WZ"]*10+["HNFZ"]+["WZ"]*20+[str(y)]) for y in (1902,1903)]]
+                self.assertEqual(rows_from_chars(page.get_text("rawdict")),expected)
