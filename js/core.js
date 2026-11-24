@@ -338,12 +338,17 @@ function switchTab(tab,{persist=true}={}){
     updateRegionalMap();
     if(regionalMap) regionalMap.invalidateSize();
   },80);
+  if(tab==="monthly") void window.DashboardOptionalModules?.loadMonthlyFrequency();
+  if(tab==="mosmix") void window.DashboardOptionalModules?.loadMosmix();
   if(tab==="index") updateClimateIndex();
   if(tab==="accumulation") updateAccumulation();
   if(tab==="stationProfile") ensureStationProfile();
   if(tab==="stationPrecip") ensureStationPrecipLoaded();
   if(tab==="stationSnow") whenTabModulesReady(tab,()=>ensureStationSnowLoaded());
-  if(tab==="stationClimateDays") ensureStationClimateDaysLoaded();
+  if(tab==="stationClimateDays"){
+    ensureStationClimateDaysLoaded();
+    void window.DashboardOptionalModules?.loadThresholds();
+  }
   if(tab==="stationHeatwaves") ensureStationHeatwavesLoaded();
   if(tab==="compare") ensureComparisonMode();
   if(tab==="maps") ensureStationMaps();

@@ -270,13 +270,20 @@
   }
 
   function addSection() {
-    if (document.getElementById(TAB_ID)) return;
+    const existing = document.getElementById(TAB_ID);
+    // A lightweight placeholder preserves deep links and the navigation menu
+    // before this large optional module is downloaded.
+    if (existing && existing.dataset.mosmixLazyShell !== "1") return;
     const main = document.querySelector(".dashboard-main") || document.body;
     const footer = main.querySelector(".dashboard-footer");
     const wrapper = document.createElement("div");
     wrapper.innerHTML = sectionHtml();
     const node = wrapper.firstElementChild;
-    if (footer) main.insertBefore(node, footer);
+    if (existing) {
+      const active = existing.classList.contains("active");
+      existing.replaceWith(node);
+      if (active) node.classList.add("active");
+    } else if (footer) main.insertBefore(node, footer);
     else main.appendChild(node);
   }
 
@@ -2361,6 +2368,8 @@
       }
     }
   }
+
+  window.ensureMosmixDashboardInit = init;
 
   function boot() {
     addCss();
