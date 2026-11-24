@@ -51,6 +51,14 @@
         pixels.data.set([...rgb[k],255],i*4);
       }
       ctx.putImageData(pixels,0,0);
+      // Keep the regional raster free of burned-in borders. The national
+      // preview still receives the existing raster boundary overlay below.
+      let regionalRaster=null;
+      if(root.HyrasRegional&&cfg.base){
+        regionalRaster=document.createElement('canvas');
+        regionalRaster.width=plane.width;regionalRaster.height=plane.height;
+        regionalRaster.getContext('2d').putImageData(pixels,0,0);
+      }
       if(cfg.boundary){try{const bitmap=await createImageBitmap(await (await response(cfg.base+'/'+cfg.boundary)).blob());if(bitmap.width===plane.width&&bitmap.height===plane.height)ctx.drawImage(bitmap,0,0);bitmap.close();}catch(error){console.warn('HYRAS Grenzmaske',error);}}
       if(!live())return;
       const legend=document.createElement('div');legend.className='hyras-dynamic-legend hyras-temperature-native-legend';
@@ -62,8 +70,8 @@
       const image=panel.querySelector('.hyras-tmean-anomaly-preview-link');if(image)image.hidden=true;
       const empty=panel.querySelector('.hyras-tmean-anomaly-preview-empty');if(empty)empty.hidden=true;
       status.before(native);status.textContent='DWD HYRAS-DE · Originalraster 1 km · '+cfg.reference.replace('-','–');
-      if(root.HyrasRegional&&cfg.base){
-        root.HyrasRegional.setSource({canvas,owner:native,lookupUrl:cfg.base+'/interactive/geo_lookup_1km.json',parameter:cfg.parameter,metric:'anomaly',reference:cfg.reference,start:cfg.start,end:cfg.end,resolution:1,title:'Temperaturabweichung · '+cfg.parameter.toUpperCase(),subtitle:cfg.start+' – '+cfg.end+' · Referenz '+cfg.reference,legendNode:legend});
+      if(root.HyrasRegional&&regionalRaster){
+        root.HyrasRegional.setSource({canvas:regionalRaster,owner:native,lookupUrl:cfg.base+'/interactive/geo_lookup_1km.json',parameter:cfg.parameter,metric:'anomaly',reference:cfg.reference,start:cfg.start,end:cfg.end,resolution:1,title:'Temperaturabweichung · '+cfg.parameter.toUpperCase(),subtitle:cfg.start+' – '+cfg.end+' · Referenz '+cfg.reference,legendNode:legend});
       }
     }catch(error){if(live()){status.textContent='Rasterabfrage derzeit nicht verfügbar – vorhandene Karte bleibt sichtbar.';console.warn('HYRAS Temperatur-Raster:',error);}}
   }
