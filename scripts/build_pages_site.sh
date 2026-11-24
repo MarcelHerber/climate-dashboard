@@ -197,6 +197,7 @@ required_root_files=(
   dwd_station_daily_map.css
   hyras_historical_temperature_1km.js
   hyras_temperature_interactive.js
+  hyras_regional.js
   dekadenrekorde.html
   jahresextremwerte.html
   feiertagsextremwerte.html
@@ -219,7 +220,7 @@ for file in "${required_root_files[@]}"; do
   fi
   cp --parents "$file" _site/
 done
-for file in js/loader.js js/core.js js/uebersicht.js js/gebietsmittel.js js/extreme.js js/stationen-kenntage.js js/stationen-auswertungen.js js/schnee.js js/export-karten-vergleich.js js/stationsprofil.js js/hyras.js js/aktuell.js js/era5-land.js js/europa-stationen.js js/dashboard-state.js js/hyras-tmin.js js/bootstrap.js era5_stratosphere.js; do
+for file in hyras_regional.js hyras_temperature_interactive.js js/loader.js js/core.js js/uebersicht.js js/gebietsmittel.js js/extreme.js js/stationen-kenntage.js js/stationen-auswertungen.js js/schnee.js js/export-karten-vergleich.js js/stationsprofil.js js/hyras.js js/aktuell.js js/era5-land.js js/europa-stationen.js js/dashboard-state.js js/hyras-tmin.js js/bootstrap.js era5_stratosphere.js; do
   node --check "_site/$file"
 done
 
