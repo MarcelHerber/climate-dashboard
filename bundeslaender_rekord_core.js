@@ -33,6 +33,18 @@ function coverage(series,target,p){
  }
  return first;
 }
-const api={periods,bucket,compare,coverage};
+function annualExtremes(series,target,p,direction,startYear=1981){
+ const out=new Map();
+ for(const x of series){
+  if(x.date>=target||bucket(x.date,p)!==bucket(target,p)||!Number.isFinite(x.value))continue;
+  const y=+x.date.slice(0,4),old=out.get(y);
+  if(!old||(direction==="low"?x.value<old.value:x.value>old.value))out.set(y,x);
+ }
+ return Array.from({length:+target.slice(0,4)-startYear},(_,i)=>{
+  const year=+target.slice(0,4)-1-i;
+  return {year,entry:out.get(year)||null};
+ });
+}
+const api={periods,bucket,compare,coverage,annualExtremes};
 if(typeof module!=="undefined")module.exports=api;else root.BundeslaenderRecords=api;
 })(typeof globalThis!=="undefined"?globalThis:this);

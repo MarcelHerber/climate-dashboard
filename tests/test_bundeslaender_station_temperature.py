@@ -3,7 +3,7 @@ from datetime import date
 from pathlib import Path
 import numpy as np
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
-from build_bundeslaender_station_temperature import decode, panel_series, average, MISSING, FIRST
+from build_bundeslaender_station_temperature import decode, panel_series, average, extremes, MISSING, FIRST
 
 class StationPanelTests(unittest.TestCase):
     def test_leap_year_and_column_order(self):
@@ -23,4 +23,8 @@ class StationPanelTests(unittest.TestCase):
         self.assertEqual(average([("a",a),("b",b)],0,101)[0],1.5)
         self.assertIsNone(average([("a",a),("b",b)],0,101)[50])
         self.assertEqual(average([],0,2),[None,None])
+    def test_extrema_switch_stations(self):
+        a=np.array([[-70,0,0],[-46,0,0],[MISSING,0,0]],dtype=np.int16)
+        b=np.array([[-66,0,0],[-80,0,0],[MISSING,0,0]],dtype=np.int16)
+        self.assertEqual(extremes([("a",a),("b",b)],0,3,"low"),([-7.0,-8.0,None],["a","b",None],[2,2,0]))
 if __name__=="__main__":unittest.main()
