@@ -3,13 +3,13 @@ on:
   workflow_dispatch:
     inputs:
       batch:
-        description: Historical years per parameter
-        default: '3'
+        description: Historical years per parameter (newest first; 1981 milestone, then 1951)
+        default: '12'
   push:
     branches: [main]
     paths: ['scripts/build_bundeslaender_daily.py', 'scripts/build_bundeslaender_sunshine.py', '.github/workflows/bundeslaender-daily.yml']
   schedule:
-    - cron: '25 5 * * *'
+    - cron: '25 5,11,17,23 * * *'
 permissions:
   contents: write
 jobs:
@@ -50,12 +50,15 @@ jobs:
       - name: Extract and validate daily observations
         env:
           PARAM: ${{ matrix.parameter }}
-          BATCH: ${{ inputs.batch || '3' }}
+          BRANCH: bundeslaender-data-${{ matrix.parameter }}
+          BATCH: ${{ inputs.batch || '12' }}
         run: |
+          git -C /tmp/region-data config user.name github-actions
+          git -C /tmp/region-data config user.email github-actions@github.com
           if [ "$PARAM" = sunshine ]; then
             python scripts/build_bundeslaender_sunshine.py --output /tmp/region-data
           else
-            python scripts/build_bundeslaender_daily.py --parameter "$PARAM" --batch "$BATCH" --output /tmp/region-data --work /tmp/region-work
+            python scripts/build_bundeslaender_daily.py --parameter "$PARAM" --batch "$BATCH" --output /tmp/region-data --work /tmp/region-work --checkpoint-branch "$BRANCH"
           fi
       - name: Publish compact archive
         env:

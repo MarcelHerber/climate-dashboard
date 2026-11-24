@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Compact observed daily regional archive. No model data or gap filling."""
-import argparse, calendar, importlib, json, re
+import argparse, calendar, importlib, json, re, subprocess
 from datetime import date, timedelta
 from pathlib import Path
 import numpy as np
@@ -57,7 +57,8 @@ def main():
     p.add_argument("--parameter",choices=[*PARAMS,"precipitation"],required=True)
     p.add_argument("--output",type=Path,required=True)
     p.add_argument("--work",type=Path,required=True)
-    p.add_argument("--batch",type=int,default=3)
+    p.add_argument("--batch",type=int,default=12)
+    p.add_argument("--checkpoint-branch", help="Publish each completed year to this data branch")
     a=p.parse_args()
     a.work.mkdir(parents=True,exist_ok=True)
     if a.parameter=="precipitation":
@@ -81,6 +82,16 @@ def main():
             return len(old['dates'])==365+calendar.isleap(y) and old['dates'][0]==f'{y}-01-01' and old['dates'][-1]==f'{y}-12-31' and old.get('source_file')==files[y]
         except (ValueError,KeyError,IndexError): return False
     missing=[y for y in sorted(files,reverse=True) if y!=newest and not complete(y)]
+    def checkpoint():
+        years=sorted(int(p.stem) for p in a.output.glob("[0-9][0-9][0-9][0-9].json"))
+        write(a.output/"index.json",{"parameter":a.parameter,"years":years,"source_years":sorted(files),"regions":REGIONS,"data_through":json.loads((a.output/f"{newest}.json").read_text())["dates"][-1],"minimum_target_year":1981,"missing_target_years":[y for y in range(1981,newest+1) if y not in years]})
+        if a.checkpoint_branch:
+            def git(*args,check=True):
+                return subprocess.run(["git","-C",str(a.output),*args],check=check)
+            git("add","--","*.json")
+            if git("diff","--cached","--quiet",check=False).returncode==1:
+                git("commit","-m","Update regional daily archive")
+                git("push","origin","HEAD:refs/heads/"+a.checkpoint_branch)
     for year in [newest,*missing[:max(0,a.batch)]]:
         filename=files[year]
         target=a.work/filename
@@ -93,7 +104,7 @@ def main():
             data["source_file"]=filename
             write(a.output/f"{year}.json",data)
         finally: target.unlink(missing_ok=True)
-    years=sorted(int(p.stem) for p in a.output.glob("[0-9][0-9][0-9][0-9].json"))
-    write(a.output/"index.json",{"parameter":a.parameter,"years":years,"source_years":sorted(files),"regions":REGIONS,"data_through":json.loads((a.output/f"{newest}.json").read_text())["dates"][-1]})
+        checkpoint()
+
 
 if __name__=="__main__": main()
