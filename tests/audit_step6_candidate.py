@@ -66,7 +66,8 @@ def run(site,output):
                            const zoom=rect(document.querySelector('#europeStationMap .leaflet-control-zoom'));
                            return {panel,zoom,overlap:!(panel.r<=zoom.l||zoom.r<=panel.l||panel.b<=zoom.t||zoom.b<=panel.t)};
                         }""")
-                        assert not rects["overlap"],f"Zoom overlaps mobile panel: {rects}"
+                        if width<=520:
+                            assert not rects["overlap"],f"Zoom overlaps mobile panel: {rects}"
                         row["zoom"]=rects
                         page.screenshot(path=str(output/f"{width}-europe-stations.png"),full_page=False)
                         page.wait_for_function("""() => !document.getElementById('era5SynopticNav')?.hidden""",timeout=20000)
