@@ -1006,7 +1006,17 @@ function updateClimateIndex(){
         },
         legend:{display:false},
         datalabels:{
-          display:context=>document.getElementById("indexLabelsToggle").checked || context.datasetIndex===1,
+          display:context=>{
+            if(context.datasetIndex===1)return true;
+            if(!document.getElementById("indexLabelsToggle").checked)return false;
+            // Dense year labels overlap on narrow phones. Keep all original
+            // points and tooltips; only reduce the rendered text density.
+            const width=window.innerWidth;
+            if(width>600)return true;
+            const year=context.dataset.data?.[context.dataIndex]?.year;
+            const step=width<=360?20:10;
+            return Number.isInteger(year) && year%step===0;
+          },
           formatter:value=>value.year,
           color:context=>context.datasetIndex===1?"#fff":"rgba(55,55,55,.70)",
           font:context=>({size:context.datasetIndex===1?14:9,weight:context.datasetIndex===1?"bold":"normal"}),
