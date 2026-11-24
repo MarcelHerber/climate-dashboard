@@ -182,11 +182,22 @@ def add_state_monthly_model_status(items, document):
                        ("aifs", "ECMWF AIFS ENS"), ("icon_eu", "DWD ICON-EU EPS")):
         model = models.get(key) or {}
         run = model.get("run")
+        retrieved = model.get("retrieved_at")
         coverage = f"{model.get('member_count', '–')} Member" if model else "Modell fehlt"
-        items.append(result(f"state_monthly_{key}", f"Monatsausblick · {label}", "Vorhersagen",
-            run, doc.get("generated_at"), coverage,
-            "Modellinitialisierung · Warnschwelle 24 h (nicht das Erstellungsdatum der JSON-Datei)",
-            cadence="hourly", allowed_delay=24))
+        unverified = model and run is None and isinstance(retrieved, str)
+        date_value = retrieved if unverified else run
+        note = ("Modelllaufzeit nicht verifizierbar · Zeitangabe ist nur der Datenabruf"
+                if unverified else
+                "Modellinitialisierung · Warnschwelle 24 h (nicht das Erstellungsdatum der JSON-Datei)")
+        item = result(f"state_monthly_{key}", f"Monatsausblick · {label}", "Vorhersagen",
+            date_value, doc.get("generated_at"), coverage, note,
+            cadence="hourly", allowed_delay=24, incomplete=bool(unverified))
+        # Missing products and unknown run AND retrieval time are red; a
+        # recent retrieved_at with unknown run appears as yellow/incomplete.
+        if not model or (run is None and not unverified):
+            item["status"] = "delayed"
+            item["incomplete"] = True
+        items.append(item)
 
 
 def add_external(items, remote):

@@ -126,20 +126,48 @@ def validate_available_models(models: Iterable[str]) -> None:
         raise ValueError(f"Keine gültigen Ensemblemodelle: {sorted(keys)}")
 
 
-def unhealthy_models(models: dict[str, Any], now: datetime) -> dict[str, str]:
-    failures = {}
+def monthly_model_health(models: dict[str, Any], now: datetime) -> tuple[dict[str, str], dict[str, str]]:
+    """Return red errors and yellow warnings separately.
+
+    A successful, recent API retrieval does not establish a model's run time.
+    Unknown initialization is yellow only when recently fetched ensemble data
+    passed the preceding full forecast/schema validation.
+    """
+    errors, warnings = {}, {}
     for key in MODEL_CONFIG:
-        if key not in models:
-            failures[key] = "fehlt"
+        model = models.get(key)
+        if not isinstance(model, dict) or not model:
+            errors[key] = "Ensemblemodell fehlt"
+            continue
+        members = model.get("member_count")
+        if members is not None and (not isinstance(members, int) or members < 1):
+            errors[key] = "Ensemblemitglieder fehlen"
+            continue
+        run_value = model.get("run")
+        if run_value is None:
+            try:
+                retrieved = datetime.fromisoformat(model["retrieved_at"].replace("Z", "+00:00"))
+                age = (now - retrieved).total_seconds() / 3600
+                if not -1 <= age <= 24:
+                    errors[key] = f"Datenabruf nicht aktuell ({age:.1f} h)"
+                else:
+                    warnings[key] = "Modelllaufzeit nicht verifizierbar; vollständige Ensemble-Daten vor kurzem abgerufen"
+            except (KeyError, TypeError, ValueError, AttributeError):
+                errors[key] = "Modelllaufzeit und aktueller Datenabruf nicht nachweisbar"
             continue
         try:
-            run = datetime.fromisoformat(models[key]["run"].replace("Z", "+00:00"))
+            run = datetime.fromisoformat(run_value.replace("Z", "+00:00"))
             age = (now - run).total_seconds() / 3600
             if not -1 <= age <= 36:
-                failures[key] = f"Laufalter {age:.1f} h"
-        except (KeyError, TypeError, ValueError, AttributeError):
-            failures[key] = "Laufzeit fehlt oder ungültig"
-    return failures
+                errors[key] = f"Laufalter {age:.1f} h"
+        except (TypeError, ValueError, AttributeError):
+            errors[key] = "Laufzeit ungültig"
+    return errors, warnings
+
+
+def unhealthy_models(models: dict[str, Any], now: datetime) -> dict[str, str]:
+    """Legacy red-only accessor: unverified but recent runs are not failures."""
+    return monthly_model_health(models, now)[0]
 
 
 def select_temperature_models(fresh: dict, cached: dict, observed_through: str, now: datetime) -> tuple[dict, list[str]]:

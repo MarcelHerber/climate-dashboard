@@ -101,7 +101,53 @@ class EnsembleResilienceTest(unittest.TestCase):
             'regions': {'Deutschland': {'models': {'gefs': {'run': (now-timedelta(hours=40)).isoformat()}, 'ifs': {'run': (now-timedelta(hours=2)).isoformat()}}}},
         })
         states = {r['id']:r['status'] for r in rows}
-        self.assertEqual(states, {'state_monthly_gefs':'delayed','state_monthly_ifs':'current','state_monthly_aifs':'unknown','state_monthly_icon_eu':'unknown'})
+        self.assertEqual(states, {'state_monthly_gefs':'delayed','state_monthly_ifs':'current','state_monthly_aifs':'delayed','state_monthly_icon_eu':'delayed'})
+
+    def test_recent_unverified_icon_eu_is_yellow_not_red(self):
+        from datetime import timedelta
+        now = datetime(2026, 11, 24, 8, tzinfo=timezone.utc)
+        models = {key: {'run': (now - timedelta(hours=6)).isoformat(),
+                        'member_count': 31} for key in app.MODEL_CONFIG}
+        models['icon_eu'] = {'run': None, 'member_count': 40,
+                             'retrieved_at': (now - timedelta(minutes=15)).isoformat()}
+        errors, warnings = app.monthly_model_health(models, now)
+        self.assertEqual(errors, {})
+        self.assertEqual(set(warnings), {'icon_eu'})
+        self.assertNotIn('icon_eu', app.unhealthy_models(models, now))
+
+    def test_missing_or_provably_stale_models_remain_red(self):
+        from datetime import timedelta
+        now = datetime(2026, 11, 24, 8, tzinfo=timezone.utc)
+        examples = {
+            'missing': {},
+            'old_run': {'run': (now-timedelta(hours=40)).isoformat()},
+            'old_retrieval': {'run': None, 'retrieved_at': (now-timedelta(hours=30)).isoformat()},
+            'no_member': {'run': (now-timedelta(hours=1)).isoformat(), 'member_count': 0},
+            'unverified_without_retrieval': {'run': None},
+        }
+        for case, model in examples.items():
+            with self.subTest(case=case):
+                errors, warnings = app.monthly_model_health(
+                    {**{k: {'run': (now-timedelta(hours=2)).isoformat()}
+                        for k in app.MODEL_CONFIG if k != 'icon_eu'},
+                     'icon_eu': model}, now)
+                self.assertIn('icon_eu', errors)
+                self.assertNotIn('icon_eu', warnings)
+
+    def test_data_status_recent_unverified_is_yellow(self):
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        rows = []
+        status.add_state_monthly_model_status(rows, {
+            'generated_at': now.isoformat(),
+            'regions': {'Deutschland': {'models': {
+                'icon_eu': {'run': None, 'retrieved_at': (now-timedelta(minutes=10)).isoformat(),
+                            'member_count': 40}}}},
+        })
+        states = {r['id']: r['status'] for r in rows}
+        self.assertEqual(states['state_monthly_icon_eu'], 'incomplete')
+        self.assertTrue(next(r for r in rows if r['id']=='state_monthly_icon_eu')['incomplete'])
+        self.assertEqual(states['state_monthly_gefs'], 'delayed')
 
     def test_cached_model_retained_only_when_it_covers_new_observation_anchor(self):
         now = datetime(2026,11,21,20,tzinfo=timezone.utc)

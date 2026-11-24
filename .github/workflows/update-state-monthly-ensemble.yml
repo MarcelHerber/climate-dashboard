@@ -131,13 +131,19 @@ jobs:
           import json
           from datetime import datetime, timezone
           from pathlib import Path
-          from scripts.build_state_monthly_ensemble_outlook import unhealthy_models
+          from scripts.build_state_monthly_ensemble_outlook import monthly_model_health
           d=json.loads(Path('/tmp/state-monthly-output/state_monthly_ensemble.json').read_text())
-          failures=unhealthy_models(d['regions']['Deutschland']['models'], datetime.now(timezone.utc))
-          if failures:
-              for key, reason in failures.items():
+          errors, warnings=monthly_model_health(
+              d['regions']['Deutschland']['models'], datetime.now(timezone.utc))
+          for key, reason in warnings.items():
+              print(f'::warning title=Monatsensemble {key}::{reason}')
+          if errors:
+              for key, reason in errors.items():
                   print(f'::error title=Monatsensemble {key}::{reason}')
-              raise SystemExit('Teilaktualisierung veröffentlicht; Modellwarnungen vorhanden.')
-          print('Alle vier Modelllaufzeiten sind höchstens 36 Stunden alt.')
+              raise SystemExit('Monatsensemble rot: fehlende, unvollständige oder veraltete Daten.')
+          if warnings:
+              print('Monatsensemble gelb: alle Modelle verfügbar, mindestens eine Laufzeit nicht verifizierbar.')
+          else:
+              print('Monatsensemble grün: alle vier Modelllaufzeiten sind höchstens 36 Stunden alt.')
           PY
 
