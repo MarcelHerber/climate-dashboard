@@ -8,6 +8,7 @@ import csv
 import re
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 from datetime import date, timedelta
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -60,6 +61,58 @@ def parse_layout(text):
         raise ValueError("Published January sample does not match")
     return rows
 
+def layout_from_bbox(xml, expected_pages=36):
+    """Reassemble horizontal rows using the original PDF word coordinates.
+    Page 105–140 contain the tables; the rotated page numbers are outside
+    the left year column. Do not infer any weather code from neighboring rows.
+    """
+    root = ET.fromstring(xml)
+    pages = list(root.iter("{*}page"))
+    if len(pages) != expected_pages:
+        raise ValueError(f"Expected {expected_pages} table pages, got {len(pages)}")
+    output = []
+    for i, page in enumerate(pages):
+        width, height = float(page.attrib["width"]), float(page.attrib["height"])
+        if width <= height:
+            raise ValueError(f"Unexpected orientation on table page {i+105}: {width}x{height}")
+        words = []
+        for node in page.iter("{*}word"):
+            x0,x1,y0,y1 = [float(node.attrib[k]) for k in ("xMin","xMax","yMin","yMax")]
+            x,y = (x0+x1)/2/width, (y0+y1)/2/height
+            value = "".join(node.itertext()).strip().upper()
+            # All years and day columns are between x=6.7% and x=95%.
+            # Exclude rotated margin numbers at x=3.5%.
+            if 0.055 <= x <= 0.967 and value:
+                words.append((y,x,value))
+        bands = []
+        for y,x,value in sorted(words):
+            if not bands or abs(y-bands[-1][0])>0.0025:
+                bands.append((y,[]))
+            bands[-1][1].append((x,value))
+        lines = [" ".join(value for x,value in sorted(band)) for _,band in bands]
+        # Month title independently anchors the page.
+        titles = {MONTHS[v] for _,_,v in words if v in MONTHS}
+        expected_month = i//3+1
+        if titles != {expected_month}:
+            raise ValueError(f"Page {i+105}: unexpected month label {titles}, expected {expected_month}")
+        output.append(next(k for k,v in MONTHS.items() if v==expected_month))
+        candidates = []
+        for line in lines:
+            parts=line.split()
+            if not parts or not re.fullmatch(r"\d{4}",parts[0]):
+                continue
+            year=int(parts[0])
+            if not 1881 <= year <= 2009:
+                continue
+            if parts[-1]!=parts[0]:
+                raise ValueError(f"Page {i+105}: year labels do not match for {year}")
+            candidates.append(year)
+            output.append(line)
+        print(f"Table page {i+105}: month {expected_month}, {len(candidates)} rows, years {min(candidates,default=0)}–{max(candidates,default=0)}")
+        if len(candidates)!=len(set(candidates)):
+            raise ValueError(f"Duplicate year on table page {i+105}")
+    return "\n".join(output)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pdf", type=Path, help="Use a locally downloaded original PIK report")
@@ -71,8 +124,12 @@ def main():
                 pdf.write_bytes(res.read(40_000_001))
         if not pdf.read_bytes().startswith(b"%PDF-"):
             raise ValueError("Not an original PDF")
-        layout = subprocess.check_output(["pdftotext","-f","104","-layout",str(pdf),"-"],text=True,encoding="utf-8")
-        rows = parse_layout(layout)
+        bbox = subprocess.check_output(["pdftotext","-f","105","-l","140","-bbox",str(pdf),"-"],text=True,encoding="utf-8")
+        rows = parse_layout(layout_from_bbox(bbox))
+        # Independently spot-check the previously missing January rows in the printed original.
+        anchors = {date(1902,1,1):"WZ",date(1902,1,31):"HNA",date(1903,1,1):"WS",date(1903,1,31):"WA"}
+        if any(rows[d]!=v for d,v in anchors.items()):
+            raise ValueError("Historical January spot check failed")
     OUT.parent.mkdir(parents=True,exist_ok=True)
     tmp = OUT.with_suffix(".tmp")
     with tmp.open("w",encoding="utf-8",newline="") as stream:
