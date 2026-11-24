@@ -90,7 +90,7 @@ function install(){
  '<p class="note">Eigenständige Kartenausschnitte aus der aktuell ausgewählten HYRAS-Rasterdarstellung. Keine künstliche Erhöhung der meteorologischen Auflösung.</p>'+
  '<div class="hyras-reg-controls">'+
  '<label>Region <select id="hyrasRegRegion">'+states.map(s=>'<option>'+s+'</option>').join("")+'</select></label>'+
- '<label>Darstellung <select id="hyrasRegRendering"><option value="smooth" selected>Geglättet (visuell)</option><option value="native">Originalraster (pixelgenau)</option></select></label>'+
+ '<label>Darstellung <select id="hyrasRegRendering"><option value="strong" selected>Stark geglättet (Flächenkonturen)</option><option value="smooth">Leicht geglättet</option><option value="native">Originalraster (pixelgenau)</option></select></label>'+
  '<label>PNG-Kantenlänge <select id="hyrasRegSize"><option value="2000">2.000 px</option><option value="4000" selected>4.000 px</option><option value="8000">8.000 px</option></select></label>'+
  '<label><input id="hyrasRegStations" type="checkbox" checked> DWD-Stationen</label>'+
  '<label><input id="hyrasRegNames" type="checkbox"> Stationsnamen</label>'+
@@ -160,10 +160,68 @@ async function stationData(s,geo,region,wantValues){
 function filterStations(stations,onlyValid){
  return onlyValid?stations.filter(st=>Number.isFinite(st.value)):stations;
 }
-function drawRaster(ctx,canvas,rendering){
+// Display-only normalized Gaussian convolution: no-data cells contribute
+// neither zero nor a colour. The source observations are never overwritten.
+function gaussianDisplay(values,valid,w,h,sigma){
+ const radius=Math.max(1,Math.ceil(3*sigma)),kernel=Array.from({length:2*radius+1},(_,i)=>Math.exp(-.5*((i-radius)/sigma)**2));
+ const sums=new Float32Array(w*h),weights=new Float32Array(w*h),out=new Float32Array(w*h);
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+  let sum=0,weight=0;
+  for(let k=-radius;k<=radius;k++){const xx=x+k;if(xx<0||xx>=w)continue;const i=y*w+xx;if(!valid[i]||!Number.isFinite(values[i]))continue;const a=kernel[k+radius];sum+=a*values[i];weight+=a}
+  const i=y*w+x;sums[i]=sum;weights[i]=weight;
+ }
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+  let sum=0,weight=0;
+  for(let k=-radius;k<=radius;k++){const yy=y+k;if(yy<0||yy>=h)continue;const i=yy*w+x,a=kernel[k+radius];sum+=a*sums[i];weight+=a*weights[i]}
+  out[y*w+x]=weight>0?sum/weight:NaN;
+ }
+ return out;
+}
+function interpolateDisplay(values,w,h,x,y){
+ x=Math.max(0,Math.min(w-1,x));y=Math.max(0,Math.min(h-1,y));
+ const x0=Math.floor(x),y0=Math.floor(y),x1=Math.min(w-1,x0+1),y1=Math.min(h-1,y0+1),u=x-x0,v=y-y0;
+ let sum=0,weight=0;
+ const a=values[y0*w+x0],b=values[y0*w+x1],c=values[y1*w+x0],d=values[y1*w+x1];
+ if(Number.isFinite(a)){const q=(1-u)*(1-v);sum+=a*q;weight+=q}
+ if(Number.isFinite(b)){const q=u*(1-v);sum+=b*q;weight+=q}
+ if(Number.isFinite(c)){const q=(1-u)*v;sum+=c*q;weight+=q}
+ if(Number.isFinite(d)){const q=u*v;sum+=d*q;weight+=q}
+ return weight?sum/weight:NaN;
+}
+function renderingLabel(mode){return mode==="native"?"Originalraster":mode==="strong"?"stark geglättet (Flächenkonturen)":"leicht geglättet"}
+const smoothCache=new WeakMap();
+function drawRaster(ctx,s,b,rendering){
+ const canvas=s.canvas,w=canvas.width,h=canvas.height,field=s.numeric;
  ctx.imageSmoothingEnabled=rendering!=="native";
  if(ctx.imageSmoothingEnabled)ctx.imageSmoothingQuality="high";
- ctx.drawImage(canvas,0,0);
+ if(rendering==="native"||!field||field.values.length!==w*h||field.valid.length!==w*h){ctx.drawImage(canvas,0,0);return}
+ // Filter at a fixed physical scale so preview, zoom and exports agree.
+ const sigma=(rendering==="strong"?3:1)/Math.max(.25,s.resolution||1);
+ let cached=smoothCache.get(canvas);
+ if(!cached){cached=new Map();smoothCache.set(canvas,cached)}
+ if(!cached.has(sigma))cached.set(sigma,gaussianDisplay(field.values,field.valid,w,h,sigma));
+ const filtered=cached.get(sigma);
+ // Interpolate the numerical display field, then apply the original
+ // discrete colour classes. This produces smooth contours, not blurry RGB.
+ // Render only the selected crop; bound temporary memory for large regions.
+ const sub=Math.max(1,Math.min(8,Math.floor(Math.sqrt(12000000/(b.w*b.h)))));
+ const tile=document.createElement("canvas");tile.width=b.w*sub;tile.height=b.h*sub;
+ const tc=tile.getContext("2d"),img=tc.createImageData(tile.width,tile.height),dst=img.data;
+ const breaks=field.breaks,colors=field.rgb;
+ for(let py=0;py<tile.height;py++){
+  const sy=b.y+(py+.5)/sub,iy=Math.min(h-1,Math.floor(sy));
+  for(let px=0;px<tile.width;px++){
+   const sx=b.x+(px+.5)/sub,ix=Math.min(w-1,Math.floor(sx));
+   if(!field.valid[iy*w+ix])continue;
+   const value=interpolateDisplay(filtered,w,h,sx-.5,sy-.5);
+   if(!Number.isFinite(value))continue;
+   let k=0;while(k<breaks.length&&value>=breaks[k])k++;
+   const color=colors[Math.min(k,colors.length-1)],i=4*(py*tile.width+px);
+   dst[i]=color[0];dst[i+1]=color[1];dst[i+2]=color[2];dst[i+3]=255;
+  }
+ }
+ tc.putImageData(img,0,0);
+ ctx.drawImage(tile,b.x,b.y,b.w,b.h);
 }
 function renderCanvas(d,maxEdge){
  const {s,b,features,selected,region,stations,legend,neighbors,names,values,rendering}=d;
@@ -182,10 +240,8 @@ function renderCanvas(d,maxEdge){
  ctx.save();ctx.translate(pad,top);ctx.scale(w/b.w,h/b.h);ctx.translate(-b.x,-b.y);
  ctx.beginPath();ctx.rect(b.x,b.y,b.w,b.h);ctx.clip();
  if(region!=="Deutschland"&&!neighbors){makePath(ctx,selected);ctx.clip("evenodd")}
- // Smooth only the displayed colours. The source raster, station values
- // and numerical calculations remain untouched. Boundaries and symbols
- // are drawn afterwards at the final output resolution.
- drawRaster(ctx,s.canvas,rendering);
+ // Display-only filtered contours; vector boundaries and stations stay sharp.
+ drawRaster(ctx,s,b,rendering);
  ctx.lineJoin="round";ctx.lineCap="round";
  for(const f of features){makePath(ctx,f.polys);ctx.strokeStyle="#343a40";ctx.lineWidth=(region===f.name?1.5:.65)*u/scale;ctx.stroke()}
  ctx.restore();
@@ -213,7 +269,7 @@ function renderCanvas(d,maxEdge){
  legend.forEach((l,i)=>{const col=i%legendCols,row=Math.floor(i/legendCols),x=pad+col*w/legendCols,y=top+h+14*u+row*22*u;ctx.fillStyle=l.color;ctx.fillRect(x,y,15*u,12*u);ctx.strokeStyle="#aaa";ctx.lineWidth=.6*u;ctx.strokeRect(x,y,15*u,12*u);ctx.fillStyle="#26323b";ctx.fillText(l.label,x+20*u,y+11*u,Math.max(10,w/legendCols-24*u))});
  ctx.fillStyle="#45525c";ctx.font=Math.round(11*u)+"px sans-serif";
  ctx.fillText("DWD HYRAS-DE · DWD CDC KL · Grenzen: deutschlandGeoJSON/GIS-DATA",pad,cv.height-24*u,cv.width-2*pad);
- ctx.fillText(rendering==="native"?"Darstellung: Originalraster":"Darstellung: visuell geglättet (keine höhere Datenauflösung)",pad,top+h+Math.round((14+legendRows*22)*u),cv.width-2*pad);
+ ctx.fillText("Darstellung: "+renderingLabel(rendering)+(rendering==="native"?"":" (keine höhere Datenauflösung)"),pad,top+h+Math.round((14+legendRows*22)*u),cv.width-2*pad);
  ctx.fillText(d.note||"",pad,cv.height-9*u,cv.width-2*pad);
  return {cv,hits};
 }
@@ -231,7 +287,7 @@ async function refresh(){
   let st={stations:[],note:"Stationslayer ausgeschaltet."};
   if($("hyrasRegStations").checked){$("hyrasRegStatus").textContent="DWD-Stationswerte für den Kartenzeitraum werden geprüft …";try{st=await stationData(s,geo,region,values||onlyValid)}catch(e){st.note="Stationsdaten nicht verfügbar: "+e.message}}
   if(rev!==revision||!s.owner.isConnected)return;
-  const rendering=$("hyrasRegRendering").value==="native"?"native":"smooth";
+  const rendering=$("hyrasRegRendering").value;
   const d={s,b,features,selected,region,stations:filterStations(st.stations,onlyValid),legend:s.legend||[],neighbors,names,values,rendering,note:st.note};
   const out=renderCanvas(d,1100);$("hyrasRegPreview").replaceChildren(out.cv);
   display=d;
@@ -240,7 +296,7 @@ async function refresh(){
    let best=null,dist=22;for(const h of out.hits){const q=Math.hypot(x-h.x,y-h.y);if(q<dist){best=h;dist=q}}
    $("hyrasRegInspection").textContent=best?best.name+" (DWD "+best.id+", "+best.elev+" m) · "+(Number.isFinite(best.value)?best.value.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})+" K":"Kein passender Messwert"):"Stationspunkt antippen, um Details zu sehen.";
   });
-  $("hyrasRegStatus").textContent="HYRAS-Raster: "+s.resolution+" km · "+(rendering==="native"?"Originalraster":"visuell geglättet")+" · "+out.hits.length+" Stationspunkte im Ausschnitt. "+st.note;
+  $("hyrasRegStatus").textContent="HYRAS-Raster: "+s.resolution+" km · "+renderingLabel(rendering)+" · "+out.hits.length+" Stationspunkte im Ausschnitt. "+st.note;
   $("hyrasRegPng").disabled=false;$("hyrasRegPdf").disabled=false;
  }catch(e){if(rev===revision){clear("Regionalkarte nicht verfügbar: "+e.message);console.warn("HYRAS regional",e)}}
 }
@@ -268,6 +324,6 @@ function setSource(s){
  source={...s,legend:legendFrom(s.legendNode)};display=null;revision++;
  if($("hyrasRegionalWorkshop")?.open)refresh();else clear("Raster verfügbar. Regionale Kartenwerkstatt öffnen.");
 }
-const api={project,coordinate,extent,isoDates,accumulate,filterStations,drawRaster,install,setSource};
+const api={project,coordinate,extent,isoDates,accumulate,filterStations,gaussianDisplay,interpolateDisplay,drawRaster,install,setSource};
 if(typeof module==="object"&&module.exports)module.exports=api;else {root.HyrasRegional=api;install()}
 })(typeof globalThis==="object"?globalThis:this);
