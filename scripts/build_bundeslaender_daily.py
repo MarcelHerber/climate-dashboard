@@ -73,7 +73,14 @@ def main():
     files={y:f for y,f in files.items() if 1951<=y<=date.today().year}
     if not files: raise RuntimeError("No annual files found")
     newest=max(files)
-    missing=[y for y in sorted(files,reverse=True) if y!=newest and not (a.output/f"{y}.json").exists()]
+    def complete(y):
+        path=a.output/f"{y}.json"
+        if not path.exists(): return False
+        try:
+            old=json.loads(path.read_text())
+            return len(old['dates'])==365+calendar.isleap(y) and old['dates'][0]==f'{y}-01-01' and old['dates'][-1]==f'{y}-12-31' and old.get('source_file')==files[y]
+        except (ValueError,KeyError,IndexError): return False
+    missing=[y for y in sorted(files,reverse=True) if y!=newest and not complete(y)]
     for year in [newest,*missing[:max(0,a.batch)]]:
         filename=files[year]
         target=a.work/filename
@@ -83,6 +90,7 @@ def main():
             if not data["dates"]: raise ValueError("Empty year")
             if year<newest and len(data["dates"])!=365+calendar.isleap(year):
                 raise ValueError(f"Incomplete historical year {year}")
+            data["source_file"]=filename
             write(a.output/f"{year}.json",data)
         finally: target.unlink(missing_ok=True)
     years=sorted(int(p.stem) for p in a.output.glob("[0-9][0-9][0-9][0-9].json"))
