@@ -70,9 +70,11 @@ test("all published root HTML modules are reachable through mobile categories",(
  }
  const mainTabs=[...new Set([...html.matchAll(/<button[^>]*class="[^"]*\btab-button\b[^"]*"[^>]*onclick="switchTab\('([^']+)'\)"/g)].map(x=>x[1]))];
  for(const tab of mainTabs){
-  if(tab!=="era5Synoptic")assert.ok(values.includes(tab),"Missing tab "+tab);
+  assert.ok(values.includes(tab),"Missing tab "+tab);
  }
- assert.ok(!values.includes("era5Synoptic"),"Hidden experimental content remains hidden");
+ assert.equal(flat.find(x=>x.id==="era5Synoptic")?.category,"Europa & Prognosen");
+ assert.match(source,/itemAvailable\(id\)/,"ERA5 archive must be filtered by real availability");
+ assert.match(source,/climate:era5-synoptic-availability/,"New ERA5 availability updates the mobile menu");
 });
 test("accent-insensitive search and no external arbitrary routes",()=>{
  const f=readData();
