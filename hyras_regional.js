@@ -90,6 +90,7 @@ function install(){
  '<p class="note">Eigenständige Kartenausschnitte aus der aktuell ausgewählten HYRAS-Rasterdarstellung. Keine künstliche Erhöhung der meteorologischen Auflösung.</p>'+
  '<div class="hyras-reg-controls">'+
  '<label>Region <select id="hyrasRegRegion">'+states.map(s=>'<option>'+s+'</option>').join("")+'</select></label>'+
+ '<label>Darstellung <select id="hyrasRegRendering"><option value="smooth" selected>Geglättet (visuell)</option><option value="native">Originalraster (pixelgenau)</option></select></label>'+
  '<label>PNG-Kantenlänge <select id="hyrasRegSize"><option value="2000">2.000 px</option><option value="4000" selected>4.000 px</option><option value="8000">8.000 px</option></select></label>'+
  '<label><input id="hyrasRegStations" type="checkbox" checked> DWD-Stationen</label>'+
  '<label><input id="hyrasRegNames" type="checkbox"> Stationsnamen</label>'+
@@ -105,7 +106,7 @@ function install(){
  style.textContent=".hyras-reg-controls{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:12px 0}.hyras-reg-controls label{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:13px}.hyras-reg-controls select{max-width:100%;padding:6px}.hyras-reg-preview{background:#fff;overflow:hidden;border-radius:7px}.hyras-reg-preview canvas{display:block;width:100%;height:auto;touch-action:pan-y}.hyras-reg-controls input{width:auto}@media(max-width:650px){.hyras-reg-controls label{max-width:100%}}";
  document.head.append(style);card.before(el);
  el.addEventListener("toggle",()=>{if(el.open)refresh()});
- for(const id of ["hyrasRegRegion","hyrasRegStations","hyrasRegNames","hyrasRegValues","hyrasRegOnlyValid","hyrasRegNeighbors"]){$(id).addEventListener("change",refresh)}
+ for(const id of ["hyrasRegRegion","hyrasRegRendering","hyrasRegStations","hyrasRegNames","hyrasRegValues","hyrasRegOnlyValid","hyrasRegNeighbors"]){$(id).addEventListener("change",refresh)}
  $("hyrasRegPng").onclick=()=>download("png");$("hyrasRegPdf").onclick=()=>download("pdf");
  const watch=new MutationObserver(()=>{if(source&&!source.owner?.isConnected){source=null;revision++;display=null;clear("Diese Ansicht besitzt derzeit kein unterstütztes numerisches Raster. Bitte eine andere HYRAS-Karte wählen.")}});
  watch.observe(frame,{childList:true,subtree:true});
@@ -159,12 +160,17 @@ async function stationData(s,geo,region,wantValues){
 function filterStations(stations,onlyValid){
  return onlyValid?stations.filter(st=>Number.isFinite(st.value)):stations;
 }
+function drawRaster(ctx,canvas,rendering){
+ ctx.imageSmoothingEnabled=rendering!=="native";
+ if(ctx.imageSmoothingEnabled)ctx.imageSmoothingQuality="high";
+ ctx.drawImage(canvas,0,0);
+}
 function renderCanvas(d,maxEdge){
- const {s,b,features,selected,region,stations,legend,neighbors,names,values}=d;
+ const {s,b,features,selected,region,stations,legend,neighbors,names,values,rendering}=d;
  const u=Math.max(1,maxEdge/1000),pad=Math.round(18*u),top=Math.round(76*u);
  const estimatedWidth=Math.min(maxEdge-2*pad,(maxEdge-top-130*u)*b.w/b.h);
  const font=Math.round(12*u),legendCols=Math.max(1,Math.min(5,Math.floor(estimatedWidth/(150*u)))),legendRows=Math.ceil(legend.length/legendCols);
- const footer=Math.round((48+legendRows*22)*u);
+ const footer=Math.round((66+legendRows*22)*u);
  const scale=Math.min((maxEdge-2*pad)/b.w,(maxEdge-top-footer)/b.h);
  const w=Math.max(1,Math.floor(b.w*scale)),h=Math.max(1,Math.floor(b.h*scale));
  const cv=document.createElement("canvas");cv.width=w+2*pad;cv.height=h+top+footer;const ctx=cv.getContext("2d");
@@ -176,7 +182,10 @@ function renderCanvas(d,maxEdge){
  ctx.save();ctx.translate(pad,top);ctx.scale(w/b.w,h/b.h);ctx.translate(-b.x,-b.y);
  ctx.beginPath();ctx.rect(b.x,b.y,b.w,b.h);ctx.clip();
  if(region!=="Deutschland"&&!neighbors){makePath(ctx,selected);ctx.clip("evenodd")}
- ctx.imageSmoothingEnabled=false;ctx.drawImage(s.canvas,0,0);
+ // Smooth only the displayed colours. The source raster, station values
+ // and numerical calculations remain untouched. Boundaries and symbols
+ // are drawn afterwards at the final output resolution.
+ drawRaster(ctx,s.canvas,rendering);
  ctx.lineJoin="round";ctx.lineCap="round";
  for(const f of features){makePath(ctx,f.polys);ctx.strokeStyle="#343a40";ctx.lineWidth=(region===f.name?1.5:.65)*u/scale;ctx.stroke()}
  ctx.restore();
@@ -204,6 +213,7 @@ function renderCanvas(d,maxEdge){
  legend.forEach((l,i)=>{const col=i%legendCols,row=Math.floor(i/legendCols),x=pad+col*w/legendCols,y=top+h+14*u+row*22*u;ctx.fillStyle=l.color;ctx.fillRect(x,y,15*u,12*u);ctx.strokeStyle="#aaa";ctx.lineWidth=.6*u;ctx.strokeRect(x,y,15*u,12*u);ctx.fillStyle="#26323b";ctx.fillText(l.label,x+20*u,y+11*u,Math.max(10,w/legendCols-24*u))});
  ctx.fillStyle="#45525c";ctx.font=Math.round(11*u)+"px sans-serif";
  ctx.fillText("DWD HYRAS-DE · DWD CDC KL · Grenzen: deutschlandGeoJSON/GIS-DATA",pad,cv.height-24*u,cv.width-2*pad);
+ ctx.fillText(rendering==="native"?"Darstellung: Originalraster":"Darstellung: visuell geglättet (keine höhere Datenauflösung)",pad,top+h+Math.round((14+legendRows*22)*u),cv.width-2*pad);
  ctx.fillText(d.note||"",pad,cv.height-9*u,cv.width-2*pad);
  return {cv,hits};
 }
@@ -221,7 +231,8 @@ async function refresh(){
   let st={stations:[],note:"Stationslayer ausgeschaltet."};
   if($("hyrasRegStations").checked){$("hyrasRegStatus").textContent="DWD-Stationswerte für den Kartenzeitraum werden geprüft …";try{st=await stationData(s,geo,region,values||onlyValid)}catch(e){st.note="Stationsdaten nicht verfügbar: "+e.message}}
   if(rev!==revision||!s.owner.isConnected)return;
-  const d={s,b,features,selected,region,stations:filterStations(st.stations,onlyValid),legend:s.legend||[],neighbors,names,values,note:st.note};
+  const rendering=$("hyrasRegRendering").value==="native"?"native":"smooth";
+  const d={s,b,features,selected,region,stations:filterStations(st.stations,onlyValid),legend:s.legend||[],neighbors,names,values,rendering,note:st.note};
   const out=renderCanvas(d,1100);$("hyrasRegPreview").replaceChildren(out.cv);
   display=d;
   out.cv.addEventListener("pointerup",e=>{
@@ -229,7 +240,7 @@ async function refresh(){
    let best=null,dist=22;for(const h of out.hits){const q=Math.hypot(x-h.x,y-h.y);if(q<dist){best=h;dist=q}}
    $("hyrasRegInspection").textContent=best?best.name+" (DWD "+best.id+", "+best.elev+" m) · "+(Number.isFinite(best.value)?best.value.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})+" K":"Kein passender Messwert"):"Stationspunkt antippen, um Details zu sehen.";
   });
-  $("hyrasRegStatus").textContent="HYRAS-Raster: "+s.resolution+" km · "+out.hits.length+" Stationspunkte im Ausschnitt. "+st.note;
+  $("hyrasRegStatus").textContent="HYRAS-Raster: "+s.resolution+" km · "+(rendering==="native"?"Originalraster":"visuell geglättet")+" · "+out.hits.length+" Stationspunkte im Ausschnitt. "+st.note;
   $("hyrasRegPng").disabled=false;$("hyrasRegPdf").disabled=false;
  }catch(e){if(rev===revision){clear("Regionalkarte nicht verfügbar: "+e.message);console.warn("HYRAS regional",e)}}
 }
@@ -257,6 +268,6 @@ function setSource(s){
  source={...s,legend:legendFrom(s.legendNode)};display=null;revision++;
  if($("hyrasRegionalWorkshop")?.open)refresh();else clear("Raster verfügbar. Regionale Kartenwerkstatt öffnen.");
 }
-const api={project,coordinate,extent,isoDates,accumulate,filterStations,install,setSource};
+const api={project,coordinate,extent,isoDates,accumulate,filterStations,drawRaster,install,setSource};
 if(typeof module==="object"&&module.exports)module.exports=api;else {root.HyrasRegional=api;install()}
 })(typeof globalThis==="object"?globalThis:this);
