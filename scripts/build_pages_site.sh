@@ -1888,6 +1888,18 @@ if [ -n "${DASHBOARD_LOADING_STAGE:-}" ]; then
   fi
 fi
 
+# Verify the station record monitor survives all frontend patches.
+test -s _site/bundeslaender_rekord.html
+test -s _site/bundeslaender_rekord.js
+test -s _site/bundeslaender_rekord_core.js
+node --check _site/bundeslaender_rekord.js
+node --test tests/test_bundeslaender_rekord.cjs
+grep -Fq 'value="extreme" selected' _site/bundeslaender_rekord.html
+grep -Fq 'id="annualRows"' _site/bundeslaender_rekord.html
+grep -Fq 'bundeslaender-station-data/extremes/' _site/bundeslaender_rekord.js
+grep -Fq 'bundeslaender_rekord.html' _site/index.html
+grep -Fq 'bundeslaender_rekord.html' _site/mobile_navigation.js
+
 # Cache-Versionen erst NACH allen Frontend-Patches und dem optionalen
 # Performance-Build erstellen. Die Daten- und Bildkopien oben bleiben erhalten.
 # Auch zusätzliche HTML-Unterseiten werden geprüft; keine alte handgepflegte
