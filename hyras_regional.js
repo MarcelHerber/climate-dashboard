@@ -94,6 +94,7 @@ function install(){
  '<label><input id="hyrasRegStations" type="checkbox" checked> DWD-Stationen</label>'+
  '<label><input id="hyrasRegNames" type="checkbox"> Stationsnamen</label>'+
  '<label><input id="hyrasRegValues" type="checkbox" checked> Messwerte</label>'+
+ '<label><input id="hyrasRegOnlyValid" type="checkbox"> Nur Stationen mit gültigem Wert</label>'+
  '<label><input id="hyrasRegNeighbors" type="checkbox"> Umgebung anzeigen</label></div>'+
  '<p id="hyrasRegStatus" class="note" role="status">Zuerst eine numerische HYRAS-Karte laden.</p>'+
  '<div id="hyrasRegPreview" class="hyras-reg-preview"></div>'+
@@ -104,7 +105,7 @@ function install(){
  style.textContent=".hyras-reg-controls{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:12px 0}.hyras-reg-controls label{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:13px}.hyras-reg-controls select{max-width:100%;padding:6px}.hyras-reg-preview{background:#fff;overflow:hidden;border-radius:7px}.hyras-reg-preview canvas{display:block;width:100%;height:auto;touch-action:pan-y}.hyras-reg-controls input{width:auto}@media(max-width:650px){.hyras-reg-controls label{max-width:100%}}";
  document.head.append(style);card.before(el);
  el.addEventListener("toggle",()=>{if(el.open)refresh()});
- for(const id of ["hyrasRegRegion","hyrasRegStations","hyrasRegNames","hyrasRegValues","hyrasRegNeighbors"]){$(id).addEventListener("change",refresh)}
+ for(const id of ["hyrasRegRegion","hyrasRegStations","hyrasRegNames","hyrasRegValues","hyrasRegOnlyValid","hyrasRegNeighbors"]){$(id).addEventListener("change",refresh)}
  $("hyrasRegPng").onclick=()=>download("png");$("hyrasRegPdf").onclick=()=>download("pdf");
  const watch=new MutationObserver(()=>{if(source&&!source.owner?.isConnected){source=null;revision++;display=null;clear("Diese Ansicht besitzt derzeit kein unterstütztes numerisches Raster. Bitte eine andere HYRAS-Karte wählen.")}});
  watch.observe(frame,{childList:true,subtree:true});
@@ -154,6 +155,9 @@ async function stationData(s,geo,region,wantValues){
   return p?[{name:row[2],id:row[1],elev:row[5],p,value:values.get(i),state:row[6]}]:[];
  });
  return {stations,note};
+}
+function filterStations(stations,onlyValid){
+ return onlyValid?stations.filter(st=>Number.isFinite(st.value)):stations;
 }
 function renderCanvas(d,maxEdge){
  const {s,b,features,selected,region,stations,legend,neighbors,names,values}=d;
@@ -209,15 +213,15 @@ async function refresh(){
  clear("Regionalkarte wird vorbereitet …");
  if(!s?.owner?.isConnected){clear("Für diese Ansicht ist noch kein numerisches Raster verfügbar.");return}
  try{
-  const region=$("hyrasRegRegion").value,neighbors=$("hyrasRegNeighbors").checked,names=$("hyrasRegNames").checked,values=$("hyrasRegValues").checked;
+  const region=$("hyrasRegRegion").value,neighbors=$("hyrasRegNeighbors").checked,names=$("hyrasRegNames").checked,values=$("hyrasRegValues").checked,onlyValid=$("hyrasRegOnlyValid").checked;
   const geo=await loadGeometry(s);if(rev!==revision)return;
   const features=geo.items;
   const selected=(region==="Deutschland"?features:features.filter(f=>normalized(f.name)===normalized(region))).flatMap(f=>f.polys);
   const b=region==="Deutschland"?{x:0,y:0,w:s.canvas.width,h:s.canvas.height}:extent(selected,s.canvas.width,s.canvas.height);
   let st={stations:[],note:"Stationslayer ausgeschaltet."};
-  if($("hyrasRegStations").checked){$("hyrasRegStatus").textContent="DWD-Stationswerte für den Kartenzeitraum werden geprüft …";try{st=await stationData(s,geo,region,values)}catch(e){st.note="Stationsdaten nicht verfügbar: "+e.message}}
+  if($("hyrasRegStations").checked){$("hyrasRegStatus").textContent="DWD-Stationswerte für den Kartenzeitraum werden geprüft …";try{st=await stationData(s,geo,region,values||onlyValid)}catch(e){st.note="Stationsdaten nicht verfügbar: "+e.message}}
   if(rev!==revision||!s.owner.isConnected)return;
-  const d={s,b,features,selected,region,stations:st.stations,legend:s.legend||[],neighbors,names,values,note:st.note};
+  const d={s,b,features,selected,region,stations:filterStations(st.stations,onlyValid),legend:s.legend||[],neighbors,names,values,note:st.note};
   const out=renderCanvas(d,1100);$("hyrasRegPreview").replaceChildren(out.cv);
   display=d;
   out.cv.addEventListener("pointerup",e=>{
@@ -253,6 +257,6 @@ function setSource(s){
  source={...s,legend:legendFrom(s.legendNode)};display=null;revision++;
  if($("hyrasRegionalWorkshop")?.open)refresh();else clear("Raster verfügbar. Regionale Kartenwerkstatt öffnen.");
 }
-const api={project,coordinate,extent,isoDates,accumulate,install,setSource};
+const api={project,coordinate,extent,isoDates,accumulate,filterStations,install,setSource};
 if(typeof module==="object"&&module.exports)module.exports=api;else {root.HyrasRegional=api;install()}
 })(typeof globalThis==="object"?globalThis:this);
