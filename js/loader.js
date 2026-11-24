@@ -11,7 +11,7 @@
     "europa-stationen":["js/europa-stationen.js","20261121-1"],
     "schnee":["js/schnee.js","20261122-1"],
     "hyras_regional":["hyras_regional.js","20261124-1"],
-    "hyras_temperature_interactive":["hyras_temperature_interactive.js","20261124-regional-1"],
+    "hyras_temperature_interactive":["hyras_temperature_interactive.js","20261124-border-fix-1"],
     "hyras":["js/hyras.js","20261124-regional-1"],
     "hyras-tmin":["js/hyras-tmin.js","20261124-downloads-1"],
     "hyras_historical_temperature_1km":["hyras_historical_temperature_1km.js","5"],
