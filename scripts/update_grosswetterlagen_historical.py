@@ -4,6 +4,7 @@ The original PDF stays with its publisher. Reject incomplete or ambiguous tables
 """
 import argparse
 import calendar
+from collections import Counter
 import csv
 import re
 import subprocess
@@ -23,7 +24,7 @@ CODES = set("WA WZ WS WW SWA SWZ NWA NWZ HM BM TM NA NZ HNA HNZ HB TRM NEA NEZ H
 ROW = re.compile(r"^[\s\d]*?(18\d{2}|19\d{2}|200\d)\s+(.+?)\s+\1[\s\d]*$")
 START, END = date(1881,1,1), date(2009,12,31)
 
-def parse_layout(text):
+def parse_layout(text, require_complete=True):
     rows = {}
     month = None
     for line in text.splitlines():
@@ -53,6 +54,8 @@ def parse_layout(text):
             rows[d] = code
     expected = {START+timedelta(days=i) for i in range((END-START).days+1)}
     missing = expected-rows.keys()
+    if not require_complete:
+        return rows
     if missing or rows.keys()-expected:
         raise ValueError(f"Coverage mismatch: {len(rows)} days, {len(missing)} missing; affected months {sorted({d.isoformat()[:7] for d in missing})}")
     if set(rows.values()) != CODES:
@@ -115,6 +118,79 @@ def layout_from_bbox(xml, expected_pages=36):
             raise ValueError(f"Duplicate year on table page {i+105}")
     return "\n".join(output)
 
+def rows_from_chars(raw):
+    """Project glyphs onto the dominant writing direction, independent of page rotation."""
+    lines=[line for block in raw["blocks"] if block.get("type")==0 for line in block["lines"]]
+    direction=lambda line: tuple(round(v,3) for v in line["dir"])
+    counts=Counter()
+    for line in lines:
+        counts[direction(line)]+=sum(len(s["chars"]) for s in line["spans"])
+    if not counts:
+        raise ValueError("No PDF text")
+    dx,dy=counts.most_common(1)[0][0]
+    if abs(dx*dx+dy*dy-1)>0.01:
+        raise ValueError("Invalid writing direction")
+    chars=[]
+    for line in lines:
+        if direction(line)!=(dx,dy):
+            continue
+        for span in line["spans"]:
+            for ch in span["chars"]:
+                ox,oy=ch["origin"]
+                x0,y0,x1,y1=ch["bbox"]
+                projections=[x*dx+y*dy for x in (x0,x1) for y in (y0,y1)]
+                chars.append((ox*(-dy)+oy*dx,min(projections),max(projections),ch["c"]))
+    bands=[]
+    for y,x0,x1,c in sorted(chars):
+        if not bands or abs(y-bands[-1][0])>1.0:
+            bands.append((y,[]))
+        bands[-1][1].append((x0,x1,c))
+    result=[]
+    for _,band in bands:
+        out=""
+        right=None
+        for x0,x1,c in sorted(band):
+            if right is not None and x0-right>1.0 and not out.endswith(" "):
+                out+=" "
+            out+=c
+            right=x1 if right is None else max(x1,right)
+        result.append(out.strip())
+    return result
+
+def layout_from_pdf(pdf):
+    import fitz
+    output=[]
+    with fitz.open(pdf) as doc:
+        if len(doc)<140:
+            raise ValueError("Original report incomplete")
+        for i in range(36):
+            page=doc[104+i]
+            lines=rows_from_chars(page.get_text("rawdict"))
+            month=i//3+1
+            titles={MONTHS[w] for line in lines for w in line.upper().split() if w in MONTHS}
+            if titles!={month}:
+                raise ValueError(f"PDF page {105+i}: month titles {titles}, expected {month}")
+            output.append(next(k for k,v in MONTHS.items() if v==month))
+            candidates=[]
+            for line in lines:
+                parts=line.upper().split()
+                if not parts or not re.fullmatch(r"\d{4}",parts[0]):
+                    continue
+                year=int(parts[0])
+                if not 1881<=year<=2009:
+                    continue
+                if parts[-1]!=parts[0]:
+                    raise ValueError(f"PDF page {105+i}: mismatched year labels: {line}")
+                candidates.append(year)
+                output.append(" ".join(parts))
+            start=[1881,1926,1971][i%3]
+            stop=[1926,1971,2010][i%3]
+            expected=list(range(start,stop))
+            print(f"PDF page {105+i}: rotation={page.rotation}, month={month}, years={candidates}")
+            if sorted(candidates)!=expected:
+                raise ValueError(f"PDF page {105+i}: missing/duplicate years; missing {sorted(set(expected)-set(candidates))}")
+    return "\n".join(output)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pdf", type=Path, help="Use a locally downloaded original PIK report")
@@ -126,8 +202,15 @@ def main():
                 pdf.write_bytes(res.read(40_000_001))
         if not pdf.read_bytes().startswith(b"%PDF-"):
             raise ValueError("Not an original PDF")
-        bbox = subprocess.check_output(["pdftotext","-f","105","-l","140","-bbox",str(pdf),"-"],text=True,encoding="utf-8")
-        rows = parse_layout(layout_from_bbox(bbox))
+        rows = parse_layout(layout_from_pdf(pdf))
+        legacy = subprocess.check_output(["pdftotext","-f","104","-layout",str(pdf),"-"],text=True,encoding="utf-8")
+        reference = parse_layout(legacy, require_complete=False)
+        if len(reference)<46386:
+            raise ValueError(f"Too few independent legacy cross-check rows: {len(reference)}")
+        disagreements=[d for d,v in reference.items() if rows.get(d)!=v]
+        if disagreements:
+            raise ValueError(f"Extraction disagreement on {len(disagreements)} days; first {disagreements[:10]}")
+        print(f"Independent extraction agreement: {len(reference)} original days; recovered {len(rows)-len(reference)} additional days")
         # Independently spot-check the previously missing January rows in the printed original.
         anchors = {date(1902,1,1):"WZ",date(1902,1,31):"HNA",date(1903,1,1):"WS",date(1903,1,31):"WA"}
         if any(rows[d]!=v for d,v in anchors.items()):
