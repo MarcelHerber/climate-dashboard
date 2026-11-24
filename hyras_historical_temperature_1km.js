@@ -148,6 +148,70 @@
       y:rows>1?row/(rows-1)*100:0
     };
   }
+
+  // Ein einzelnes Zeitfenster aus dem veröffentlichten 5x4-Kartensprite
+  // als natives PNG exportieren, statt das komplette Jahres-Sprite.
+  async function downloadHistoricalTemperature(sprite,meta,period,p,mode,button){
+    if(!button||!sprite?.url)return;
+    const status=document.getElementById("hyrasHistoricalTemperatureExportStatus");
+    button.disabled=true;
+    button.textContent="PNG wird erstellt …";
+    if(status)status.textContent="";
+    try{
+      const image=new Image();
+      image.crossOrigin="anonymous";
+      await new Promise((resolve,reject)=>{
+        image.onload=resolve;
+        image.onerror=()=>reject(new Error("Kartensprite konnte nicht für den PNG-Export geladen werden."));
+        image.src=sprite.url;
+      });
+      const layout=meta.sprite_layout||{};
+      const cols=Number(layout.columns||5);
+      const rows=Number(layout.rows||4);
+      const index=periodIndex(meta,period.key);
+      if(index<0||index>=cols*rows)throw new Error("Gewählte Karte liegt außerhalb des Kartensprites.");
+      const width=Number(meta.width);
+      const height=Number(meta.height);
+      if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1||
+         image.naturalWidth!==width*cols||image.naturalHeight!==height*rows){
+        throw new Error("Kartensprite hat nicht die erwarteten Rasterabmessungen.");
+      }
+      const canvas=document.createElement("canvas");
+      canvas.width=width;
+      canvas.height=height;
+      const ctx=canvas.getContext("2d");
+      if(!ctx)throw new Error("PNG-Canvas konnte nicht angelegt werden.");
+      ctx.drawImage(image,(index%cols)*width,Math.floor(index/cols)*height,width,height,0,0,width,height);
+      const blob=await new Promise((resolve,reject)=>{
+        try{canvas.toBlob(value=>value?resolve(value):reject(new Error("Leeres PNG.")),"image/png");}
+        catch(error){reject(error);}
+      });
+      const url=URL.createObjectURL(blob);
+      const anchor=document.createElement("a");
+      anchor.href=url;
+      anchor.download=["hyras",p,period.year,period.key,mode,mode==="anomaly"?reference().replace("-","_"):"","1km"].filter(Boolean).join("_")+".png";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(url),2500);
+      if(status)status.textContent="Einzelkarte als 1-km-PNG gespeichert.";
+    }catch(error){
+      console.error("HYRAS historischer Kartendownload:",error);
+      if(status){
+        status.textContent="Der Einzelkarten-Export wurde vom Bildserver blockiert. ";
+        const link=document.createElement("a");
+        link.href=sprite.url;
+        link.target="_blank";
+        link.rel="noopener noreferrer";
+        link.textContent="Originalspritemap öffnen";
+        status.appendChild(link);
+      }
+    }finally{
+      button.disabled=false;
+      button.textContent="Karte als PNG herunterladen";
+    }
+  }
+
   function legendHtml(p,mode){
     const values=mode==="anomaly"?ANOM_LEGEND:ABS_LEGENDS[p];
     const colors=mode==="anomaly"?ANOM_COLORS:ABS_COLORS;
@@ -171,6 +235,10 @@
       .hyras-hist1km-legend span{display:flex;align-items:center;gap:4px}
       .hyras-hist1km-legend i{display:inline-block;width:13px;height:13px;border:1px solid rgba(0,0,0,.18)}
       .hyras-hist1km-note{text-align:center;color:#68727b;font-size:12px;margin:9px 0 0}
+      .hyras-hist1km-downloads{justify-content:center;margin:10px 0 6px}
+      .hyras-hist1km-downloads button{border:0;cursor:pointer}
+      .hyras-hist1km-downloads button:disabled{opacity:.6;cursor:wait}
+      .hyras-hist1km-export-status{display:block;text-align:center;font-size:12px;color:#68727b;margin:2px 8px 8px}
     `;
     document.head.appendChild(style);
   }
@@ -241,6 +309,10 @@
         <div class="hyras-hist1km-title">${PARAM_LABELS[p]} · ${period.label}</div>
         <div class="hyras-hist1km-subtitle">${mode==="anomaly"?`Abweichung ${referenceDisplay()}`:"absolute Temperatur"} · natives HYRAS-1-km-Raster</div>
         <div class="hyras-hist1km-map"></div>
+        <div class="hyras-tmean-downloads hyras-hist1km-downloads">
+          <button class="hyras-tmean-download" id="hyrasHistoricalTemperatureDownload" type="button">Karte als PNG herunterladen</button>
+        </div>
+        <div id="hyrasHistoricalTemperatureExportStatus" class="hyras-hist1km-export-status" role="status"></div>
         <div class="hyras-hist1km-legend">${legendHtml(p,mode)}</div>
         <div class="hyras-hist1km-note">Historisches Kartenarchiv 1951–2025 · 1 km</div>
       </div>
@@ -250,6 +322,8 @@
     map.style.backgroundImage=`url("${sprite.url}")`;
     map.style.backgroundSize=`${Number(meta.sprite_layout?.columns||5)*100}% ${Number(meta.sprite_layout?.rows||4)*100}%`;
     map.style.backgroundPosition=`${pos.x}% ${pos.y}%`;
+    const downloadButton=frame.querySelector("#hyrasHistoricalTemperatureDownload");
+    downloadButton?.addEventListener("click",()=>downloadHistoricalTemperature(sprite,meta,period,p,mode,downloadButton));
 
     setStats(p,period,stats);
     const link=document.getElementById("hyrasOpenImage");
