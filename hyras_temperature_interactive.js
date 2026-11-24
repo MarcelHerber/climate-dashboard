@@ -62,6 +62,9 @@
       const image=panel.querySelector('.hyras-tmean-anomaly-preview-link');if(image)image.hidden=true;
       const empty=panel.querySelector('.hyras-tmean-anomaly-preview-empty');if(empty)empty.hidden=true;
       status.before(native);status.textContent='DWD HYRAS-DE · Originalraster 1 km · '+cfg.reference.replace('-','–');
+      if(root.HyrasRegional&&cfg.base){
+        root.HyrasRegional.setSource({canvas,owner:native,lookupUrl:cfg.base+'/interactive/geo_lookup_1km.json',parameter:cfg.parameter,metric:'anomaly',reference:cfg.reference,start:cfg.start,end:cfg.end,resolution:1,title:'Temperaturabweichung · '+cfg.parameter.toUpperCase(),subtitle:cfg.start+' – '+cfg.end+' · Referenz '+cfg.reference,legendNode:legend});
+      }
     }catch(error){if(live()){status.textContent='Rasterabfrage derzeit nicht verfügbar – vorhandene Karte bleibt sichtbar.';console.warn('HYRAS Temperatur-Raster:',error);}}
   }
   const api={mapForReference,cellAt,decodePlane,exactRaster,mount};
