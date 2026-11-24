@@ -49,6 +49,35 @@ def average(panel,field,n):
     v=a.mean(axis=0)/10
     return [round(float(x),3) if ok else None for x,ok in zip(v,valid)]
 
+def extremes(candidates,field,n,direction):
+    """Independent daily station extremes, with deterministic ties and sample count."""
+    if not candidates: return [None]*n,[None]*n,[0]*n
+    candidates=sorted(candidates,key=lambda x:x[0])
+    a=np.stack([x[1][:,field] for x in candidates])
+    valid=(a>=-600)&(a<=600)
+    count=valid.sum(axis=0)
+    work=np.where(valid,a,32767 if direction=="low" else -32768)
+    ix=work.argmin(axis=0) if direction=="low" else work.argmax(axis=0)
+    v=work[ix,np.arange(n)]
+    return ([float(x)/10 if c else None for x,c in zip(v,count)],
+            [candidates[i][0] if c else None for i,c in zip(ix,count)],
+            [int(c) for c in count])
+
+def write_extremes(output,metadata,data,parameter,field,cutoff,n):
+    candidates={r:[(sid,v) for sid,v in data.items() if metadata[sid]["state"]==r] for r in REGIONS[1:]}
+    candidates["Deutschland"]=list(data.items())
+    years=list(range(FIRST.year,cutoff.year+1))
+    for direction in ("low","high"):
+        series={r:extremes(candidates[r],field,n,direction) for r in REGIONS}
+        dest=output/"extremes"/parameter/direction
+        for y in years:
+            lo=(date(y,1,1)-FIRST).days
+            hi=(min(date(y,12,31),cutoff)-FIRST).days+1
+            dates=[(FIRST+timedelta(days=i)).isoformat() for i in range(lo,hi)]
+            write(dest/f"{y}.json",{"parameter":parameter,"year":y,"unit":"°C","source":"DWD CDC KL Stationsmessungen","dates":dates,"regions":{r:series[r][0][lo:hi] for r in REGIONS},"station_ids":{r:series[r][1][lo:hi] for r in REGIONS},"counts":{r:series[r][2][lo:hi] for r in REGIONS}})
+        write(dest/"index.json",{"parameter":parameter,"years":years,"regions":REGIONS,"data_through":cutoff.isoformat(),"direction":direction,"station_names":{sid:s.get("name",sid) for sid,s in metadata.items()},"method":"Tagesextrem aller verfügbaren DWD-KL-Stationen im vorhandenen Dashboard-Archiv. Wechselndes Messnetz, keine Flächenmittel. Laufendes Jahr vorläufig."})
+        print("station extremes",parameter,direction,flush=True)
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--root",type=Path,default=Path("."))
@@ -65,20 +94,21 @@ def main():
         path=a.root/"station_threshold_daily"/(sid+".json")
         if not path.exists(): continue
         doc=json.loads(path.read_text())
-        if FIRST.year not in doc.get("years",[]): continue
         data[sid]=decode(doc,cutoff)
     for rel in idx.get("current_files",[]):
         doc=json.loads((a.root/rel).read_text())
         y,m=doc["year"],doc["month"]
         if y!=cutoff.year: continue
         for sid,rows in doc["stations"].items():
-            if sid not in data: continue
+            if sid not in metadata: continue
+            if sid not in data: data[sid]=np.full((n,3),MISSING,dtype=np.int16)
             for d,row in enumerate(rows,1):
                 day=date(y,m,d)
                 if day>cutoff: break
                 if row and len(row)>=5:
                     data[sid][(day-FIRST).days]=[v if v is not None and -600<=v<=600 else MISSING for v in row[2:5]]
     for parameter,field in FIELDS.items():
+        write_extremes(a.output,metadata,data,parameter,field,cutoff,n)
         panels={r:panel_series([(sid,v) for sid,v in data.items() if metadata[sid]["state"]==r],hist_days,field) for r in REGIONS[1:]}
         panels["Deutschland"]=[x for r in REGIONS[1:] for x in panels[r]]
         counts={r:len(v) for r,v in panels.items()}
