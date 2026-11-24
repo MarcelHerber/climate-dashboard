@@ -1089,7 +1089,7 @@ function runningYear(area,year,param){
 }
 
 function updateAccumulation(){
-  if(!document.getElementById("monthly")?.classList.contains("active")) return;
+  if(!document.getElementById("accumulation")?.classList.contains("active")) return;
   if(!monthlyData.length) return;
   const area=document.getElementById("accAreaSelect").value;
   const param=document.getElementById("accParamSelect").value;
