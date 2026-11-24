@@ -1,0 +1,98 @@
+name: Lighthouse · Prefetch A/B 2026-11-24
+on:
+  push:
+    branches: [perf/prefetch-live-audit-20261124]
+    paths:
+      - 'tests/serve_prefetch_ab.py'
+      - '.github/workflows/lighthouse-prefetch-live-20261124.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lighthouse-ab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build unmodified production Pages artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+          bash scripts/build_pages_site.sh > reports/pages-build.log 2>&1 || {
+            tail -n 160 reports/pages-build.log
+            exit 1
+          }
+          tail -n 12 reports/pages-build.log
+          grep -q 'const PREFETCH_DELAY=6000;' _site/js/loader.js
+      - name: Install pinned Lighthouse and Playwright
+        run: |
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/lighthouse" "lighthouse@12.6.0"
+          python -m pip install "playwright==1.57.0"
+          python -m playwright install chromium
+          google-chrome --version | tee reports/chrome-version.txt
+      - name: Run six cold audits per device with identical gzip server and contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -u tests/serve_prefetch_ab.py --site _site --port 8765 > reports/server.log 2>&1 &
+          server=$!
+          trap 'kill "$server" || true' EXIT
+          for attempt in {1..40}; do
+            if curl -fsS --compressed 'http://127.0.0.1:8765/index.html?tab=overview&prefetch=on' -o reports/on.html &&
+               curl -fsS --compressed 'http://127.0.0.1:8765/index.html?tab=overview&prefetch=off' -o reports/off.html; then
+              break
+            fi
+            sleep 1
+          done
+          grep -q 'js/loader.prefetch-off.js' reports/off.html
+          grep -q 'js/loader.js' reports/on.html
+          lh="$RUNNER_TEMP/lighthouse/node_modules/.bin/lighthouse"
+          mkdir -p reports/lighthouse
+          for device in mobile desktop; do
+            preset=()
+            if [[ "$device" == desktop ]]; then preset+=(--preset=desktop); fi
+            for pass in 1 2 3; do
+              for variant in on off; do
+                url="http://127.0.0.1:8765/index.html?tab=overview&prefetch=$variant"
+                echo "Lighthouse $device prefetch=$variant run=$pass"
+                "$lh" "$url" "${preset[@]}" --only-categories=performance \
+                  --throttling-method=simulate \
+                  --chrome-flags='--headless --no-sandbox --disable-dev-shm-usage' \
+                  --output=json --output-path="reports/lighthouse/$device-$variant-$pass.json" --quiet
+              done
+            done
+          done
+          python - <<'PY'
+          import json,statistics
+          from pathlib import Path
+          root=Path('reports/lighthouse')
+          keys=['first-contentful-paint','largest-contentful-paint','total-blocking-time','speed-index','cumulative-layout-shift','total-byte-weight','network-requests']
+          out={'build':'Identical built Pages artifact, identical origin, gzip and cold Chrome','variants':{'on':'PREFETCH_DELAY=6000','off':'PREFETCH_DELAY=false'},'devices':{}}
+          for device in ('mobile','desktop'):
+            out['devices'][device]={}
+            for variant in ('on','off'):
+              runs=[]
+              for n in (1,2,3):
+                d=json.loads((root/f'{device}-{variant}-{n}.json').read_text())
+                if d.get('runtimeError'):raise SystemExit(f'Lighthouse {device} {variant} {n}: {d["runtimeError"]}')
+                metrics={k:d['audits'][k].get('numericValue') for k in keys if k in d['audits'] and d['audits'][k].get('numericValue') is not None}
+                runs.append({'score':round(d['categories']['performance']['score']*100,1),**metrics,'fetchTime':d.get('fetchTime'),'lighthouseVersion':d.get('lighthouseVersion')})
+              numeric=['score']+[k for k in keys if k in runs[0]]
+              out['devices'][device][variant]={'runs':runs,'median':{k:round(statistics.median(r[k] for r in runs),2) for k in numeric}}
+          Path('reports/lighthouse-median-summary.json').write_text(json.dumps(out,indent=2)+'\n')
+          print(json.dumps({d:{v:out['devices'][d][v]['median'] for v in ('on','off')} for d in out['devices']},indent=2))
+          PY
+      - name: Save complete lighthouse measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-prefetch-6000-vs-false
+          path: reports/
+          retention-days: 90
