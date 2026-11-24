@@ -157,11 +157,12 @@ async function stationData(s,geo,region,wantValues){
 }
 function renderCanvas(d,maxEdge){
  const {s,b,features,selected,region,stations,legend,neighbors,names,values}=d;
- const scale=Math.min((maxEdge-32)/b.w,(maxEdge-32)/b.h);
- const w=Math.round(b.w*scale),h=Math.round(b.h*scale);
  const u=Math.max(1,maxEdge/1000),pad=Math.round(18*u),top=Math.round(76*u);
- const font=Math.round(12*u),legendCols=Math.max(1,Math.min(5,Math.floor(w/(150*u)))),legendRows=Math.ceil(legend.length/legendCols);
+ const estimatedWidth=Math.min(maxEdge-2*pad,(maxEdge-top-130*u)*b.w/b.h);
+ const font=Math.round(12*u),legendCols=Math.max(1,Math.min(5,Math.floor(estimatedWidth/(150*u)))),legendRows=Math.ceil(legend.length/legendCols);
  const footer=Math.round((48+legendRows*22)*u);
+ const scale=Math.min((maxEdge-2*pad)/b.w,(maxEdge-top-footer)/b.h);
+ const w=Math.max(1,Math.floor(b.w*scale)),h=Math.max(1,Math.floor(b.h*scale));
  const cv=document.createElement("canvas");cv.width=w+2*pad;cv.height=h+top+footer;const ctx=cv.getContext("2d");
  if(!ctx)throw Error("Canvas konnte nicht erzeugt werden");
  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,cv.width,cv.height);ctx.fillStyle="#192630";ctx.font="bold "+Math.round(22*u)+"px sans-serif";
@@ -253,5 +254,5 @@ function setSource(s){
  if($("hyrasRegionalWorkshop")?.open)refresh();else clear("Raster verfügbar. Regionale Kartenwerkstatt öffnen.");
 }
 const api={project,coordinate,extent,isoDates,accumulate,install,setSource};
-if(typeof module==="object"&&module.exports)module.exports=api;else root.HyrasRegional=api;
+if(typeof module==="object"&&module.exports)module.exports=api;else {root.HyrasRegional=api;install()}
 })(typeof globalThis==="object"?globalThis:this);
