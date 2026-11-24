@@ -65,6 +65,7 @@ def build_payload(doc: dict[str, Any], model_data: dict[str, dict], support: dic
             curves[key] = {
                 "label": mdata["label"],
                 "run": mdata.get("run"),
+                "retrieved_at": mdata.get("retrieved_at"),
                 "api_model": mdata.get("api_model"),
                 **merge_running_outlook(
                     observed_dates, observed_values,
@@ -163,7 +164,11 @@ def build_resilient_payload(observed, fresh, cached, previous, errors, now, *, t
                 built = build_payload(observed, {key: model}, {}, target=target)
                 curves = {r: built["regions"][r]["models"][key] for r in REGION_ORDER}
                 if all(usable_curve(c, payload) for c in curves.values()):
-                    candidates.append((run or datetime.min.replace(tzinfo=timezone.utc), not is_cached, curves, model))
+                    # A newer verified cached run beats an older verified fresh
+                    # run; unverified freshly acquired data beats an old cache
+                    # after its full forecast coverage has been checked.
+                    ranking_run = run or (now if not is_cached else datetime.min.replace(tzinfo=timezone.utc))
+                    candidates.append((ranking_run, not is_cached, curves, model))
             except (ValueError, KeyError, TypeError, RuntimeError, IndexError):
                 continue
         # A cached forecast can be recomputed at member level against the new

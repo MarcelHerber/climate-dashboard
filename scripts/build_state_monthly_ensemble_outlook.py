@@ -169,7 +169,11 @@ def select_temperature_models(fresh: dict, cached: dict, observed_through: str, 
                         raise ValueError("Forecast gap")
             except (KeyError, IndexError, TypeError, ValueError):
                 continue
-            candidates.append((run, is_fresh, model))
+            # Fresh complete members with unverified metadata must not lose
+            # to an older cache merely because its initialization is known.
+            # With two verified timestamps, always prefer the newer run.
+            ranking_run = now if is_fresh and run == datetime.min.replace(tzinfo=timezone.utc) else run
+            candidates.append((ranking_run, is_fresh, model))
         if candidates:
             _, is_fresh, model = max(candidates, key=lambda c: (c[0], c[1]))
             selected[key] = {**model, "retained": not is_fresh}
@@ -563,7 +567,13 @@ def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str =
     return refs, locations
 
 
-def model_run_time(model_key: str) -> str | None:
+def model_run_time(model_key: str, now: datetime | None = None) -> str | None:
+    """Plausibility-check *metadata*, never infer a run time from forecast dates.
+
+    Open-Meteo can serve forecasts independently of /static/meta.json. An old
+    metadata timestamp is not proof that today's freshly retrieved ensemble
+    members belong to that old run. Keep their actual origin unverified.
+    """
     domain = MODEL_CONFIG[model_key].get("meta_domain")
     if not domain:
         return None
@@ -573,7 +583,17 @@ def model_run_time(model_key: str) -> str | None:
         ts = finite(meta.get("last_run_initialisation_time"))
         if ts is None:
             return None
-        return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+        run = datetime.fromtimestamp(ts, tz=timezone.utc)
+        age = (now or datetime.now(timezone.utc)) - run
+        if not -timedelta(hours=1) <= age <= timedelta(hours=48):
+            print(
+                f"Warnung: {model_key} Metadaten-Laufzeit {run.isoformat()} "
+                f"ist unplausibel ({age.total_seconds()/3600:.1f} h); "
+                "Ensemblewerte werden separat geprüft, Laufzeit bleibt unbekannt.",
+                flush=True,
+            )
+            return None
+        return run.isoformat().replace("+00:00", "Z")
     except Exception as exc:
         print(f"Warnung: Laufzeit {model_key} nicht verfügbar: {exc}", flush=True)
         return None
@@ -661,6 +681,7 @@ def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], ba
         "time_resolution": time_resolution,
         "forecast_days": min(MODEL_CONFIG[model_key]["forecast_days"], forecast_days) if forecast_days is not None else MODEL_CONFIG[model_key]["forecast_days"],
         "run": model_run_time(model_key),
+        "retrieved_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "member_count": global_member_count,
         "regions": regions,
     }
@@ -841,6 +862,7 @@ def build_period_region(
         models[key] = {
             "label": mdata["label"],
             "run": mdata.get("run"),
+            "retrieved_at": mdata.get("retrieved_at"),
             "api_model": mdata.get("api_model"),
             "retained": bool(mdata.get("retained")),
             **merge_running_outlook(obs_dates, obs_values, mdata["regions"][region], dates),

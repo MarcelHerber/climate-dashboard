@@ -56,7 +56,11 @@ function runAgeHours(iso,now=Date.now()){
 }
 function modelFreshness(m){
   const age=runAgeHours(m?.run);
-  return age===null?"Laufalter unbekannt":age>24?`veraltet (${Math.round(age)} h)`:(m.retained?"älterer Lauf (API-Störung)":"");
+  if(age===null){
+    const retrieved=runAgeHours(m?.retrieved_at);
+    return retrieved===null?"Laufzeit nicht verifizierbar":`Laufzeit nicht verifizierbar (Datenabruf vor ${Math.round(retrieved)} h)`;
+  }
+  return age>24?`veraltet (${Math.round(age)} h)`:(m.retained?"älterer Lauf (API-Störung)":"");
 }
 function freshnessWarning(doc,models,complete=false,preview=false){
   const warnings=[],generated=runAgeHours(doc?.generated_at);
@@ -388,7 +392,7 @@ function render(){
     const obsCard=observedOnly&&k===MODEL_ORDER[0];
     card.hidden=!m&&!obsCard;const title=card.querySelector("h3");if(title)title.textContent=obsCard?(hydroMode()?"Beobachtete Monatssumme":"Beobachtetes Periodenmittel"):MODEL_LABELS[k]||k;
     const meta=card.querySelector(".state-monthly-model-meta");
-    if(meta)meta.textContent=m?`${m.member_count} Member · Prognose bis ${dateShort(m.forecast_through)} · ${m.support_points} Stützpunkte · Lauf ${fmtRun(m.run)}${modelFreshness(m)?" · "+modelFreshness(m):""}`:obsCard?`Nur ${paramConfig().source}-Beobachtungen`:"nicht verfügbar";
+    if(meta)meta.textContent=m?`${m.member_count} Member · Prognose bis ${dateShort(m.forecast_through)} · ${m.support_points} Stützpunkte · ${m.run?"Lauf "+fmtRun(m.run):m.retrieved_at?"Datenabruf "+fmtRun(m.retrieved_at):"Laufzeit nicht gemeldet"}${modelFreshness(m)?" · "+modelFreshness(m):""}`:obsCard?`Nur ${paramConfig().source}-Beobachtungen`:"nicht verfügbar";
     if(m||obsCard){
       const datasets=displayDatasets(k,r);
       charts[k]=new Chart(canvas,{type:"line",data:{labels:labs,datasets},options:chartOptions(chartBounds(datasets))});

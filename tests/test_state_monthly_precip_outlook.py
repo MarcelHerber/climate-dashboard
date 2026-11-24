@@ -67,6 +67,17 @@ class StateMonthlyPrecipTests(unittest.TestCase):
         self.assertTrue(payload["regions"]["Hessen"]["models"]["gefs"]["retained"])
         self.assertEqual(cache["gefs"]["run"],"2026-11-02T12:00:00Z")
 
+    def test_fresh_precip_members_with_unverified_run_beat_cached_metadata(self):
+        obs = self.make_observed()
+        now = datetime(2026, 11, 3, 0, tzinfo=timezone.utc)
+        fresh = self.model(run=None)
+        cached = self.model(run="2026-11-02T12:00:00Z")
+        payload, _ = precip.build_resilient_payload(
+            obs, {"icon_eu": fresh}, {"icon_eu": cached}, None, {}, now)
+        self.assertEqual(payload["models_order"], ["icon_eu"])
+        self.assertIsNone(payload["regions"]["Hessen"]["models"]["icon_eu"]["run"])
+        self.assertFalse(payload["regions"]["Hessen"]["models"]["icon_eu"]["retained"])
+
     def test_observation_regression_rejected(self):
         obs=self.make_observed(); previous=precip.build_payload(obs,{}, {})
         obs["dates"].pop(); obs["data_through"]=obs["dates"][-1]

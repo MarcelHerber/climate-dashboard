@@ -37,6 +37,20 @@ class SunOutlookTests(unittest.TestCase):
         self.assertEqual(out["regions"]["Hessen"]["models"]["gefs"]["control"][:5],[None,None,12.5,17.5,None])
         self.assertFalse(out["climatology_available"])
 
+    def test_unverified_run_remains_unknown_in_sunshine_payload(self):
+        doc = self.observations()
+        region = {"dates": ["2026-11-03", "2026-11-04"],
+                  "member_keys": ["sunshine_duration_member01"],
+                  "members": {"sunshine_duration_member01": [4.0, 2.0]},
+                  "support_points": 3}
+        model = {"label": "ICON-EU", "run": None,
+                 "retrieved_at": "2026-11-03T12:00:00Z",
+                 "regions": {r: region for r in sun.REGION_ORDER}}
+        out = sun.build_payload(doc, {"icon_eu": model})
+        item = out["regions"]["Hessen"]["models"]["icon_eu"]
+        self.assertIsNone(item["run"])
+        self.assertEqual(item["retrieved_at"], model["retrieved_at"])
+
     def test_rejects_incomplete_or_over24h_day(self):
         doc=self.observations()
         doc["regions"]["Deutschland"]["daily"][0]=25

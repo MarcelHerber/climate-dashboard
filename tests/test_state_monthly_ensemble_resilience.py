@@ -67,6 +67,31 @@ class EnsembleResilienceTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             app.validate_available_models({})
 
+    def test_old_or_future_metadata_is_never_claimed_as_a_model_run(self):
+        now = datetime(2026, 11, 24, 7, tzinfo=timezone.utc)
+        for stamp in ("2026-10-06T00:00:00Z", "2026-11-24T12:00:00Z"):
+            unix = datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+            with patch.object(app, "fetch_json", return_value={"last_run_initialisation_time": unix}):
+                self.assertIsNone(app.model_run_time("icon_eu", now=now))
+        valid = datetime(2026, 11, 24, 0, tzinfo=timezone.utc)
+        with patch.object(app, "fetch_json", return_value={"last_run_initialisation_time": valid.timestamp()}):
+            self.assertEqual(app.model_run_time("icon_eu", now=now), "2026-11-24T00:00:00Z")
+
+    def test_fresh_members_survive_unverified_metadata_but_cache_does_not(self):
+        now = datetime(2026, 11, 24, 7, tzinfo=timezone.utc)
+        region = {"dates": ["2026-11-23", "2026-11-24"],
+                  "member_keys": ["temperature_2m_mean"],
+                  "members": {"temperature_2m_mean": [2.0, 3.0]}}
+        fresh = {"run": None, "daily_variable": "temperature_2m_mean",
+                 "regions": {r: region for r in app.REGION_ORDER}}
+        cached = {**fresh, "run": "2026-11-23T12:00:00Z"}
+        selected, retained = app.select_temperature_models(
+            {"icon_eu": fresh}, {"icon_eu": cached}, "2026-11-22", now)
+        self.assertIsNone(selected["icon_eu"]["run"])
+        self.assertEqual(retained, [])
+        self.assertEqual(app.select_temperature_models(
+            {}, {"icon_eu": fresh}, "2026-11-22", now), ({}, []))
+
     def test_data_status_uses_model_run_age_not_generation_time(self):
         now = datetime.now(timezone.utc)
         from datetime import timedelta

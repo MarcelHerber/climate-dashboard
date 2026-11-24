@@ -66,6 +66,7 @@ def build_payload(doc: dict, models: dict, *, target=None) -> dict:
             converted[key] = {
                 "label": model["label"],
                 "run": model.get("run"),
+                "retrieved_at": model.get("retrieved_at"),
                 "api_model": model.get("api_model"),
                 **merge_running_outlook(
                     observed_days, observed, model["regions"][region],
