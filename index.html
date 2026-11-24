@@ -4277,9 +4277,10 @@ html[data-theme="dark"] .overview-more-links > summary {
 <!-- Erweiterung 16.2: Gebietsmittel-Kartenvergleich Jahr A / Jahr B / Differenz + Bundesländer-Ranking -->
 <!-- Climate Dashboard Layout v21: professionelles Layout + vollständiges ERA5-Land V8.1 + Europa-Stationen -->
 <!-- Dashboard Layout v23: Europa-Stationen Aktivfilter wiederhergestellt -->
-<script src="monthly_frequency.js?v=20261103-dark-export-v1-footer-order"></script>
-<script src="mosmix.js?v=20261028-mosmix-foursteps-v1"></script>
-<script src="station_thresholds.js?v=20261103-white-export-v2"></script>
+<!-- DWD daily-map navigation stays eager; its chart/map data is still lazy. -->
+<script data-dwd-daily-map="1" src="dwd_station_daily_map.js?v=20261014-freshness1-footer-order"></script>
+<!-- Heavy optional modules are loaded only after their tabs are chosen. -->
+<script src="optional_dashboard_modules.js?v=20261124-lazy1"></script>
 <script src="era5_synoptic.js?v=20261014-synoptic-v1"></script>
 <script src="monthly_layout.js?v=20261014-gebietsmittel2"></script>
 <script src="monthly_climate_bars.js?v=20261111-climatebars1"></script>
