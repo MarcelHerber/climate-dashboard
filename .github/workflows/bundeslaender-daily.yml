@@ -7,7 +7,7 @@ on:
         default: '3'
   push:
     branches: [main]
-    paths: ['scripts/build_bundeslaender_daily.py', '.github/workflows/bundeslaender-daily.yml']
+    paths: ['scripts/build_bundeslaender_daily.py', 'scripts/build_bundeslaender_sunshine.py', '.github/workflows/bundeslaender-daily.yml']
   schedule:
     - cron: '25 5 * * *'
 permissions:
@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        parameter: [tmin, tmax, tmean, precipitation]
+        parameter: [tmin, tmax, tmean, precipitation, sunshine]
     concurrency:
       group: bundeslaender-archive-${{ matrix.parameter }}
       cancel-in-progress: false
@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: node --test tests/test_bundeslaender_rekord.cjs
-      - run: pip install numpy xarray netCDF4 h5netcdf requests pyproj matplotlib pillow scipy
+      - run: pip install -r requirements-hyras.txt shapely
       - name: Restore regional archive
         env:
           BRANCH: bundeslaender-data-${{ matrix.parameter }}
@@ -51,7 +51,12 @@ jobs:
         env:
           PARAM: ${{ matrix.parameter }}
           BATCH: ${{ inputs.batch || '3' }}
-        run: python scripts/build_bundeslaender_daily.py --parameter "$PARAM" --batch "$BATCH" --output /tmp/region-data --work /tmp/region-work
+        run: |
+          if [ "$PARAM" = sunshine ]; then
+            python scripts/build_bundeslaender_sunshine.py --output /tmp/region-data
+          else
+            python scripts/build_bundeslaender_daily.py --parameter "$PARAM" --batch "$BATCH" --output /tmp/region-data --work /tmp/region-work
+          fi
       - name: Publish compact archive
         env:
           BRANCH: bundeslaender-data-${{ matrix.parameter }}
