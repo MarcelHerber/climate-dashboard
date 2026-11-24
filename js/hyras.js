@@ -1358,14 +1358,17 @@ function hyrasTmeanRenderCurveChart(region,period,rows){
       </a>
       <div class="hyras-temperature-raster-status" role="status">Rasterabfrage wird geladen …</div>
     </div>`:`<div class="hyras-tmean-anomaly-preview"><div class="hyras-tmean-anomaly-preview-empty">Für diesen Zeitraum ist keine fertige Abweichungskarte verfügbar.</div><div class="hyras-temperature-raster-status" role="status">Rasterabfrage wird geladen …</div></div>`}
-    <div class="hyras-tmean-region-head"><div><h3>Temperaturmittel – ${region}</h3><p>${period.label} · tägliches HYRAS-Gebietsmittel gegen ${hyrasReferenceDisplay()}</p></div></div>
-    <div class="hyras-tmean-chart-wrap"><canvas id="hyrasTmeanRegionCanvas"></canvas></div>
-    ${hyrasDailyAnomalyPanelHtml("tmean")}
-    <div class="hyras-tmean-downloads">
+    <div class="hyras-tmean-downloads" role="group" aria-label="HYRAS-Karten als PNG herunterladen">
       <a class="${absClass}" ${maps.absolute?`href="${hyrasTmeanDownloadHref(maps.absolute)}" data-tmean-map="${maps.absolute}" data-tmean-filename="hyras_tmean_${period.map_key}_temperatur.png"`:""}>Temperaturkarte herunterladen</a>
       <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTmeanDownloadHref(maps.anomaly)}" data-tmean-map="${maps.anomaly}" data-tmean-filename="hyras_tmean_${period.map_key}_abweichung_${hyrasReferencePeriod().replace("-","_")}.png"`:""}>Abweichungskarte ${hyrasReferenceDisplay()} herunterladen</a>
+    </div>
+    <div class="hyras-tmean-region-head"><div><h3>Temperaturmittel – ${region}</h3><p>${period.label} · tägliches HYRAS-Gebietsmittel gegen ${hyrasReferenceDisplay()}</p></div></div>
+    <div class="hyras-tmean-chart-wrap"><canvas id="hyrasTmeanRegionCanvas"></canvas></div>
+    <div class="hyras-tmean-downloads hyras-curve-downloads">
       <a class="hyras-tmean-download" href="#" data-tmean-pdf="1">Kurve als PDF herunterladen</a>
     </div>
+    ${hyrasDailyAnomalyPanelHtml("tmean")}
+
     <p class="hyras-tmean-region-note">${maps.anomaly?"Absolute Temperatur- und Anomaliekarte stehen als fertige PNGs bereit.":"Für diesen laufenden Zeitraum ist die absolute Temperaturkarte als fertige PNG verfügbar; die Gebietskurve nutzt trotzdem bereits die tagesgenaue 1991–2020-Referenz."}</p>
   </div>`;
   window.HyrasTemperatureInteractive?.mount(frame.querySelector(".hyras-tmean-anomaly-preview"),{entry:mapsBase,parameter:"tmean",reference:hyrasReferencePeriod(),key:period.map_key,start:period.start_date,end:period.end_date,version:hyrasTmeanRegionsIndex?.data_through||"1",base:HYRAS_DATA_BASE,boundary:hyrasIndex?.interactive?.boundary_overlay_1km});
@@ -1748,6 +1751,10 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
       </a>
       <div class="hyras-temperature-raster-status" role="status">Rasterabfrage wird geladen …</div>
     </div>`:`<div class="hyras-tmean-anomaly-preview"><div class="hyras-tmean-anomaly-preview-empty">Für diesen Zeitraum ist keine fertige Tmax-Abweichungskarte verfügbar.</div><div class="hyras-temperature-raster-status" role="status">Rasterabfrage wird geladen …</div></div>`}
+    <div class="hyras-tmean-downloads" role="group" aria-label="HYRAS-Karten als PNG herunterladen">
+      <a class="${absClass}" ${maps.absolute?`href="${hyrasTmaxMapHref(maps.absolute)}" data-tmax-map="${maps.absolute}" data-tmax-filename="hyras_tmax_${period.key}_temperatur.png"`:""}>Tmax-Karte herunterladen</a>
+      <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTmaxMapHref(maps.anomaly)}" data-tmax-map="${maps.anomaly}" data-tmax-filename="hyras_tmax_${period.key}_abweichung_${hyrasReferencePeriod().replace("-","_")}.png"`:""}>Abweichungskarte ${hyrasReferenceDisplay()} herunterladen</a>
+    </div>
     <div class="hyras-tmean-region-head">
       <div>
         <h3>Tagesmaximum – ${region}</h3>
@@ -1757,12 +1764,11 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
     <div class="hyras-tmean-chart-wrap">
       <canvas id="hyrasTmaxRegionCanvas"></canvas>
     </div>
-    ${hyrasDailyAnomalyPanelHtml("tmax")}
-    <div class="hyras-tmean-downloads">
-      <a class="${absClass}" ${maps.absolute?`href="${hyrasTmaxMapHref(maps.absolute)}" data-tmax-map="${maps.absolute}" data-tmax-filename="hyras_tmax_${period.key}_temperatur.png"`:""}>Tmax-Karte herunterladen</a>
-      <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTmaxMapHref(maps.anomaly)}" data-tmax-map="${maps.anomaly}" data-tmax-filename="hyras_tmax_${period.key}_abweichung_${hyrasReferencePeriod().replace("-","_")}.png"`:""}>Abweichungskarte ${hyrasReferenceDisplay()} herunterladen</a>
+    <div class="hyras-tmean-downloads hyras-curve-downloads">
       <a class="hyras-tmean-download" href="#" data-tmax-pdf="1">Kurve als PDF herunterladen</a>
     </div>
+    ${hyrasDailyAnomalyPanelHtml("tmax")}
+
     <p class="hyras-tmean-region-note">
       ${maps.anomaly
         ?"Absolute Tmax- und Anomaliekarte stehen als fertige PNGs bereit."
