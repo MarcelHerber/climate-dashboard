@@ -109,12 +109,110 @@ function placeLabel(p){
   const vals=[p.name,p.admin1,p.country].filter(Boolean);
   return Array.from(new Set(vals)).join(" · ");
 }
+// OPEN_METEO_BACKOFF_BEGIN
+// One page-wide cooldown: concurrent model requests must not independently
+// hammer the provider after a rate-limit response.
+let openMeteoBlockedUntil=0,openMeteoActive=0,openMeteoNextStart=0;
+const openMeteoQueue=[];
+const placeCache=new Map();
+function abortError(signal){return signal?.reason||new DOMException("Abgebrochen","AbortError");}
+function abortableWait(ms,signal){
+  return new Promise((resolve,reject)=>{
+    if(signal?.aborted){reject(abortError(signal));return;}
+    let timer;
+    const cleanup=()=>{clearTimeout(timer);signal?.removeEventListener("abort",onAbort);};
+    const onAbort=()=>{cleanup();reject(abortError(signal));};
+    timer=setTimeout(()=>{cleanup();resolve();},ms);
+    signal?.addEventListener("abort",onAbort,{once:true});
+  });
+}
+async function openMeteoSlot(signal){
+  if(signal?.aborted)throw abortError(signal);
+  if(openMeteoActive<2){openMeteoActive++;return;}
+  await new Promise((resolve,reject)=>{
+    const ticket={wake:()=>{signal?.removeEventListener("abort",cancel);resolve();}};
+    const cancel=()=>{const index=openMeteoQueue.indexOf(ticket);if(index>=0)openMeteoQueue.splice(index,1);reject(abortError(signal));};
+    openMeteoQueue.push(ticket);signal?.addEventListener("abort",cancel,{once:true});
+  });
+}
+function releaseOpenMeteoSlot(){
+  const next=openMeteoQueue.shift();
+  if(next)next.wake();else openMeteoActive--;
+}
+function openMeteoHttpError(label,status,message=""){
+  const e=new Error(label+" HTTP "+status+(message?" · "+message:""));e.status=status;return e;
+}
+function retryAfterMs(value,now=Date.now()){
+  if(!value)return 0;
+  if(/^\d+(?:\.\d+)?$/.test(value.trim()))return Number(value)*1000;
+  const date=Date.parse(value);return Number.isFinite(date)?Math.max(0,date-now):0;
+}
+async function fetchOpenMeteo(url,{signal,label="Open-Meteo",timeoutMs=60000,maxAttempts=3}={}){
+  for(let attempt=1;attempt<=maxAttempts;attempt++){
+    if(signal?.aborted)throw abortError(signal);
+    let delay=0;
+    await openMeteoSlot(signal);
+    try{
+      for(;;){
+        if(signal?.aborted)throw abortError(signal);
+        const cooldown=Math.max(0,openMeteoBlockedUntil-Date.now());
+        if(cooldown>120000)throw openMeteoHttpError(label,429,"Stunden-/Tageslimit oder längere Wartefrist; bitte später erneut versuchen.");
+        const wait=Math.max(cooldown,openMeteoNextStart-Date.now());
+        if(wait<=0)break;
+        await abortableWait(wait,signal);
+      }
+      openMeteoNextStart=Date.now()+500;
+      const controller=new AbortController();
+      const forward=()=>controller.abort(abortError(signal));
+      signal?.addEventListener("abort",forward,{once:true});
+      if(signal?.aborted)forward();
+      const timer=setTimeout(()=>controller.abort(new DOMException("Zeitlimit","TimeoutError")),timeoutMs);
+      try{
+        const response=await fetch(url,{signal:controller.signal,cache:"no-store"});
+        if(response.ok){
+          // Consume the body within the timeout, not just the HTTP headers.
+          return await response.json();
+        }
+        const code=response.status;
+        if(code===429){
+          let reason="";
+          try{const body=await response.json();reason=String(body.reason||body.error||"");}catch(_error){}
+          const quota=/daily|per day|day limit|24 hours|hourly|per hour|hour limit|1 hour/i.test(reason);
+          const wait=Math.max(65000,retryAfterMs(response.headers.get("Retry-After")),quota?3600000:0);
+          openMeteoBlockedUntil=Math.max(openMeteoBlockedUntil,Date.now()+wait);
+          if(quota||wait>120000||attempt===maxAttempts)
+            throw openMeteoHttpError(label,429,quota?"Stunden-/Tageslimit erreicht; bitte später versuchen.":"API-Limit erreicht; bitte später versuchen.");
+          delay=wait;
+        }else if(code===408||code>=500){
+          if(attempt===maxAttempts)throw openMeteoHttpError(label,code);
+          delay=Math.max(1000*2**(attempt-1),retryAfterMs(response.headers.get("Retry-After")));
+          if(delay>120000)throw openMeteoHttpError(label,code,"Längere Wartefrist; bitte später versuchen.");
+        }else throw openMeteoHttpError(label,code);
+      }catch(e){
+        if(signal?.aborted)throw abortError(signal);
+        if(e.status||!(e.name==="TimeoutError"||e.name==="TypeError"||controller.signal.aborted))throw e;
+        if(attempt===maxAttempts)throw new Error(label+" nicht erreichbar (Netzwerk/Zeitlimit).",{cause:e});
+        delay=1000*2**(attempt-1);
+      }finally{
+        clearTimeout(timer);signal?.removeEventListener("abort",forward);
+      }
+    }finally{releaseOpenMeteoSlot();}
+    if(delay)await abortableWait(delay,signal);
+  }
+  throw new Error(label+" nicht erreichbar.");
+}
+// OPEN_METEO_BACKOFF_END
+
 async function resolvePlace(q,signal){
   const u=new URL(GEO);
   u.searchParams.set("name",q);u.searchParams.set("count","6");u.searchParams.set("language","de");u.searchParams.set("format","json");
-  const r=await fetch(u,{signal:signal,cache:"no-store"});if(!r.ok)throw new Error("Ortssuche HTTP "+r.status);
-  const j=await r.json(),items=Array.isArray(j.results)?j.results:[];
+  const key=q.trim().toLocaleLowerCase("de-DE"),cached=placeCache.get(key);
+  if(signal?.aborted)throw abortError(signal);
+  if(cached&&Date.now()-cached.at<86400000)return cached.place;
+  const j=await fetchOpenMeteo(u,{signal,label:"Ortssuche",timeoutMs:20000}),items=Array.isArray(j.results)?j.results:[];
   if(!items.length)throw new Error("Kein Ort für „"+q+"“ gefunden.");
+  if(placeCache.size>=100)placeCache.delete(placeCache.keys().next().value);
+  placeCache.set(key,{at:Date.now(),place:items[0]});
   return items[0];
 }
 async function loadClimate(){
@@ -260,8 +358,7 @@ async function fetchMemberEnsemble(model,lat,lon,signal,param){
   u.searchParams.set("latitude",Number(lat).toFixed(4));u.searchParams.set("longitude",Number(lon).toFixed(4));
   u.searchParams.set("hourly",ensembleFields(param));u.searchParams.set("models",model.api);
   u.searchParams.set("forecast_days",String(model.forecastDays));u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
-  const r=await fetch(u,{signal:signal,cache:"no-store"});if(!r.ok)throw new Error(model.label+" HTTP "+r.status);
-  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[];
+  const j=await fetchOpenMeteo(u,{signal,label:model.label}),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[];
   const parsed=parseMemberFields(h,times,param,model.forecastDays*24);
   if(!parsed)throw new Error(model.label+" liefert aktuell "+param.short+"-Felder ohne gültige Werte.");
   return {model,...parsed};
@@ -271,8 +368,7 @@ async function fetchIconDeterministicFallback(model,lat,lon,signal,param){
   u.searchParams.set("latitude",Number(lat).toFixed(4));u.searchParams.set("longitude",Number(lon).toFixed(4));
   u.searchParams.set("hourly",param.api);u.searchParams.set("models","icon_eu");u.searchParams.set("forecast_days",String(model.forecastDays));
   u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
-  const r=await fetch(u,{signal:signal,cache:"no-store"});if(!r.ok)throw new Error("ICON-EU Hauptlauf HTTP "+r.status);
-  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[],raw=Array.isArray(h[param.api])?h[param.api]:null;
+  const j=await fetchOpenMeteo(u,{signal,label:"ICON-EU Hauptlauf"}),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[],raw=Array.isArray(h[param.api])?h[param.api]:null;
   if(!times.length||!raw)throw new Error("ICON-EU Hauptlauf liefert kein "+param.short+".");
   const transformed=transformSeries(times,raw,param,model.mainHours);
   if(!hasFiniteSeries(transformed.values))throw new Error("ICON-EU Hauptlauf liefert keine gültigen "+param.short+"-Werte.");
@@ -281,7 +377,7 @@ async function fetchIconDeterministicFallback(model,lat,lon,signal,param){
 async function fetchEnsemble(model,lat,lon,signal,param){
   if(model.mode==="iconFallback"&&param.key==="t850"){
     try{return await fetchMemberEnsemble(model,lat,lon,signal,param);}
-    catch(e){if(e.name==="AbortError")throw e;console.warn("ICON-EU EPS T850 nicht verfügbar; Hauptlauf-Fallback wird verwendet.",e);return fetchIconDeterministicFallback(model,lat,lon,signal,param);}
+    catch(e){if(e.name==="AbortError"||e.status===429||e.cause)throw e;console.warn("ICON-EU EPS T850 nicht verfügbar; Hauptlauf-Fallback wird verwendet.",e);return fetchIconDeterministicFallback(model,lat,lon,signal,param);}
   }
   return fetchMemberEnsemble(model,lat,lon,signal,param);
 }
@@ -290,9 +386,7 @@ async function fetchModelMeta(domain,signal){
   if(!domain)return null;
   const url="https://api.open-meteo.com/data/"+encodeURIComponent(domain)+"/static/meta.json";
   try{
-    const r=await fetch(url,{signal:signal,cache:"no-store"});
-    if(!r.ok)return null;
-    const j=await r.json();
+    const j=await fetchOpenMeteo(url,{signal,label:"Modell-Metadaten",timeoutMs:15000,maxAttempts:2});
     const ts=Number(j.last_run_initialisation_time);
     if(!Number.isFinite(ts))return null;
     return {
@@ -310,8 +404,7 @@ async function fetchMainRunForCycle(model,run,lat,lon,signal,param){
   u.searchParams.set("latitude",Number(lat).toFixed(4));u.searchParams.set("longitude",Number(lon).toFixed(4));
   u.searchParams.set("hourly",ensembleFields(param));u.searchParams.set("models",model.mainApi);u.searchParams.set("run",run);
   u.searchParams.set("forecast_hours",String(model.mainHours+1));u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
-  const r=await fetch(u,{signal:signal,cache:"no-store"});if(!r.ok)throw new Error("Hauptlauf HTTP "+r.status);
-  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[],raw=Array.isArray(h[param.api])?h[param.api]:null;
+  const j=await fetchOpenMeteo(u,{signal,label:"Hauptlauf"}),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[],raw=Array.isArray(h[param.api])?h[param.api]:null;
   if(!times.length||!raw)throw new Error("Hauptlauf ohne "+param.short+".");
   const transformed=transformSeries(times,raw,param,model.mainHours);
   if(!hasFiniteSeries(transformed.values))throw new Error("Hauptlauf ohne gültige "+param.short+"-Werte.");
