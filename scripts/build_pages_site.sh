@@ -42,6 +42,9 @@ required_root_files=(
   station_jahresanalyse.html
   station_jahresanalyse.js
   station_jahresanalyse.css
+  bundeslaender_rekord.html
+  bundeslaender_rekord_core.js
+  bundeslaender_rekord.js
   stations_rekordlabor.html
   stations_rekordlabor.css
   stations_rekordlabor_core.js
