@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>Stations-Jahresanalyse · Climate Dashboard Deutschland</title>
-<meta name="description" content="DWD Stations-Jahresverläufe für Tagesmittel, Höchst- und Tiefsttemperatur, Niederschlag und Schneehöhe mit historischen Vergleichen.">
+<meta name="description" content="DWD Stations-Jahresverläufe für Tagesmittel, Höchst- und Tiefsttemperatur, Niederschlag, Schneehöhe und Sonnenscheindauer mit historischen Vergleichen.">
 <link rel="stylesheet" href="dashboard_theme.css">
 <link rel="stylesheet" href="station_jahresanalyse.css?v=3">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-<script defer src="station_jahresanalyse.js?v=4"></script>
+<script defer src="station_jahresanalyse.js?v=20261124-sdk-1"></script>
 </head>
 <body class="sja-page">
 <header class="sja-top">
@@ -19,7 +19,7 @@
 </header>
 <main class="sja-main">
   <div class="sja-heading">
-    <div><span class="sja-eyebrow">DWD · Stationsdaten</span><h1>Stations-Jahresanalyse</h1><p>Temperatur, Niederschlag und Schneehöhe als historische Jahresverläufe – mit echten Stationsdaten, frei wählbaren Vergleichsjahren und Klimareferenz 1991–2020.</p></div>
+    <div><span class="sja-eyebrow">DWD · Stationsdaten</span><h1>Stations-Jahresanalyse</h1><p>Temperatur, Niederschlag, Schneehöhe und Sonnenschein als historische Jahresverläufe – mit echten Stationsdaten, frei wählbaren Vergleichsjahren und Klimareferenz 1991–2020.</p></div>
     <div class="sja-count" id="sjaInventory">Stationsarchiv lädt …</div>
   </div>
   <section class="sja-panel" aria-label="Station wählen">
@@ -35,6 +35,7 @@
       <button type="button" id="sjaTemp" data-kind="temp" class="active" aria-pressed="true">Temperatur</button>
       <button type="button" id="sjaPrecip" data-kind="precip" aria-pressed="false">Niederschlag</button>
       <button type="button" id="sjaSnow" data-kind="snow" aria-pressed="false">Schneehöhe</button>
+      <button type="button" id="sjaSun" data-kind="sun" aria-pressed="false">Sonnenstunden</button>
     </div>
     <div class="sja-flex">
       <label id="sjaMetricWrap">Temperaturparameter
@@ -43,6 +44,7 @@
       <label>Darstellung
         <select id="sjaMode"></select>
       </label>
+      <label id="sjaSunReferenceWrap" hidden>Klimareferenz <select id="sjaSunReference"><option value="1991-2020" selected>1991–2020</option><option value="1961-1990">1961–1990</option></select></label>
     </div>
     <div class="sja-choice-title">Vergleichsjahre <span id="sjaYearHint">Bis zu fünf Kurven gleichzeitig auswählen</span></div>
     <div id="sjaYears" class="sja-years" role="group" aria-label="Historische Jahre"></div>
@@ -68,6 +70,7 @@
     <p><strong>Temperatur:</strong> DWD CDC KL-Tagesdaten, TXK/TNK/TMK. Ausgewählte historische Kalenderjahre und das laufende Jahr (vorläufig) werden auf einer 365-Tage-Achse verglichen. Der 29. Februar ist nur im Vergleichsdiagramm ausgelassen; die Originaldatei bleibt unverändert. Fehlende Tageswerte bleiben Lücken. Die rot-blaue Fläche zeigt die tägliche Abweichung des ausgewählten Jahres zum jeweiligen Tagesmittel 1991–2020. Die zusätzlich gestrichelten Linien zeigen je Kalendertag das absolute historische Minimum und Maximum (ohne laufendes Jahr).</p>
     <p><strong>Niederschlag:</strong> DWD CDC RR (RS). Historische Jahre stehen als vollständig beobachtete Monatssummen bereit; aktuelle Tageswerte werden direkt aus dem monatlichen Stationscache geladen. Kumulierte Werte werden bei Datenlücken nicht künstlich fortgeführt. Die Vergleichslinie 1991–2020 stammt aus vollständig beobachteten Referenzjahren. Gestrichelte Min-/Max-Kurven zeigen den historischen Monatsrekord beziehungsweise die kumulierten Rekordwerte aus vollständig gemessenen Jahren. Für den aktuellen täglichen Niederschlag liegen noch keine historischen Tagesrekordkurven vor.</p>
     <p><strong>Schneehöhe:</strong> DWD SHK_TAG. Hier gelten hydrologische Jahre vom 1. November bis 31. Oktober, benannt nach dem Endjahr. Historische Jahre dürfen unvollständig sein und werden entsprechend gekennzeichnet. Als Klimareferenz dient der tägliche Median der verfügbaren qualitätsgeprüften Jahre 1991–2020. Gestrichelte Linien zeigen je Tag das Minimum und Maximum aller qualitätsgeprüften historischen hydrologischen Jahre.</p>
+    <p><strong>Sonnenstunden:</strong> DWD CDC KL-Tagesdaten (SDK). Tages- und Monatssummen, kumulierter Tagesverlauf, kumulierte Abweichung, vollständige Jahressummen der gesamten verfügbaren Messreihe sowie Summen bis zum gleichen Stichtag. Schaltjahre enthalten den 29. Februar. Bei fehlenden Tageswerten wird die Summe nicht als vollständig ausgewiesen. Das laufende Jahr ist separat und vorläufig; historische Archive haben Vorrang vor aktuellen Daten. Referenz 1991–2020 oder 1961–1990, mindestens 20 gültige Jahre.</p>
     <p><strong>Abdeckung:</strong> Die Auswahl zeigt nur Stationen, für die im Repository entsprechende Originalarchive vorliegen. Nicht jede Station besitzt alle Messgrößen; fehlende Werte werden weder mit Null noch mit Nachbarstationen ersetzt. Die Daten stammen aus dem vorhandenen Climate-Dashboard-Archiv und werden nur bei Auswahl einer Station geladen.</p>
   </section>
 </main>
