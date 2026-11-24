@@ -63,6 +63,8 @@ required_root_files=(
   polar_vortex_map.js
   ssw_catalog.js
   zirkulation.html
+  grosswetterlagen.html
+  grosswetterlagen.js
   blocking.html
   blocking.js
   blocking.css
@@ -225,6 +227,15 @@ for file in "${required_root_files[@]}"; do
 done
 for file in hyras_regional.js hyras_temperature_interactive.js js/loader.js js/core.js js/uebersicht.js js/gebietsmittel.js js/extreme.js js/stationen-kenntage.js js/stationen-auswertungen.js js/schnee.js js/export-karten-vergleich.js js/stationsprofil.js js/hyras.js js/aktuell.js js/era5-land.js js/europa-stationen.js js/dashboard-state.js js/hyras-tmin.js js/bootstrap.js era5_stratosphere.js; do
   node --check "_site/$file"
+done
+
+# Independent verified weather-type catalogues. Missing datasets remain unavailable.
+node --check _site/grosswetterlagen.js
+mkdir -p _site/data/grosswetterlagen
+for catalogue in rea hb; do
+  if [[ -s "data/grosswetterlagen/$catalogue.csv" ]]; then
+    cp "data/grosswetterlagen/$catalogue.csv" _site/data/grosswetterlagen/
+  fi
 done
 
 # Phase 2: add source-specific vector downloads to existing scientific charts.
