@@ -67,7 +67,7 @@ def layout_from_bbox(xml, expected_pages=36):
     the left year column. Do not infer any weather code from neighboring rows.
     """
     root = ET.fromstring(xml)
-    pages = list(root.iter("{*}page"))
+    pages = [node for node in root.iter() if node.tag.rsplit("}", 1)[-1] == "page"]
     if len(pages) != expected_pages:
         raise ValueError(f"Expected {expected_pages} table pages, got {len(pages)}")
     output = []
@@ -76,7 +76,9 @@ def layout_from_bbox(xml, expected_pages=36):
         if width <= height:
             raise ValueError(f"Unexpected orientation on table page {i+105}: {width}x{height}")
         words = []
-        for node in page.iter("{*}word"):
+        for node in page.iter():
+            if node.tag.rsplit("}", 1)[-1] != "word":
+                continue
             x0,x1,y0,y1 = [float(node.attrib[k]) for k in ("xMin","xMax","yMin","yMax")]
             x,y = (x0+x1)/2/width, (y0+y1)/2/height
             value = "".join(node.itertext()).strip().upper()
