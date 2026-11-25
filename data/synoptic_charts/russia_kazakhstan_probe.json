@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-11-24T23:09:48+00:00",
+  "generated_utc": "2026-11-25T10:01:16+00:00",
   "russia": {
     "source_page": "https://meteoinfo.ru/mapsynop",
     "copyright": "© Hydrometcenter Russia; reuse not verified",
@@ -15,8 +15,8 @@
           1556,
           1024
         ],
-        "footer_excerpt": "150 157 228% 153247 У. Юва, я Oye 52 Ро 24218 238 и 98 вл: ie 82 Bs raat ГУ 60 >01 / ee - у ho ~— 196 5 em + a 0{ Гидрометцентр России . %* 428 : iio 2 70 АНАЛИЗ ПРИЗЕМНЫЙ |55241 / pl OOO A oe VA 5 210 411$ $ от 24.11.2026 00ч ВСВ 0 ©-03%, soe 03 / A 98 к Mete",
-        "printed_valid_utc": "2026-11-24T00:00+00:00"
+        "footer_excerpt": "о 2-09 А > OS “f 2a г 74 К. A LOE 4 хх 5%: о AG ee, — 7064 o vw va и tp CZ lay” 5 2a¢( Гидрометцентр России oA 2; 348: po 19 VAS a АНАЛИЗ ПРИЗЕМНЫЙ |0 у от 25.11.2026 00ч ВСВ ™ и [1 0 Re Meteoinfo.ru Ts р К 9 om © Na 4 Е ХХХ",
+        "printed_valid_utc": "2026-11-25T00:00+00:00"
       },
       {
         "slot_utc": "06",
@@ -27,7 +27,7 @@
           1556,
           1024
         ],
-        "footer_excerpt": "© ви \\ У. on\" k у pea ae ES 490 O7 rs aS AS 2 RAST AG papa bg 5 47200 Z a. 0{ Гидрометцентр России . A? 218 gig x АНАЛИЗ ПРИЗЕМНЫЙИ |2526з afl @ В от 24.11.2026 064 ВСВ 0028; 1512 Pose . 96 ite Popp yi 4g 08 Meteoinfo.ru Bo A — 7 а чт ©",
+        "footer_excerpt": "о > Аа ча SSSA er 693848 5 06 tad Se р >. bi: 8 KKK 3 bs : ~ Я170 ATK 70g 4/ ‘04! 6 д Гидрометцентр России =|“ 970 OK ыы АНАЛИЗ ПРИЗЕМНЫИ 1267 Carag atk 1.2026 064 BCB №1 f Lgl | or 25.11. 98 210241 1417; а. : Meteoinfo.ru ра. 5 уж",
         "reason": "ValueError: Complete printed DD.MM.YYYY HH UTC not found in chart footer"
       },
       {
@@ -57,11 +57,38 @@
     ]
   },
   "kazakhstan": {
-    "state": "unverified",
+    "state": "viewer_html_inspected",
     "page": "https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody",
     "chart_image_utc_verified": false,
     "image_reuse_permitted": false,
-    "reason": "TimeoutError: The read operation timed out"
+    "same_host_image_reference_count": 9,
+    "same_host_script_reference_count": 3,
+    "script_urls": [
+      "https://www.kazhydromet.kz/js/synoptic-maps.js?ver=1",
+      "https://www.kazhydromet.kz/libs/fancybox/jquery.fancybox.min.js",
+      "https://www.kazhydromet.kz/js/scripts.min.js"
+    ],
+    "javascript_clues": [
+      "nds\":\"sec\",\"timeZone\":\"UTC\",\"previous\":\"Previous\",\"next\":\"Next\",\"sourceFile\":\"Source file:\",\"loading\":\"Loading synoptic maps…\",\"imageLoading\":\"Loading map…\",\"unavailable\":\"Synoptic maps are temporarily unavailable.\"",
+      "us\",\"next\":\"Next\",\"sourceFile\":\"Source file:\",\"loading\":\"Loading synoptic maps…\",\"imageLoading\":\"Loading map…\",\"unavailable\":\"Synoptic maps are temporarily unavailable.\",\"empty\":\"No synoptic maps have been published",
+      "ing synoptic maps…\",\"imageLoading\":\"Loading map…\",\"unavailable\":\"Synoptic maps are temporarily unavailable.\",\"empty\":\"No synoptic maps have been published yet.\",\"imageError\":\"The selected map could not be loaded.\",\"",
+      "ilable\":\"Synoptic maps are temporarily unavailable.\",\"empty\":\"No synoptic maps have been published yet.\",\"imageError\":\"The selected map could not be loaded.\",\"dateAria\":\"Select a map date\",\"termAria\":\"Select a UTC t",
+      "elect a map date\",\"termAria\":\"Select a UTC time\",\"timelineAria\":\"Synoptic map time\",\"playAria\":\"Start automatic playback\",\"pauseAria\":\"Pause automatic playback\",\"imageAlt\":\"Synoptic ring map\",\"noScript\":\"JavaScript ",
+      "tic playback\",\"pauseAria\":\"Pause automatic playback\",\"imageAlt\":\"Synoptic ring map\",\"noScript\":\"JavaScript is required to control the maps.\"}"
+    ],
+    "embedded_full_utc_candidates": [],
+    "script_inspection_hints": [
+      " var copyNode = root.querySelector('[data-synoptic-copy]'); var copy = {}; try { copy = JSON.parse(copyNode ? c",
+      "ot.querySelector('[data-map-title]'), mapFilename: root.querySelector('[data-map-filename]'), mapStage: root.querySelector(",
+      " mapFilename: root.querySelector('[data-map-filename]'), mapStage: root.querySelector('[data-map-stage]'), imageLo",
+      "e = 'button'; button.className = 'synoptic-term'; button.textContent = map.time; button.setAttribute",
+      " + (copy.timeZone || 'СГВ'); elements.mapFilename.textContent = map.filename; elements.previousButton.disabled = state.mapI",
+      " elements.image.alt = (copy.imageAlt || 'Synoptic map') + ': ' + date.date + ', ' + map.time + ' ' + (copy.timeZone || 'СГВ'); ",
+      " elements.catalogStatus.classList.toggle('synoptic-status--error', Boolean(isError)); elements.catalogMessage.textContent = mess",
+      " spinner = elements.catalogStatus.querySelector('.synoptic-spinner'); if (spinner) { spinner.hidden = true; ",
+      " showCatalogueError(copy.unavailable || 'Synoptic maps are temporarily unavailable.', true); }); } function initialise",
+      "ype.forEach.call(document.querySelectorAll('[data-synoptic-viewer]'), initialiseViewer); } if (document.readyState === 'loading') { "
+    ]
   },
   "no_images_persisted": true,
   "ready_for_automatic_image_reuse": false,
