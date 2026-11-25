@@ -18,7 +18,7 @@
     "t850_ensembles":["t850_ensembles.js","20261118-ensemble-classic-v1"],
     "sst_europe":["sst_europe.js","20261118-sst-history-1"],
     "state_monthly_ensemble":["state_monthly_ensemble.js","20261121-rollover-1"],
-    "gebietsmittel_archiv":["gebietsmittel_archiv.js","20261125-live"],
+    "gebietsmittel_archiv":["gebietsmittel_archiv.js","20261125-season"],
     "era5_europe":["era5_europe.js","20261014-era5-sync-fix"],
     "station_snow_years":["station_snow_years.js","20261104-2"],
     "station_snow_accumulation":["station_snow_accumulation.js","20261104-2"],
