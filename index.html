@@ -1530,6 +1530,15 @@ html[data-theme="dark"] .overview-more-links > summary {
           <div id="overviewSeriesRangeDetail" class="overview-mini-detail">DWD-Gebietsmittel Deutschland</div>
         </div>
       </div>
+      <div style="margin-top:1rem;border-top:1px solid currentColor;padding-top:.85rem">
+        <h3 id="overviewSeasonTitle" style="margin:0 0 .55rem">Laufende Jahreszeit</h3>
+        <div class="overview-mini-grid" aria-live="polite">
+          <div class="overview-mini"><div class="overview-mini-label">Temperatur</div><div id="overviewSeasonTemp" class="overview-mini-value">–</div><div id="overviewSeasonTempNote" class="overview-mini-detail">Daten werden geladen</div></div>
+          <div class="overview-mini"><div class="overview-mini-label">Niederschlag</div><div id="overviewSeasonRain" class="overview-mini-value">–</div><div id="overviewSeasonRainNote" class="overview-mini-detail">Daten werden geladen</div></div>
+          <div class="overview-mini"><div class="overview-mini-label">Sonnenschein</div><div id="overviewSeasonSun" class="overview-mini-value">–</div><div id="overviewSeasonSunNote" class="overview-mini-detail">Daten werden geladen</div></div>
+        </div>
+        <p class="overview-mini-detail">Referenz 1991–2020 · Abweichung erst bei Abdeckung der gesamten Jahreszeit. Bis dahin absolute Werte.</p>
+      </div>
     </section>
 
     <section class="overview-card overview-map-card" aria-labelledby="overviewMapTitle">
@@ -4264,9 +4273,9 @@ html[data-theme="dark"] .overview-more-links > summary {
   </footer>
 </main>
 
-<script src="js/loader.js?v=20261125-live"></script>
+<script src="js/loader.js?v=20261125-season"></script>
 <script src="js/core.js?v=20261122-2"></script>
-<script src="js/uebersicht.js?v=20261125-live"></script>
+<script src="js/uebersicht.js?v=20261125-season"></script>
 <script src="js/gebietsmittel.js?v=20261125-live"></script>
 <script src="js/extreme.js?v=20261120-1"></script>
 <script src="js/stationen-kenntage.js?v=20261120-1"></script>
