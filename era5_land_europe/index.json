@@ -1,7 +1,7 @@
 {
   "ready": true,
   "payload_version": 10,
-  "generated_at": "2026-11-24T03:09:05+00:00",
+  "generated_at": "2026-11-25T01:15:24+00:00",
   "latest_month_key": "2026-10",
   "data_through": "2026-10-31",
   "reference_period": "1991–2020",
@@ -1630,9 +1630,9 @@
     },
     "running_month": {
       "id": "running_month",
-      "label": "November 2026 bis 17.11.",
+      "label": "November 2026 bis 18.11.",
       "date_start": "2026-11-01",
-      "date_end": "2026-11-17",
+      "date_end": "2026-11-18",
       "year": 2026,
       "partial_daily": true,
       "temperature": {
@@ -1647,9 +1647,9 @@
           "label": "Abweichung 1991–2020"
         },
         "stats": {
-          "current": 5.899622024425972,
-          "reference": 5.014505121451254,
-          "difference": 0.8851169029747181
+          "current": 5.944960714509249,
+          "reference": 4.917148758973651,
+          "difference": 1.027811955535598
         }
       },
       "precipitation": {
@@ -1664,15 +1664,15 @@
           "label": "Prozent vom Mittel 1991–2020"
         },
         "stats": {
-          "current": 44.84998696246248,
-          "reference": 38.75752329241243,
-          "percent": 115.71943497030104
+          "current": 49.60023571775839,
+          "reference": 41.02738734923612,
+          "percent": 120.89542845014205
         }
       },
       "historical_only": false,
       "analysis_ready": false,
       "running_only": true,
-      "running_data_through": "2026-11-17",
+      "running_data_through": "2026-11-18",
       "parameters": [
         "temperature",
         "precipitation"
@@ -1680,9 +1680,9 @@
     },
     "running_autumn": {
       "id": "running_autumn",
-      "label": "Herbst 2026 bis 17.11.",
+      "label": "Herbst 2026 bis 18.11.",
       "date_start": "2026-09-01",
-      "date_end": "2026-11-17",
+      "date_end": "2026-11-18",
       "year": 2026,
       "partial_daily": true,
       "temperature": {
@@ -1697,9 +1697,9 @@
           "label": "Abweichung 1991–2020"
         },
         "stats": {
-          "current": 12.081489189853201,
-          "reference": 10.51477817352578,
-          "difference": 1.566711016327421
+          "current": 12.013568041195882,
+          "reference": 10.422972001669178,
+          "difference": 1.5905960395267034
         }
       },
       "precipitation": {
@@ -1714,9 +1714,9 @@
           "label": "Prozent vom Mittel 1991–2020"
         },
         "stats": {
-          "current": 171.58864460706351,
-          "reference": 170.9697985978624,
-          "percent": 100.36196217944709
+          "current": 176.3388933623594,
+          "reference": 173.2396626546861,
+          "percent": 101.78898449707265
         }
       },
       "completed_months": [
@@ -1727,7 +1727,7 @@
       "historical_only": false,
       "analysis_ready": false,
       "running_only": true,
-      "running_data_through": "2026-11-17",
+      "running_data_through": "2026-11-18",
       "parameters": [
         "temperature",
         "precipitation"
@@ -1755,7 +1755,7 @@
   },
   "running": {
     "ready": true,
-    "data_through": "2026-11-17",
+    "data_through": "2026-11-18",
     "source_file": "era5_land_europe/running/index.json",
     "preliminary": true,
     "availability_note": "Laufende Zeiträume verwenden ERA5-Land-T und enden am jüngsten gemeinsam verfügbaren vollständigen UTC-Tag für Temperatur und Niederschlag.",

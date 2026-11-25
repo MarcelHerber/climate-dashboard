@@ -61,7 +61,7 @@ function png(){
   ctx.fillStyle="#4e687d";ctx.fillText("Kühler als 1991–2020 · Fläche für "+fillYear,291,106);
  }
  ctx.drawImage(source,0,136,c.width,source.height*scale);
- ctx.fillText("Quelle: DWD CDC · Referenz 1991–2020 · fehlende Werte bleiben Lücken",25,c.height-16,c.width-50);
+ ctx.fillText("Quelle: DWD CDC · Referenz "+(kind==="sun"?$("sjaSunReference").value.replace("-","–"):"1991–2020")+" · fehlende Werte bleiben Lücken",25,c.height-16,c.width-50);
  const a=document.createElement("a");a.download="DWD_Jahresanalyse_"+station.id+"_"+kind+".png";
  a.href=c.toDataURL("image/png");document.body.append(a);a.click();a.remove();
 }
@@ -107,11 +107,13 @@ function makeChart(labels,datasets,title,unit,chartType="line",note=""){
 function populateModes(){
  const options=kind==="temp"?[["daily","Tagesverlauf"]]:
    kind==="precip"?[["cumulative","Kumulierte Monatssummen"],["monthly","Monatssummen"],["daily","Aktuelle Tageswerte"]]:
+   kind==="sun"?[["cumulative","Kumulierte Tageswerte"],["daily","Tageswerte"],["monthly","Monatssummen"],["anomaly","Kumulierte Abweichung"],["annual","Jahressummen · gesamte Messreihe"],["ytd","Jahressummen bis zum gleichen Stichtag"]]:
    [["daily","Hydrologischer Jahresgang"]];
  $("sjaMode").replaceChildren();
  for(const [value,label] of options){const o=document.createElement("option");o.value=value;o.textContent=label;$("sjaMode").append(o);}
  mode=options[0][0];
  $("sjaMetricWrap").hidden=kind!=="temp";
+ $("sjaSunReferenceWrap").hidden=kind!=="sun";
  $("sjaFillControls").hidden=kind!=="temp";
 }
 function renderYearOptions(available,initial){
@@ -120,7 +122,7 @@ function renderYearOptions(available,initial){
  selected=new Set(years.filter(y=>old.has(y)).slice(0,5));
  if(!selected.size)for(const y of initial.filter(y=>years.includes(y)).slice(0,2))selected.add(y);
  if(!selected.size)years.slice(0,2).forEach(y=>selected.add(y));
- const area=$("sjaYears");area.replaceChildren();
+ const area=$("sjaYears");area.hidden=false;area.replaceChildren();
  for(const year of years){
   const label=document.createElement("label"),input=document.createElement("input");
   input.type="checkbox";input.checked=selected.has(year);input.value=String(year);
@@ -208,6 +210,146 @@ async function loadPrecip(st){
  }
  return {profile,daily,months};
 }
+// The archive is indexed by real day-of-year, including leap days.
+// Keep each year in its native calendar; align only when plotting.
+const SUN_AXIS=Array.from({length:366},(_,i)=>new Date(Date.UTC(2000,0,i+1)).toISOString().slice(5,10));
+const sunDays=y=>isLeap(y)?366:365;
+const sunRound=v=>Math.round(v*10)/10;
+function sunDateIndex(y,md){
+ const [m,d]=md.split("-").map(Number);
+ if(m===2&&d===29&&!isLeap(y))return -1;
+ return Math.round((Date.UTC(y,m-1,d)-Date.UTC(y,0,1))/86400000);
+}
+function sunTotal(values){
+ return values.length&&values.every(isNumber)?sunRound(values.reduce((a,b)=>a+b,0)):null;
+}
+function sunAligned(y,values,cum=false){
+ const row=cum?cumulative(values):values;
+ return SUN_AXIS.map(md=>{
+  const i=sunDateIndex(y,md);
+  // No extra sunshine on a nonexistent leap day. For running sums the
+  // previous day's sum is carried to the comparison slot, not into the total.
+  return i<0?(cum?row[58]??null:null):row[i]??null;
+ });
+}
+function sunMonths(y,values){
+ return Array.from({length:12},(_,m)=>{
+  const a=Math.round((Date.UTC(y,m,1)-Date.UTC(y,0,1))/86400000);
+  const b=Math.round((Date.UTC(y,m+1,1)-Date.UTC(y,0,1))/86400000);
+  return sunTotal(values.slice(a,b));
+ });
+}
+function sunReference(curves,n,min=20){
+ return Array.from({length:n},(_,i)=>{
+  const a=curves.map(row=>row[i]).filter(isNumber);
+  return a.length>=min?sunRound(a.reduce((x,y)=>x+y,0)/a.length):null;
+ });
+}
+async function loadSun(st){
+ const doc=await request(st.sun_file),metric=doc?.metrics?.sun;
+ if(doc?.schema!==1||doc.station_id!==st.id||!Array.isArray(doc.years)||metric?.encoded!=="dwd-kl-daily-zlib16-v1"||!metric.data)throw Error("Originales DWD-SDK-Tagesarchiv fehlt.");
+ if(typeof DecompressionStream==="undefined")throw Error("Deflate-Dekompression wird nicht unterstützt.");
+ const bin=Uint8Array.from(atob(metric.data),c=>c.charCodeAt(0));
+ const bytes=await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream("deflate"))).arrayBuffer();
+ if(bytes.byteLength!==doc.years.length*366*2)throw Error("SDK-Archiv unvollständig.");
+ const view=new DataView(bytes),history=new Map();
+ for(const [j,year] of doc.years.entries()){
+  const y=Number(year);if(!Number.isInteger(y)||y<1700||y>CURRENT)throw Error("Ungültiges SDK-Archivjahr.");
+  const row=Array.from({length:sunDays(y)},(_,i)=>{
+   const v=view.getInt16((j*366+i)*2,true);return v>=0&&v<=240?v/10:null;
+  });
+  if(row.some(isNumber))history.set(y,row);
+ }
+ // Existing recent KL files store SDK in tenths of an hour at field 6.
+ // Historical quality-controlled values take precedence over recent data.
+ const jobs=[];
+ for(let y=CURRENT-1;y<=CURRENT;y++)for(let m=y===CURRENT-1?11:1;m<=(y===CURRENT?NOW.getUTCMonth()+1:12);m++)
+  jobs.push(request("station_climate_days_current/"+y+"-"+String(m).padStart(2,"0")+".json",true));
+ const current=await Promise.all(jobs);
+ let latest=null;
+ for(const p of current){
+  const y=Number(p?.year),m=Number(p?.month),rows=p?.stations?.[st.id];
+  if(!Array.isArray(rows)||!Number.isInteger(y)||!Number.isInteger(m)||m<1||m>12||y>CURRENT)continue;
+  const row=history.get(y)||Array(sunDays(y)).fill(null);
+  rows.forEach((r,i)=>{
+   const md=String(m).padStart(2,"0")+"-"+String(i+1).padStart(2,"0"),idx=sunDateIndex(y,md),v=r?.[6];
+   const iso=y+"-"+md;
+   if(idx<0||idx>=row.length||!isNumber(v)||v<0||v>240||iso>NOW.toISOString().slice(0,10)||!p.data_through||iso>p.data_through)return;
+   if(!isNumber(row[idx]))row[idx]=v/10;
+   if(y===CURRENT&&(!latest||iso>latest))latest=iso;
+  });
+  if(row.some(isNumber))history.set(y,row);
+ }
+ const thisYear=history.get(CURRENT);
+ if(thisYear)for(let i=thisYear.length-1;i>=0;i--)if(isNumber(thisYear[i])){
+  latest=new Date(Date.UTC(CURRENT,0,i+1)).toISOString().slice(0,10);break;
+ }
+ return {history,latest};
+}
+function renderSun(){
+ const {history,latest}=payload;
+ const ref=$("sjaSunReference").value,first=Number(ref.slice(0,4)),last=first+29;
+ const historical=[...history].filter(([y])=>y<CURRENT);
+ const refFull=historical.filter(([y,row])=>y>=first&&y<=last&&sunTotal(row)!==null);
+ const chosen=[...selected].sort((a,b)=>a-b);
+ const palette=["#d58a16","#ba4828","#e5ad36","#7f55a5","#367da3"];
+ let datasets=[],labels=[],type="line",title="",note="";
+ const minRef=20,refLabel=ref.replace("-","–");
+ if(mode==="annual"||mode==="ytd"){
+  const firstYear=Math.min(...history.keys()),lastYear=Math.max(...history.keys());
+  const all=Array.from({length:lastYear-firstYear+1},(_,i)=>firstYear+i);
+  const md=latest?.slice(5)||null;
+  const totalAt=(y,row)=>{
+   if(!row)return null;
+   if(mode==="annual")return sunTotal(row);
+   if(!md)return null;
+   const i=sunDateIndex(y,md);
+   return sunTotal(row.slice(0,(i<0?58:i)+1));
+  };
+  const refValues=historical.filter(([y])=>y>=first&&y<=last).map(([y,row])=>totalAt(y,row)).filter(isNumber);
+  const norm=refValues.length>=minRef?sunRound(refValues.reduce((a,b)=>a+b,0)/refValues.length):null;
+  labels=all.map(String);type="bar";
+  datasets=[{label:mode==="annual"?"Vollständige Jahressummen":"Bis "+(md?md.slice(3)+"."+md.slice(0,2)+".":"Stichtag nicht verfügbar"),data:all.map(y=>y===CURRENT?null:totalAt(y,history.get(y))),color:"#e3a129",type:"bar"}];
+  const current=history.get(CURRENT);
+  if(current){
+   const value=mode==="annual"?null:totalAt(CURRENT,current);
+   // A partial current year is never plotted as a finished annual total.
+   if(mode==="ytd"&&isNumber(value))datasets.push({label:CURRENT+" · vorläufig",data:all.map(y=>y===CURRENT?value:null),color:"#bf5527",type:"bar"});
+   if(mode==="annual"){
+    const i=md?sunDateIndex(CURRENT,md):-1;
+    const ytd=i>=0?sunTotal(current.slice(0,i+1)):null;
+    if(isNumber(ytd))datasets.push({label:CURRENT+" · bisher (keine Jahressumme)",data:all.map(y=>y===CURRENT?ytd:null),color:"#a6a6a6",type:"bar"});
+   }
+  }
+  if(isNumber(norm))datasets.push({label:refLabel+" · Mittel",data:all.map(()=>norm),color:"#75604c",dash:[6,4],type:"line",order:0});
+  title=mode==="annual"?"Sonnenscheindauer · Jahressummen":"Sonnenscheindauer · gleicher Jahresstichtag";
+  note=(mode==="annual"?"Nur vollständig gemessene historische Kalenderjahre; laufendes Jahr separat als bisherige Summe.":"Alle Jahre werden bis zum letzten beobachteten Datum des laufenden Jahres verglichen; ohne Stichtag keine Werte.")+" Referenz: "+refValues.length+" gültige Jahre ("+refLabel+", mindestens 20). Fehlende Tage werden nicht ersetzt.";
+  $("sjaYears").hidden=true;
+ }else{
+  $("sjaYears").hidden=false;
+  const monthly=mode==="monthly",cum=mode==="cumulative"||mode==="anomaly",anomaly=mode==="anomaly";
+  labels=monthly?MONTHS:SUN_AXIS.map(md=>md.slice(3)+"."+md.slice(0,2));
+  type=monthly?"bar":"line";
+  const curve=(y,row)=>monthly?sunMonths(y,row):sunAligned(y,row,cum);
+  const refCurves=(cum?refFull:historical.filter(([y])=>y>=first&&y<=last)).map(([y,row])=>curve(y,row));
+  const norm=sunReference(refCurves,labels.length,minRef);
+  if(!monthly&&!cum){
+   const leap=refCurves.map(row=>row[59]).filter(isNumber);
+   norm[59]=leap.length>=5?sunRound(leap.reduce((a,b)=>a+b,0)/leap.length):null;
+  }
+  const transform=row=>anomaly?row.map((v,i)=>isNumber(v)&&isNumber(norm[i])?sunRound(v-norm[i]):null):row;
+  datasets=[{label:refLabel+(anomaly?" · Nullabweichung":" · Mittel"),data:anomaly?norm.map(v=>isNumber(v)?0:null):norm,color:"#75604c",dash:[5,5],type:"line",order:3}];
+  chosen.forEach((y,i)=>{
+   const row=history.get(y);if(row)datasets.push({label:String(y)+(y===CURRENT?" · vorläufig":""),data:transform(curve(y,row)),color:palette[i%palette.length],type,order:1});
+  });
+  const hist=(cum?historical.filter(([,r])=>sunTotal(r)!==null):historical).map(([y,r])=>transform(curve(y,r)));
+  addExtremes(datasets,historicalExtremes(hist,labels.length),cum?"kumuliert":monthly?"Monat":"Kalendertag");
+  title=anomaly?"Sonnenscheindauer · kumulierte Abweichung":cum?"Sonnenscheindauer · kumulierter Jahresverlauf":monthly?"Sonnenscheindauer · Monatssummen":"Sonnenscheindauer · Tageswerte";
+  note="DWD SDK · Referenz "+refLabel+" (mindestens 20 gültige Jahre; bei Tageswerten am 29. Februar mindestens 5). "+(cum?"Kumulation endet bei der ersten Datenlücke; Referenz und historische Extremkurven aus vollständigen Jahren. ":"")+"Schaltjahre einschließlich 29. Februar. Keine Lückenfüllung.";
+ }
+ makeChart(labels,datasets,title,"h",type,note);
+ text("sjaStats",latest?"Letzte aktuelle SDK-Beobachtung: "+latest.split("-").reverse().join("."):"Kein aktueller SDK-Messwert im vorhandenen Stationscache.");
+}
 async function loadSnow(st){
  const [archive,profile,current]=await Promise.all([
   request(st.snow_file),request(st.snow_profile,true),request(st.snow_current,true)
@@ -220,12 +362,13 @@ async function load(){
  const id=++serial,st=station,what=kind;
  if(chart){chart.destroy();chart=null;}lastExport=null;
  $("sjaPng").disabled=true;$("sjaCsv").disabled=true;
- status("Lade geprüfte DWD-"+(what==="temp"?"Temperatur":what==="precip"?"Niederschlags":"Schneehöhen")+"daten …");
+ status("Lade geprüfte DWD-"+(what==="temp"?"Temperatur":what==="precip"?"Niederschlags":what==="sun"?"Sonnenschein":"Schneehöhen")+"daten …");
  populateModes();
  try{
   let doc;
   if(what==="temp")doc=await loadTemp(st);
   else if(what==="precip")doc=await loadPrecip(st);
+  else if(what==="sun")doc=await loadSun(st);
   else doc=await loadSnow(st);
   if(id!==serial)return;
   payload=doc;
@@ -233,6 +376,8 @@ async function load(){
    const list=[...doc.history.keys()].sort((a,b)=>b-a);
    const nonempty=list.filter(y=>doc.history.get(y)?.some(row=>row.some(isNumber)));
    renderYearOptions(nonempty,[CURRENT,CURRENT-1]);
+  }else if(what==="sun"){
+   renderYearOptions([...doc.history.keys()],[CURRENT,CURRENT-1]);
   }else if(what==="precip"){
    const historical=(doc.profile.monthly_history||[]).filter(row=>row.months?.some(isNumber)).map(row=>Number(row.year));
    renderYearOptions([CURRENT,...historical],[CURRENT,CURRENT-1]);
@@ -393,16 +538,17 @@ function render(){
  mode=$("sjaMode").value;
  if(kind==="temp")renderTemp();
  else if(kind==="precip")renderPrecip();
+ else if(kind==="sun")renderSun();
  else renderSnow();
 }
 function choose(st){
  station=st;
  text("sjaSelected",st.name+" · Station "+st.id+(st.state?" · "+st.state:""));
- for(const type of ["temp","precip","snow"]){
+ for(const type of ["temp","precip","snow","sun"]){
   const button=$("sja"+type[0].toUpperCase()+type.slice(1));
   button.disabled=!st[type];
  }
- if(!st[kind])kind=st.temp?"temp":st.precip?"precip":"snow";
+ if(!st[kind])kind=st.temp?"temp":st.precip?"precip":st.snow?"snow":"sun";
  for(const button of document.querySelectorAll("[data-kind]")){
   const active=button.dataset.kind===kind;
   button.classList.toggle("active",active);button.setAttribute("aria-pressed",String(active));
@@ -420,13 +566,14 @@ function renderMatches(){
   button.className=st.id===station?.id?"active":"";
   const title=document.createElement("strong");title.textContent=st.name;
   const details=document.createElement("small");details.textContent=st.id+" · "+st.state+" · "+
-   ["temp","precip","snow"].filter(k=>st[k]).map(k=>({temp:"Temp.",precip:"Niederschlag",snow:"Schnee"})[k]).join(" / ");
+   ["temp","precip","snow","sun"].filter(k=>st[k]).map(k=>({temp:"Temp.",precip:"Niederschlag",snow:"Schnee",sun:"Sonne"})[k]).join(" / ");
   button.append(title,details);button.addEventListener("click",()=>choose(st));root.append(button);
  }
  if(!matches.length){const el=document.createElement("span");el.textContent="Keine passende Station mit veröffentlichter Jahresreihe.";root.append(el);}
 }
 async function init(){
  $("sjaSearch").addEventListener("input",renderMatches);$("sjaState").addEventListener("change",renderMatches);
+ $("sjaSunReference").addEventListener("change",render);
  $("sjaMetric").addEventListener("change",render);$("sjaMode").addEventListener("change",render);
  $("sjaFillYear").addEventListener("change",()=>{fillYear=Number($("sjaFillYear").value);render();});
  $("sjaPng").addEventListener("click",png);$("sjaCsv").addEventListener("click",csv);
@@ -440,7 +587,7 @@ async function init(){
   stations=doc.stations;
   const names=[...new Set(stations.map(s=>s.state).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de"));
   for(const name of names){const o=document.createElement("option");o.value=name;o.textContent=name;$("sjaState").append(o);}
-  text("sjaInventory",stations.length.toLocaleString("de-DE")+" Stationen · "+doc.totals.temp+" Temperatur · "+doc.totals.precip+" Niederschlag · "+doc.totals.snow+" Schnee");
+  text("sjaInventory",stations.length.toLocaleString("de-DE")+" Stationen · "+doc.totals.temp+" Temperatur · "+doc.totals.precip+" Niederschlag · "+doc.totals.snow+" Schnee · "+(doc.totals.sun||0)+" Sonne");
   const wanted=(new URLSearchParams(location.search)).get("station");
   const initial=stations.find(s=>s.id===wanted)||stations.find(s=>s.id==="01420")||stations[0];
   choose(initial);
