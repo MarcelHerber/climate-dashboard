@@ -28,7 +28,7 @@
       ["weltweite_isobaren.html","Weltweite Isobaren"],
       ["tiefdruck_tracker.html","Tiefdruck-Tracker"]]},
     {id:"climate",name:"Klima & Indizes",items:[
-      ["zirkulation.html","NAO, AO & Zirkulationsmuster"],["blocking.html","Blocking-Monitor"],
+      ["zirkulation.html","NAO, AO & Zirkulationsmuster"],["grosswetterlagen.html","Großwetterlagen · Klimatologie"],["blocking.html","Blocking-Monitor"],
       ["enso.html","ENSO"],["qbo.html","QBO"],["mjo.html","MJO"],
       ["meereis.html","Meereis Arktis & Antarktis"],["arktis_temperatur.html","Arktische Temperaturen · DMI >80° N"],["groenland_stationen.html","Grönland · DMI-Wetterstationen"],["eurasia_snow.html","Eurasien-Schnee"],
       ["ace.html","ACE · Tropische Wirbelstürme"]]},
