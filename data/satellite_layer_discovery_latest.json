@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-11-24T20:52:33+00:00",
+  "checked_at": "2026-11-25T20:10:08+00:00",
   "provider": "EUMETSAT EUMETView",
   "wms": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
@@ -11,15 +11,15 @@
       {
         "layer": "mtg_fd:ir105_hrfi",
         "title": "FCI HRFI IR10.5 μm Image - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-24T20:30:00Z",
+        "latest_advertised_time": "2026-11-25T19:50:00Z",
         "map_ok": true,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Air105_hrfi",
-        "bytes": 78181,
+        "bytes": 78367,
         "http_status": 200,
         "cors_allow_origin": "*",
-        "latest_verified_time": "2026-11-24T20:30:00Z",
-        "age_minutes": 22.6,
+        "latest_verified_time": "2026-11-25T19:50:00Z",
+        "age_minutes": 20.2,
         "recent": true
       }
     ],
@@ -28,15 +28,15 @@
       {
         "layer": "mtg_fd:rgb_firetemperature",
         "title": "Fire Temperature RGB - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-24T20:30:00Z",
+        "latest_advertised_time": "2026-11-25T19:40:00Z",
         "map_ok": true,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_firetemperature",
-        "bytes": 34402,
+        "bytes": 32802,
         "http_status": 200,
         "cors_allow_origin": "*",
-        "latest_verified_time": "2026-11-24T20:30:00Z",
-        "age_minutes": 22.6,
+        "latest_verified_time": "2026-11-25T19:40:00Z",
+        "age_minutes": 30.4,
         "recent": true
       }
     ],
@@ -44,15 +44,15 @@
       {
         "layer": "mtg_fd:li_afa",
         "title": "LI Accumulated Flash Area - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-24T20:40:00Z",
+        "latest_advertised_time": "2026-11-25T19:55:00Z",
         "map_ok": true,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Ali_afa",
-        "bytes": 3208,
+        "bytes": 4675,
         "http_status": 200,
         "cors_allow_origin": "*",
-        "latest_verified_time": "2026-11-24T20:40:00Z",
-        "age_minutes": 12.6,
+        "latest_verified_time": "2026-11-25T19:55:00Z",
+        "age_minutes": 15.4,
         "recent": true
       }
     ],
@@ -61,15 +61,15 @@
       {
         "layer": "mtg_fd:rgb_cloudphase",
         "title": "Cloud Phase RGB - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-24T20:30:00Z",
+        "latest_advertised_time": "2026-11-25T19:50:00Z",
         "map_ok": true,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_cloudphase",
         "bytes": 3853,
         "http_status": 200,
         "cors_allow_origin": "*",
-        "latest_verified_time": "2026-11-24T20:30:00Z",
-        "age_minutes": 22.6,
+        "latest_verified_time": "2026-11-25T19:50:00Z",
+        "age_minutes": 20.4,
         "recent": true
       }
     ],
@@ -78,15 +78,15 @@
       {
         "layer": "mtg_fd:rgb_truecolour",
         "title": "True Colour RGB - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-24T20:30:00Z",
+        "latest_advertised_time": "2026-11-25T19:40:00Z",
         "map_ok": true,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_truecolour",
         "bytes": 2669,
         "http_status": 200,
         "cors_allow_origin": "*",
-        "latest_verified_time": "2026-11-24T20:30:00Z",
-        "age_minutes": 22.6,
+        "latest_verified_time": "2026-11-25T19:40:00Z",
+        "age_minutes": 30.5,
         "recent": true
       }
     ],
@@ -94,31 +94,26 @@
       {
         "layer": "mtg_fd:vis06_hrfi",
         "title": "FCI HRFI VIS0.6 μm Image - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-24T20:30:00Z",
-        "map_ok": true,
+        "latest_advertised_time": "2026-11-25T19:40:00Z",
+        "map_ok": false,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Avis06_hrfi",
-        "bytes": 32957,
-        "http_status": 200,
-        "cors_allow_origin": "*",
-        "latest_verified_time": "2026-11-24T20:30:00Z",
-        "age_minutes": 22.6,
-        "recent": true
+        "error": "HTTP Error 502: Bad Gateway"
       }
     ],
     "fog": [
       {
         "layer": "mtg_fd:rgb_fog",
         "title": "Fog / Low Clouds RGB - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-24T20:20:00Z",
+        "latest_advertised_time": "2026-11-25T19:40:00Z",
         "map_ok": true,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_fog",
-        "bytes": 410231,
+        "bytes": 414488,
         "http_status": 200,
         "cors_allow_origin": "*",
-        "latest_verified_time": "2026-11-24T20:20:00Z",
-        "age_minutes": 32.7,
+        "latest_verified_time": "2026-11-25T19:40:00Z",
+        "age_minutes": 30.7,
         "recent": true
       }
     ],
@@ -126,15 +121,15 @@
       {
         "layer": "mtg_fd:rgb_snow",
         "title": "Snow RGB - MTG - 0 degree",
-        "latest_advertised_time": "2026-11-24T20:30:00Z",
+        "latest_advertised_time": "2026-11-25T19:50:00Z",
         "map_ok": true,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_snow",
         "bytes": 2669,
         "http_status": 200,
         "cors_allow_origin": "*",
-        "latest_verified_time": "2026-11-24T20:30:00Z",
-        "age_minutes": 22.7,
+        "latest_verified_time": "2026-11-25T19:50:00Z",
+        "age_minutes": 20.8,
         "recent": true
       }
     ]
