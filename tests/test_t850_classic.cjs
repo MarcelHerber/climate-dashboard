@@ -99,3 +99,17 @@ test("all four model rain and temperature legends fit into a combined vector",()
  const legend=svg.slice(svg.indexOf('id="panel0_legend"'),svg.indexOf('id="panel0_axes"'));
  for(const l of labels){assert.ok(legend.includes(">"+l+"</text>"),l);assert.ok(legend.includes(">"+l+" · RR 6 h</text>"),l+" rainfall");}
 });
+
+test("T850 plus rain uses pressure-level values, ERA5 and independent probabilities",()=>{
+ const fields={t850ParamSelect:{value:"t850Precip"},t850Metric:{value:"prob"},t850Threshold:{value:"0"},t850ThresholdDirection:{value:"below"},t850RainThreshold:{value:"5"},t850RainThresholdDirection:{value:"above"}};
+ const h=new Function("document",src+"\nreturn {PARAMS,ensembleFields,parseMemberFields,stats,metricParam,rainMetricParam,thresholdLabel};")({getElementById:id=>fields[id]||null});
+ const p=h.PARAMS.t850Precip;
+ assert.equal(h.ensembleFields(p),"temperature_850hPa,precipitation");
+ assert.equal(p.climate,true);assert.equal(p.axis,"T850 [°C]");
+ const times=Array.from({length:13},(_,i)=>"2026-11-18T"+String(i).padStart(2,"0")+":00");
+ const r=h.parseMemberFields({temperature_850hPa_member01:Array(13).fill(-5),temperature_850hPa_member02:Array(13).fill(3),precipitation_member01:Array(13).fill(1),precipitation_member02:Array(13).fill(2)},times,p,120);
+ assert.deepEqual(r.members[0],[-5,-5,-5]);assert.deepEqual(r.rain.members[0],[null,6,6]);
+ assert.deepEqual(h.stats(r).prob,[50,50,50]);assert.deepEqual(h.stats(r.rain,true).prob,[null,100,100]);
+ assert.match(h.thresholdLabel(),/^T850/);assert.match(h.metricParam(p).axis,/T850/);assert.match(h.rainMetricParam().axis,/RR 6 h/);
+ fields.t850Metric.value="spread";assert.match(h.metricParam(p).axis,/T850/);assert.match(h.rainMetricParam().axis,/mm/);
+});

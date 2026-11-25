@@ -38,6 +38,7 @@ const MODELS=[
 const HOURS=[0,6,12,18];
 const PARAMS={
   t850:{key:"t850",label:"Temperatur 850 hPa",short:"T850",api:"temperature_850hPa",kind:"instant",unit:"°C",axis:"T850 [°C]",climate:true,zeroLine:true},
+  t850Precip:{key:"t850Precip",label:"Temperatur 850 hPa + Niederschlag 6 h",short:"T850 + RR 6 h",api:"temperature_850hPa",kind:"instant",unit:"°C",axis:"T850 [°C]",climate:true,zeroLine:true,combined:true},
   tmax:{key:"tmax",label:"Tmax 2 m (täglich)",short:"Tmax",api:"temperature_2m",kind:"dailyMax",unit:"°C",axis:"Tmax 2 m [°C]",climate:false,zeroLine:true},
   tmin:{key:"tmin",label:"Tmin 2 m (täglich)",short:"Tmin",api:"temperature_2m",kind:"dailyMin",unit:"°C",axis:"Tmin 2 m [°C]",climate:false,zeroLine:true},
   t2m:{key:"t2m",label:"Temperatur 2 m",short:"T2m",api:"temperature_2m",kind:"instant",unit:"°C",axis:"Temperatur 2 m [°C]",climate:false,zeroLine:true},
@@ -430,9 +431,10 @@ function thresholdFor(rain=false){
   return {threshold:Number.isFinite(value)?value:(rain?5:0),above:el(direction)?.value!=="below"};
 }
 function rainMetricParam(){return metricParam(PARAMS.precip6);}
+function temperatureLabel(param=getParam()){return param.api==="temperature_850hPa"?"T850":"T2m";}
 function thresholdLabel(rain=false){
   const {threshold,above}=thresholdFor(rain);
-  return (rain?"RR 6 h":"T2m")+" "+(above?"≥":"≤")+" "+threshold.toLocaleString("de-DE")+" "+(rain?"mm":"°C");
+  return (rain?"RR 6 h":temperatureLabel())+" "+(above?"≥":"≤")+" "+threshold.toLocaleString("de-DE")+" "+(rain?"mm":"°C");
 }
 function percentileBands(sets,stat,rain,classic){
   if(!stat)return;
@@ -446,7 +448,7 @@ function percentileBands(sets,stat,rain,classic){
       {...base,data:stat[hi],backgroundColor:color,fill:{target:"-1",above:color,below:color}});
   }
 }
-function metricParam(param){const metric=displayMetric(),rain=param.key==="precip6",combined=getParam().combined,which=combined?(rain?"RR 6 h · ":"T2m · "):"";return metric==="prob"?{...param,unit:"%",axis:which+"Wahrscheinlichkeit [%]",kind:"probability",zeroLine:false}:metric==="spread"?{...param,axis:which+"Standardabweichung ["+param.unit+"]",kind:"spread",zeroLine:false}:param;}
+function metricParam(param){const metric=displayMetric(),rain=param.key==="precip6",combined=getParam().combined,which=combined?(rain?"RR 6 h · ":temperatureLabel(param)+" · "):"";return metric==="prob"?{...param,unit:"%",axis:which+"Wahrscheinlichkeit [%]",kind:"probability",zeroLine:false}:metric==="spread"?{...param,axis:which+"Standardabweichung ["+param.unit+"]",kind:"spread",zeroLine:false}:param;}
 function metricSeries(r){const metric=displayMetric();if(metric==="prob"||metric==="spread")return r.stats[metric];return r.stats.mean;}
 function modelChart(r,bounds,param,sharedRain){
   const c=el(r.model.canvas);if(!c)return;if(charts[r.model.key])charts[r.model.key].destroy();
@@ -462,7 +464,7 @@ function modelChart(r,bounds,param,sharedRain){
   if(!special&&!r.deterministicFallback)percentileBands(sets,r.stats,false,classic);
   if(!special)r.members.forEach(function(m,i){const id=r.memberIds?.[i]??i+1;sets.push(classic?classicDataset(id,m,false):{label:"Member "+id,data:m,borderColor:"rgba(71,85,105,.20)",backgroundColor:"rgba(71,85,105,0)",borderWidth:1,pointRadius:0,tension:.12,spanGaps:true,_hideLegend:true,_tooltip:false,_memberId:id});});
   if(!special&&r.control&&hasFiniteSeries(r.control))sets.push({label:"Kontrolllauf",data:r.control,borderColor:"#4b5563",backgroundColor:"#4b5563",borderDash:[6,4],borderWidth:2,pointRadius:0,tension:.14,spanGaps:true});
-  if(special){if(!r.deterministicFallback)sets.push({label:metric==="prob"?(param.combined?thresholdLabel(false):"Schwellenwert-Wahrscheinlichkeit"):(param.combined?"T2m · Spread (σ)":"Ensemble-Spread (σ)"),data:metricSeries(r),borderColor:classic?"#ffffff":r.model.color,borderWidth:3,pointRadius:0,tension:.14});}
+  if(special){if(!r.deterministicFallback)sets.push({label:metric==="prob"?(param.combined?thresholdLabel(false):"Schwellenwert-Wahrscheinlichkeit"):(param.combined?temperatureLabel(param)+" · Spread (σ)":"Ensemble-Spread (σ)"),data:metricSeries(r),borderColor:classic?"#ffffff":r.model.color,borderWidth:3,pointRadius:0,tension:.14});}
   else if(r.deterministicFallback)sets.push({label:"ICON-EU Hauptlauf (EPS-T850 derzeit nicht verfügbar)",data:r.stats.mean,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});
   else{sets.push({label:"Ensemble-Mittel",data:r.stats.mean,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:3,pointRadius:0,tension:.16,spanGaps:true});if(r.mainAligned&&hasFiniteSeries(r.mainAligned))sets.push({label:"Hauptlauf · "+fmtRun(r.main.run),data:r.mainAligned,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});}
   if(!special&&param.climate&&r.climate&&hasFiniteSeries(r.climate.values))sets.push({label:"1991–2020 ERA5",data:r.climate.values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
@@ -495,7 +497,7 @@ function modelChart(r,bounds,param,sharedRain){
 function comparisonChart(results,bounds,lat,lon,c,param){
   const canvas=el("t850ComparisonChart");if(!canvas)return;if(comparison)comparison.destroy();
   const set=new Set();results.forEach(function(r){r.times.forEach(function(t){set.add(t);});});const times=Array.from(set).sort(),map=new Map(times.map(function(t,i){return [t,i];})),sets=[];
-  results.filter(function(r){return !r.deterministicFallback;}).forEach(function(r){const d=times.map(function(){return null;});r.times.forEach(function(t,i){d[map.get(t)]=metricSeries(r)?.[i]??null;});sets.push({label:r.model.label+(param.combined&&displayMetric()!=="members"?" · "+(displayMetric()==="prob"?thresholdLabel(false):"T2m · Spread"):""),data:d,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:2.6,pointRadius:0,tension:.16,spanGaps:true});});
+  results.filter(function(r){return !r.deterministicFallback;}).forEach(function(r){const d=times.map(function(){return null;});r.times.forEach(function(t,i){d[map.get(t)]=metricSeries(r)?.[i]??null;});sets.push({label:r.model.label+(param.combined&&displayMetric()!=="members"?" · "+(displayMetric()==="prob"?thresholdLabel(false):temperatureLabel(param)+" · Spread"):""),data:d,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:2.6,pointRadius:0,tension:.16,spanGaps:true});});
   if(displayMetric()!=="prob"&&displayMetric()!=="spread"&&param.climate&&c)sets.push({label:"1991–2020 ERA5",data:climateSeries(c,lat,lon,times).values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
   if(displayMetric()!=="prob"&&displayMetric()!=="spread"&&param.zeroLine)sets.push({label:"0 °C",data:times.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
   if(param.combined)results.filter(r=>r.rain&&!r.deterministicFallback).forEach(r=>{
@@ -636,7 +638,7 @@ function updateParameterHeader(param){
     metric.disabled=false;
     const probability=displayMetric()==="prob";
     for(const id of ["t850Threshold","t850ThresholdDirection"]){const input=el(id);if(input)input.disabled=!probability;}
-    const label=el("t850ThresholdLabel");if(label)label.textContent=param.combined?"Temperaturschwelle [°C]":"Schwelle ["+param.unit+"]";
+    const label=el("t850ThresholdLabel");if(label)label.textContent=param.combined?temperatureLabel(param)+"-Schwelle [°C]":"Schwelle ["+param.unit+"]";
     const rainGroup=el("t850RainThresholdGroup");if(rainGroup)rainGroup.hidden=!param.combined||!probability;
   }
   const node=el("ensembleParameterStatus");if(node)node.textContent=param.label+" · 4 Modelle · voller Modellhorizont · Hauptlauf"+(param.combined?" · gestrichelt/punktiert: Niederschlag (rechte Achse)":"")+(param.climate?" · ERA5 1991–2020":"")+" · Y-Achse pro Modell anpassbar";
@@ -838,7 +840,7 @@ function mount(){
     try{picker.value=localStorage.getItem("climateDashboardEnsembleStyle")==="classic"?"classic":"modern";}catch(e){}
     picker.addEventListener("change",()=>{try{localStorage.setItem("climateDashboardEnsembleStyle",picker.value);}catch(e){}if(lastPlace&&lastResults.length)renderAvailableResults(lastResults,lastPlace,climate,getParam());});
   }
-  if(paramSelect){const original=paramSelect.value;paramSelect.innerHTML="";const groups=new Map();for(const p of Object.values(PARAMS)){const group=["t850","t2m","t2mPrecip","tmax","tmin","dew2","t925","t700","t500"].includes(p.key)?"Temperatur & Taupunkt":["rh2","rh850","clow","cmid","chigh"].includes(p.key)?"Feuchte & Wolken":["precip6","precip24","precipCum","snow","snowdepth"].includes(p.key)?"Niederschlag & Schnee":["wind","gust","mslp","z500"].includes(p.key)?"Wind & Druck":"Konvektion & Dynamik";if(!groups.has(group)){const opt=document.createElement("optgroup");opt.label=group;groups.set(group,opt);paramSelect.appendChild(opt);}const option=document.createElement("option");option.value=p.key;option.textContent=p.label;groups.get(group).appendChild(option);}paramSelect.value=PARAMS[original]?original:"t850";}
+  if(paramSelect){const original=paramSelect.value;paramSelect.innerHTML="";const groups=new Map();for(const p of Object.values(PARAMS)){const group=["t850","t850Precip","t2m","t2mPrecip","tmax","tmin","dew2","t925","t700","t500"].includes(p.key)?"Temperatur & Taupunkt":["rh2","rh850","clow","cmid","chigh"].includes(p.key)?"Feuchte & Wolken":["precip6","precip24","precipCum","snow","snowdepth"].includes(p.key)?"Niederschlag & Schnee":["wind","gust","mslp","z500"].includes(p.key)?"Wind & Druck":"Konvektion & Dynamik";if(!groups.has(group)){const opt=document.createElement("optgroup");opt.label=group;groups.set(group,opt);paramSelect.appendChild(opt);}const option=document.createElement("option");option.value=p.key;option.textContent=p.label;groups.get(group).appendChild(option);}paramSelect.value=PARAMS[original]?original:"t850";}
   if(!el("t850Metric")){const container=document.createElement("div");container.className="control-group";container.innerHTML='<label for="t850Metric">Ensemble-Auswertung</label><select id="t850Metric"><option value="members">Member & Perzentile</option><option value="spread">Spread (Standardabweichung)</option><option value="prob">Schwellenwert-Wahrscheinlichkeit</option></select><label id="t850ThresholdLabel" for="t850Threshold">Schwelle</label><input type="number" id="t850Threshold" value="0" step="any" style="width:82px"><select id="t850ThresholdDirection" aria-label="Schwellenwert-Richtung"><option value="above">≥</option><option value="below">≤</option></select><div id="t850RainThresholdGroup" hidden><label for="t850RainThreshold">Niederschlagsschwelle [mm/6 h]</label><input type="number" id="t850RainThreshold" value="5" min="0" step="any" style="width:82px"><select id="t850RainThresholdDirection" aria-label="Niederschlagsschwellenwert-Richtung"><option value="above">≥</option><option value="below">≤</option></select></div>';paramSelect.closest(".control-group").insertAdjacentElement("afterend",container);const redraw=function(){const p=getParam();updateParameterHeader(p);lastResults.forEach(function(r){r.stats=stats(r);if(r.rain)r.rain.stats=stats(r.rain,true);});if(lastPlace&&lastResults.length)renderAvailableResults(lastResults,lastPlace,climate,p);};["t850Metric","t850Threshold","t850ThresholdDirection","t850RainThreshold","t850RainThresholdDirection"].forEach(function(id){el(id)?.addEventListener("change",redraw);});}
   paramSelect?.addEventListener("change",function(){updateParameterHeader(getParam());if(String(input.value||"").trim().length>=2)load(input.value,{resetPanel:false});});
   updateParameterHeader(getParam());applyPanelView();setStatus("Ort eingeben und „Ensembles laden“ wählen. Danach wird zuerst GFS/GEFS groß gezeigt; Parameter und weitere Panels kannst du oben wechseln.","info");

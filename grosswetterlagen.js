@@ -24,12 +24,13 @@ function transitions(rows,accept){
  for(let i=1;i<rows.length;i++){const a=rows[i-1],b=rows[i];if(b.time-a.time!==DAY||a.code===b.code||!accept(a)||!accept(b))continue;const k=a.code+'|'+b.code;counts.set(k,(counts.get(k)||0)+1);}
  return counts;
 }
-if(typeof module!=='undefined')module.exports={parseCatalogue,episodes,transitions};
+function frequencyDistribution(counts){const total=[...counts.values()].reduce((s,n)=>s+n,0);return [...counts].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([code,days])=>({code,days,percent:total?100*days/total:0}));}
+if(typeof module!=='undefined')module.exports={parseCatalogue,episodes,transitions,frequencyDistribution};
 if(typeof document!=='undefined')(()=>{
 const $=id=>document.getElementById(id), all='Alle', names=['Deutschland','Baden-Württemberg','Bayern','Berlin','Brandenburg','Bremen','Hamburg','Hessen','Mecklenburg-Vorpommern','Niedersachsen','Nordrhein-Westfalen','Rheinland-Pfalz','Saarland','Sachsen','Sachsen-Anhalt','Schleswig-Holstein','Thüringen'];
 const remote='https://opendata.dwd.de/climate_environment/CDC/event_catalogues/europe/weather_types/GWL-REA/v1.6/historical/GWL-REA_v1.6_ERA5_GLP_catalogue.csv';
 const raw='https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/bundeslaender-data-';
-let rows=[],codes=[],chart,epoch=0,loadedSource='';
+let rows=[],codes=[],chart,freqChart,freqCounts=new Map(),epoch=0,loadedSource='';
 const fmt=(x,d=1)=>Number.isFinite(x)?x.toLocaleString('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d}):'–';
 const opts=(el,values)=>el.replaceChildren(...values.map(([v,t])=>new Option(t,v)));
 function table(el,headers,data){const head=document.createElement('thead'),tr=head.insertRow();for(const h of headers){const th=document.createElement('th');th.textContent=h;tr.append(th);}const body=document.createElement('tbody');for(const row of data){const tr=body.insertRow();for(const v of row)tr.insertCell().textContent=v;}el.replaceChildren(head,body);}
@@ -41,6 +42,16 @@ function download(name,blob){const a=document.createElement('a'),url=URL.createO
 function init(text,source,label){rows=parseCatalogue(text);loadedSource=source;codes=[...new Set(rows.map(r=>r.code))].sort();$('from').value=rows[0].date;$('to').value=rows.at(-1).date;for(const id of ['from','to']){$(id).min=rows[0].date;$(id).max=rows.at(-1).date;}opts($('type'),[[all,all],...codes.map(c=>[c,c])]);$('type').value=codes.includes('WZ')?'WZ':all;opts($('year'),[...new Set(rows.map(r=>r.year))].reverse().map(y=>[y,y]));$('results').hidden=false;const gaps=Math.round((rows.at(-1).time-rows[0].time)/DAY)+1-rows.length;status(label+' · '+rows[0].date+' bis '+rows.at(-1).date+' · '+rows.length.toLocaleString('de-DE')+' Tage · '+gaps+' fehlende Tage.');render();}
 async function fetchText(url){const res=await fetch(url,{signal:AbortSignal.timeout(20000)});if(!res.ok)throw Error('HTTP '+res.status);return res.text();}
 async function load(){const token=++epoch;rows=[];$('results').hidden=true;const s=$('source').value;if(s==='hb'){status('Historischer Katalog wird geladen …');try{const text=await fetchText('data/grosswetterlagen/hb.csv');if(token===epoch)init(text,s,'Hess/Brezowsky · PIK Report 119');}catch(e){if(token===epoch)status('Historisches Archiv noch nicht verfügbar: '+e.message+' — alternativ CSV importieren.',true);}return;}status('Katalog wird geladen …');try{let text;try{text=await fetchText('data/grosswetterlagen/rea.csv');parseCatalogue(text);}catch(e){text=await fetchText(remote);}if(token!==epoch)return;init(text,s,'DWD GWL-REA v1.6');}catch(e){if(token===epoch)status('Abruf fehlgeschlagen: '+e.message+' — Original-CSV beim DWD herunterladen und hier importieren.',true);}}
+function renderFrequency(){
+ freqChart?.destroy();freqChart=null;
+ const mode=$('freqView').value,days=$('freqUnit').value==='days',pie=mode==='pie',items=frequencyDistribution(freqCounts).filter(x=>!pie||x.days>0);
+ const total=items.reduce((s,x)=>s+x.days,0),visible=mode!=='table'&&total>0&&typeof Chart!=='undefined';
+ $('freqChartBox').hidden=!visible;$('freqPng').disabled=!visible;
+ if(!visible)return;
+ const ink=getComputedStyle(document.documentElement).getPropertyValue('--ink').trim();
+ $('freqChartBox').style.height=pie?'440px':Math.max(300,items.length*23+55)+'px';
+ freqChart=new Chart($('freqChart'),{type:mode,data:{labels:items.map(x=>x.code),datasets:[{label:days?'Tage':'Anteil (%)',data:items.map(x=>days?x.days:x.percent),backgroundColor:items.map(x=>colour(x.code))}]},options:{responsive:true,maintainAspectRatio:false,animation:false,...(!pie?{indexAxis:'y',scales:{x:{beginAtZero:true,title:{display:true,text:days?'Tage':'Anteil (%)',color:ink},ticks:{color:ink}},y:{ticks:{color:ink,autoSkip:false}}}}:{}),plugins:{legend:{display:pie,position:'bottom',labels:{color:ink,boxWidth:12}},tooltip:{callbacks:{label:ctx=>{const x=items[ctx.dataIndex];return x.code+': '+fmt(x.days,0)+' Tage · '+fmt(x.percent,2)+' %';}}}}}});
+}
 function render(){
  const token=++epoch;const filtered=rows.filter(base), picked=filtered.filter(selected), counts=new Map(codes.map(c=>[c,0]));for(const r of filtered)counts.set(r.code,counts.get(r.code)+1);
  const chosen=$('type').value;
@@ -49,6 +60,7 @@ function render(){
  const most=[...counts].sort((a,b)=>b[1]-a[1])[0];
  $('kpis').replaceChildren(...[['Ausgewählte Tage',picked.length],['Häufigster Typ',most?.[1]?most[0]:'–'],['Anteil Auswahl',filtered.length?fmt(100*picked.length/filtered.length)+' %':'–']].map(([l,v])=>{const d=document.createElement('div'),s=document.createElement('strong');s.textContent=v;d.append(s,l);return d;}));
  function ref(start,end){const season=$('season').value,rr=rows.filter(r=>r.year>=start&&r.year<=end&&(season==='all'||season.split(',').map(Number).includes(r.month))),m=new Map();for(const r of rr)m.set(r.code,(m.get(r.code)||0)+1);let expected=0;for(let t=Date.UTC(start,0,1);t<Date.UTC(end+1,0,1);t+=DAY)if(season==='all'||season.split(',').map(Number).includes(new Date(t).getUTCMonth()+1))expected++;return {m,n:rr.length,expected};}const refs=[ref(1961,1990),ref(1991,2020)];table($('freq'),['GWL','Tage','Anteil (%)',...refs.map((r,i)=>['1961–1990','1991–2020'][i]+' (%) · n='+r.n+'/'+r.expected)],[...counts].sort((a,b)=>b[1]-a[1]).map(([c,n])=>[c,n,fmt(filtered.length?100*n/filtered.length:NaN),...refs.map(r=>r.n===r.expected?fmt(100*(r.m.get(c)||0)/r.n):'–')]));
+ freqCounts=counts;renderFrequency();
  const byYear=new Map();for(const r of filtered){const v=byYear.get(r.year)||[0,0];v[0]++;if(selected(r))v[1]++;byYear.set(r.year,v);}
  chart?.destroy();if(typeof Chart!=='undefined'){const y=[...byYear.keys()];chart=new Chart($('trend'),{type:'bar',data:{labels:y.map(v=>v+' (n='+byYear.get(v)[0]+')'),datasets:(chosen===all?codes:[chosen]).map(c=>{const countsByYear=new Map();for(const row of filtered)if(row.code===c)countsByYear.set(row.year,(countsByYear.get(row.year)||0)+1);return {label:c,data:y.map(v=>100*(countsByYear.get(v)||0)/byYear.get(v)[0]),backgroundColor:colour(c)};})},options:{responsive:true,maintainAspectRatio:false,animation:false,scales:{x:{stacked:chosen===all},y:{stacked:chosen===all,beginAtZero:true,max:chosen===all?100:undefined,title:{display:true,text:'Anteil (%)'}}},plugins:{legend:{display:true}}}});}
  const runs=episodes(rows).filter(r=>(chosen===all||r.code===chosen)&&r.start.date >= $('from').value&&r.end.date <= $('to').value&&episodeMatchesSeason(r)).sort((a,b)=>b.n-a.n||a.start.time-b.start.time);table($('records'),['GWL','Beginn','Ende','Tage'],runs.slice(0,100).map(r=>[r.code,r.start.date,r.end.date,r.n]));
@@ -67,10 +79,11 @@ async function climate(){
  if(token!==epoch)return;const unit=parameter==='precipitation'?'mm':parameter==='sunshine'?'h':'°C';table($('climtable'),['GWL','Messtage','Mittel ('+unit+')','Minimum','Maximum'],[...stats].filter(([c])=>$('type').value===all||c===$('type').value).map(([c,s])=>[c,s.n,fmt(s.n?s.sum/s.n:NaN),fmt(s.min),fmt(s.max)]));$('climstatus').textContent=region+' · '+used+' von '+years.size+' ausgewählten Jahren lesbar; '+failed+' Abruffehler. Keine Interpolation. Min/Max sind Extremwerte der täglichen Gebietsmittel.';
  }catch(e){if(token===epoch)$('climstatus').textContent='Archiv konnte nicht geladen werden: '+e.message;}
 }
-$('theme').onclick=()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;try{localStorage.setItem('climateDashboardThemeV1',t)}catch(e){}};
+$('theme').onclick=()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;try{localStorage.setItem('climateDashboardThemeV1',t)}catch(e){}if(rows.length)renderFrequency();};
 $('load').onclick=load;$('source').onchange=load;$('file').onchange=async()=>{const f=$('file').files[0];if(!f)return;const token=++epoch,s=$('source').value;try{const text=await f.text();if(token===epoch)init(text,s,'Lokaler Import: '+f.name);}catch(e){if(token===epoch){$('results').hidden=true;status(e.message,true);}}};
 for(let i=1;i<=12;i++)$('season').add(new Option(new Date(Date.UTC(2020,i-1,1)).toLocaleString('de-DE',{month:'long',timeZone:'UTC'}),String(i)));
 for(const id of ['from','to','season','type'])$(id).onchange=render;$('year').onchange=calendar;opts($('region'),names.map(n=>[n,n]));$('climate').onclick=climate;for(const id of ['param','region'])$(id).onchange=()=>{++epoch;$('climtable').replaceChildren();$('climstatus').textContent='Auswertung erneut starten.';};
 $('csv').onclick=()=>download('grosswetterlagen-'+loadedSource+'.csv',new Blob(['Datum;GWL\n'+rows.filter(selected).map(r=>r.date+';'+r.code).join('\n')+'\n'],{type:'text/csv;charset=utf-8'}));
+$('freqView').onchange=renderFrequency;$('freqUnit').onchange=renderFrequency;$('freqPng').onclick=()=>{if(freqChart)$('freqChart').toBlob(b=>{if(b)download('grosswetterlagen-haeufigkeiten-'+$('freqView').value+'.png',b);});};
 $('png').onclick=()=>{if(!chart)return;$('trend').toBlob(b=>{if(b)download('grosswetterlagen.png',b);});};load();
 })();

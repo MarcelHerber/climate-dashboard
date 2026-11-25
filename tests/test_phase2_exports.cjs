@@ -78,7 +78,7 @@ test("responsive scientific modules keep download controls within mobile viewpor
 
 test("Pages includes cache-busted presentation assets and all mobile pages",()=>{
  assert.match(builder,/for filename in \("monthly_frequency\.js","t850_ensembles\.js"\)/);
- assert.match(builder,/version="20261118-ensemble-classic-v1" if filename=="t850_ensembles.js"/);
+ assert.match(builder,/version="20261125-t850-rain-v1" if filename=="t850_ensembles.js"/);
  assert.match(builder,/filename\+"\?v="\+version/);
  assert.match(builder,/t850_vector_export\.js/);
  const mosmixAsset=read("mosmix.html").match(/mosmix\.js\?v=[A-Za-z0-9_.-]+/);

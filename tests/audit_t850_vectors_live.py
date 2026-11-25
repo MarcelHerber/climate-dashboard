@@ -9,7 +9,7 @@ from pypdf import PdfReader
 BASE="https://marcelherber.github.io/climate-dashboard/"
 OUT=Path("t850_vector_live")
 OUT.mkdir(exist_ok=True)
-VERSION="t850_ensembles.js?v=20261113-t850-vectors-v1"
+VERSION="t850_ensembles.js?v=20261125-t850-rain-v1"
 
 def await_deployment():
     deadline=time.monotonic()+540
@@ -23,7 +23,7 @@ def await_deployment():
             if 'src="js/loader.js' in html and "T850VectorExport" in js:
                 with urllib.request.urlopen(BASE+"js/loader.js?fresh="+str(time.time()),timeout=20) as res:
                     loader=res.read().decode("utf8")
-                if '"t850_ensembles":["t850_ensembles.js","20261118-ensemble-classic-v1"]' in loader:return
+                if '"t850_ensembles":["t850_ensembles.js","20261125-t850-rain-v1"]' in loader:return
         except Exception as exc:print("Publish probe:",str(exc)[:100],flush=True)
         time.sleep(12)
     raise AssertionError("Current Pages T850 vector exporter was not deployed.")
