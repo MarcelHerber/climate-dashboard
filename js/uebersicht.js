@@ -401,17 +401,7 @@ function overviewHasMonthlyValue(value){
 function overviewLatestGermanyRow(){
   if(!monthlyData.length)return null;
   return currentMonthRow("Deutschland");
-  /* legacy confirmed month selection */
-  const rows=areaRows("Deutschland");
-  const hasData=row=>row?.date && ["temp","rain","sun"].some(param=>overviewHasMonthlyValue(row[param]));
-  const statusMonth=overviewStatusPayload?.monthly?.latest_complete_month;
-  if(statusMonth){
-    const exact=rows.find(row=>String(row.date)===String(statusMonth) && hasData(row));
-    if(exact)return exact;
-  }
-  return rows.filter(hasData)
-    .sort((a,b)=>String(a.date).localeCompare(String(b.date)))
-    .at(-1)||null;
+
 }
 function overviewReferenceValue(area,param,date){
   if(!date)return null;
@@ -457,7 +447,12 @@ function updateOverviewSummary(){
   const provisional=Object.values(latest.provisional||{}).some(Boolean);
   overviewSetText("overviewCurrentTitle",`Deutschland aktuell (${label}${provisional?" · vorläufig":""})`);
   const titleNode=document.getElementById("overviewCurrentTitle");
-  if(titleNode)titleNode.title=["temp","rain","sun"].map(p=>PARAM_META[p].label+": "+liveMonthlyLabel(latest.provisional?.[p])).join(" · ");
+  if(titleNode)titleNode.title=["temp","rain","sun"].map(p=>PARAM_META[p].label+": "+(latest.provisional?.[p]?liveMonthlyLabel(latest.provisional[p]):overviewHasMonthlyValue(latest[p])?"DWD bestätigt":"noch keine Daten")).join(" · ");
+  const sourceNote=p=>latest.provisional?.[p]?liveMonthlyLabel(latest.provisional[p]):overviewHasMonthlyValue(latest[p])?"DWD bestätigt":"noch keine Daten";
+  for(const [p,id] of [["temp","overviewTempAnomaly"],["rain","overviewRainPercent"]]){
+    const note=document.getElementById(id)?.parentElement?.querySelector(".overview-kpi-detail");
+    if(note)note.textContent=sourceNote(p)+(latest.provisional?.[p]&&!latest.provisional[p].complete?" · Vergleich voller Klimamonat":"");
+  }
 
   const refTemp=overviewReferenceValue("Deutschland","temp",latest.date);
   const refRain=overviewReferenceValue("Deutschland","rain",latest.date);
@@ -471,7 +466,7 @@ function updateOverviewSummary(){
   overviewSetText("overviewTempAnomaly",Number.isFinite(tempAnom)?`${overviewGermanNumber(tempAnom,1,{sign:true})} °C`:"–");
   overviewSetText("overviewRainPercent",Number.isFinite(rainPct)?`${overviewGermanNumber(rainPct,0)} %`:"–");
   overviewSetText("overviewSunPercent",Number.isFinite(sunPct)?`${overviewGermanNumber(sunPct,0)} %`:"–");
-  overviewSetText("overviewSunDetail",Number.isFinite(sunPct)?`${sunPct>=100?"+":""}${overviewGermanNumber(sunPct-100,0)} % gegenüber 1991–2020`:"keine vollständige Referenz verfügbar");
+  overviewSetText("overviewSunDetail",Number.isFinite(sunPct)?`${sourceNote("sun")} · Anteil am vollen Klimamonat 1991–2020` : sourceNote("sun"));
 
   const tempExt=overviewSeriesExtremes("temp",month);
   const rank=latest.provisional?.temp?.complete?overviewRankForCurrent([...tempExt.series.filter(x=>x.year!==year),{year,value:temp}],year):overviewRankForCurrent(tempExt.series,year);
@@ -744,14 +739,14 @@ function monthlyOutlookValue(doc,area,key,month,today){
  if(m?.forecast_through>=end&&m.forecast_from<=dates[idx+1]&&Number.isFinite(age)&&age>=-3600000&&age<=48*3600000&&dates.slice(idx+1).every((_,i)=>finite(m.stats?.mean?.[idx+1+i])))return {value:m.stats.mean.at(-1),through,mode:"forecast",complete:true,source,run:m.run||m.retrieved_at};
  return {value:observed,through,mode:"observed",complete:false,source};
 }
-function liveCalendarMonth(){return new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Berlin",year:"numeric",month:"2-digit"}).format(new Date());}
+function liveCalendarMonth(){const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Berlin",year:"numeric",month:"2-digit"}).formatToParts(new Date());return parts.find(x=>x.type==="year").value+"-"+parts.find(x=>x.type==="month").value;}
 function liveMonthlyValue(area,month,key){
   if(month!==liveCalendarMonth())return null;
   const today=new Date().toISOString();
   const data=monthlyObservedHistory.find(d=>d.month===month);
   const a=data?.areas?.[area],v=a?.[key],cut=a?.data_through?.[key]||data?.data_through;
   const end=month+"-"+String(new Date(Number(month.slice(0,4)),Number(month.slice(5)),0).getDate()).padStart(2,"0");
-  const obs=Number.isFinite(v)&&cut?.startsWith(month)?{value:v,through:cut,mode:"observed",complete:cut===end,source:key==="sun"?"DWD":"HYRAS"}:null;
+  const obs=Number.isFinite(v)&&cut?.startsWith(month)&&cut<=today.slice(0,10)?{value:v,through:cut,mode:"observed",complete:cut===end,source:key==="sun"?"DWD":"HYRAS"}:null;
   const d=currentMonthOutlookDocs[key];
   const groups={"Brandenburg/Berlin":[["Brandenburg",29654],["Berlin",892]],"Niedersachsen/Hamburg/Bremen":[["Niedersachsen",47710],["Hamburg",755],["Bremen",420]],"Thüringen/Sachsen-Anhalt":[["Thüringen",16202],["Sachsen-Anhalt",20452]]};
   let candidate=monthlyOutlookValue(d,area,key,month,today);
