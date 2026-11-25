@@ -27,7 +27,7 @@ function updateMonthly(){
   // statt unnötig bei 0 °C zu starten.
   let temperatureScaleMin;
   if(param==="temp"){
-    const finiteValues=dataValues.filter(Number.isFinite);
+    const finiteValues=[...dataValues,observed?.value].filter(Number.isFinite);
     if(finiteValues.length){
       const lowest=Math.min(...finiteValues);
       const highest=Math.max(...finiteValues);
@@ -47,7 +47,7 @@ function updateMonthly(){
   const provisionalInfo=document.getElementById("monthlyObservedChartNote");
   if(provisionalInfo){
     provisionalInfo.hidden=!observed;
-    if(observed)provisionalInfo.textContent=`${observed.year} schraffiert: HYRAS-Beobachtungen bis ${observed.through.slice(8,10)}.${observed.through.slice(5,7)}.${observed.through.slice(0,4)} · vorläufig, keine Prognose und kein vollständiger Monatswert.`;
+    if(observed)provisionalInfo.textContent=`${observed.year} schraffiert: ${liveMonthlyLabel(observed)} · vorläufig, nicht in historischen Rekorden oder gleitendem Mittel.`;
   }
   monthlyChart=new Chart(document.getElementById("monthlyChart"),{
     type:"bar",
@@ -64,7 +64,7 @@ function updateMonthly(){
         },
         ...(observed?[{
           type:"bar",
-          label:`${observed.year} vorläufig · HYRAS bis ${observed.through.slice(8,10)}.${observed.through.slice(5,7)}.`,
+          label:`${observed.year} vorläufig · ${liveMonthlyLabel(observed)}`,
           data:labels.map((_,i)=>i===labels.length-1?observed.value:null),
           grouped:false,
           backgroundColor:observedHatch,
@@ -75,7 +75,7 @@ function updateMonthly(){
         {
           type:"line",
           label:`Mittel ${reference.label}`,
-          data:dataValues.map(()=>climateMean),
+          data:labels.map(()=>climateMean),
           borderColor:"#111",
           borderDash:[7,5],
           borderWidth:2,
@@ -118,13 +118,14 @@ function updateMonthly(){
   });
 
   const deviations=dataValues.map(value=>climateMean===null?null:value-climateMean);
+  if(observed)deviations.push(observed.complete&&Number.isFinite(climateMean)?observed.value-climateMean:null);
   if(monthlyDeviationChart) monthlyDeviationChart.destroy();
   monthlyDeviationChart=new Chart(document.getElementById("monthlyDeviationChart"),{
     type:"bar",
     data:{labels,datasets:[{
       label:`Abweichung vom Mittel ${reference.label} (${PARAM_META[param].unit})`,
       data:deviations,
-      backgroundColor:deviations.map(value=>deviationColor(param,value))
+      backgroundColor:deviations.map((value,i)=>observed&&i===labels.length-1?observedHatch:deviationColor(param,value))
     }]},
     options:{
       responsive:true,
