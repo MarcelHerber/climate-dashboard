@@ -103,7 +103,7 @@ function resolveFillTarget(fill,index,total){
  else return null;
  return Number.isInteger(dest)&&dest>=0&&dest<total&&dest!==index?dest:null;
 }
-function fillAreas(chart,xAt,yAt,xmin,xmax){
+function fillAreas(chart,xAt,yAt,xmin,xmax,rightYAt=null){
  const datasets=chart.data.datasets||[],fills=[];
  datasets.forEach((ds,index)=>{
   const visible=i=>typeof chart.isDatasetVisible==="function"?
@@ -117,7 +117,9 @@ function fillAreas(chart,xAt,yAt,xmin,xmax){
   const below=color(ds.fill.below||ds.backgroundColor||"#6e9cc5");
   const areas=[];
   const low=Math.max(0,Math.floor(xmin)),high=Math.min(Math.ceil(xmax),Math.max((ds.data||[]).length,(target.data||[]).length)-1);
-  const plotPoint=(index,val)=>[xAt(index),yAt(val)];
+  const project=ds.yAxisID==="yRain"?rightYAt:yAt;
+  if(!project)return;
+  const plotPoint=(index,val)=>[xAt(index),project(val)];
   for(let i=low;i<high;i++){
    const a0=value(ds.data?.[i]),a1=value(ds.data?.[i+1]);
    const b0=value(target.data?.[i]),b1=value(target.data?.[i+1]);
@@ -161,7 +163,7 @@ function buildScene(chart,info){
   const right=chart.scales.yRain,rightValid=!!right&&finite(right.min)&&finite(right.max)&&right.max>right.min;
   const yr=v=>P.y+P.h-(v-right.min)/(right.max-right.min)*P.h;
   const classic=info?.classic===true;
-  const fills=fillAreas(chart,xa,ya,xmin,xmax);
+  const fills=fillAreas(chart,xa,ya,xmin,xmax,rightValid?yr:null);
   const series=[];
   chart.data.datasets.forEach((ds,i)=>{
     const visible=typeof chart.isDatasetVisible==="function"?chart.isDatasetVisible(i):!ds.hidden;
@@ -169,11 +171,14 @@ function buildScene(chart,info){
     const rawLabel=String(ds.label||"Reihe "+(i+1));
     const earlier=chart.data.datasets.slice(0,i).filter(item=>item.label===rawLabel).length;
     // The Chart.js fill edges share a legend label, but need distinct SVG layers.
-    const label=rawLabel.startsWith("10.–90.")?(earlier?"90. Perzentil":"10. Perzentil"):
-      rawLabel.startsWith("25.–75.")?(earlier?"75. Perzentil":"25. Perzentil"):rawLabel;
+    const suffix=rawLabel.includes("· RR 6 h")?" · RR 6 h":"";
+    const label=rawLabel.startsWith("10.–90.")?(earlier?"90. Perzentil":"10. Perzentil")+suffix:
+      rawLabel.startsWith("25.–75.")?(earlier?"75. Perzentil":"25. Perzentil")+suffix:rawLabel;
     const percentile=label.includes("Perzentil");
+    const bandEdge=percentile&&Number(ds.borderWidth)===0&&ds._tooltip===false;
+    if(bandEdge)return;
     let paint=color(ds.borderColor||ds.backgroundColor);
-    if(percentile)paint={hex:/^(25|75)\./.test(label)?"#5599d2":"#8aa9d6",opacity:.85};
+    if(percentile&&Number(ds.borderWidth)!==0)paint={hex:/^(25|75)\./.test(label)?"#5599d2":"#8aa9d6",opacity:.85};
     // Mobile Chart.js opacity is often 0.2; keep members legible on white paper.
     if(label.startsWith("Member ")&&!classic)paint.opacity=.50;
     const rightSeries=ds.yAxisID==="yRain";if(rightSeries&&!rightValid)return;
