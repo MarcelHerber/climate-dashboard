@@ -23,37 +23,63 @@ test("provisional month lives inside historical Chart.js instead of a separate a
   assert.ok(html.includes("if(observed)labels.push(observed.year)"));
   assert.ok(html.includes("backgroundColor:observedHatch"));
   assert.ok(html.includes("grouped:false"));
-  assert.ok(html.includes("monthlyData.length)updateMonthly()"));
+  assert.match(html,/if\s*\(monthlyData\.length\)\s*\{?\s*updateMonthly\(\)/);
   assert.ok(!builder.includes("  monthly_provisional.js\n"),"old unreliable extension still published");
   assert.ok(builder.includes("observed.year} vorläufig"),"Pages build missing integrated-chart check");
   assert.ok(builder.includes("monthly_provisional_history.json"),"Pages build missing archived months");
 });
 
+function harness(now,snapshots,docs={},rows=[]){
+  const FakeDate=class extends Date {constructor(...args){super(...(args.length?args:[now]));}};
+  const helpers=["observedMonthlyBar","monthlyOutlookValue","liveCalendarMonth","liveMonthlyValue","seasonForMonth","combineSeason","liveSeasonValue","periodKeys"];
+  return new Function("Date","monthlyObservedHistory","currentMonthOutlookDocs","monthlyData",
+    helpers.map(functionSource).join("\n")+"\nfunction areaRows(area){return monthlyData.filter(r=>r.area===area);}\nreturn {observedMonthlyBar,combineSeason,liveSeasonValue,seasonForMonth};")(FakeDate,snapshots,docs,rows);
+}
+const area="Rheinland-Pfalz",old=[{year:2025,value:5.6}];
+function snapshot(month,day,temp,rain){
+  return {schema:1,month,data_through:month+"-"+String(day).padStart(2,"0"),days_in_month:new Date(Number(month.slice(0,4)),Number(month.slice(5)),0).getDate(),forecast:false,areas:{[area]:{temp,rain}}};
+}
 test("November provisional stays while December starts, and final DWD values replace it",()=>{
-  const snapshots=[
-    {schema:1,month:"2026-11",data_through:"2026-11-30",forecast:false,
-      areas:{"Rheinland-Pfalz":{temp:5.69,rain:10.2}}},
-    {schema:1,month:"2026-12",data_through:"2026-12-02",forecast:false,
-      areas:{"Rheinland-Pfalz":{temp:3.35,rain:2.1}}}
-  ];
-  const observedMonthlyBar=new Function("monthlyObservedHistory",
-    "return "+functionSource("observedMonthlyBar"))(snapshots);
-  const old=[{year:2025,value:5.6}];
-  assert.deepEqual(observedMonthlyBar("Rheinland-Pfalz","11","temp",old),
-    {year:2026,value:5.69,through:"2026-11-30"});
-  assert.deepEqual(observedMonthlyBar("Rheinland-Pfalz","12","temp",old),
-    {year:2026,value:3.35,through:"2026-12-02"});
-  assert.equal(observedMonthlyBar("Rheinland-Pfalz","10","temp",old),null);
-  assert.equal(observedMonthlyBar("Rheinland-Pfalz","11","sun",old),null);
-
-  // DWD may publish November temperature before November precipitation.
-  const finalTemp=[...old,{year:2026,value:5.41}];
-  assert.equal(observedMonthlyBar("Rheinland-Pfalz","11","temp",finalTemp),null);
-  assert.deepEqual(observedMonthlyBar("Rheinland-Pfalz","11","rain",old),
-    {year:2026,value:10.2,through:"2026-11-30"});
-  assert.deepEqual(snapshots[0].areas["Rheinland-Pfalz"],{temp:5.69,rain:10.2});
+  const snapshots=[snapshot("2026-11",30,5.69,10.2),snapshot("2026-12",2,3.35,2.1)];
+  const {observedMonthlyBar:bar}=harness("2026-12-03T10:00:00Z",snapshots);
+  assert.deepEqual(bar(area,"11","temp",old),{year:2026,value:5.69,through:"2026-11-30",source:"HYRAS",mode:"observed",complete:true});
+  assert.deepEqual(bar(area,"12","temp",old),{year:2026,value:3.35,through:"2026-12-02",source:"HYRAS",mode:"observed",complete:false});
+  assert.equal(bar(area,"10","temp",old),null);
+  assert.equal(bar(area,"11","sun",old),null);
+  assert.equal(bar(area,"11","temp",[...old,{year:2026,value:5.41}]),null);
+  assert.equal(bar(area,"11","rain",old).value,10.2);
+  assert.deepEqual(snapshots[0].areas[area],{temp:5.69,rain:10.2});
 });
-
+test("GEFS complete month is included in the autumn bar, gaps and stale runs fall back",()=>{
+  const dates=Array.from({length:30},(_,i)=>"2026-11-"+String(i+1).padStart(2,"0"));
+  const doc={year:2026,month:11,dates,regions:{[area]:{
+    observed_through:dates[22],observed_running:dates.map((_,i)=>i<23?4:null),
+    models:{gefs:{run:"2026-11-25T00:00:00Z",forecast_from:dates[23],forecast_through:dates[29],stats:{mean:dates.map((_,i)=>i>=23?5:null)}}}
+  }}};
+  const rows=[{area,date:"2026-09",temp:12},{area,date:"2026-10",temp:8}];
+  const check=()=>harness("2026-11-25T11:00:00Z",[],{temp:doc},rows).observedMonthlyBar;
+  const full=check()(area,"autumn","temp",old);
+  assert.equal(full.complete,true);assert.equal(full.mode,"forecast");assert.equal(full.days,91);
+  assert.equal(full.value,(12*30+8*31+5*30)/91);
+  assert.equal(check()(area,"11","temp",old).value,5);
+  assert.equal(check()(area,"autumn","temp",[...old,{year:2026,value:8}]),null);
+  doc.regions[area].models.gefs.stats.mean[28]=null;
+  const partial=check()(area,"autumn","temp",old);
+  assert.equal(partial.complete,false);assert.equal(partial.days,84);assert.equal(partial.value,(12*30+8*31+4*23)/84);
+  doc.regions[area].models.gefs.stats.mean[28]=5;
+  doc.regions[area].models.gefs.run="2026-11-20T00:00:00Z";
+  assert.equal(check()(area,"autumn","temp",old).mode,"observed");
+});
+test("winter year rollover, leap day, totals and missing past month",()=>{
+  const {combineSeason,seasonForMonth}=harness("2026-12-03T10:00:00Z",[]);
+  assert.deepEqual(seasonForMonth("2026-12"),{year:2027,selection:"winter"});
+  assert.deepEqual(seasonForMonth("2027-02"),{year:2027,selection:"winter"});
+  const months=["2023-12","2024-01","2024-02"];
+  const full=combineSeason(months,"2024-02","rain",()=>10,()=>null);
+  assert.equal(full.days,91);assert.equal(full.value,30);assert.equal(full.complete,true);
+  assert.equal(combineSeason(months,"2024-01","rain",()=>10,()=>null).value,20);
+  assert.equal(combineSeason(months,"2024-02","rain",m=>m==="2024-01"?null:10,()=>null),null);
+});
 test("main inline scripts parse without JavaScript syntax errors",()=>{
   const scripts=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)]
     .map(match=>match[1]).filter(source=>source.trim());
