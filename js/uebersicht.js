@@ -439,6 +439,7 @@ function overviewRecordText(item,param){
 }
 function updateOverviewSummary(){
   if(!monthlyData.length)return;
+  updateOverviewSeason();
   const latest=overviewLatestGermanyRow();
   if(!latest)return;
   const month=String(latest.date).slice(5,7);
@@ -691,6 +692,11 @@ async function loadMonthlyObservedLive(){
 }
 function observedMonthlyBar(area,selection,param,historicalValues){
   const month=liveCalendarMonth(),year=Number(month.slice(0,4));
+  const season=seasonForMonth(month);
+  if(selection===season.selection&&!historicalValues.some(item=>item.year===season.year)){
+    const r=liveSeasonValue(area,season.year,selection,param);
+    if(r)return {...r,year:season.year};
+  }
   if(selection===month.slice(5)&&!historicalValues.some(item=>item.year===year)){
     const live=liveMonthlyValue(area,month,param);
     if(live)return {...live,year};
@@ -741,12 +747,14 @@ function monthlyOutlookValue(doc,area,key,month,today){
 }
 function liveCalendarMonth(){const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Berlin",year:"numeric",month:"2-digit"}).formatToParts(new Date());return parts.find(x=>x.type==="year").value+"-"+parts.find(x=>x.type==="month").value;}
 function liveMonthlyValue(area,month,key){
-  if(month!==liveCalendarMonth())return null;
+  const current=liveCalendarMonth();
+  if(month>current)return null;
   const today=new Date().toISOString();
   const data=monthlyObservedHistory.find(d=>d.month===month);
   const a=data?.areas?.[area],v=a?.[key],cut=a?.data_through?.[key]||data?.data_through;
   const end=month+"-"+String(new Date(Number(month.slice(0,4)),Number(month.slice(5)),0).getDate()).padStart(2,"0");
   const obs=Number.isFinite(v)&&cut?.startsWith(month)&&cut<=today.slice(0,10)?{value:v,through:cut,mode:"observed",complete:cut===end,source:key==="sun"?"DWD":"HYRAS"}:null;
+  if(month!==current)return obs?.complete?obs:null;
   const d=currentMonthOutlookDocs[key];
   const groups={"Brandenburg/Berlin":[["Brandenburg",29654],["Berlin",892]],"Niedersachsen/Hamburg/Bremen":[["Niedersachsen",47710],["Hamburg",755],["Bremen",420]],"Thüringen/Sachsen-Anhalt":[["Thüringen",16202],["Sachsen-Anhalt",20452]]};
   let candidate=monthlyOutlookValue(d,area,key,month,today);
@@ -761,6 +769,7 @@ function liveMonthlyValue(area,month,key){
 }
 function liveMonthlyLabel(r){
   if(!r)return "keine aktuellen Daten";
+  if(r.season)return "Vorläufig · "+(r.mode==="forecast"?"inkl. GEFS-Mittel":"DWD/HYRAS/DUETT")+" bis "+r.through.slice(8)+"."+r.through.slice(5,7)+"."+(r.complete?"":" · Teiljahreszeit")+(r.approximate?" · flächengewichtete Näherung":"");
   return (r.mode==="forecast"?r.source+" + GEFS-Mittel bis Monatsende":r.source+" bis "+r.through.slice(8)+"."+r.through.slice(5,7)+".")+(r.approximate?" · flächengewichtet (Näherung)":"")+(r.complete?"":" · Teilmonat");
 }
 async function loadCurrentMonthOutlook(){
@@ -784,4 +793,72 @@ function currentMonthRow(area){
     else{const r=liveMonthlyValue(area,date,key);row[key]=r?.value??null;row.provisional[key]=r;}
   }
   return row;
+}
+
+function seasonForMonth(month){
+  const y=Number(month.slice(0,4)),m=Number(month.slice(5));
+  return m===12?{year:y+1,selection:"winter"}:m<=2?{year:y,selection:"winter"}:m<=5?{year:y,selection:"spring"}:m<=8?{year:y,selection:"summer"}:{year:y,selection:"autumn"};
+}
+function combineSeason(months,currentMonth,param,readOfficial,readLive){
+  const finite=v=>typeof v==="number"&&Number.isFinite(v);
+  let sum=0,days=0,through=null,forecast=false,provisional=false,approximate=false;
+  const details=[];
+  for(const month of months){
+    if(month>currentMonth)break;
+    const endDay=new Date(Number(month.slice(0,4)),Number(month.slice(5)),0).getDate();
+    const end=month+"-"+String(endDay).padStart(2,"0");
+    const official=readOfficial(month);
+    if(finite(official)){
+      sum+=param==="temp"?official*endDay:official;days+=endDay;through=end;
+      details.push(month+": DWD bestätigt");continue;
+    }
+    const r=readLive(month);
+    if(!r||!finite(r.value)){
+      if(month<currentMonth)return null;
+      break;
+    }
+    if(!r.complete&&month<currentMonth)return null;
+    if(!r.through?.startsWith(month)||!/^\d{4}-\d{2}-\d{2}$/.test(r.through))return null;
+    const used=r.complete?endDay:Number(r.through.slice(8));
+    if(!Number.isInteger(used)||used<1||used>endDay)return null;
+    sum+=param==="temp"?r.value*used:r.value;days+=used;
+    through=r.complete?end:r.through;
+    forecast ||= r.mode==="forecast";provisional=true;approximate ||= !!r.approximate;
+    details.push(month+": "+r.source+(r.mode==="forecast"?" + GEFS bis Monatsende":" bis "+r.through));
+  }
+  if(!days)return null;
+  const last=months.at(-1),lastEnd=last+"-"+String(new Date(Number(last.slice(0,4)),Number(last.slice(5)),0).getDate()).padStart(2,"0");
+  return {value:param==="temp"?sum/days:sum,through,complete:through===lastEnd,mode:forecast?"forecast":"observed",source:"DWD-Monatswerte + "+(param==="sun"?"DUETT":"HYRAS"),approximate,season:true,days,details,provisional:provisional||through!==lastEnd};
+}
+function liveSeasonValue(area,year,selection,param){
+  const current=liveCalendarMonth(),active=seasonForMonth(current);
+  if(year!==active.year||selection!==active.selection)return null;
+  const months=periodKeys(year,selection).map(k=>k.year+"-"+String(k.month).padStart(2,"0"));
+  const rows=areaRows(area);
+  const byDate=new Map(rows.filter(r=>months.includes(r.date)).map(r=>[r.date,r]));
+  const r=combineSeason(months,current,param,m=>byDate.get(m)?.[param],m=>liveMonthlyValue(area,m,param));
+  return r?.provisional?r:null;
+}
+function updateOverviewSeason(){
+  const node=document.getElementById("overviewSeasonTitle");if(!node||!monthlyData.length)return;
+  const {year,selection}=seasonForMonth(liveCalendarMonth());
+  const labels={winter:"Winter",spring:"Frühling",summer:"Sommer",autumn:"Herbst"};
+  node.textContent=labels[selection]+" "+(selection==="winter"?(year-1)+"/"+String(year).slice(-2):year);
+  for(const [param,id] of [["temp","overviewSeasonTemp"],["rain","overviewSeasonRain"],["sun","overviewSeasonSun"]]){
+    const live=liveSeasonValue("Deutschland",year,selection,param);
+    const series=seriesFor("Deutschland",selection,param);
+    const official=series.find(x=>x.year===year)?.value;
+    const value=Number.isFinite(official)?official:live?.value;
+    const normalValues=series.filter(x=>x.year>=1991&&x.year<=2020).map(x=>x.value);
+    const normal=normalValues.length>=29?mean(normalValues):null;
+    const complete=Number.isFinite(official)||live?.complete;
+    let label=Number.isFinite(value)?formatValue(value,param):"–";
+    if(complete&&Number.isFinite(value)&&Number.isFinite(normal)){
+      if(param==="temp")label+=" · "+overviewGermanNumber(value-normal,1,{sign:true})+" K";
+      else if(normal>0)label+=" · "+overviewGermanNumber(100*value/normal,0)+" %";
+    }
+    overviewSetText(id,label);
+    overviewSetText(id+"Note",Number.isFinite(official)?"DWD bestätigt":live?liveMonthlyLabel(live):"noch keine vollständigen Daten");
+    const el=document.getElementById(id);if(el)el.title=live?.details.join(" · ")||"";
+  }
 }
