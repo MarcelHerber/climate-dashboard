@@ -15,7 +15,7 @@
     "hyras":["js/hyras.js","20261124-contour-1"],
     "hyras-tmin":["js/hyras-tmin.js","20261124-downloads-1"],
     "hyras_historical_temperature_1km":["hyras_historical_temperature_1km.js","5"],
-    "t850_ensembles":["t850_ensembles.js","20261125-t850-rain-v1"],
+    "t850_ensembles":["t850_ensembles.js","20261126-ensemble-desktop-png-v1"],
     "sst_europe":["sst_europe.js","20261118-sst-history-1"],
     "state_monthly_ensemble":["state_monthly_ensemble.js","20261121-rollover-1"],
     "gebietsmittel_archiv":["gebietsmittel_archiv.js","20261125-season"],

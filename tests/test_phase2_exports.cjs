@@ -29,7 +29,7 @@ test("temperature, sunshine and precipitation frequency PNG/PDF share HQ export"
  assert.doesNotMatch(block,/\.data\.datasets\s*=/);
 });
 
-test("ensemble PNG retains metadata-bearing screenshots; PDF and SVG are independent vectors",()=>{
+test("ensemble PNG renders viewport-independent metadata-bearing charts; PDF and SVG are independent vectors",()=>{
  const start=ensemble.indexOf("function exportMetadata()");
  const end=ensemble.indexOf("function wrapExportLine",start);
  const meta=ensemble.slice(start,end);
@@ -40,6 +40,8 @@ test("ensemble PNG retains metadata-bearing screenshots; PDF and SVG are indepen
  const second=ensemble.indexOf("async function exportCanvas()",first);
  assert.ok(first>0 && second>first);
  assert.match(ensemble.slice(second,second+500),/withExportHeader\(captured\)/);
+ assert.match(ensemble.slice(second,second+500),/renderDesktopPng\(\)/);
+ assert.doesNotMatch(ensemble.slice(second,second+500),/html2canvas|captureDashboardWithWhiteBackground/);
  assert.match(ensemble,/async function png\(\).*?exportCanvas\(\)/s);
  assert.match(ensemble,/async function pdf\(\).*?ensureT850Vectors\(\)/s);
  assert.match(ensemble,/async function svg\(\).*?ensureT850Vectors\(\)/s);
@@ -78,7 +80,7 @@ test("responsive scientific modules keep download controls within mobile viewpor
 
 test("Pages includes cache-busted presentation assets and all mobile pages",()=>{
  assert.match(builder,/for filename in \("monthly_frequency\.js","t850_ensembles\.js"\)/);
- assert.match(builder,/version="20261125-t850-rain-v1" if filename=="t850_ensembles.js"/);
+ assert.match(builder,/version="20261126-ensemble-desktop-png-v1" if filename=="t850_ensembles.js"/);
  assert.match(builder,/filename\+"\?v="\+version/);
  assert.match(builder,/t850_vector_export\.js/);
  const mosmixAsset=read("mosmix.html").match(/mosmix\.js\?v=[A-Za-z0-9_.-]+/);

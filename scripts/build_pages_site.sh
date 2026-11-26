@@ -623,7 +623,7 @@ path=Path("_site/index.html")
 html=path.read_text(encoding="utf-8")
 for filename in ("monthly_frequency.js","t850_ensembles.js"):
     pattern=re.escape(filename)+r"(?:\?v=[A-Za-z0-9_.-]+)?"
-    version="20261125-t850-rain-v1" if filename=="t850_ensembles.js" else "20261113-phase2-exports-v1"
+    version="20261126-ensemble-desktop-png-v1" if filename=="t850_ensembles.js" else "20261113-phase2-exports-v1"
     html,count=re.subn(pattern,filename+"?v="+version,html)
     if count==0 and filename=="t850_ensembles.js":
         loader=Path("_site/js/loader.js")

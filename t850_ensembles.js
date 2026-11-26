@@ -709,10 +709,8 @@ function wrapExportLine(ctx,text,maxWidth){
   return out;
 }
 function withExportHeader(source){
-  // Draw into the generated PNG/PDF bitmap, leaving the live Chart.js layout untouched.
-  const host=el("t850ExportArea");
-  const hostWidth=host?.getBoundingClientRect().width||source.width/2;
-  const scale=source.width/Math.max(1,hostWidth);
+  // Fixed 2x export scale; never derive text size from the mobile viewport.
+  const scale=2;
   const padding=20*scale,availableWidth=Math.max(1,source.width-2*padding);
   const measure=document.createElement("canvas").getContext("2d");
   if(!measure)return source;
@@ -738,9 +736,73 @@ function withExportHeader(source){
   return combined;
 }
 async function exportCanvas(){
-  if(!window.html2canvas)throw new Error("html2canvas ist nicht geladen.");
-  const captured=await window.captureDashboardWithWhiteBackground(el("t850ExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false});
+  const captured=renderDesktopPng();
   return withExportHeader(captured);
+}
+// Use the same forecast series as the live chart, but render into fixed-size
+// detached canvases; neither viewport, devicePixelRatio nor page CSS is involved.
+function pngExportLayout(view){
+  const width=1600,pad=20,gap=20;
+  if(view!=="four")return {width,height:760,panels:[{key:view,x:pad,y:pad,w:1560,h:720}]};
+  const w=(width-2*pad-gap)/2,h=435;
+  const panels=MODELS.map((m,i)=>({key:m.key,x:pad+(i%2)*(w+gap),y:pad+Math.floor(i/2)*(h+gap),w,h}));
+  panels.push({key:"comparison",x:pad,y:pad+2*(h+gap),w:width-2*pad,h:455});
+  return {width,height:panels.at(-1).y+panels.at(-1).h+pad,panels};
+}
+function pngChartConfig(chart,param,classic,single){
+  const copy=chart.data.datasets.map((ds,i)=>({...ds,data:(ds.data||[]).map(v=>v&&typeof v==="object"?{...v}:v),hidden:!chart.isDatasetVisible(i)}));
+  const scale=chart.scales;
+  const bounds={min:scale.y.min,max:scale.y.max};
+  const rainBounds=scale.yRain?{min:scale.yRain.min,max:scale.yRain.max}:null;
+  const opts=options(bounds,metricParam(param),rainBounds,classic);
+  opts.responsive=false;opts.devicePixelRatio=2;opts.events=[];opts.animation=false;
+  opts.plugins.zoom=false;opts.plugins.tooltip=false;
+  opts.plugins.legend.position=classic&&single?"left":"bottom";
+  // Respect the active zoom and both axis limits without mutating the live chart.
+  if(chart.isZoomedOrPanned?.()&&Number.isFinite(scale.x?.min)&&Number.isFinite(scale.x?.max)){
+    opts.scales.x.min=scale.x.min;opts.scales.x.max=scale.x.max;
+  }
+  if(rainBounds)opts.scales.yRain.min=rainBounds.min;
+  if(!classic){
+    opts.plugins.legend.labels.color="#334155";
+    for(const axis of Object.values(opts.scales)){
+      axis.ticks={...axis.ticks,color:"#334155"};
+      if(axis.title)axis.title={...axis.title,color:"#334155"};
+      axis.grid={...axis.grid,color:"rgba(100,116,139,.18)"};
+      axis.border={...axis.border,color:"#94a3b8"};
+    }
+  }
+  return {type:"line",data:{labels:[...chart.data.labels],datasets:copy},options:opts,plugins:classic?[classicBackground]:[]};
+}
+function renderDesktopPng(){
+  const view=el("t850PanelSelect")?.value||"gefs",layout=pngExportLayout(view),scale=2,param=getParam(),classic=classicStyle();
+  const available=layout.panels.some(p=>(p.key==="comparison"?comparison:charts[p.key])?.data?.datasets?.length);
+  if(!available)throw Error("Für die gewählte Ansicht sind noch keine gültigen Ensemblekurven geladen.");
+  const out=document.createElement("canvas");out.width=layout.width*scale;out.height=layout.height*scale;
+  const ctx=out.getContext("2d");if(!ctx)throw Error("PNG-Zeichenfläche nicht verfügbar.");
+  ctx.scale(scale,scale);ctx.fillStyle="#ffffff";ctx.fillRect(0,0,layout.width,layout.height);
+  ctx.textBaseline="top";
+  for(const p of layout.panels){
+    const model=MODELS.find(m=>m.key===p.key),chart=p.key==="comparison"?comparison:charts[p.key];
+    const title=model?.label||((displayMetric()==="members"?"Ensemble-Mittel":displayMetric()==="prob"?"Wahrscheinlichkeit":"Spread")+" · Modellvergleich");
+    ctx.strokeStyle="#cbd5e1";ctx.lineWidth=1;ctx.strokeRect(p.x,p.y,p.w,p.h);
+    ctx.fillStyle="#172033";ctx.font="700 19px Arial, sans-serif";ctx.fillText(title,p.x+12,p.y+10);
+    ctx.font="12px Arial, sans-serif";ctx.fillStyle="#475569";
+    const lines=model?[el(model.run)?.textContent,el(model.meta)?.textContent].filter(Boolean).flatMap(t=>wrapExportLine(ctx,t,p.w-24)):[];
+    lines.forEach((t,i)=>ctx.fillText(t,p.x+12,p.y+35+i*15));
+    const header=Math.max(42,42+lines.length*15),cw=p.w-24,ch=p.h-header-12;
+    if(!chart?.data?.datasets?.length){ctx.fillText("Keine gültigen Prognosedaten geladen.",p.x+12,p.y+header);continue;}
+    const canvas=document.createElement("canvas");canvas.width=cw;canvas.height=ch;
+    let rendered;
+    try{
+      rendered=new Chart(canvas,pngChartConfig(chart,param,classic,view!=="four"));
+      ctx.drawImage(canvas,p.x+12,p.y+header,cw,ch);
+    }finally{
+      rendered?.destroy();
+      canvas.width=0;canvas.height=0;
+    }
+  }
+  return out;
 }
 function saveBlob(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},1000);}
 async function png(){try{const c=await exportCanvas();c.toBlob(function(b){if(b)saveBlob(b,filename("png"));},"image/png");}catch(e){alert("PNG konnte nicht erstellt werden: "+e.message);}}

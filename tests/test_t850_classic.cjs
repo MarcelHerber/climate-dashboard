@@ -113,3 +113,25 @@ test("T850 plus rain uses pressure-level values, ERA5 and independent probabilit
  assert.match(h.thresholdLabel(),/^T850/);assert.match(h.metricParam(p).axis,/T850/);assert.match(h.rainMetricParam().axis,/RR 6 h/);
  fields.t850Metric.value="spread";assert.match(h.metricParam(p).axis,/T850/);assert.match(h.rainMetricParam().axis,/mm/);
 });
+
+test("desktop PNG layout and cloned charts are independent of mobile viewport",()=>{
+ const fields={t850ParamSelect:{value:"t850Precip"},t850Metric:{value:"members"},t850PanelSelect:{value:"gefs"}};
+ const h=new Function("document",src+"\nreturn {PARAMS,pngExportLayout,pngChartConfig};")({getElementById:id=>fields[id]||null});
+ const single=h.pngExportLayout("gefs"),four=h.pngExportLayout("four");
+ assert.equal(single.width,1600);assert.equal(single.panels.length,1);
+ assert.equal(four.width,1600);assert.equal(four.panels.length,5);
+ assert.equal(four.panels[0].y,four.panels[1].y);assert.equal(four.panels[2].y,four.panels[3].y);
+ assert.equal(four.panels[4].w,1560);
+ const chart={data:{labels:["00","06","12"],datasets:[{label:"T850",data:[-3,0,2]},{label:"RR",data:[null,1,5],yAxisID:"yRain"}]},scales:{x:{min:1,max:2},y:{min:-10,max:10},yRain:{min:0,max:15}},isDatasetVisible:i=>i===0,isZoomedOrPanned:()=>true};
+ const c=h.pngChartConfig(chart,h.PARAMS.t850Precip,true,true);
+ assert.equal(c.options.responsive,false);assert.equal(c.options.devicePixelRatio,2);
+ assert.equal(c.options.plugins.legend.position,"left");assert.equal(c.options.plugins.zoom,false);
+ assert.equal(c.options.scales.x.min,1);assert.equal(c.options.scales.yRain.max,15);
+ assert.equal(c.data.datasets[1].hidden,true);assert.equal(c.data.datasets[1].yAxisID,"yRain");
+ assert.deepEqual(c.data.datasets[0].data,chart.data.datasets[0].data);
+ assert.notEqual(c.data.datasets[0].data,chart.data.datasets[0].data);
+ c.data.datasets[0].data[0]=123;assert.equal(chart.data.datasets[0].data[0],-3);
+ const modern=h.pngChartConfig(chart,h.PARAMS.t850Precip,false,false);
+ assert.equal(modern.options.plugins.legend.position,"bottom");
+ assert.equal(modern.options.scales.y.ticks.color,"#334155");
+});

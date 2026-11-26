@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Download REAL GEFS T850 vectors from published Pages in mobile and desktop Chromium."""
 from pathlib import Path
-import json, time, urllib.request
+import json, time, urllib.request, struct
 from xml.etree import ElementTree as ET
 from playwright.sync_api import sync_playwright
 from pypdf import PdfReader
@@ -9,7 +9,7 @@ from pypdf import PdfReader
 BASE="https://marcelherber.github.io/climate-dashboard/"
 OUT=Path("t850_vector_live")
 OUT.mkdir(exist_ok=True)
-VERSION="t850_ensembles.js?v=20261125-t850-rain-v1"
+VERSION="t850_ensembles.js?v=20261126-ensemble-desktop-png-v1"
 
 def await_deployment():
     deadline=time.monotonic()+540
@@ -23,7 +23,7 @@ def await_deployment():
             if 'src="js/loader.js' in html and "T850VectorExport" in js:
                 with urllib.request.urlopen(BASE+"js/loader.js?fresh="+str(time.time()),timeout=20) as res:
                     loader=res.read().decode("utf8")
-                if '"t850_ensembles":["t850_ensembles.js","20261125-t850-rain-v1"]' in loader:return
+                if '"t850_ensembles":["t850_ensembles.js","20261126-ensemble-desktop-png-v1"]' in loader:return
         except Exception as exc:print("Publish probe:",str(exc)[:100],flush=True)
         time.sleep(12)
     raise AssertionError("Current Pages T850 vector exporter was not deployed.")
@@ -77,6 +77,13 @@ def run(browser,width):
             c.data.datasets.some(ds=>ds.data?.some(v=>typeof v==='number'&&Number.isFinite(v)));
         }""",timeout=160000)
         before=page.evaluate("()=>JSON.stringify(Chart.getChart('t850ChartGefs').data.datasets.map(d=>d.data))")
+        with page.expect_download(timeout=75000) as job:page.locator("#t850PngDownload").click()
+        png=OUT/f"t850_desktop_export_{width}.png";job.value.save_as(png)
+        with png.open("rb") as file: header=file.read(24)
+        assert header[:8]==b"\x89PNG\r\n\x1a\n","Not a PNG"
+        dimensions=struct.unpack(">II",header[16:24])
+        assert dimensions[0]==3200 and dimensions[1]>=1520, dimensions
+        status["png"]={"width":dimensions[0],"height":dimensions[1],"bytes":png.stat().st_size}
         page.locator("#t850PanelSelect").select_option("four")
         page.wait_for_timeout(300)
         with page.expect_download(timeout=75000) as job:page.locator("#t850PdfDownload").click()
