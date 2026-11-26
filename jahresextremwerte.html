@@ -283,7 +283,18 @@ thead .year-head{
   .summary-grid{grid-template-columns:1fr}
   .control-group{flex-basis:100%}
 }
+.annual-groups{display:flex;gap:10px 16px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border)}
+.annual-groups label{font-size:14px;display:flex;align-items:center;gap:6px}
+.annual-chart{padding:16px;margin-bottom:18px}.annual-chart-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.annual-chart-controls select{max-width:100%;padding:8px}.annual-chart-controls button,.metric-header{cursor:pointer;font:inherit;color:inherit}
+.annual-chart-controls button{padding:7px 10px;background:var(--card);border:1px solid var(--border);border-radius:6px}
+.metric-header{background:none;border:0;font-weight:bold;text-decoration:underline;text-underline-offset:3px}
+#annualCanvas{display:block;width:100%;height:auto;background:white;border:1px solid var(--border);border-radius:6px}
+#annualRanking{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:5px 18px;padding-left:25px}
+#annualExtraStatus,#annualChartInfo{font-size:13px;color:var(--muted);margin:8px 0}
+@media(max-width:520px){.annual-chart{padding:8px}#annualRanking{display:block}.annual-chart-controls select{width:100%}}
 </style>
+<script defer src="vendor/jspdf/4.2.1/dist/jspdf.umd.min.js"></script>
 </head>
 <body>
 <div class="page">
@@ -334,11 +345,23 @@ thead .year-head{
     </div>
     <div class="summary-card">
       <div class="summary-label">Parameter</div>
-      <div class="summary-value">11</div>
+      <div class="summary-value" id="annualMetricCount">11</div>
       <div class="summary-detail">Temperatur · Kenntage · RR · Schnee · Wind</div>
     </div>
   </div>
 
+  <section class="card annual-chart" id="annualChartPanel">
+    <h2>Historische Entwicklung</h2>
+    <div class="annual-chart-controls">
+      <label for="annualMetric">Parameter</label><select id="annualMetric"></select>
+      <label><input type="checkbox" id="annualTrend" checked> Trend</label>
+      <label><input type="checkbox" id="annualLine"> Linie statt Balken</label>
+      <button id="annualPng" type="button">PNG</button><button id="annualPdf" type="button">PDF</button><button id="annualCsv" type="button">CSV</button>
+    </div>
+    <canvas id="annualCanvas" width="1600" height="680" role="img" aria-label="Historische Jahreswerte"></canvas>
+    <div id="annualChartInfo" aria-live="polite"></div>
+    <h3>Historische Rangliste · ausgewählter Zeitraum</h3><ol id="annualRanking"></ol>
+  </section>
   <section class="card">
     <div class="card-head">
       <h2 id="tableTitle">Jahresliste</h2>
@@ -347,31 +370,10 @@ thead .year-head{
         die höchste Jahresanzahl einer einzelnen Station mit Stationsname.
       </p>
     </div>
+    <div class="annual-groups" id="annualGroups"></div><div id="annualExtraStatus" aria-live="polite"></div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th class="year-head" rowspan="2">Jahr</th>
-            <th class="group-temp" colspan="2">Temperatur-Extreme</th>
-            <th class="group-days" colspan="4">Maximale Kenntage an einer Station</th>
-            <th class="group-rain" colspan="1">Niederschlag</th>
-            <th class="group-snow" colspan="2">Schneehöhe</th>
-            <th class="group-wind" colspan="2">Windspitze · ab 75 km/h</th>
-          </tr>
-          <tr>
-            <th class="group-temp">TNn</th>
-            <th class="group-temp">TXx</th>
-            <th class="group-days">≥25 °C</th>
-            <th class="group-days">≥30 °C</th>
-            <th class="group-days">≥35 °C</th>
-            <th class="group-days">Tropennächte ≥20 °C</th>
-            <th class="group-rain">RR24x</th>
-            <th class="group-snow">SNOx ≥400 m</th>
-            <th class="group-snow">SNOx &lt;400 m</th>
-            <th class="group-wind">FGx ≥400 m</th>
-            <th class="group-wind">FGx &lt;400 m</th>
-          </tr>
-        </thead>
+        <thead id="annualHead"></thead>
         <tbody id="annualBody">
           <tr><td colspan="12" style="padding:24px;color:#666">Daten werden geladen …</td></tr>
         </tbody>
@@ -388,7 +390,7 @@ thead .year-head{
     täglichen DWD-Niederschlagsnetz. Schnee und Wind werden nach Stationshöhe in
     ≥400 m und &lt;400 m getrennt. FGx basiert auf dem Tagesmaximum der Windspitze (FX),
     umgerechnet in km/h; dargestellt werden Werte ab 75 km/h. Für Tropennächte werden nur vollständig vorhandene 13-Stunden-Nachtfenster ausgewertet. Das laufende Jahr ist
-    naturgemäß unvollständig.
+    naturgemäß unvollständig. Zusatzkenntage und Serien benötigen mindestens 90 % gültige Tage des Kalenderjahres bzw. des bisher verstrichenen laufenden Jahres; Messlücken unterbrechen Serien und gleitende Summen. Serien und Summen werden innerhalb des Kalenderjahres ausgewertet. Frostschwellen sind kumulativ. Zusatzarchive werden getrennt aktualisiert; fehlende Werte bleiben leer, nie null Tage.
   </div>
 </div>
 
@@ -412,6 +414,21 @@ thead .year-head{
     "fgx_lt_400"
   ];
 
+  const GROUPS=[
+    ["absolute","Temperatur-Extreme",["tnn","txx","tnx","txn","tgx","tgn","dtrx"]],
+    ["warm","Wärme-Kenntage",["summer_days_max","hot_days_max","desert_days_max","tropical_nights_max"]],
+    ["cold","Kälte-Kenntage",["frost_days_max","moderate_frost_days_max","severe_frost_days_max","very_severe_frost_days_max","extreme_frost_days_max","ice_days_max","severe_ice_days_max"]],
+    ["rain","Niederschlag",["rr24x","rain1_days_max","rain10_days_max","rain20_days_max","rain50_days_max","rr72x","rr168x","rr720x"]],
+    ["snow","Schnee",["snox_ge_400","snox_lt_400","snow1_days_ge_400","snow10_days_ge_400","snow50_days_ge_400","snow1_days_lt_400","snow10_days_lt_400","snow50_days_lt_400","snow_gain_ge_400","snow_gain_lt_400"]],
+    ["spells","Wetterperioden",["frost_spell","ice_spell","severe_frost_spell","summer_spell","heat_spell","tropical_spell","wet_spell","dry_spell","snow_spell_ge_400","snow_spell_lt_400"]],
+    ["wind","Wind",["fgx_ge_400","fgx_lt_400","wind75_days_max","wind89_days_max","wind104_days_max","wind118_days_max"]]
+  ];
+  const groupClass={absolute:"group-temp",warm:"group-days",cold:"group-temp",rain:"group-rain",snow:"group-snow",spells:"group-days",wind:"group-wind"};
+  const visibleGroups=new Set(["absolute","warm","cold"]);
+  const $=id=>document.getElementById(id);
+  const selectedMetrics=()=>GROUPS.filter(([g])=>visibleGroups.has(g)).flatMap(([, ,keys])=>keys.filter(k=>data.metrics[k]));
+  const isCount=k=>["station_year_count","station_year_series"].includes(data.metrics[k]?.kind);
+  const metricLabel=k=>data.metrics[k]?.label||k;
   const els = {
     status: document.getElementById("dataStatus"),
     area: document.getElementById("areaSelect"),
@@ -455,7 +472,7 @@ thead .year-head{
     }
 
     const id = String(station.id ?? "").padStart(5, "0");
-    const height = Number(station.height);
+    const height = station.height==null?NaN:Number(station.height);
     const heightText = Number.isFinite(height)
       ? ` · ${height.toLocaleString("de-DE")} m`
       : "";
@@ -470,14 +487,7 @@ thead .year-head{
   function valueText(metric, value) {
     if (value == null) return "–";
 
-    if (
-      metric === "summer_days_max" ||
-      metric === "hot_days_max" ||
-      metric === "desert_days_max" ||
-      metric === "tropical_nights_max"
-    ) {
-      return `${Number(value).toLocaleString("de-DE")} Tage`;
-    }
+    if (isCount(metric)) return Number(value).toLocaleString("de-DE")+" "+metricUnit(metric);
 
     const unit = metricUnit(metric);
     const decimals = metric.startsWith("fgx_") ? 1 : 1;
@@ -509,7 +519,7 @@ thead .year-head{
     let day = null;
     let metadataKey;
 
-    if (kind === "station_year_count") {
+    if (isCount(metric)) {
       value = entry[0];
       metadataKey = entry[1];
     } else {
@@ -518,9 +528,11 @@ thead .year-head{
       metadataKey = entry[2];
     }
 
-    const preliminaryIndex = kind === "station_year_count" ? 2 : 3;
+    const preliminaryIndex = isCount(metric) ? 2 : 3;
     const preliminary = Boolean(entry[preliminaryIndex]);
-    const dateLine = day
+    const span = kind==="station_year_series"&&entry[3]?formatDate(entry[3])+"–"+formatDate(entry[4]):!isCount(metric)&&entry[4]&&typeof entry[4]==="string"?formatDate(entry[4])+"–"+formatDate(day):null;
+    const coverage = kind==="station_year_series"?entry.slice(5,7):kind==="station_year_count"?entry.slice(3,5):[];
+    const dateLine = span ? `<span class="metric-date">${escapeHtml(span)}${preliminary?" · vorläufig":""}</span>` : day
       ? `<span class="metric-date">${escapeHtml(formatDate(day))}${preliminary ? " · vorläufig" : ""}</span>`
       : (preliminary ? `<span class="metric-date">vorläufig</span>` : "");
 
@@ -528,6 +540,7 @@ thead .year-head{
       <td class="metric-cell ${metricClass(metric)}" data-metric="${escapeHtml(metric)}" data-value="${escapeHtml(String(value))}">
         <span class="metric-value">${escapeHtml(valueText(metric, value))}</span>
         ${dateLine}
+        ${coverage.length===2?`<span class="metric-date">${coverage[0]}/${coverage[1]} gültige Tage</span>`:""}
         <span class="metric-station">${escapeHtml(stationLabel(metadataKey))}</span>
       </td>
     `;
@@ -572,7 +585,7 @@ thead .year-head{
       cell.classList.remove("extreme-high", "extreme-low");
     });
 
-    for (const metric of METRIC_ORDER) {
+    for (const metric of selectedMetrics()) {
       const metricCells = cells.filter(cell => cell.dataset.metric === metric);
       const values = metricCells
         .map(cell => {
@@ -616,6 +629,7 @@ thead .year-head{
     els.yearCount.textContent = String(to - from + 1);
     els.tableTitle.textContent = `${area} · Jahreswerte ${from}–${to}`;
 
+    renderHead();
     const rows = [];
 
     for (let year = to; year >= from; year--) {
@@ -627,7 +641,7 @@ thead .year-head{
             ${year}
             ${isCurrent ? '<span class="current-badge">laufend</span>' : ""}
           </td>
-          ${METRIC_ORDER.map(metric => cellHtml(metric, row[metric])).join("")}
+          ${selectedMetrics().map(metric => cellHtml(metric, row[metric])).join("")}
         </tr>
       `);
     }
@@ -637,6 +651,7 @@ thead .year-head{
       : `<tr><td colspan="12" style="padding:24px;color:#777">Keine Jahre in der Auswahl.</td></tr>`;
 
     applyExtremaHighlighting();
+    drawAnnualChart();
   }
 
   function setupControls() {
@@ -690,11 +705,13 @@ thead .year-head{
         throw new Error("Regionale Startjahre fehlen");
       }
 
+      await loadExtras();
       setupControls();
+      setupExtraControls();
 
       els.status.textContent =
         `DWD · Daten bis ${formatDate(data.data_through)} · ` +
-        `${data.areas.length} Gebiete · 11 Parameter`;
+        `${data.areas.length} Gebiete · ${Object.keys(data.metrics).length} Parameter`;
 
       render();
     } catch (error) {
@@ -704,6 +721,106 @@ thead .year-head{
         `Jährliche Extremwerte konnten nicht geladen werden: ${error.message}`;
       els.body.innerHTML =
         `<tr><td colspan="12" style="padding:24px;color:#8a1c13">Daten konnten nicht geladen werden.</td></tr>`;
+    }
+  }
+
+
+  async function loadExtras(){
+    const state=await Promise.all(["KL","RR","TU"].map(async family=>{
+      try{
+        const res=await fetch("data/dwd_annual_extra_"+family.toLowerCase()+".json",{cache:"no-cache"});
+        if(!res.ok)throw Error("HTTP "+res.status);
+        const x=await res.json();
+        if(x.version!==1||x.family!==family||JSON.stringify(x.areas)!==JSON.stringify(data.areas)||!x.metrics||!x.records||!x.stations)throw Error("schema");
+        const keys=Object.keys(x.metrics);
+        if(keys.some(k=>data.metrics[k]))throw Error("duplicate metric");
+        Object.assign(data.metrics,x.metrics);Object.assign(data.stations,x.stations);
+        for(const area of data.areas)for(const [year,row] of Object.entries(x.records[area]||{})){
+          const target=data.records[area][year]??={};Object.assign(target,row);
+          if(Object.values(row).some(Boolean)){
+            data.area_start_years[area]=Math.min(data.area_start_years[area],Number(year));
+            data.end_year=Math.max(data.end_year,Number(year));
+          }
+        }
+        return family+": "+formatDate(x.data_start)+"–"+formatDate(x.data_through);
+      }catch(e){return family+": Zusatzarchiv noch nicht verfügbar";}
+    }));
+    $("annualExtraStatus").textContent=state.join(" · ");
+    $("annualMetricCount").textContent=Object.keys(data.metrics).length;
+  }
+  function renderHead(){
+    const groups=GROUPS.filter(([g,,keys])=>visibleGroups.has(g)&&keys.some(k=>data.metrics[k]));
+    $("annualHead").innerHTML='<tr><th class="year-head" rowspan="2">Jahr</th>'+groups.map(([g,label,keys])=>'<th class="'+groupClass[g]+'" colspan="'+keys.filter(k=>data.metrics[k]).length+'">'+escapeHtml(label)+'</th>').join("")+'</tr><tr>'+groups.flatMap(([g,,keys])=>keys.filter(k=>data.metrics[k]).map(k=>'<th class="'+groupClass[g]+'"><button type="button" class="metric-header" data-key="'+escapeHtml(k)+'" title="'+escapeHtml(data.metrics[k].description||metricLabel(k))+'">'+escapeHtml(metricLabel(k))+'</button></th>')).join("")+'</tr>';
+    $("annualHead").querySelectorAll("button[data-key]").forEach(b=>b.addEventListener("click",()=>{$("annualMetric").value=b.dataset.key;drawAnnualChart();$("annualChartPanel").scrollIntoView({block:"start",behavior:"smooth"});}));
+    document.querySelector(".table-wrap table").style.minWidth=Math.max(450,selectedMetrics().length*150+90)+"px";
+  }
+  function setupExtraControls(){
+    $("annualGroups").replaceChildren();
+    for(const [g,label,keys] of GROUPS){
+      const l=document.createElement("label"),c=document.createElement("input");c.type="checkbox";c.checked=visibleGroups.has(g);c.disabled=!keys.some(k=>data.metrics[k]);
+      c.addEventListener("change",()=>{if(c.checked)visibleGroups.add(g);else visibleGroups.delete(g);render();});
+      l.append(c,document.createTextNode(label+(c.disabled?" (Archiv ausstehend)":"")));$("annualGroups").append(l);
+    }
+    const sel=$("annualMetric");
+    for(const [g,label,keys] of GROUPS){
+      const group=document.createElement("optgroup");group.label=label;
+      for(const k of keys.filter(k=>data.metrics[k])){const o=document.createElement("option");o.value=k;o.textContent=metricLabel(k);group.append(o);}
+      if(group.children.length)sel.append(group);
+    }
+    sel.addEventListener("change",drawAnnualChart);$("annualTrend").addEventListener("change",drawAnnualChart);$("annualLine").addEventListener("change",drawAnnualChart);
+    $("annualPng").addEventListener("click",()=>{const a=document.createElement("a");a.download=exportName()+".png";a.href=$("annualCanvas").toDataURL("image/png");a.click();});
+    $("annualPdf").addEventListener("click",()=>{const Pdf=window.jspdf?.jsPDF;if(!Pdf){alert("PDF-Bibliothek nicht verfügbar.");return;}const pdf=new Pdf({orientation:"landscape",unit:"mm",format:"a4"});pdf.addImage($("annualCanvas").toDataURL("image/png"),"PNG",10,15,277,277*680/1600);pdf.save(exportName()+".pdf");});
+    $("annualCsv").addEventListener("click",exportCsv);
+  }
+  function chartRows(){
+    const k=$("annualMetric").value,range=clampYearInputs(),records=data.records[els.area.value]||{},rows=[];
+    for(let y=range.from;y<=range.to;y++){
+      const entry=records[y]?.[k];
+      if(!entry||!Number.isFinite(entry[0])){rows.push({year:y,value:null});continue;}
+      const count=isCount(k),series=data.metrics[k].kind==="station_year_series";
+      rows.push({year:y,value:entry[0],station:stationLabel(entry[count?1:2]),pre:!!entry[count?2:3]||y===new Date().getFullYear(),date:count?(series&&entry[3]?entry[3]+"–"+entry[4]:""):entry[1],coverage:count?(series?entry.slice(5,7):entry.slice(3,5)).join("/"):""});
+    }
+    return {k,rows,range};
+  }
+  function exportName(){const {k,range}=chartRows();return "Jahresextreme_"+els.area.value.replace(/[^\p{L}\p{N}]+/gu,"_")+"_"+k+"_"+range.from+"-"+range.to;}
+  function exportCsv(){
+    const {k,rows}=chartRows(),quote=v=>'"'+String(v??"").replaceAll('"','""')+'"';
+    const csv=[["Gebiet","Parameter","Jahr","Wert","Einheit","Station","Datum/Zeitraum","Vorläufig","Gültige Tage"].map(quote).join(";"),...rows.map(r=>[els.area.value,metricLabel(k),r.year,r.value==null?"":String(r.value).replace(".",","),metricUnit(k),r.station,r.date,r.pre?"ja":"",r.coverage].map(quote).join(";"))].join("\r\n");
+    const url=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"})),a=document.createElement("a");a.href=url;a.download=exportName()+".csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  function drawAnnualChart(){
+    if(!data||!$("annualMetric").value)return;
+    const {k,rows,range}=chartRows(),valid=rows.filter(r=>r.value!==null),confirmed=valid.filter(r=>!r.pre);
+    const c=$("annualCanvas"),ctx=c.getContext("2d"),W=c.width,H=c.height,L=110,R=45,T=120,B=100;
+    ctx.fillStyle="#fff";ctx.fillRect(0,0,W,H);ctx.fillStyle="#171717";ctx.font="bold 33px Arial";ctx.fillText(metricLabel(k)+" · "+els.area.value,L,48);
+    ctx.font="22px Arial";ctx.fillText(range.from+"–"+range.to+" · "+metricUnit(k)+" · DWD Stationswerte",L,82);
+    $("annualRanking").replaceChildren();
+    if(!valid.length){ctx.fillText("Keine gültigen Werte für die Auswahl",L,190);$("annualChartInfo").textContent="Keine Daten";return;}
+    let low=Math.min(...valid.map(r=>r.value)),high=Math.max(...valid.map(r=>r.value));
+    if(isCount(k)||!$("annualLine").checked){low=Math.min(low,0);high=Math.max(high,0);}
+    const padding=(high-low||1)*.08;low-=padding;high+=padding;
+    if(isCount(k))low=0;
+    const dx=(W-L-R)/Math.max(1,rows.length),x=y=>L+(y-range.from+.5)*dx,yp=v=>T+(high-v)/(high-low)*(H-T-B);
+    ctx.font="19px Arial";ctx.textAlign="right";
+    for(let i=0;i<=5;i++){const v=low+(high-low)*i/5,y=yp(v);ctx.strokeStyle="#dce2e7";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(W-R,y);ctx.stroke();ctx.fillStyle="#333";ctx.fillText(v.toFixed(isCount(k)?0:1).replace(".",","),L-12,y+6);}
+    const color=/frost|ice|snow|tnn|txn|tgn/.test(k)?"#2463a7":/rain|rr|wet|dry/.test(k)?"#237d56":/wind|fgx/.test(k)?"#7954a2":"#bf463c";
+    if($("annualLine").checked){
+      ctx.strokeStyle=color;ctx.lineWidth=3;ctx.beginPath();let prev=null;
+      for(const r of rows){if(r.value===null||r.pre){prev=null;continue;}if(prev!==null)ctx.lineTo(x(r.year),yp(r.value));else ctx.moveTo(x(r.year),yp(r.value));prev=r;}
+      ctx.stroke();for(const r of valid){ctx.fillStyle=r.pre?"#888":color;ctx.beginPath();ctx.arc(x(r.year),yp(r.value),3.5,0,Math.PI*2);ctx.fill();}
+    }else for(const r of valid){ctx.fillStyle=r.pre?"#9aa5af":color;const y=yp(r.value),zero=yp(0);ctx.fillRect(x(r.year)-dx*.38,Math.min(y,zero),Math.max(1,dx*.76),Math.max(1,Math.abs(zero-y)));}
+    ctx.textAlign="center";const step=Math.max(1,Math.ceil(rows.length/10/5)*5);
+    for(let y=range.from;y<=range.to;y+=step){ctx.fillStyle="#333";ctx.fillText(y,x(y),H-B+32);}
+    let trendText="";if($("annualTrend").checked&&confirmed.length>=2){
+      const mx=confirmed.reduce((a,r)=>a+r.year,0)/confirmed.length,my=confirmed.reduce((a,r)=>a+r.value,0)/confirmed.length;
+      const den=confirmed.reduce((a,r)=>a+(r.year-mx)**2,0),m=confirmed.reduce((a,r)=>a+(r.year-mx)*(r.value-my),0)/den;
+      if(Number.isFinite(m)){const y1=confirmed[0].year,y2=confirmed.at(-1).year;ctx.save();ctx.beginPath();ctx.rect(L,T,W-L-R,H-T-B);ctx.clip();ctx.setLineDash([12,8]);ctx.lineWidth=3;ctx.strokeStyle="#d28519";ctx.beginPath();ctx.moveTo(x(y1),yp(my+m*(y1-mx)));ctx.lineTo(x(y2),yp(my+m*(y2-mx)));ctx.stroke();ctx.restore();trendText=" · Trend "+(m>=0?"+":"")+(m*10).toFixed(2).replace(".",",")+" "+metricUnit(k)+"/Dekade";}
+    }
+    ctx.textAlign="left";ctx.fillStyle="#333";ctx.font="19px Arial";ctx.fillText("Grau: vorläufig · Lücken: keine Daten · Quelle: "+(data.metrics[k].source||"DWD"),L,H-30);
+    $("annualChartInfo").textContent=valid.length+" gültige Jahreswerte"+trendText+" · Vorläufige Jahre nicht im Trend oder Ranking.";
+    const direction=data.metrics[k].direction==="asc"?1:-1;
+    for(const r of [...confirmed].sort((a,b)=>direction*(a.value-b.value)||a.year-b.year).slice(0,10)){
+      const li=document.createElement("li");li.textContent=r.year+" · "+valueText(k,r.value)+" · "+r.station;$("annualRanking").append(li);
     }
   }
 
