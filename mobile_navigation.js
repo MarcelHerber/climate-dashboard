@@ -7,7 +7,7 @@
   const MAX_RECENT=5;
   const CATEGORIES=[
     {id:"germany",name:"Deutschland",items:[
-      ["monthly","Gebietsmittel"],["gebietsmittelArchive","Gebietsmittel Archiv"],["bundeslaender_rekord.html","Bundesländer-Rekordmonitor"],["index","Klima-Index"],["accumulation","Seit Jahresbeginn"],
+      ["monthly","Gebietsmittel"],["gebietsmittelArchive","Gebietsmittel Archiv"],["gebietsmittel_kenntage.html","Klimatische Kenntage · Jahresarchiv"],["bundeslaender_rekord.html","Bundesländer-Rekordmonitor"],["index","Klima-Index"],["accumulation","Seit Jahresbeginn"],
       ["hyras","HYRAS-Flächenkarten"],["daily","Tageshöchstwerte"],["extremes","Deutschland-Kenntage"],
       ["jahresextremwerte.html","Jahresextreme"],["dekadenrekorde.html","Dekadenrekorde"],
       ["feiertagsextremwerte.html","Feiertags-Extreme"]]},

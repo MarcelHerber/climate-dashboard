@@ -61,6 +61,8 @@ required_root_files=(
   optional_dashboard_modules.js
   gebietsmittel_archiv.js
   gebietsmittel_archiv.css
+  gebietsmittel_kenntage.html
+  gebietsmittel_kenntage.js
   stratosphaere.html
   polar_vortex_map.js
   ssw_catalog.js
@@ -1292,6 +1294,11 @@ if [[ -s data/dwd_annual_temperature_range.json ]]; then
   cp data/dwd_annual_temperature_range.json _site/data/
 fi
 node --check _site/stations_temperaturspanne.js
+
+if [[ -s data/dwd_regional_annual_climate_days.json ]]; then
+  cp data/dwd_regional_annual_climate_days.json _site/data/
+fi
+node --check _site/gebietsmittel_kenntage.js
 
 # Dekadenrekorde · Tagesniederschlag. Die Datenbasis wird in einem separaten
 # DWD-RR-Workflow erzeugt und nach erfolgreichem Lauf hier mit veröffentlicht.

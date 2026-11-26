@@ -1,0 +1,42 @@
+name: DWD Gebietsmittel Kenntage Jahresarchiv
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [scripts/build_regional_annual_climate_days.py, .github/workflows/update-regional-annual-climate-days.yml]
+  schedule:
+    - cron: '21 6 * * 1'
+permissions:
+  contents: write
+concurrency:
+  group: dwd-regional-annual-climate-days
+  cancel-in-progress: false
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/build_regional_annual_climate_days.py
+            gebietsmittel_kenntage.js
+            data/dwd_regional_annual_climate_days.json
+      - run: |
+          python scripts/build_regional_annual_climate_days.py --selftest
+          node --check gebietsmittel_kenntage.js
+          python scripts/build_regional_annual_climate_days.py
+      - name: Save official annual series
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/dwd_regional_annual_climate_days.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: official DWD regional annual climate-day series"
+          for i in 1 2 3 4 5; do
+            git push origin HEAD:main && exit 0
+            git pull --rebase origin main
+          done
+          exit 1
