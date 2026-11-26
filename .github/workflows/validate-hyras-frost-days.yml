@@ -1,0 +1,45 @@
+name: HYRAS Frosttage Vergleich DWD
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [scripts/validate_hyras_frost_days.py, .github/workflows/validate-hyras-frost-days.yml]
+permissions:
+  contents: write
+concurrency:
+  group: hyras-frost-days-pilot
+  cancel-in-progress: false
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/
+            data/validation/hyras_frost_days_pilot.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install numpy xarray netCDF4 requests matplotlib pillow pyproj
+      - run: python scripts/validate_hyras_frost_days.py --selftest
+      - run: python -u scripts/validate_hyras_frost_days.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hyras-frost-days-comparison
+          path: data/validation/hyras_frost_days_pilot.json
+      - name: Save validation report
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/validation/hyras_frost_days_pilot.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: HYRAS frost days vs official DWD pilot"
+          for i in 1 2 3 4 5; do
+            git push origin HEAD:main && exit 0
+            git pull --rebase origin main
+          done
+          exit 1
