@@ -1,19 +1,14 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-26T12:02:53Z",
+  "generated_at": "2026-11-26T12:56:29Z",
   "provider": "EUMETSAT",
   "service": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
-  "check_mode": "fast",
+  "check_mode": "deep",
   "products": {
     "geocolour": {
       "layer": "mtg_fd:rgb_geocolour",
       "available_times": [
-        "2026-11-26T03:50:00Z",
-        "2026-11-26T04:00:00Z",
-        "2026-11-26T04:10:00Z",
-        "2026-11-26T04:20:00Z",
-        "2026-11-26T04:30:00Z",
         "2026-11-26T04:40:00Z",
         "2026-11-26T04:50:00Z",
         "2026-11-26T05:00:00Z",
@@ -56,47 +51,47 @@
         "2026-11-26T11:10:00Z",
         "2026-11-26T11:20:00Z",
         "2026-11-26T11:30:00Z",
-        "2026-11-26T11:40:00Z"
+        "2026-11-26T11:40:00Z",
+        "2026-11-26T11:50:00Z",
+        "2026-11-26T12:00:00Z",
+        "2026-11-26T12:10:00Z",
+        "2026-11-26T12:20:00Z",
+        "2026-11-26T12:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-26T11:40:00Z",
-      "latest_verified_time": "2026-11-26T11:40:00Z",
+      "latest_advertised_time": "2026-11-26T12:30:00Z",
+      "latest_verified_time": "2026-11-26T12:30:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 341026,
+      "bytes": 347718,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 22.9,
+      "age_minutes": 26.5,
       "fresh": true,
       "verified_attempts": 1,
-      "diagnostics_checked_at": "2026-11-25T13:16:40Z",
+      "diagnostics_checked_at": "2026-11-26T12:56:29Z",
       "full_disk_ok": true,
-      "full_disk_bytes": 316631,
+      "full_disk_bytes": 316763,
       "atlantic_ok": true,
-      "atlantic_bytes": 916441,
+      "atlantic_bytes": 926500,
       "southwest_ok": true,
-      "southwest_bytes": 1549060,
+      "southwest_bytes": 1602512,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 259027
+          "bytes": 264178
         },
         {
           "width": 480,
-          "bytes": 259752
+          "bytes": 264717
         }
       ]
     },
     "dust": {
       "layer": "mtg_fd:rgb_dust",
       "available_times": [
-        "2026-11-26T03:50:00Z",
-        "2026-11-26T04:00:00Z",
-        "2026-11-26T04:10:00Z",
-        "2026-11-26T04:20:00Z",
-        "2026-11-26T04:30:00Z",
         "2026-11-26T04:40:00Z",
         "2026-11-26T04:50:00Z",
         "2026-11-26T05:00:00Z",
@@ -139,47 +134,47 @@
         "2026-11-26T11:10:00Z",
         "2026-11-26T11:20:00Z",
         "2026-11-26T11:30:00Z",
-        "2026-11-26T11:40:00Z"
+        "2026-11-26T11:40:00Z",
+        "2026-11-26T11:50:00Z",
+        "2026-11-26T12:00:00Z",
+        "2026-11-26T12:10:00Z",
+        "2026-11-26T12:20:00Z",
+        "2026-11-26T12:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-26T11:40:00Z",
-      "latest_verified_time": "2026-11-26T11:40:00Z",
+      "latest_advertised_time": "2026-11-26T12:30:00Z",
+      "latest_verified_time": "2026-11-26T12:30:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 546791,
+      "bytes": 548516,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 22.9,
+      "age_minutes": 26.5,
       "fresh": true,
       "verified_attempts": 1,
-      "diagnostics_checked_at": "2026-11-25T13:16:40Z",
+      "diagnostics_checked_at": "2026-11-26T12:56:29Z",
       "full_disk_ok": true,
-      "full_disk_bytes": 258163,
+      "full_disk_bytes": 293987,
       "atlantic_ok": true,
-      "atlantic_bytes": 1053199,
+      "atlantic_bytes": 1061346,
       "southwest_ok": true,
-      "southwest_bytes": 2022681,
+      "southwest_bytes": 2030570,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 316281
+          "bytes": 318848
         },
         {
           "width": 480,
-          "bytes": 316133
+          "bytes": 318617
         }
       ]
     },
     "cloudtype": {
       "layer": "mtg_fd:rgb_cloudtype",
       "available_times": [
-        "2026-11-26T03:50:00Z",
-        "2026-11-26T04:00:00Z",
-        "2026-11-26T04:10:00Z",
-        "2026-11-26T04:20:00Z",
-        "2026-11-26T04:30:00Z",
         "2026-11-26T04:40:00Z",
         "2026-11-26T04:50:00Z",
         "2026-11-26T05:00:00Z",
@@ -222,47 +217,47 @@
         "2026-11-26T11:10:00Z",
         "2026-11-26T11:20:00Z",
         "2026-11-26T11:30:00Z",
-        "2026-11-26T11:40:00Z"
+        "2026-11-26T11:40:00Z",
+        "2026-11-26T11:50:00Z",
+        "2026-11-26T12:00:00Z",
+        "2026-11-26T12:10:00Z",
+        "2026-11-26T12:20:00Z",
+        "2026-11-26T12:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-26T11:40:00Z",
-      "latest_verified_time": "2026-11-26T11:40:00Z",
+      "latest_advertised_time": "2026-11-26T12:30:00Z",
+      "latest_verified_time": "2026-11-26T12:30:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 604407,
+      "bytes": 607131,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 22.9,
+      "age_minutes": 26.5,
       "fresh": true,
       "verified_attempts": 1,
-      "diagnostics_checked_at": "2026-11-25T13:16:40Z",
+      "diagnostics_checked_at": "2026-11-26T12:56:29Z",
       "full_disk_ok": true,
-      "full_disk_bytes": 339927,
+      "full_disk_bytes": 344440,
       "atlantic_ok": true,
-      "atlantic_bytes": 1013039,
+      "atlantic_bytes": 1008565,
       "southwest_ok": true,
-      "southwest_bytes": 2139388,
+      "southwest_bytes": 2138116,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 336536
+          "bytes": 335170
         },
         {
           "width": 480,
-          "bytes": 335798
+          "bytes": 335046
         }
       ]
     },
     "ir105": {
       "layer": "mtg_fd:ir105_hrfi",
       "available_times": [
-        "2026-11-26T03:50:00Z",
-        "2026-11-26T04:00:00Z",
-        "2026-11-26T04:10:00Z",
-        "2026-11-26T04:20:00Z",
-        "2026-11-26T04:30:00Z",
         "2026-11-26T04:40:00Z",
         "2026-11-26T04:50:00Z",
         "2026-11-26T05:00:00Z",
@@ -305,47 +300,47 @@
         "2026-11-26T11:10:00Z",
         "2026-11-26T11:20:00Z",
         "2026-11-26T11:30:00Z",
-        "2026-11-26T11:40:00Z"
+        "2026-11-26T11:40:00Z",
+        "2026-11-26T11:50:00Z",
+        "2026-11-26T12:00:00Z",
+        "2026-11-26T12:10:00Z",
+        "2026-11-26T12:20:00Z",
+        "2026-11-26T12:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-26T11:40:00Z",
-      "latest_verified_time": "2026-11-26T11:40:00Z",
+      "latest_advertised_time": "2026-11-26T12:30:00Z",
+      "latest_verified_time": "2026-11-26T12:30:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 63514,
+      "bytes": 63033,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 22.9,
+      "age_minutes": 26.5,
       "fresh": true,
       "verified_attempts": 1,
-      "diagnostics_checked_at": "2026-11-25T13:16:40Z",
+      "diagnostics_checked_at": "2026-11-26T12:56:29Z",
       "full_disk_ok": true,
-      "full_disk_bytes": 73502,
+      "full_disk_bytes": 74534,
       "atlantic_ok": true,
-      "atlantic_bytes": 167127,
+      "atlantic_bytes": 173875,
       "southwest_ok": true,
-      "southwest_bytes": 265629,
+      "southwest_bytes": 270935,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 55594
+          "bytes": 57318
         },
         {
           "width": 480,
-          "bytes": 55563
+          "bytes": 57262
         }
       ]
     },
     "firetemperature": {
       "layer": "mtg_fd:rgb_firetemperature",
       "available_times": [
-        "2026-11-26T03:50:00Z",
-        "2026-11-26T04:00:00Z",
-        "2026-11-26T04:10:00Z",
-        "2026-11-26T04:20:00Z",
-        "2026-11-26T04:30:00Z",
         "2026-11-26T04:40:00Z",
         "2026-11-26T04:50:00Z",
         "2026-11-26T05:00:00Z",
@@ -388,52 +383,47 @@
         "2026-11-26T11:10:00Z",
         "2026-11-26T11:20:00Z",
         "2026-11-26T11:30:00Z",
-        "2026-11-26T11:40:00Z"
+        "2026-11-26T11:40:00Z",
+        "2026-11-26T11:50:00Z",
+        "2026-11-26T12:00:00Z",
+        "2026-11-26T12:10:00Z",
+        "2026-11-26T12:20:00Z",
+        "2026-11-26T12:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-26T11:40:00Z",
-      "latest_verified_time": "2026-11-26T11:40:00Z",
+      "latest_advertised_time": "2026-11-26T12:30:00Z",
+      "latest_verified_time": "2026-11-26T12:30:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 354017,
+      "bytes": 319316,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 22.9,
+      "age_minutes": 26.5,
       "fresh": true,
       "verified_attempts": 1,
-      "diagnostics_checked_at": "2026-11-25T13:16:40Z",
+      "diagnostics_checked_at": "2026-11-26T12:56:29Z",
       "full_disk_ok": true,
-      "full_disk_bytes": 266706,
+      "full_disk_bytes": 269904,
       "atlantic_ok": true,
-      "atlantic_bytes": 715875,
+      "atlantic_bytes": 715007,
       "southwest_ok": true,
-      "southwest_bytes": 1589669,
+      "southwest_bytes": 1617360,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 260409
+          "bytes": 261497
         },
         {
           "width": 480,
-          "bytes": 258711
+          "bytes": 260221
         }
       ]
     },
     "lightning": {
       "layer": "mtg_fd:li_afa",
       "available_times": [
-        "2026-11-26T07:55:00Z",
-        "2026-11-26T08:00:00Z",
-        "2026-11-26T08:05:00Z",
-        "2026-11-26T08:10:00Z",
-        "2026-11-26T08:15:00Z",
-        "2026-11-26T08:20:00Z",
-        "2026-11-26T08:25:00Z",
-        "2026-11-26T08:30:00Z",
-        "2026-11-26T08:35:00Z",
-        "2026-11-26T08:40:00Z",
         "2026-11-26T08:45:00Z",
         "2026-11-26T08:50:00Z",
         "2026-11-26T08:55:00Z",
@@ -471,21 +461,31 @@
         "2026-11-26T11:35:00Z",
         "2026-11-26T11:40:00Z",
         "2026-11-26T11:45:00Z",
-        "2026-11-26T11:50:00Z"
+        "2026-11-26T11:50:00Z",
+        "2026-11-26T11:55:00Z",
+        "2026-11-26T12:00:00Z",
+        "2026-11-26T12:05:00Z",
+        "2026-11-26T12:10:00Z",
+        "2026-11-26T12:15:00Z",
+        "2026-11-26T12:20:00Z",
+        "2026-11-26T12:25:00Z",
+        "2026-11-26T12:30:00Z",
+        "2026-11-26T12:35:00Z",
+        "2026-11-26T12:40:00Z"
       ],
-      "latest_advertised_time": "2026-11-26T11:50:00Z",
-      "latest_verified_time": "2026-11-26T11:50:00Z",
+      "latest_advertised_time": "2026-11-26T12:40:00Z",
+      "latest_verified_time": "2026-11-26T12:40:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 3850,
+      "bytes": 4799,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 12.9,
+      "age_minutes": 16.5,
       "fresh": true,
       "verified_attempts": 1,
-      "diagnostics_checked_at": "2026-11-25T13:16:40Z"
+      "diagnostics_checked_at": "2026-11-26T12:56:29Z"
     }
   },
   "errors": [],
