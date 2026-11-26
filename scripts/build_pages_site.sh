@@ -54,6 +54,8 @@ required_root_files=(
   stations_regional_year.js
   stations_temperaturgegensatz.html
   stations_temperaturgegensatz.js
+  stations_temperaturspanne.html
+  stations_temperaturspanne.js
   monthly_layout.js
   monthly_climate_bars.js
   optional_dashboard_modules.js
@@ -1277,6 +1279,11 @@ for file in "${required_data_files[@]}"; do
   fi
   cp "$file" "_site/data/$(basename "$file")"
 done
+
+if [[ -s data/dwd_annual_temperature_range.json ]]; then
+  cp data/dwd_annual_temperature_range.json _site/data/
+fi
+node --check _site/stations_temperaturspanne.js
 
 # Dekadenrekorde · Tagesniederschlag. Die Datenbasis wird in einem separaten
 # DWD-RR-Workflow erzeugt und nach erfolgreichem Lauf hier mit veröffentlicht.
