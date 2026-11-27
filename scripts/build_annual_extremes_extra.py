@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+from annual_snow_corrections import corrected_snow, CORRECTION
 import update_station_records as dwd
 import build_dwd_annual_tropical_nights as tu
 
@@ -125,6 +126,7 @@ def read_station(files, sid, family, today):
                 fields["FX"]=(r.get("FX",r.get("FXK")),0,120)
             for key,(rawval,lo,hi) in fields.items():
                 val=number(rawval,lo,hi)
+                if key=="SHK":val=corrected_snow(sid,day,val)
                 if val is not None:
                     daily[day].setdefault(key,(val*3.6 if key=="FX" else val,pre))
     if family=="TU":
@@ -277,6 +279,7 @@ def main():
     out=dict(version=1,family=family,areas=AREAS,metrics=metrics,records=records,stations=stations,
              data_start=minday.isoformat(),data_through=maxday.isoformat(),station_days=days,
              generated_at=datetime.now(timezone.utc).isoformat())
+    if family=="KL":out["snow_corrections"]=[CORRECTION]
     path=Path(args.output);path.parent.mkdir(parents=True,exist_ok=True)
     path.write_text(json.dumps(out,ensure_ascii=False,separators=(",",":"),allow_nan=False)+"\n",encoding="utf-8")
 
