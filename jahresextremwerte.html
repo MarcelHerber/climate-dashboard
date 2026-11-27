@@ -381,6 +381,7 @@ thead .year-head{
     </div>
   </section>
 
+  <div id="snowCorrectionNote" class="note" hidden></div>
   <div class="note">
     <strong>Methodik:</strong> Die sichtbaren Jahreslisten beginnen je Gebiet frühestens
     1881; wenn in einem Bundesland die ersten tatsächlich verfügbaren Jahreswerte später
@@ -705,6 +706,15 @@ thead .year-head{
         throw new Error("Regionale Startjahre fehlen");
       }
 
+      if(data.snow_corrections?.length){
+        const note=document.getElementById("snowCorrectionNote");
+        note.hidden=false;
+        for(const c of data.snow_corrections){
+          const p=document.createElement("p");
+          p.textContent="Manuelle Schneehöhenkorrektur · Hamburg-Fuhlsbüttel · "+c.dates.join(", ")+" · "+c.value_cm+" cm. "+c.note+" ";
+          const a=document.createElement("a");a.href=c.source;a.textContent="Quelle: NDR / DWD";a.target="_blank";a.rel="noopener noreferrer";p.append(a);note.append(p);
+        }
+      }
       await loadExtras();
       setupControls();
       setupExtraControls();
