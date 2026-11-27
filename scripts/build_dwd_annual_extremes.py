@@ -12,6 +12,8 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from annual_snow_corrections import corrected_snow, CORRECTION
+
 from update_station_records import (
     HISTORICAL_PATTERN,
     HISTORICAL_URL,
@@ -229,7 +231,7 @@ def parse_annual_kl_zip(
                 values["tnk"] = round(tnk, 1)
 
             if snow_field:
-                snow = parse_float(row.get(snow_field))
+                snow = corrected_snow(station_id, day, parse_float(row.get(snow_field)))
                 # Negative DWD-Fehlwerte niemals als 0 cm interpretieren.
                 if snow is not None and 0.0 <= snow <= 2000.0:
                     values["snow"] = round(snow, 1)
@@ -889,6 +891,7 @@ def main() -> int:
             .replace("+00:00", "Z")
         ),
         "project": "Jährliche Extremwerte",
+        "snow_corrections": [CORRECTION],
         "source_template": (
             "Vom Nutzer bereitgestellte Excel-Tabelle "
             "'Extremwerte_Baden-Württemberg.xlsx', Blatt 'Extremwerte'"
