@@ -1393,6 +1393,10 @@ if [[ ! -s europe_stations/calendar/12-31.json.gz ]]; then
   exit 1
 fi
 cp -a europe_stations _site/
+# Independent anomaly export: never written below europe_stations/.
+if [[ -s europe_anomaly/index.json ]]; then
+  cp -a europe_anomaly _site/
+fi
 
 for item in tiefdruck_tracker.html tiefdruck_tracker.js tiefdruck_tracker.css; do
   test -s "_site/$item" || { echo "FEHLER: Tracker-Datei $item fehlt im Pages-Artefakt"; exit 1; }

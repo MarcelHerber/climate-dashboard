@@ -1,0 +1,173 @@
+name: Update Europe anomaly map
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/europe_climate_engine.py"
+      - "scripts/europe_anomaly_sources.py"
+      - "scripts/europe_anomaly_map.py"
+      - "scripts/update_europe_anomaly_map.py"
+      - "scripts/test_europe_anomaly.py"
+      - ".github/workflows/update-europe-anomaly-map.yml"
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: "Quellen oder Stufen: A,B1,B2.1 oder einzelne Quellenschlüssel"
+        required: true
+        default: "A"
+        type: string
+      baseline_only:
+        description: "Nur Baselines aufbauen (true) oder auch Tageskarte erzeugen (false)"
+        required: true
+        default: true
+        type: boolean
+      force_baseline:
+        description: "Normal leer; nur explizit neu zu berechnende Quellenschlüssel oder all"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: europe-anomaly-map
+  cancel-in-progress: false
+
+jobs:
+  self-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Alle 16 Offline-Tests ohne Überspringen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/europe_climate_engine.py scripts/europe_anomaly_sources.py scripts/europe_anomaly_map.py scripts/update_europe_anomaly_map.py scripts/test_europe_anomaly.py
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, "scripts")
+          import test_europe_anomaly as tests
+          tests.run_all()
+          if tests.SKIPPED or len(tests.PASSED) != len(tests.TESTS):
+              raise SystemExit("Nicht alle Anomalie-Adaptertests wurden ausgeführt.")
+          PY
+
+  build:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: self-test
+    permissions:
+      contents: write
+      actions: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Laufparameter
+        id: dates
+        shell: bash
+        run: |
+          set -euo pipefail
+          YEAR=$(date -u +%Y)
+          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
+          echo "base_year=$((YEAR - 1))" >> "$GITHUB_OUTPUT"
+          mkdir -p .cache/europe-anomaly
+      - name: Isolierten Anomalie-Cache laden
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-anomaly
+          key: europe-anomaly-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            europe-anomaly-v1-${{ steps.dates.outputs.base_year }}-
+      - name: Gewählte historische und aktuelle Daten abrufen
+        id: generate
+        timeout-minutes: 300
+        shell: bash
+        env:
+          AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+          SOURCES: ${{ inputs.sources }}
+          BASELINE_ONLY: ${{ inputs.baseline_only }}
+          FORCE_BASELINE: ${{ inputs.force_baseline }}
+          YEAR: ${{ steps.dates.outputs.year }}
+        run: |
+          set -euo pipefail
+          args=(--year "$YEAR" --sources "$SOURCES" --cache-dir .cache/europe-anomaly --workers 6 --max-runtime-minutes 45 --output "$RUNNER_TEMP/europe_anomaly")
+          if [[ -n "$FORCE_BASELINE" ]]; then args+=(--force-baseline "$FORCE_BASELINE"); fi
+          if [[ "$BASELINE_ONLY" == "true" ]]; then args+=(--baseline-only --strict); fi
+          python scripts/update_europe_anomaly_map.py "${args[@]}"
+      - name: Auch unvollständige Baseline-Zwischenstände sichern
+        if: always() && steps.generate.outcome != 'skipped'
+        uses: actions/cache/save@v5
+        with:
+          path: .cache/europe-anomaly
+          key: europe-anomaly-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Kartenexport prüfen und bisherige Quellen schützen
+        if: inputs.baseline_only == false
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, "scripts")
+          import europe_anomaly_map as emap
+          stage = Path(os.environ["RUNNER_TEMP"]) / "europe_anomaly"
+          new = emap.validate_output(stage)
+          target = Path("europe_anomaly")
+          emap.ensure_cleanable(target)
+          old_index = target / "index.json"
+          if old_index.exists():
+              old = json.loads(old_index.read_text(encoding="utf-8"))
+              old_sources = {s["key"]: s for s in old["sources"] if s["status"] == "ok" and s["stations"] > 0}
+              new_sources = {s["key"]: s for s in new["sources"] if s["status"] == "ok" and s["stations"] > 0}
+              for key, prev in old_sources.items():
+                  now = new_sources.get(key)
+                  if not now or (now.get("latest_date") or "") < (prev.get("latest_date") or ""):
+                      raise SystemExit(f"Veröffentlichung gestoppt: bisherige Quelle fehlt oder ist älter: {key}")
+              if new["default_date"] < old["default_date"]:
+                  raise SystemExit("Veröffentlichung gestoppt: Standarddatum ist älter als bisher.")
+          PY
+          rm -rf europe_anomaly
+          mv "$RUNNER_TEMP/europe_anomaly" europe_anomaly
+      - name: Ausschließlich neue Europa-Anomaliedaten veröffentlichen
+        if: inputs.baseline_only == false
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- europe_anomaly
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "Update Europe anomaly map [skip ci]"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          exit 1
+      - name: Pages-Deploy starten
+        if: steps.publish.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-pages-only.yml/dispatches" -f ref=main
