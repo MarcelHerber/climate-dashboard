@@ -103,15 +103,15 @@ def render_map(field, lat, lon, *, title, subtitle, unit, filename, kind):
         shading="auto",
     )
 
-    ax.add_feature(cfeature.COASTLINE.with_scale("50m"), linewidth=0.55, edgecolor="#39434a")
-    ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.4, edgecolor="#66727a")
+    ax.add_feature(cfeature.COASTLINE.with_scale("50m"), linewidth=0.55, edgecolor="#39434a").set_gid("Kuestenlinien")
+    ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.4, edgecolor="#66727a").set_gid("Laendergrenzen")
     ax.add_feature(
         cfeature.LAKES.with_scale("50m"),
         facecolor="#f4f7f8",
         edgecolor="#89949a",
         linewidth=0.25,
         zorder=3,
-    )
+    ).set_gid("Seen")
     ax.set_facecolor("#eef3f5")
 
     gl = ax.gridlines(
@@ -155,6 +155,7 @@ def render_map(field, lat, lon, *, title, subtitle, unit, filename, kind):
     )
 
     base.plt.savefig(filename, facecolor="white")
+    base.export_broadcast_map(fig, mesh, filename)
     base.plt.close(fig)
 
 
