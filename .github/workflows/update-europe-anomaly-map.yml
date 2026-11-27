@@ -59,7 +59,8 @@ jobs:
           PY
 
   build:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    # A targeted push can launch Stage A without changing the manual-dispatch defaults.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[anomaly-baseline-a]')))
     needs: self-test
     permissions:
       contents: write
@@ -95,8 +96,8 @@ jobs:
         shell: bash
         env:
           AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
-          SOURCES: ${{ inputs.sources }}
-          BASELINE_ONLY: ${{ inputs.baseline_only }}
+          SOURCES: ${{ inputs.sources || 'A' }}
+          BASELINE_ONLY: ${{ github.event_name == 'push' || inputs.baseline_only }}
           FORCE_BASELINE: ${{ inputs.force_baseline }}
           YEAR: ${{ steps.dates.outputs.year }}
         run: |
@@ -112,7 +113,7 @@ jobs:
           path: .cache/europe-anomaly
           key: europe-anomaly-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Kartenexport prüfen und bisherige Quellen schützen
-        if: inputs.baseline_only == false
+        if: github.event_name == 'workflow_dispatch' && inputs.baseline_only == false
         shell: bash
         run: |
           set -euo pipefail
@@ -140,7 +141,7 @@ jobs:
           rm -rf europe_anomaly
           mv "$RUNNER_TEMP/europe_anomaly" europe_anomaly
       - name: Ausschließlich neue Europa-Anomaliedaten veröffentlichen
-        if: inputs.baseline_only == false
+        if: github.event_name == 'workflow_dispatch' && inputs.baseline_only == false
         id: publish
         shell: bash
         run: |
