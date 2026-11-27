@@ -73,6 +73,14 @@
       const empty=panel.querySelector('.hyras-tmean-anomaly-preview-empty');if(empty)empty.hidden=true;
       canvas.broadcastMap={data:exportData,borders:exportBorders,title:'Temperaturabweichung Deutschland',subtitle:cfg.start+' bis '+cfg.end+' · '+cfg.reference.replace('-','–'),source:'DWD HYRAS-DE · '+cfg.parameter.toUpperCase()+' · 1 km',legend:levels.map((v,i)=>({label:(v>0?'+':'')+String(v).replace('.',',')+' K',color:colors[i]}))};
       status.before(native);status.textContent='DWD HYRAS-DE · Originalraster 1 km · '+cfg.reference.replace('-','–');
+      // Bind directly to this national map, not the regional workshop state.
+      const exportSource={canvas:exportData,owner:native,lookupUrl:cfg.base+'/interactive/geo_lookup_1km.json',parameter:cfg.parameter,metric:'anomaly',reference:cfg.reference,start:cfg.start,end:cfg.end,resolution:1,title:'Temperaturabweichung · '+cfg.parameter.toUpperCase(),subtitle:cfg.start+' – '+cfg.end+' · Referenz '+cfg.reference,legendNode:legend};
+      const actions=document.createElement('div');actions.className='hyras-tmean-downloads';actions.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px';
+      const button=document.createElement('button');button.type='button';button.className='action';button.textContent='Abweichungskarte als PDF (Vektor) herunterladen';
+      const label=document.createElement('label'),transparent=document.createElement('input');transparent.type='checkbox';transparent.checked=true;label.append(transparent,document.createTextNode(' Transparenter Hintergrund'));
+      const feedback=document.createElement('span');feedback.setAttribute('role','status');
+      button.addEventListener('click',async()=>{button.disabled=true;feedback.textContent='Vektor-PDF wird erzeugt …';try{if(typeof root.HyrasRegional?.exportNationalPdf!=='function')throw Error('Vektor-Modul nicht geladen. Bitte Seite neu laden.');await root.HyrasRegional.exportNationalPdf(exportSource,transparent.checked);feedback.textContent='Vektor-PDF erstellt.';}catch(error){feedback.textContent='PDF-Export fehlgeschlagen: '+error.message;}finally{button.disabled=false;}});
+      actions.append(button,label,feedback);native.after(actions);
       if(root.HyrasRegional&&regionalRaster){
         const values=new Float32Array(plane.width*plane.height),valid=new Uint8Array(values.length);
         for(let i=0;i<values.length;i++){
