@@ -179,25 +179,28 @@ async function source(kind){
  if(overlay){if(!overlay.width||overlay.width!==base.width||overlay.height!==base.height)throw Error("Historisches ERA5-Raster noch nicht fertig.");}
  const historical=!!overlay;
  const legend=historical?[...($("era5EuropeImageStage")?.querySelectorAll(".era5-europe-history-legend span")||[])].map(x=>x.textContent.trim()).join(" bis "):"";
- return {layers:[{name:historical?"Geografische-Basiskarte":"ERA5-Originalkarte",image:base},...(historical?[{name:"ERA5-Datenraster",image:overlay,opacity:.9}]:[])],title:$("era5EuropeMapTitle")?.textContent||"ERA5-Land Europa",subtitle:[$("era5EuropeMapSubtitle")?.textContent?.split(" · Karte anklicken")[0],$("era5EuropeDataKpi")?.textContent,legend?("Skala: "+legend):""].filter(Boolean).join(" · "),source:"Copernicus C3S / ECMWF · ERA5-Land",legend:[],note:historical?"Basiskarte und Datenraster getrennt; Legendenendwerte als Text.":"Original-PNG ist eine Rasterebene; darin vorhandene Grenzen und Texte sind nicht einzeln editierbar."};
+ const scale=historical&&typeof era5EuropeHistoricalScale!=="undefined"?era5EuropeHistoricalScale:null;
+ const gradient=scale?.stops?.length?{stops:scale.stops,labels:legend.split(" bis ")}:null;
+ return {layers:[{name:historical?"Geografische-Basiskarte":"ERA5-Originalkarte",image:base},...(historical?[{name:"ERA5-Datenraster",image:overlay,opacity:.9}]:[])],title:$("era5EuropeMapTitle")?.textContent||"ERA5-Land Europa",subtitle:[$("era5EuropeMapSubtitle")?.textContent?.split(" · Karte anklicken")[0],$("era5EuropeDataKpi")?.textContent,legend?("Skala: "+legend):""].filter(Boolean).join(" · "),source:"Copernicus C3S / ECMWF · ERA5-Land",legend:[],gradient,note:historical?"Basiskarte und Datenraster getrennt; Legende editierbar.":"Original-PNG ist eine Rasterebene; darin vorhandene Grenzen und Texte sind nicht einzeln editierbar."};
 }
 function scene(m,transparent,clean){
  const W=1920,H=1080,background=transparent?null:"#ffffff",fg=transparent?"#19324a":"#19324a",items=[];
  if(background)items.push({group:"Hintergrund",kind:"rect",x:0,y:0,w:W,h:H,color:background});
- const hasLegend=!clean&&m.legend?.length,top=clean?32:130,bottom=clean?1048:hasLegend?918:995;
+ const hasLegend=!clean&&(m.legend?.length||m.gradient?.stops?.length),top=clean?32:130,bottom=clean?1048:hasLegend?918:995;
  const first=m.layers[0].image,ratio=Math.min(1800/first.width,(bottom-top)/first.height),w=first.width*ratio,h=first.height*ratio,x=(W-w)/2,y=top+(bottom-top-h)/2;
  for(const layer of m.layers)items.push({group:layer.name,kind:"image",x,y,w,h,opacity:layer.opacity??1,src:layer.image.toDataURL("image/png")});
  const text=(group,value,x,y,size,weight=400,align="left")=>items.push({group,kind:"text",value,x,y,size,weight,align,color:fg});
  if(!clean){
  text("Titel",m.title,64,62,46,700);text("Zeitraum",m.subtitle||"",64,106,26);
- if(hasLegend){const n=m.legend.length,step=1770/n;for(let i=0;i<n;i++){const e=m.legend[i],x=75+i*step;items.push({group:"Legende",kind:"rect",x,y:938,w:step,h:32,color:e.color});text("Legende",e.label,x+step/2,997,22,400,"center");}}
+ if(hasLegend&&m.legend?.length){const n=m.legend.length,step=1770/n;for(let i=0;i<n;i++){const e=m.legend[i],x=75+i*step;items.push({group:"Legende",kind:"rect",x,y:938,w:step,h:32,color:e.color});text("Legende",e.label,x+step/2,997,22,400,"center");}}
+ if(hasLegend&&m.gradient){const stops=m.gradient.stops,n=120,step=1500/n;for(let j=0;j<n;j++){const t=j/(n-1)*(stops.length-1),k=Math.min(stops.length-2,Math.floor(t)),f=t-k,a=stops[k],b=stops[k+1],rgb=[1,3,5].map(i=>Math.round(parseInt(a.slice(i,i+2),16)*(1-f)+parseInt(b.slice(i,i+2),16)*f));items.push({group:"Legende",kind:"rect",x:210+j*step,y:938,w:step+.2,h:32,color:"#"+rgb.map(v=>v.toString(16).padStart(2,"0")).join("")});}text("Legende",m.gradient.labels[0]||"",210,997,22);text("Legende",m.gradient.labels.at(-1)||"",1710,997,22,400,"right");}
  text("Quelle",m.source,64,1048,23);
  }
  return items;
 }
 function svg(items){
  const groups=new Map();for(const i of items){if(!groups.has(i.group))groups.set(i.group,[]);groups.get(i.group).push(i);}
- const item=i=>i.kind==="image"?'<image x="'+i.x+'" y="'+i.y+'" width="'+i.w+'" height="'+i.h+'" opacity="'+i.opacity+'" href="'+i.src+'" xlink:href="'+i.src+'"/>':i.kind==="rect"?'<rect x="'+i.x+'" y="'+i.y+'" width="'+i.w+'" height="'+i.h+'" fill="'+esc(i.color)+'"/>':'<text x="'+i.x+'" y="'+i.y+'" fill="'+i.color+'" font-family="Arial,sans-serif" font-size="'+i.size+'" font-weight="'+i.weight+'" text-anchor="'+(i.align==="center"?"middle":"start")+'">'+esc(i.value)+'</text>';
+ const item=i=>i.kind==="image"?'<image x="'+i.x+'" y="'+i.y+'" width="'+i.w+'" height="'+i.h+'" opacity="'+i.opacity+'" href="'+i.src+'" xlink:href="'+i.src+'"/>':i.kind==="rect"?'<rect x="'+i.x+'" y="'+i.y+'" width="'+i.w+'" height="'+i.h+'" fill="'+esc(i.color)+'"/>':'<text x="'+i.x+'" y="'+i.y+'" fill="'+i.color+'" font-family="Arial,sans-serif" font-size="'+i.size+'" font-weight="'+i.weight+'" text-anchor="'+({center:"middle",right:"end"}[i.align]||"start")+'">'+esc(i.value)+'</text>';
  return '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1920" height="1080" viewBox="0 0 1920 1080"><desc>Native Kartenraster; separate Texte und vorhandene Kartenebenen. Keine künstliche Datenauflösung.</desc>'+[...groups].map(([name,arr],i)=>'<g id="layer-'+i+'" inkscape:groupmode="layer" inkscape:label="'+esc(name)+'"><title>'+esc(name)+'</title>'+arr.map(item).join("")+'</g>').join("")+'</svg>';
 }
 async function pdf(items){
@@ -205,7 +208,7 @@ async function pdf(items){
  const p=new window.jspdf.jsPDF({orientation:"landscape",unit:"pt",format:[1920,1080],compress:true});
  for(const i of items){
   if(i.kind==="image"){if(i.opacity!==1&&p.GState){p.saveGraphicsState();p.setGState(new p.GState({opacity:i.opacity}));}p.addImage(i.src,"PNG",i.x,i.y,i.w,i.h,undefined,"FAST");if(i.opacity!==1&&p.GState)p.restoreGraphicsState();}
-  if(i.kind==="rect"){p.setFillColor(i.color);p.rect(i.x,i.y,i.w,i.h,"F");}
+  if(i.kind==="rect"){const rgb=/^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(i.color);if(rgb)p.setFillColor(+rgb[1],+rgb[2],+rgb[3]);else p.setFillColor(i.color);p.rect(i.x,i.y,i.w,i.h,"F");}
   if(i.kind==="text"){p.setFont("helvetica",i.weight>=600?"bold":"normal");p.setTextColor(i.color);p.setFontSize(i.size);p.text(String(i.value),i.x,i.y,{align:i.align});}
  }
  return p.output("blob");
@@ -222,7 +225,6 @@ async function png(items,width){
 async function originalVector(format){
  const img=$("era5EuropeImage");if(!img||$("era5EuropeHistoryCanvas"))throw Error("Original-Vektorkarte nur für neu gerenderte aktuelle ERA5-Temperaturkarten verfügbar.");
  const url=new URL(img.currentSrc||img.src,location.href);if(!url.pathname.endsWith(".png"))throw Error("Kartenformat nicht unterstützt.");
- const root=url.href.replace(/\.png(?=\?|$)/,"");
  const path=ext=>{const u=new URL(url);u.pathname=u.pathname.replace(/\.png$/,"."+ext);return u.href;};
  const m=await fetch(path("broadcast.json"),{cache:"no-store"});if(!m.ok)throw Error("Original-Vektorkarte noch nicht erzeugt. Bitte 16:9-PNG oder Hybrid-SVG verwenden.");
  const manifest=await m.json(),raw=await fetch(url.href,{cache:"no-store"});if(!raw.ok)throw Error("Original-PNG nicht erreichbar.");
@@ -241,10 +243,10 @@ function mount(kind,host){
  for(const [v,t] of [["png4k","PNG 4K (16:9)"],["pnghd","PNG Full-HD (16:9)"],["svg","SVG (Raster + Ebenen)"],["pdf","PDF (Raster + Vektor)"],...(kind==="era5"?[["original-svg","Original-SVG (Vektorgrenzen)"],["original-pdf","Original-PDF (Vektorgrenzen)"]]:[["data","Datenraster PNG transparent"],["borders","Grenzmaske PNG transparent"]])])format.add(new Option(t,v));
  background.add(new Option("Weiß","white"));background.add(new Option("Transparent","transparent"));layout.add(new Option("Mit Titel und Legende","full"));layout.add(new Option("Nur Karte","clean"));
  format.setAttribute("aria-label","Dateiformat");background.setAttribute("aria-label","Hintergrund");layout.setAttribute("aria-label","Kartenlayout");btn.type="button";btn.className="action";btn.textContent="Sendegrafik exportieren";status.setAttribute("role","status");status.style.flexBasis="100%";status.textContent=kind==="era5"?"Original-Vektorgrenzen nur für neu erzeugte Temperaturkarten. Vorhandene PNGs bleiben Raster.":"Rasterflächen bleiben original; verfügbare Grenzmaske und Beschriftungen werden separat exportiert.";
- btn.onclick=async()=>{btn.disabled=true;const f=format.value;try{status.textContent="Export wird erstellt …";let blob,ext;
+ btn.onclick=async()=>{btn.disabled=true;const f=format.value,name=filename(kind,"EXPORT");try{status.textContent="Export wird erstellt …";let blob,ext;
  if(f.startsWith("original-")){ext=f.slice(9);blob=await originalVector(ext);status.textContent="Originalkarte: Rasterdaten und Vektorgrenzen.";}
  else {const m=await source(kind);if(f==="data"||f==="borders"){const layer=f==="data"?m.layers.find(x=>x.name==="HYRAS-Raster"):m.layers.find(x=>x.name==="Grenzen-Raster");if(!layer)throw Error("Diese getrennte Ebene ist für die gewählte Karte nicht verfügbar.");blob=await new Promise((res,rej)=>layer.image.toBlob(b=>b?res(b):rej(Error("PNG fehlgeschlagen")),"image/png"));ext="png";}else{const items=scene(m,background.value==="transparent",layout.value==="clean");ext=f.startsWith("png")?"png":f;blob=ext==="svg"?new Blob([svg(items)],{type:"image/svg+xml"}):ext==="pdf"?await pdf(items):await png(items,f==="png4k"?3840:1920);}status.textContent=m.note+(background.value==="transparent"&&kind==="era5"?" Vorhandene weiße Bildflächen bleiben erhalten.":"");}
- save(blob,filename(kind,ext).replace("."+ext,"_"+f+"."+ext));
+ save(blob,name.replace(/\.EXPORT$/,"_"+f+"."+ext));
  }catch(e){status.textContent=e.message;}finally{btn.disabled=false;}};
  box.append(format,background,layout,btn,status);host.append(box);
 }
