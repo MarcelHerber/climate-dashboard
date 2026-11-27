@@ -33,7 +33,7 @@ class DailyMapFreshnessTests(unittest.TestCase):
         self.assertIn('onclick=()=>load()',self.js)
 
     def test_cache_busting_and_workflow(self):
-        self.assertIn("dwd_station_daily_map.js?v=20261014-freshness1-footer-order",self.loader)
+        self.assertIn("dwd_station_daily_map.js?v=20261127-ref-record-v2",self.loader)
         self.assertIn("monthly_frequency.js?v=20261103-dark-export-v1-footer-order",self.page)
         self.assertIn('cron: "35 5 * * *"',self.workflow)
 

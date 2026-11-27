@@ -564,5 +564,5 @@
 })();
 
 /* DWD_DAILY_MAP_LOADER_V1 */
-(()=>{if(typeof document==="undefined")return;if(window.ensureDwdDailyMapLoaded || document.querySelector('script[data-dwd-daily-map]'))return;const s=document.createElement("script");s.src="dwd_station_daily_map.js?v=20261014-freshness1-footer-order";s.dataset.dwdDailyMap="1";document.body.appendChild(s)})();
+(()=>{if(typeof document==="undefined")return;if(window.ensureDwdDailyMapLoaded || document.querySelector('script[data-dwd-daily-map]'))return;const s=document.createElement("script");s.src="dwd_station_daily_map.js?v=20261127-ref-record-v2";s.dataset.dwdDailyMap="1";document.body.appendChild(s)})();
 
