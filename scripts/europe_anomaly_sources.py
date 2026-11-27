@@ -575,6 +575,67 @@ def install_swiss_hooks(mod: Any) -> None:
     _patch(mod, "consume_day", consume)
 
 
+def install_frost_hooks(mod: Any) -> None:
+    """Norwegen: consume_rows(records, rows) mit rows = (Station, Datum, Tmin, Tmax); der Adapter speichert round(x, 1)."""
+    def consume(records, rows):
+        n = _orig(mod, "consume_rows")(records, rows)
+        for station_id, d, tn, tx in rows:
+            rec = records.get(station_id)
+            if rec is not None and (tn is not None or tx is not None):
+                _attach(rec, d.year, d.month, d.day, _tenths(tx, 1), _tenths(tn, 1))
+        return n
+
+    _patch(mod, "consume_rows", consume)
+
+
+def install_dmi_hooks(mod: Any) -> None:
+    """Dänemark: consume_row(records, Station, Datum, Tmin, Tmax, provenance=...) für Jahrbücher, GHCN-Brücke und climateData."""
+    def consume(records, station_id, d, tmin, tmax, *, provenance):
+        used = _orig(mod, "consume_row")(records, station_id, d, tmin, tmax, provenance=provenance)
+        if used:
+            _attach(records[station_id], d.year, d.month, d.day, _tenths(tmax, 1), _tenths(tmin, 1))
+        return used
+
+    _patch(mod, "consume_row", consume)
+
+
+def install_smhi_hooks(mod: Any) -> None:
+    """Schweden: consume_day(records, Station, Datum, Tmin, Tmax); nach dem Qualitätsfilter des Adapters (nur G)."""
+    def consume(records, sid, d, tmin, tmax):
+        used = _orig(mod, "consume_day")(records, sid, d, tmin, tmax)
+        if used:
+            _attach(records[sid], d.year, d.month, d.day, _tenths(tmax, 1), _tenths(tmin, 1))
+        return used
+
+    _patch(mod, "consume_day", consume)
+
+
+def install_rec_day_hooks(mod: Any) -> None:
+    """Adapter mit consume_day(rec, Datum, Tmin, Tmax) ohne Vorrundung (FMI, Estland, Slowenien, Irland), nach der
+    Plausibilitätsprüfung des jeweiligen Adapters. Irland ruft die Funktion aus Worker-Threads auf einem lokalen Datensatz auf."""
+    def consume(rec, d, tmin, tmax):
+        used = _orig(mod, "consume_day")(rec, d, tmin, tmax)
+        if used:
+            _attach(rec, d.year, d.month, d.day, _tenths(tmax), _tenths(tmin))
+        return used
+
+    _patch(mod, "consume_day", consume)
+
+
+install_fmi_hooks = install_rec_day_hooks
+
+
+def install_hungary_hooks(mod: Any) -> None:
+    """Ungarn: consume_day(rec, Datum, Tmin, Tmax, provenance) für die zehn Original-Langreihen und die HABP-Stationen."""
+    def consume(rec, d, tmin, tmax, provenance):
+        used = _orig(mod, "consume_day")(rec, d, tmin, tmax, provenance)
+        if used:
+            _attach(rec, d.year, d.month, d.day, _tenths(tmax), _tenths(tmin))
+        return used
+
+    _patch(mod, "consume_day", consume)
+
+
 # =========================================================================== Engine-Cache je Quelle
 def _atomic_pickle(path: Path, obj: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -868,6 +929,7 @@ def run_aemet(ctx: Ctx, res: SourceResult) -> SourceResult:
         save_engine_cache(ctx, res.key, engines, stations, [])
     if ctx.baseline_only:
         return _finish(res, ctx, {s: e for s, e in engines.items() if s in stations}, stations, {}, [])
+    uninstall_hooks()                                   # laufendes Jahr: unveränderte Adapter, keine Reihen-Erfassung
     cur_path = cur_mod.build_current(api_key=api_key, year=ctx.year, cache_dir=ctx.adapters_dir)
     cur_payload = aemet._load_pickle_gz(cur_path)
     inventory = dict(inventory)
@@ -906,6 +968,7 @@ def run_knmi(ctx: Ctx, res: SourceResult) -> SourceResult:
         save_engine_cache(ctx, res.key, engines, stations, [])
     if ctx.baseline_only:
         return _finish(res, ctx, {s: e for s, e in engines.items() if s in stations}, stations, {}, [])
+    uninstall_hooks()                                   # laufendes Jahr: unveränderte Adapter, keine Reihen-Erfassung
     cur_path = cur_mod.build_current(ctx.adapters_dir, ctx.year)
     cur_payload = knmi.load_pickle_gzip(cur_path)
     inventory.update(cur_payload.get("inventory", {}))
@@ -944,6 +1007,7 @@ def run_belgium(ctx: Ctx, res: SourceResult) -> SourceResult:
         save_engine_cache(ctx, res.key, engines, stations, [])
     if ctx.baseline_only:
         return _finish(res, ctx, {s: e for s, e in engines.items() if s in stations}, stations, {}, [])
+    uninstall_hooks()                                   # laufendes Jahr: unveränderte Adapter, keine Reihen-Erfassung
     cur_path = cur_mod.build_current(ctx.adapters_dir, ctx.year)
     cur_payload = belgium.load_pickle_gzip(cur_path)
     inventory.update(cur_payload.get("inventory", {}))
@@ -983,6 +1047,7 @@ def run_meteoswiss(ctx: Ctx, res: SourceResult) -> SourceResult:
         save_engine_cache(ctx, res.key, engines, stations, [])
     if ctx.baseline_only:
         return _finish(res, ctx, {s: e for s, e in engines.items() if s in stations}, stations, {}, [])
+    uninstall_hooks()                                   # laufendes Jahr: unveränderte Adapter, keine Reihen-Erfassung
     cur_path = cur_mod.build_current(ctx.adapters_dir, ctx.year)
     cur_payload = swiss.load_pickle_gzip(cur_path)
     inventory.update(cur_payload.get("inventory", {}))
@@ -991,6 +1056,257 @@ def run_meteoswiss(ctx: Ctx, res: SourceResult) -> SourceResult:
     if not current:
         raise RuntimeError(f"MeteoSwiss lieferte für {ctx.year} keine aktuellen Stationsdaten.")
     return _finish(res, ctx, {s: e for s, e in engines.items() if s in stations}, stations, current, [])
+
+
+# =========================================================================== Stufe B2.2: Dänemark, Schweden, Norwegen, Finnland
+def _run_compact_source(ctx: Ctx, res: SourceResult, *, label: str, prefix: str,
+                        install: Callable[[], None], build: Callable[[], Any],
+                        load_base: Callable[[], dict], to_meta: Callable[[dict, set], dict],
+                        build_current: Callable[[], dict], notes: Iterable[str] = (),
+                        filter_records: Callable[[dict], dict] = lambda records: records) -> SourceResult:
+    """Gemeinsamer Ablauf der Adapter mit kompaktem Baseline-Zustand (``records`` + ``inventory``):
+    Baseline mit Reihen-Erfassung -> Engine-Cache -> aktuelles Jahr mit unveränderten Adaptern -> Metadaten wie im bestehenden Skript."""
+    allsrc = _allsrc()
+    cached = load_engine_cache(ctx, res.key)
+    inventory: dict = {}
+    record_ids: set = set()
+    if cached:
+        stations = dict(cached["stations"])
+        engines = cached["engines"]
+    else:
+        install()
+        build()                                         # wirft BaselineIncomplete, solange die Baseline nicht fertig ist
+        base = load_base()
+        inventory = dict(base.get("inventory", {}))
+        record_ids = set(str(x) for x in base.get("records", {}))
+        stations = to_meta(inventory, record_ids)
+        engines = _engines_from_holders(label, filter_records(base["records"]), lambda raw: f"{prefix}:{raw}")
+        save_engine_cache(ctx, res.key, engines, stations, [])
+    if ctx.baseline_only:
+        return _finish(res, ctx, {s: e for s, e in engines.items() if s in stations}, stations, {}, [])
+    uninstall_hooks()                                   # laufendes Jahr: unveränderte Adapter, keine Reihen-Erfassung
+    cur_payload = build_current()
+    inventory.update(cur_payload.get("inventory", {}))
+    record_ids.update(str(x) for x in cur_payload.get("records", {}))
+    stations.update(to_meta(inventory, record_ids))
+    current = allsrc.compact_records_to_core_current(filter_records(cur_payload.get("records", {})), prefix=prefix)
+    if not current:
+        raise RuntimeError(f"{label} lieferte für {ctx.year} keine aktuellen Stationsdaten.")
+    return _finish(res, ctx, {s: e for s, e in engines.items() if s in stations}, stations, current, list(notes))
+
+
+def _baseline_progress(mod: Any, ctx: Ctx) -> str:
+    return _status_summary(mod, ctx) or "Fortschritt gespeichert"
+
+
+# ---- Dänemark (DMI: Jahrbücher bis 1983, GHCN-Brücke, climateData ab 2011)
+def run_dmi(ctx: Ctx, res: SourceResult) -> SourceResult:
+    dmi = _import("update_dmi_denmark_station_cache")
+    cur_mod = _import("update_dmi_denmark_current")
+    allsrc = _allsrc()
+    ghcn_dk = {sid: m for sid, m in ctx.ghcn_all().items() if m.country_code == "DA"}
+
+    def build():
+        path = dmi.build_baseline(ctx.adapters_dir, ctx.cutoff, force=ctx.forced(res.key),
+                                  max_runtime_minutes=ctx.max_runtime_minutes)
+        if not dmi.valid_final(dmi.baseline_path(ctx.adapters_dir, ctx.cutoff), ctx.cutoff):
+            raise BaselineIncomplete("DMI-Baseline im Aufbau: " + _baseline_progress(dmi, ctx) + "; nächster Lauf setzt fort.")
+        return path
+
+    return _run_compact_source(
+        ctx, res, label="DMI", prefix="DMI",
+        install=lambda: install_dmi_hooks(dmi), build=build,
+        load_base=lambda: dmi.load_baseline(ctx.adapters_dir, ctx.cutoff),
+        to_meta=lambda inv, ids: allsrc.dmi_inventory_to_meta(inv, record_ids=ids, ghcn_dk_stations=ghcn_dk),
+        build_current=lambda: dmi.load_pickle_gzip(cur_mod.build_current(ctx.adapters_dir, ctx.year)),
+        notes=["Reihe: digitalisierte Jahrbücher bis 1983 (DMI weist auf mögliche Digitalisierungsfehler hin), 1971-1978 und "
+               "1984-2010 über die dokumentierte GHCN-Daily-Brücke, ab 2011 DMI climateData (dänischer Lokaltag)."])
+
+
+# ---- Schweden (SMHI, nur Qualität G)
+def run_smhi(ctx: Ctx, res: SourceResult) -> SourceResult:
+    smhi = _import("update_smhi_sweden_station_cache")
+    cur_mod = _import("update_smhi_sweden_current")
+    allsrc = _allsrc()
+
+    def build():
+        smhi.build_baseline(ctx.adapters_dir, ctx.cutoff, force=ctx.forced(res.key), max_runtime_minutes=ctx.max_runtime_minutes)
+        if not smhi.valid_final(smhi.baseline_path(ctx.adapters_dir, ctx.cutoff), ctx.cutoff):
+            raise BaselineIncomplete("SMHI-Baseline im Aufbau: " + _baseline_progress(smhi, ctx) + "; nächster Lauf setzt fort.")
+
+    return _run_compact_source(
+        ctx, res, label="SMHI", prefix="SMHI",
+        install=lambda: install_smhi_hooks(smhi), build=build,
+        load_base=lambda: smhi.load_baseline(ctx.adapters_dir, ctx.cutoff),
+        to_meta=lambda inv, ids: allsrc.smhi_inventory_to_meta(inv),
+        build_current=lambda: cur_mod.load_pickle_gzip(cur_mod.build_current(ctx.adapters_dir, ctx.year)),
+        notes=["Historische Reihe: nur geprüfte SMHI-Werte (Qualität G); laufendes Jahr nach den Regeln des bestehenden Adapters."])
+
+
+# ---- Norwegen (MET Norway Frost; Stationshalter MET.NO)
+def run_frost(ctx: Ctx, res: SourceResult) -> SourceResult:
+    client_id = os.environ.get("FROST_CLIENT_ID", "").strip()
+    if not client_id:
+        raise RuntimeError("FROST_CLIENT_ID fehlt.")
+    frost = _import("update_frost_norway_station_cache")
+    cur_mod = _import("update_frost_norway_current")
+    allsrc = _allsrc()
+
+    def build():
+        frost.build_baseline(client_id, ctx.adapters_dir, ctx.cutoff, force=ctx.forced(res.key),
+                             max_runtime_minutes=ctx.max_runtime_minutes)
+        if not frost.valid_final(frost.baseline_path(ctx.adapters_dir, ctx.cutoff), ctx.cutoff):
+            raise BaselineIncomplete("Frost-Baseline im Aufbau: " + _baseline_progress(frost, ctx) + "; nächster Lauf setzt fort.")
+
+    return _run_compact_source(
+        ctx, res, label="Frost", prefix="FROST",
+        install=lambda: install_frost_hooks(frost), build=build,
+        load_base=lambda: frost.load_pickle_gzip(frost.baseline_path(ctx.adapters_dir, ctx.cutoff)),
+        to_meta=lambda inv, ids: allsrc.frost_inventory_to_meta(inv),
+        build_current=lambda: frost.load_pickle_gzip(cur_mod.build_current(client_id, ctx.adapters_dir, ctx.year)),
+        notes=["Nur Stationen mit Halter MET.NO, Tageswerte max/min(air_temperature P1D), Qualitätscodes 0-4."])
+
+
+# ---- Finnland (FMI)
+def run_fmi(ctx: Ctx, res: SourceResult) -> SourceResult:
+    fmi = _import("update_fmi_finland_station_cache")
+    cur_mod = _import("update_fmi_finland_current")
+    allsrc = _allsrc()
+
+    def build():
+        fmi.build_baseline(ctx.adapters_dir, ctx.cutoff, force=ctx.forced(res.key), max_runtime_minutes=ctx.max_runtime_minutes)
+        if not fmi.valid_final(fmi.baseline_path(ctx.adapters_dir, ctx.cutoff), ctx.cutoff):
+            raise BaselineIncomplete("FMI-Baseline im Aufbau: " + _baseline_progress(fmi, ctx) + "; nächster Lauf setzt fort.")
+
+    return _run_compact_source(
+        ctx, res, label="FMI", prefix="FMI",
+        install=lambda: install_fmi_hooks(fmi), build=build,
+        load_base=lambda: fmi.load_baseline(ctx.adapters_dir, ctx.cutoff),
+        to_meta=lambda inv, ids: allsrc.fmi_inventory_to_meta(inv),
+        build_current=lambda: fmi.load_pickle_gzip(cur_mod.build_current(ctx.adapters_dir, ctx.year)),
+        notes=["Plausibilitätsprüfung wie im bestehenden FMI-Adapter (veröffentlichte finnische Messrekorde, Tmin > Tmax verworfen)."])
+
+
+# =========================================================================== Stufe B2.3: Ungarn, Irland, Estland, Slowenien
+def _complete_or_raise(payload: Any, label: str, year: int) -> dict:
+    if not isinstance(payload, dict) or payload.get("complete") is not True:
+        raise RuntimeError(f"{label}-Current für {year} unvollständig.")
+    return payload
+
+
+# ---- Ungarn (HungaroMet: zehn Original-Langreihen ab 1901 + HABP-Automatenstationen)
+def run_hungary(ctx: Ctx, res: SourceResult) -> SourceResult:
+    hu = _import("update_hungaromet_hungary_station_cache")
+    cur_mod = _import("update_hungaromet_hungary_current")
+    allsrc = _allsrc()
+
+    def build():
+        hu.build_baseline(ctx.adapters_dir, ctx.cutoff, force=ctx.forced(res.key), workers=max(1, ctx.workers),
+                          max_runtime_minutes=ctx.max_runtime_minutes)
+        if not hu.valid_final(hu.baseline_path(ctx.adapters_dir, ctx.cutoff), ctx.cutoff):
+            raise BaselineIncomplete("HungaroMet-Baseline im Aufbau: " + _baseline_progress(hu, ctx) + "; nächster Lauf setzt fort.")
+
+    def current():
+        cur_mod.build_current(ctx.adapters_dir, ctx.year, workers=max(1, ctx.workers))
+        return cur_mod.load_current(ctx.adapters_dir, ctx.year)
+
+    return _run_compact_source(
+        ctx, res, label="HungaroMet", prefix="HUNGAROMET",
+        install=lambda: install_hungary_hooks(hu), build=build,
+        load_base=lambda: hu.load_baseline(ctx.adapters_dir, ctx.cutoff),
+        to_meta=lambda inv, ids: allsrc.hungary_inventory_to_meta(inv, record_ids=ids), build_current=current,
+        notes=["Kontrollierte, nicht homogenisierte Original-Langreihen ab 1901 (zehn Orte) plus HABP-Automatenstationen; "
+               "die Langreihen erscheinen als eigene Stationen."])
+
+
+# ---- Irland (Met Éireann; ohne Nordirland, Grasminimum ignoriert)
+def run_ireland(ctx: Ctx, res: SourceResult) -> SourceResult:
+    ie = _import("update_met_eireann_ireland_station_cache")
+    cur_mod = _import("update_met_eireann_ireland_current")
+    allsrc = _allsrc()
+
+    def build():
+        ie.build_baseline(ctx.adapters_dir, ctx.cutoff, force=ctx.forced(res.key), workers=max(1, ctx.workers),
+                          batch_size=100, max_runtime_minutes=ctx.max_runtime_minutes)
+        if not ie.valid_final(ie.baseline_path(ctx.adapters_dir, ctx.cutoff), ctx.cutoff):
+            raise BaselineIncomplete("Met-Éireann-Baseline im Aufbau: " + _baseline_progress(ie, ctx) + "; nächster Lauf setzt fort.")
+
+    def current():
+        path = cur_mod.build_current(ctx.adapters_dir, ctx.year, workers=max(1, ctx.workers))
+        return _complete_or_raise(ie.load_pickle_gzip(path), "Met Éireann", ctx.year)
+
+    return _run_compact_source(
+        ctx, res, label="Met Éireann", prefix="METEIREANN",
+        install=lambda: install_rec_day_hooks(ie), build=build,
+        load_base=lambda: ie.load_pickle_gzip(ie.baseline_path(ctx.adapters_dir, ctx.cutoff)),
+        to_meta=lambda inv, ids: allsrc.ireland_inventory_to_meta(inv, record_ids=ids), build_current=current,
+        notes=["Tägliche Lufttemperatur maxtp/mintp; Nordirland ausgeschlossen."])
+
+
+# ---- Estland (Keskkonnaagentuur; öffentliche Tageswerte erst ab 1991)
+def run_estonia(ctx: Ctx, res: SourceResult) -> SourceResult:
+    ee = _import("update_ilmateenistus_estonia_station_cache")
+    cur_mod = _import("update_ilmateenistus_estonia_current")
+    allsrc = _allsrc()
+
+    def build():
+        ee.build_baseline(ctx.adapters_dir, ctx.cutoff, force=ctx.forced(res.key), max_runtime_minutes=ctx.max_runtime_minutes)
+        if not ee.valid_final(ee.baseline_path(ctx.adapters_dir, ctx.cutoff), ctx.cutoff):
+            raise BaselineIncomplete("Estland-Baseline im Aufbau: " + _baseline_progress(ee, ctx) + "; nächster Lauf setzt fort.")
+
+    def current():
+        path = cur_mod.build_current(ctx.adapters_dir, ctx.year)
+        return _complete_or_raise(ee.load_pickle_gzip(path), "Estland", ctx.year)
+
+    return _run_compact_source(
+        ctx, res, label="Estland", prefix="ILMATEENISTUS",
+        install=lambda: install_rec_day_hooks(ee), build=build,
+        load_base=lambda: ee.load_pickle_gzip(ee.baseline_path(ctx.adapters_dir, ctx.cutoff)),
+        to_meta=lambda inv, ids: allsrc.estonia_inventory_to_meta(inv), build_current=current,
+        notes=["Öffentliche Tageswerte beginnen 1991 (Roomassaare 2007): ältere Klimamittel und Rekordjahre fehlen daher."])
+
+
+# ---- Slowenien (ARSO Agromet; ID 346 bewusst ausgeschlossen)
+def run_slovenia(ctx: Ctx, res: SourceResult) -> SourceResult:
+    slo = _import("update_arso_slovenia_station_cache")
+    cur_mod = _import("update_arso_slovenia_current")
+    allsrc = _allsrc()
+    metadata: Dict[str, Any] = {}
+
+    def build():
+        # Das bestehende Skript baut die Baseline als eigenes Programm (main()); hier läuft es im selben Prozess,
+        # damit die Reihen-Erfassung greift. argv wird nur für diesen Aufruf ersetzt.
+        argv = ["update_arso_slovenia_station_cache.py", "--cutoff-year", str(ctx.cutoff), "--cache-dir", str(ctx.adapters_dir),
+                "--workers", str(max(1, ctx.workers)), "--batch-size", "600", "--max-runtime-minutes", str(ctx.max_runtime_minutes)]
+        if ctx.forced(res.key):
+            argv.append("--force")
+        saved = sys.argv
+        sys.argv = argv
+        try:
+            slo.main()
+        except SystemExit as exc:                               # SystemExit ist kein Exception: sonst bräche es den ganzen Lauf ab
+            if exc.code not in (0, None):
+                raise RuntimeError(f"ARSO-Baseline abgebrochen: {exc.code}") from None
+        finally:
+            sys.argv = saved
+        if not slo.valid_baseline(slo.baseline_path(ctx.adapters_dir, ctx.cutoff), ctx.cutoff):
+            raise BaselineIncomplete("ARSO-Baseline im Aufbau: " + _baseline_progress(slo, ctx) + "; nächster Lauf setzt fort.")
+
+    def current():
+        path = cur_mod.build_current(ctx.adapters_dir, ctx.year, workers=max(1, ctx.workers))
+        return _complete_or_raise(slo.load_pickle_gz(path), "ARSO Slowenien", ctx.year)
+
+    def to_meta(inv, ids):
+        if not metadata:                                        # genau die 73 freigegebenen IDs, wie im bestehenden Skript
+            metadata.update(allsrc._load_slovenia_map_metadata())
+        return allsrc.slovenia_metadata_to_meta(metadata)
+
+    return _run_compact_source(
+        ctx, res, label="ARSO", prefix="ARSO",
+        install=lambda: install_rec_day_hooks(slo), build=build,
+        load_base=lambda: slo.load_pickle_gz(slo.baseline_path(ctx.adapters_dir, ctx.cutoff)),
+        to_meta=to_meta, build_current=current, filter_records=allsrc._slovenia_filter_records,
+        notes=["73 von 74 ARSO-Stationen: ID 346 (Turški Vrh) ist wegen fehlender verifizierter Koordinate ausgeschlossen."])
 
 
 # =========================================================================== Registry
@@ -1014,19 +1330,18 @@ SPECS: Tuple[Spec, ...] = (
     Spec("knmi_nl", "KNMI Niederlande", "B2.1", ("NL",), run_knmi),
     Spec("rmi_be", "KMI/RMI Belgien", "B2.1", ("BE",), run_belgium),
     Spec("aemet_es", "AEMET Spanien", "B2.1", ("ES",), run_aemet),
-    # noch nicht angebunden: erscheinen als "fehlt, geplant" im Index (Adapter-Dateien fehlen noch)
-    Spec("dmi_dk", "DMI Dänemark", "B2.2", ("DK",)),
-    Spec("smhi_se", "SMHI Schweden", "B2.2", ("SE",)),
-    Spec("frost_no", "MET Norway Frost", "B2.2", ("NO",)),
-    Spec("fmi_fi", "FMI Finnland", "B2.2", ("FI",)),
-    Spec("hungaromet_hu", "HungaroMet Ungarn", "B2.3", ("HU",)),
-    Spec("meteireann_ie", "Met Éireann Irland", "B2.3", ("IE",)),
-    Spec("ilmateenistus_ee", "Ilmateenistus Estland", "B2.3", ("EE",)),
-    Spec("arso_si", "ARSO Slowenien", "B2.3", ("SI",)),
+    Spec("dmi_dk", "DMI Dänemark", "B2.2", ("DK",), run_dmi),
+    Spec("smhi_se", "SMHI Schweden", "B2.2", ("SE",), run_smhi),
+    Spec("frost_no", "MET Norway Frost", "B2.2", ("NO",), run_frost),
+    Spec("fmi_fi", "FMI Finnland", "B2.2", ("FI",), run_fmi),
+    Spec("hungaromet_hu", "HungaroMet Ungarn", "B2.3", ("HU",), run_hungary),
+    Spec("meteireann_ie", "Met Éireann Irland", "B2.3", ("IE",), run_ireland),
+    Spec("ilmateenistus_ee", "Ilmateenistus Estland", "B2.3", ("EE",), run_estonia),
+    Spec("arso_si", "ARSO Slowenien", "B2.3", ("SI",), run_slovenia),
 )
 SPEC_BY_KEY = {s.key: s for s in SPECS}
 STAGE_ORDER = ("A", "B1", "B2.1", "B2.2", "B2.3", "C")
-DEFAULT_STAGES = ("A", "B1", "B2.1")
+DEFAULT_STAGES = ("A", "B1", "B2.1", "B2.2", "B2.3")
 
 
 def select_specs(selection: Optional[Iterable[str]]) -> List[Spec]:
@@ -1053,7 +1368,8 @@ def select_specs(selection: Optional[Iterable[str]]) -> List[Spec]:
 
 def classify_error(exc: BaseException) -> str:
     text = str(exc).lower()
-    if isinstance(exc, BaselineIncomplete) or "unvollständig" in text or "setzt fort" in text:
+    if (isinstance(exc, BaselineIncomplete) or "unvollständig" in text or "setzt fort" in text
+            or "laufzeitgrenze" in text or "zwischenstand gespeichert" in text):
         return "building"
     return "failed"
 
@@ -1081,6 +1397,8 @@ def run_sources(ctx: Ctx, specs: List[Spec]) -> List[SourceResult]:
                 res.message = f"{type(exc).__name__}: {exc}"
                 res.stations, res.engines, res.current = {}, {}, {}
                 ctx.log(f"{spec.label}: {res.status.upper()} – {res.message}")
+            finally:
+                uninstall_hooks()
             ctx.log(f"{spec.label}: {res.status} ({time.monotonic() - started:.0f} s) {res.message}")
         results.append(res)
     return results

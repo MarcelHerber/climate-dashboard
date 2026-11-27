@@ -2,10 +2,10 @@
 """Europa-Anomalie- und Rekordmonitor: Baselines aufbauen, aktuelles Jahr laden, statische Dateien schreiben.
 
 Beispiele
-  python update_europe_anomaly_map.py --year 2026                       # Stufe A + B1 + B2.1
+  python update_europe_anomaly_map.py --year 2026                       # Stufen A, B1, B2.1, B2.2, B2.3
   python update_europe_anomaly_map.py --sources A                       # nur DE, FR, CZ, GHCN-Rest
   python update_europe_anomaly_map.py --sources dwd_de,geosphere_at     # einzelne Quellen
-  python update_europe_anomaly_map.py --baseline-only --sources B2.1    # nur historische Baselines aufbauen
+  python update_europe_anomaly_map.py --baseline-only --sources B2.2    # nur historische Baselines aufbauen
   python update_europe_anomaly_map.py --self-test
 
 Die bestehenden Dateien (europe_stations/*.json, dwd_daily_map/) werden weder gelesen noch verändert.
@@ -30,7 +30,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--year", type=int, default=dt.datetime.now(dt.timezone.utc).year)
     p.add_argument("--output", default="europe_anomaly")
     p.add_argument("--cache-dir", default=".cache/europe-anomaly")
-    p.add_argument("--sources", default="", help="Stufen (A,B1,B2.1,…) oder Quellenschlüssel, kommagetrennt; Standard: A,B1,B2.1")
+    p.add_argument("--sources", default="", help="Stufen (A,B1,B2.1,…) oder Quellenschlüssel, kommagetrennt; Standard: A,B1,B2.1,B2.2,B2.3")
     p.add_argument("--workers", type=int, default=6)
     p.add_argument("--max-runtime-minutes", type=float, default=150.0, help="Laufzeitbudget je fortsetzbarer Baseline")
     p.add_argument("--force-baseline", default="", help="Quellenschlüssel (kommagetrennt) oder 'all'")

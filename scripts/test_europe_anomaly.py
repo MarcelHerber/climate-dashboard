@@ -14,6 +14,7 @@ Fehlende Adapter-Module werden übersprungen (und gemeldet), nie stillschweigend
 """
 from __future__ import annotations
 
+import calendar
 import csv
 import datetime as dt
 import gzip
@@ -170,16 +171,23 @@ def check_engine_vs_core_state(final: dict, state: dict, compare_dates: bool = T
     assert min(r[0] for r in (E.record_at(final["TMIN"], "lo", p) for p in range(366)) if r) == state["TMIN"]["abs"][0]
 
 
-def check_engine_vs_compact(final: dict, rec: dict, decimals_to_tenths=lambda v: int(round(float(v) * 10.0))) -> None:
-    """Gegen kompakte Adapter-Rekorde (calendar_tmax/-tmin mit [wert, iso-datum])."""
+def check_engine_vs_compact(final: dict, rec: dict, decimals_to_tenths=lambda v: int(round(float(v) * 10.0)),
+                            compare_dates: bool = True) -> None:
+    """Gegen kompakte Adapter-Rekorde (calendar_tmax/-tmin mit [wert, iso-datum]).
+
+    compare_dates=False nur bei Eingaben mit mehr als einer Dezimalstelle: Frost vergleicht den ungerundeten neuen Wert mit dem
+    gerundeten gespeicherten, bei Gleichstand im Zehntel kann das Datum dort vom (frühesten) Datum der Engine abweichen."""
+    iso = lambda r: f"{r[1] // 10000:04d}-{r[1] // 100 % 100:02d}-{r[1] % 100:02d}"
     for mmdd in E.CYCLE:
         pos = E.POS[mmdd]
-        c = rec["calendar_tmax"].get(mmdd)
-        r = E.record_at(final["TMAX"], "hi", pos)
-        assert (decimals_to_tenths(c[0]), c[1]) == (r[0], f"{r[1] // 10000:04d}-{r[1] // 100 % 100:02d}-{r[1] % 100:02d}") if c and r else (c is None and r is None), ("TMAX", mmdd, c, r)
-        c = rec["calendar_tmin"].get(mmdd)
-        r = E.record_at(final["TMIN"], "lo", pos)
-        assert (decimals_to_tenths(c[0]), c[1]) == (r[0], f"{r[1] // 10000:04d}-{r[1] // 100 % 100:02d}-{r[1] % 100:02d}") if c and r else (c is None and r is None), ("TMIN", mmdd, c, r)
+        for name, key, which in (("TMAX", "calendar_tmax", "hi"), ("TMIN", "calendar_tmin", "lo")):
+            c = rec[key].get(mmdd)
+            r = E.record_at(final[name], which, pos)
+            if c and r:
+                assert decimals_to_tenths(c[0]) == r[0], (name, mmdd, c, r)
+                assert not compare_dates or c[1] == iso(r), (name, mmdd, c, r)
+            else:
+                assert c is None and r is None, (name, mmdd, c, r)
 
 
 def passed(name: str) -> None:
@@ -800,6 +808,586 @@ def test_meteoswiss() -> None:
     passed("MeteoSwiss Schweiz: Hook ändert nichts, Reihe + Rekorde stimmen")
 
 
+# =========================================================================== Stufe B2.2: Dänemark, Schweden, Norwegen, Finnland
+def test_dmi() -> None:
+    if not have("update_dmi_denmark_station_cache"):
+        return skipped("DMI Dänemark", "Modul fehlt")
+    dm = importlib.import_module("update_dmi_denmark_station_cache")
+    sid = "30380"
+    series = synth(1951, 2025, 91)
+    book_years = {y for y in range(1951, 1984) if y not in dm.MISSING_YEARBOOK_YEARS}
+    # Jahrbuch-CSV (1951-1983 ohne die offiziell fehlenden Jahrbuchjahre)
+    lines = ["#StatID,yyyy,mm,dd,tmax,tmin,StNavn"]
+    for d, (tx, tn) in sorted(series.items()):
+        if d.year in book_years:
+            lines.append(f"{sid},{d.year},{d.month},{d.day},{'' if tx is None else tx / 10},{'' if tn is None else tn / 10},Kobenhavn")
+    book_rows, names = dm.parse_yearbook_csv(("\n".join(lines) + "\n").encode("utf-8"))
+    assert names[sid] == "Kobenhavn" and book_rows
+    # GHCN-Brücke: ganze Reihe als .dly, der Adapter nimmt nur seine Brückenjahre; einige Werte tragen ein Qualitätsflag
+    both = [d for d, (tx, tn) in sorted(series.items()) if tx is not None and tn is not None and dm.wanted_bridge_year(d.year)]
+    flagged = {("TMAX", d.year, d.month, d.day) for d in both[::97]} | {("TMIN", d.year, d.month, d.day) for d in both[5::89]}
+    bridge_rows = dm.parse_ghcn_dly(make_dly(series, "DAM00030380", flagged).decode("ascii"), station_id=sid)
+    assert bridge_rows
+    # climateData ab 2011 (Zeilen wie climate_year_rows sie liefert)
+    climate_rows = [(sid, d, None if tn is None else tn / 10.0, None if tx is None else tx / 10.0)
+                    for d, (tx, tn) in sorted(series.items()) if d.year >= dm.CLIMATE_FIRST_YEAR]
+
+    def feed(records: dict) -> None:
+        for row_sid, d, tn, tx in book_rows:
+            dm.consume_row(records, row_sid, d, tn, tx, provenance="DMI_YEARBOOK")
+        for row_sid, d, tn, tx in bridge_rows:
+            dm.consume_row(records, row_sid, d, tn, tx, provenance="GHCN_BRIDGE")
+        for row_sid, d, tn, tx in climate_rows:
+            dm.consume_row(records, row_sid, d, tn, tx, provenance="DMI_CLIMATE")
+
+    rec_u: dict = {}
+    feed(rec_u)
+    src.install_dmi_hooks(dm)
+    try:
+        rec_h: dict = {}
+        feed(rec_h)
+        assert strip_pk(rec_h[sid]) == rec_u[sid]
+        expect = {}
+        for d, (tx, tn) in series.items():
+            if dm.wanted_bridge_year(d.year) and d.year not in book_years:
+                if ("TMAX", d.year, d.month, d.day) in flagged:
+                    tx = None
+                if ("TMIN", d.year, d.month, d.day) in flagged:
+                    tn = None
+            if tx is not None or tn is not None:
+                expect[d] = (tx, tn)
+        assert series_dict(rec_h[sid]["_pk"]) == expect
+        check_engine_vs_compact(rec_h[sid]["_pk"].to_final(), rec_u[sid])
+        # ein Tag ohne Wert erzeugt keine Reihe
+        empty: dict = {}
+        assert dm.consume_row(empty, "30381", date(2020, 1, 1), None, None, provenance="X") is False and empty == {}
+    finally:
+        src.uninstall_hooks()
+    passed("DMI Dänemark: Hook ändert nichts, Jahrbuch + GHCN-Brücke (Flags) + climateData ergeben eine lückenlose Reihe")
+
+
+def test_smhi() -> None:
+    if not have("update_smhi_sweden_station_cache"):
+        return skipped("SMHI Schweden", "Modul fehlt")
+    sm = importlib.import_module("update_smhi_sweden_station_cache")
+    series = synth(1961, 2025, 93)
+    unchecked = lambda d: d.toordinal() % 11 == 0                                  # an diesen Tagen nur Qualität Y (ungeprüft)
+
+    def csv_for(index: int) -> bytes:
+        out = ["Stationsnamn;Test", "", "Datum;Tid (UTC);Lufttemperatur;Kvalitet"]
+        for d, v in sorted(series.items()):
+            if v[index] is not None:
+                out.append(f"{d.isoformat()};06:00:00;{v[index] / 10:.1f};{'Y' if unchecked(d) else 'G'}")
+        return ("\n".join(out) + "\n").encode("utf-8")
+
+    tn_rows = sm.parse_corrected_archive(csv_for(1), cutoff_year=2025)
+    tx_rows = sm.parse_corrected_archive(csv_for(0), cutoff_year=2025)
+    assert tn_rows and tx_rows
+    merged, qcounts = sm.merge_station_archives(tn_rows, tx_rows, accepted_quality=sm.ACCEPTED_HISTORICAL_QUALITY)
+    assert qcounts.get("Y") and qcounts.get("G")
+
+    def feed(records: dict) -> None:
+        for d, tn, tx in merged:
+            sm.consume_day(records, "97400", d, tn, tx)
+
+    rec_u: dict = {}
+    feed(rec_u)
+    src.install_smhi_hooks(sm)
+    try:
+        rec_h: dict = {}
+        feed(rec_h)
+        assert strip_pk(rec_h["97400"]) == rec_u["97400"]
+        expect = {d: v for d, v in series.items() if not unchecked(d) and (v[0] is not None or v[1] is not None)}
+        assert series_dict(rec_h["97400"]["_pk"]) == expect                         # ungeprüfte Tage fehlen auch in der Reihe
+        check_engine_vs_compact(rec_h["97400"]["_pk"].to_final(), rec_u["97400"])
+    finally:
+        src.uninstall_hooks()
+    passed("SMHI Schweden: Hook ändert nichts, nur Qualität G fließt in die Reihe")
+
+
+def test_frost() -> None:
+    if not have("update_frost_norway_station_cache"):
+        return skipped("Frost Norwegen", "Modul fehlt")
+    fr = importlib.import_module("update_frost_norway_station_cache")
+    stations = {"SN18700": synth(1961, 2025, 94), "SN18701": synth(1975, 2025, 95)}
+
+    def api_rows(year: int, noise: float = 0.04) -> list:
+        rows = []
+        for sid, series in stations.items():
+            for d, (tx, tn) in sorted(series.items()):
+                if d.year != year:
+                    continue
+                obs = []
+                for element, v in ((fr.TMAX, tx), (fr.TMIN, tn)):
+                    if v is None:
+                        continue
+                    value = v / 10.0 + (noise if v % 3 == 0 else 0.0)                 # zwei Dezimalstellen: Rundung wie im Adapter
+                    obs.append({"elementId": element, "timeResolution": "P1D", "value": value, "qualityCode": 0})
+                    obs.append({"elementId": element, "timeResolution": "P1D", "value": value + 7.0, "qualityCode": 4})   # schlechter, verliert
+                rows.append({"sourceId": f"{sid}:0", "referenceTime": f"{d.isoformat()}T00:00:00.000Z", "observations": obs})
+        return rows
+
+    day_rows = {y: fr.flatten_best_observations(api_rows(y), date(y, 1, 1), date(y + 1, 1, 1)) for y in range(1961, 2026)}
+
+    def feed(records: dict) -> None:
+        for y in sorted(day_rows):
+            fr.consume_rows(records, day_rows[y])
+
+    rec_u: dict = {}
+    feed(rec_u)
+    src.install_frost_hooks(fr)
+    try:
+        rec_h: dict = {}
+        feed(rec_h)
+        for sid, series in stations.items():
+            assert strip_pk(rec_h[sid]) == rec_u[sid], sid
+            tenths = lambda v: None if v is None else int(round(round(v / 10.0 + (0.04 if v % 3 == 0 else 0.0), 1) * 10.0))
+            expect = {d: (tenths(tx), tenths(tn)) for d, (tx, tn) in series.items() if tx is not None or tn is not None}
+            assert series_dict(rec_h[sid]["_pk"]) == expect, sid
+            check_engine_vs_compact(rec_h[sid]["_pk"].to_final(), rec_u[sid], compare_dates=False)
+        # Werte wie die echte API (eine Dezimalstelle): Rekorde stimmen auch im Datum exakt
+        clean = {y: fr.flatten_best_observations(api_rows(y, 0.0), date(y, 1, 1), date(y + 1, 1, 1)) for y in range(1961, 2026)}
+        rec_c: dict = {}
+        for y in sorted(clean):
+            fr.consume_rows(rec_c, clean[y])
+        for sid in stations:
+            check_engine_vs_compact(rec_c[sid]["_pk"].to_final(), rec_c[sid])
+        assert fr.consume_rows({}, [("SN1", date(2020, 1, 1), None, None)]) == 0
+    finally:
+        src.uninstall_hooks()
+    passed("Frost Norwegen: Hook ändert nichts, bessere Qualität gewinnt, Rundung wie Adapter")
+
+
+def fmi_xml(stations: dict, days: list) -> bytes:
+    """stations: {fmisid: {date: (tx, tn)}} (Zehntelgrad); alle Stationen mit denselben Tagen (rechteckiges Coverage)."""
+    loc, pts, positions, values = [], [], [], []
+    for i, (fid, series) in enumerate(sorted(stations.items())):
+        lat, lon = 60.0 + i, 24.0 + i
+        loc.append(f'<Location><gml:identifier codeSpace="http://xml.fmi.fi/namespace/stationcode/fmisid">{fid}</gml:identifier>'
+                   f'<gml:name codeSpace="http://xml.fmi.fi/namespace/locationcode/name">Station {fid}</gml:name>'
+                   f'<representativePoint xlink:href="#p{i}"/></Location>')
+        pts.append(f'<gml:pointMember><gml:Point gml:id="p{i}"><gml:pos>{lat} {lon}</gml:pos></gml:Point></gml:pointMember>')
+        for d in days:
+            epoch = int(dt.datetime(d.year, d.month, d.day, tzinfo=dt.timezone.utc).timestamp())
+            positions.append(f"{lat} {lon} {epoch}")
+            tx, tn = series.get(d, (None, None))
+            fmt = lambda v: "NaN" if v is None else f"{v / 10:.1f}"
+            values.append(f"{fmt(tn)} {fmt(tx)}")
+    return ('<?xml version="1.0"?><root xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:swe="http://www.opengis.net/swe/2.0" '
+            'xmlns:xlink="http://www.w3.org/1999/xlink">' + "".join(loc) + "".join(pts)
+            + '<swe:DataRecord><swe:field name="tmin"/><swe:field name="tmax"/></swe:DataRecord>'
+            + "<positions>" + " ".join(positions) + "</positions>"
+            + "<swe:doubleOrNilReasonTupleList>" + " ".join(values) + "</swe:doubleOrNilReasonTupleList></root>").encode("utf-8")
+
+
+def test_fmi() -> None:
+    if not have("update_fmi_finland_station_cache"):
+        return skipped("FMI Finnland", "Modul fehlt")
+    fm = importlib.import_module("update_fmi_finland_station_cache")
+    cutoff = 2025
+    s1, s2 = synth(1991, 2026, 96), synth(2001, 2026, 97)
+    days = sorted(set(s1) | set(s2))
+    # Plausibilitätsprüfung des Adapters: zu heißer Tmax, zu kalte Tmin, Tmin > Tmax
+    hot, cold, flip = date(2010, 7, 1), date(2012, 1, 5), date(2014, 3, 3)
+    s1[hot] = (385, 120)
+    s1[cold] = (-50, -600)
+    s1[flip] = (40, 50)
+    raw = fmi_xml({"100001": s1, "100002": s2}, days)
+
+    def run() -> dict:
+        progress = fm.initial_progress(cutoff)
+        fm.process_raw_into_progress(raw, progress, cutoff_year=cutoff)
+        return progress
+
+    prog_u = run()
+    src.install_fmi_hooks(fm)
+    try:
+        prog_h = run()
+        for sid in ("100001", "100002"):
+            assert strip_pk(prog_h["records"][sid]) == prog_u["records"][sid], sid
+        expect1 = {d: v for d, v in s1.items() if d.year <= cutoff and (v[0] is not None or v[1] is not None)}
+        expect1[hot] = (None, 120)
+        expect1[cold] = (-50, None)
+        expect1.pop(flip)
+        assert series_dict(prog_h["records"]["100001"]["_pk"]) == expect1
+        expect2 = {d: v for d, v in s2.items() if d.year <= cutoff and (v[0] is not None or v[1] is not None)}
+        assert series_dict(prog_h["records"]["100002"]["_pk"]) == expect2        # 2026 liegt nach dem Cutoff
+        assert prog_h["qc_rejected_tmax"] == 1 and prog_h["qc_rejected_tmin"] == 1 and prog_h["qc_rejected_inconsistent_days"] == 1
+        for sid in ("100001", "100002"):
+            check_engine_vs_compact(prog_h["records"][sid]["_pk"].to_final(), prog_u["records"][sid])
+    finally:
+        src.uninstall_hooks()
+    passed("FMI Finnland: Hook ändert nichts, Plausibilitätsprüfung und Cutoff gelten auch für die Reihe")
+
+
+def test_compact_runner() -> None:
+    """Gemeinsamer Ablauf der Stufe B2.2 (hier mit den SMHI-Funktionen): Cache, Hooks nur für die Baseline, Aufbau-Status."""
+    if not (have("update_smhi_sweden_station_cache") and allsrc_or_none()):
+        return skipped("Gemeinsamer Ablauf B2.2", "Modul fehlt")
+    sm = importlib.import_module("update_smhi_sweden_station_cache")
+    allsrc = allsrc_or_none()
+    series = synth(1961, 2025, 98)
+    cur = synth(2026, 2026, 99, gap=0, half_missing=0)
+    year = 2026
+    state = {"builds": 0, "hooks_during_current": None, "current_has_pk": None, "incomplete": False}
+    inventory = {"97400": {"name": "Test Stockholm", "lat": 59.3, "lon": 18.1, "elevation_m": 10}}
+
+    def build():
+        if state["incomplete"]:
+            raise src.BaselineIncomplete("noch nicht fertig")
+        state["builds"] += 1
+        records: dict = {}
+        for d, (tx, tn) in sorted(series.items()):
+            sm.consume_day(records, "97400", d, None if tn is None else tn / 10.0, None if tx is None else tx / 10.0)
+        state["base"] = {"records": records, "inventory": inventory}
+
+    def build_current():
+        state["hooks_during_current"] = bool(src._ORIG)
+        records: dict = {}
+        for d, (tx, tn) in sorted(cur.items()):
+            if d <= date(year, 11, 20):
+                sm.consume_day(records, "97400", d, tn / 10.0, tx / 10.0)
+        state["current_has_pk"] = any("_pk" in r for r in records.values())
+        return {"records": records, "inventory": inventory}
+
+    def run(ctx):
+        res = src.SourceResult("smhi_test", "SMHI", "B2.2", ("SE",))
+        return src._run_compact_source(
+            ctx, res, label="SMHI", prefix="SMHI", install=lambda: src.install_smhi_hooks(sm), build=build,
+            load_base=lambda: state["base"], to_meta=lambda inv, ids: allsrc.smhi_inventory_to_meta(inv), build_current=build_current)
+
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = src.Ctx(year=year, cache_dir=Path(tmp), log=lambda m: None)
+            res = run(ctx)
+            assert res.status == "ok" and sorted(res.stations) == ["SMHI:97400"] and sorted(res.engines) == ["SMHI:97400"]
+            check_engine_against_series(res.engines["SMHI:97400"], series, step=31)
+            assert res.current["SMHI:97400"]["TMAX"]["07-01"][0] == cur[date(year, 7, 1)][0]
+            assert state["hooks_during_current"] is False and state["current_has_pk"] is False
+            assert not src._ORIG                                                       # nichts bleibt installiert
+            res2 = run(ctx)                                                           # Engine-Cache: keine zweite Baseline
+            assert state["builds"] == 1 and sorted(res2.engines) == ["SMHI:97400"] and res2.current
+            only = src.Ctx(year=year, cache_dir=Path(tmp), log=lambda m: None, baseline_only=True)
+            res3 = run(only)
+            assert res3.engines and not res3.current
+            fresh = src.Ctx(year=year, cache_dir=Path(tmp) / "fresh", log=lambda m: None)
+            state["incomplete"] = True
+            spec = src.Spec("smhi_test", "SMHI", "B2.2", ("SE",), lambda c, r: run(c))
+            real, real_by_key = src.SPECS, src.SPEC_BY_KEY
+            src.SPECS, src.SPEC_BY_KEY = (spec,), {spec.key: spec}
+            try:
+                out = src.run_sources(fresh, [spec])
+            finally:
+                src.SPECS, src.SPEC_BY_KEY = real, real_by_key
+            assert out[0].status == "building" and not out[0].stations and not src._ORIG
+    finally:
+        src.uninstall_hooks()
+    passed("Gemeinsamer Ablauf B2.2: Engine-Cache, laufendes Jahr ohne Hooks, Aufbau-Status")
+
+
+# =========================================================================== Stufe B2.3: Ungarn, Irland, Estland, Slowenien
+def zip_text(text: str, name: str = "data.csv") -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(name, text)
+    return buf.getvalue()
+
+
+def qc_expected(series: dict, tx_max: float, tx_min: float, tn_max: float, tn_min: float) -> dict:
+    """Plausibilitätsprüfung der Adapter als unabhängige Rechnung: Grenzen je Element, danach Tmin > Tmax verwirft den Tag."""
+    out = {}
+    for d, (tx, tn) in series.items():
+        if tx is not None and not (tx_min * 10 <= tx <= tx_max * 10):
+            tx = None
+        if tn is not None and not (tn_min * 10 <= tn <= tn_max * 10):
+            tn = None
+        if tx is not None and tn is not None and tn > tx:
+            continue
+        if tx is not None or tn is not None:
+            out[d] = (tx, tn)
+    return out
+
+
+def inject_extremes(series: dict, hot: date, cold: date, flip: date, hot_value: int, cold_value: int) -> None:
+    series[hot] = (hot_value, 120)
+    series[cold] = (-50, cold_value)
+    series[flip] = (40, 50)
+
+
+def test_hungary() -> None:
+    if not have("update_hungaromet_hungary_station_cache"):
+        return skipped("HungaroMet Ungarn", "Modul fehlt")
+    hu = importlib.import_module("update_hungaromet_hungary_station_cache")
+    cutoff = 2025
+    long_s = synth(1951, 2026, 101)
+    habp_s = synth(1991, 2026, 102)
+    hot, cold, flip = date(2003, 8, 10), date(1963, 1, 7), date(2005, 5, 5)
+    inject_extremes(long_s, hot, cold, flip, 470, -470)                    # > 45 °C, < -45 °C, Tmin > Tmax
+    fmt = lambda v: "" if v is None else f"{v / 10:.1f}"
+    tx_zip = zip_text("Time;tx\n" + "\n".join(f"{d:%Y%m%d};{fmt(v[0])}" for d, v in sorted(long_s.items()) if v[0] is not None) + "\n")
+    tn_zip = zip_text("Time;tn\n" + "\n".join(f"{d:%Y%m%d};{fmt(v[1])}" for d, v in sorted(long_s.items()) if v[1] is not None) + "\n")
+    habp_zip = zip_text("StationNumber;Time;r;tn;tx\n" + "\n".join(
+        f"13704;{d:%Y%m%d};0.0;{fmt(v[1])};{fmt(v[0])}" for d, v in sorted(habp_s.items())) + "\n")
+
+    def run() -> tuple:
+        stats = {"qc_rejected_tmax": 0, "qc_rejected_tmin": 0, "qc_rejected_inconsistent_days": 0}
+        tx_map, tn_map = hu.parse_long_zip(tx_zip, cutoff_year=cutoff), hu.parse_long_zip(tn_zip, cutoff_year=cutoff)
+        rec_long = hu.empty_record()
+        for d in sorted(set(tx_map) | set(tn_map)):
+            tn, tx = hu.qc_values(tn_map.get(d), tx_map.get(d), stats)
+            hu.consume_day(rec_long, d, tn, tx, "HUNGAROMET_LONG_ORIGINAL")
+        sid, rows = hu.parse_obs_zip(habp_zip, cutoff_year=cutoff)
+        rec_habp = hu.empty_record()
+        for d, tn0, tx0 in rows:
+            tn, tx = hu.qc_values(tn0, tx0, stats)
+            hu.consume_day(rec_habp, d, tn, tx, "HUNGAROMET_HABP_HIST")
+        assert sid == "13704"
+        return rec_long, rec_habp, stats
+
+    long_u, habp_u, stats_u = run()
+    src.install_hungary_hooks(hu)
+    try:
+        long_h, habp_h, stats_h = run()
+        assert strip_pk(long_h) == long_u and strip_pk(habp_h) == habp_u and stats_h == stats_u
+        exp_long = {d: v for d, v in qc_expected(long_s, 45.0, -45.0, 45.0, -45.0).items() if d.year <= cutoff}
+        assert series_dict(long_h["_pk"]) == exp_long
+        exp_habp = {d: v for d, v in qc_expected(habp_s, 45.0, -45.0, 45.0, -45.0).items() if d.year <= cutoff}
+        assert series_dict(habp_h["_pk"]) == exp_habp
+        assert stats_h["qc_rejected_tmax"] == 1 and stats_h["qc_rejected_tmin"] == 1 and stats_h["qc_rejected_inconsistent_days"] == 1
+        check_engine_vs_compact(long_h["_pk"].to_final(), long_u)
+        check_engine_vs_compact(habp_h["_pk"].to_final(), habp_u)
+    finally:
+        src.uninstall_hooks()
+    passed("HungaroMet Ungarn: Hook ändert nichts, Langreihe + HABP mit Plausibilitätsprüfung und Cutoff")
+
+
+def test_ireland() -> None:
+    if not have("update_met_eireann_ireland_station_cache"):
+        return skipped("Met Éireann Irland", "Modul fehlt")
+    ie = importlib.import_module("update_met_eireann_ireland_station_cache")
+    from concurrent.futures import ThreadPoolExecutor
+    cutoff = 2025
+    stations = {str(100 + i): synth(1961 + 5 * i, 2026, 110 + i) for i in range(4)}
+    hot, cold, flip = date(1999, 7, 20), date(1987, 1, 12), date(2009, 6, 6)
+    inject_extremes(stations["100"], hot, cold, flip, 520, -520)            # > 50 °C (Tmax), < -50 °C (Tmin), Tmin > Tmax
+    fmt = lambda v: "" if v is None else f"{v / 10:.1f}"
+
+    def csv_for(series: dict) -> bytes:
+        out = ["Station Name: Test", "Station Height: 10 M", "", "date,ind,maxtp,ind,mintp,igmin,gmin"]
+        for d, (tx, tn) in sorted(series.items()):
+            out.append(f"{d.strftime('%d-%b-%Y').lower()},0,{fmt(tx)},0,{fmt(tn)},0,")
+        return ("\n".join(out) + "\n").encode("utf-8")
+
+    raws = {sid: csv_for(series) for sid, series in stations.items()}
+
+    def parse(sid: str):
+        qc = {}
+        return ie.parse_daily_file(raws[sid], cutoff, qc), qc
+
+    unhooked = {sid: parse(sid) for sid in stations}
+    src.install_rec_day_hooks(ie)
+    try:
+        with ThreadPoolExecutor(max_workers=4) as pool:                      # wie im Adapter: Parsen in Worker-Threads
+            hooked = dict(zip(stations, pool.map(parse, stations)))
+        for sid, series in stations.items():
+            (res_h, qc_h), (res_u, qc_u) = hooked[sid], unhooked[sid]
+            assert qc_h == qc_u
+            assert strip_pk(res_h["record"]) == res_u["record"]
+            expect = {d: v for d, v in qc_expected(series, 50.0, -45.0, 45.0, -50.0).items() if d.year <= cutoff}
+            assert series_dict(res_h["record"]["_pk"]) == expect, sid
+            check_engine_vs_compact(res_h["record"]["_pk"].to_final(), res_u["record"])
+        assert hooked["100"][1]["qc_rejected_tmax"] == 1 and hooked["100"][1]["qc_rejected_tmin"] == 1
+    finally:
+        src.uninstall_hooks()
+    passed("Met Éireann Irland: Hook ändert nichts, Plausibilitätsprüfung, Parsen in Threads sicher")
+
+
+def test_estonia() -> None:
+    if not have("update_ilmateenistus_estonia_station_cache"):
+        return skipped("Estland", "Modul fehlt")
+    ee = importlib.import_module("update_ilmateenistus_estonia_station_cache")
+    cutoff = 2025
+    code = ee.ACTIVE_STATION_CODES[0]
+    series = synth(1991, 2026, 120)
+    flip = date(2004, 4, 4)
+    series[flip] = (40, 50)                                                  # Tmin > Tmax wird verworfen
+
+    def rows_for(year: int) -> list:
+        rows = []
+        for d, (tx, tn) in sorted(series.items()):
+            if d.year != year:
+                continue
+            base = {"jaam_kood": code, "aasta": d.year, "kuu": d.month, "paev": d.day}
+            if tx is not None:
+                rows.append({**base, "element_kood": ee.PARAM_TMAX, "vaartus": tx / 10.0})
+            if tn is not None:
+                rows.append({**base, "element_kood": ee.PARAM_TMIN, "vaartus": tn / 10.0})
+        rows.append({"jaam_kood": "ZZZZZZ01", "element_kood": ee.PARAM_TMAX, "aasta": year, "kuu": 7, "paev": 1, "vaartus": 99.0})
+        return rows
+
+    def run() -> dict:
+        progress = ee.initial_progress(cutoff)
+        for year in range(1991, 2027):
+            ee.process_year(rows_for(year), progress, {}, cutoff)
+        return progress
+
+    prog_u = run()
+    src.install_rec_day_hooks(ee)
+    try:
+        prog_h = run()
+        assert strip_pk(prog_h["records"][code]) == prog_u["records"][code] and list(prog_h["records"]) == [code]
+        assert prog_h["qc_rejected_inconsistent_days"] == prog_u["qc_rejected_inconsistent_days"] == 1
+        expect = {d: v for d, v in series.items() if d.year <= cutoff and d != flip and (v[0] is not None or v[1] is not None)}
+        assert series_dict(prog_h["records"][code]["_pk"]) == expect
+        final = prog_h["records"][code]["_pk"].to_final()
+        check_engine_vs_compact(final, prog_u["records"][code])
+        # Reihe beginnt 1991: kein Klimamittel für 1961-1990, das für 1991-2020 ist vorhanden
+        ri_6190, ri_9120 = E.REF_KEYS.index("1961_1990"), E.DEFAULT_REF_INDEX
+        assert all(E.normal_hundredths(final["TMAX"], ri_6190, p) is None for p in range(366))
+        assert any(E.normal_hundredths(final["TMAX"], ri_9120, p) is not None for p in range(366))
+    finally:
+        src.uninstall_hooks()
+    passed("Estland: Hook ändert nichts, Tmin > Tmax verworfen, Reihe ab 1991 ohne Mittel 1961-1990")
+
+
+def slovenia_month_text(series: dict, year: int, month: int) -> str:
+    fmt = lambda v: "" if v is None else f"{v / 10:.1f}"
+    lines = ["Postaja: Test", "dan\ttmin\ttmax"]
+    for day in range(1, calendar.monthrange(year, month)[1] + 1):
+        tx, tn = series.get(date(year, month, day), (None, None))
+        lines.append(f"{day}\t{fmt(tn)}\t{fmt(tx)}")
+    return "\n".join(lines) + "\n"
+
+
+def test_slovenia() -> None:
+    if not have("update_arso_slovenia_station_cache"):
+        return skipped("ARSO Slowenien", "Modul fehlt")
+    slo = importlib.import_module("update_arso_slovenia_station_cache")
+    series = synth(1961, 2025, 130)
+    hot, cold, flip = date(2003, 8, 10), date(1963, 1, 7), date(2005, 5, 5)
+    inject_extremes(series, hot, cold, flip, 660, -660)                      # > 65 °C, < -65 °C, Tmin > Tmax
+    months = [(y, m) for y in range(1961, 2026) for m in range(1, 13)]
+
+    def run() -> tuple:
+        rec, counters = slo.empty_record(), {}
+        for year, month in months:
+            for d, tmin, tmax in slo.parse_month_text(slovenia_month_text(series, year, month), "192", year, month):
+                tmin, tmax = slo.qc_values(tmin, tmax, counters)
+                slo.consume_day(rec, d, tmin, tmax)
+        return rec, counters
+
+    rec_u, counters_u = run()
+    src.install_rec_day_hooks(slo)
+    try:
+        rec_h, counters_h = run()
+        assert strip_pk(rec_h) == rec_u and counters_h == counters_u
+        expect = qc_expected(series, 65.0, -55.0, 55.0, -65.0)
+        assert series_dict(rec_h["_pk"]) == expect
+        check_engine_vs_compact(rec_h["_pk"].to_final(), rec_u)
+    finally:
+        src.uninstall_hooks()
+    passed("ARSO Slowenien: Hook ändert nichts, Monatstabellen + Plausibilitätsprüfung ergeben die Reihe")
+
+
+def test_slovenia_runner() -> None:
+    """run_slovenia mit dem echten main() des Adapters (Netz ersetzt): argv, SystemExit, ID 346, Engine-Cache, Aufbau-Status."""
+    allsrc = allsrc_or_none()
+    if not (have("update_arso_slovenia_station_cache") and allsrc):
+        return skipped("Quellenlauf Slowenien", "Modul fehlt")
+    slo = importlib.import_module("update_arso_slovenia_station_cache")
+    cur_mod = importlib.import_module("update_arso_slovenia_current")
+    year = 2026
+    s192, s193, s346 = synth(1961, 2025, 140), synth(2000, 2010, 141), synth(1990, 2025, 142)
+    both = {"192": s192, "193": s193, "346": s346}
+    cur = synth(year, year, 143, gap=0, half_missing=0)
+    inventory = {sid: {"id": sid, "name": f"ST {sid}", "label": "", "start_year": a, "end_year": b, "lat": None, "lon": None,
+                       "elevation_m": None, "source": slo.SOURCE, "network": slo.NETWORK, "country": "Slovenia", "country_code": "SI"}
+                 for sid, a, b in (("192", 1961, None), ("193", 2000, 2010), ("346", 1990, None))}
+    calls = {"months": 0}
+
+    def fake_fetch(task):
+        sid, y, m = task
+        calls["months"] += 1
+        return {"task": task, "key": slo.task_key(task), "url": "x", "status": "ok",
+                "rows": slo.parse_month_text(slovenia_month_text(both[sid], y, m), sid, y, m)}
+
+    def fake_current(cache_dir, y, workers=12, through_month=None):
+        records = {}
+        for sid in both:
+            rec = slo.empty_record()
+            for d, (tx, tn) in sorted(cur.items()):
+                if d <= date(year, 11, 20):
+                    slo.consume_day(rec, d, tn / 10.0, tx / 10.0)               # echter Adapterpfad, hook-empfindlich
+            records[sid] = rec
+        path = Path(cache_dir) / f"arso_current_{y}.pkl.gz"
+        slo.atomic_pickle_gz(path, {"complete": True, "records": records, "inventory": inventory})
+        return path
+
+    meta = {"192": {"name": "ST 192", "lat": 46.06, "lon": 14.51, "elevation_m": 299.0},
+            "193": {"name": "ST 193", "lat": 46.5, "lon": 15.6, "elevation_m": 270.0}}
+    saved = (slo.load_inventory, slo.fetch_month, cur_mod.build_current, allsrc._load_slovenia_map_metadata, allsrc.SLOVENIA_EXPECTED_MAP_READY)
+    slo.load_inventory = lambda: (inventory, "test")
+    slo.fetch_month, cur_mod.build_current = fake_fetch, fake_current
+    allsrc._load_slovenia_map_metadata, allsrc.SLOVENIA_EXPECTED_MAP_READY = (lambda: meta), 2
+    argv_before = list(sys.argv)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = src.Ctx(year=year, cache_dir=Path(tmp), log=lambda m: None)
+            spec = src.SPEC_BY_KEY["arso_si"]
+            res = src.run_slovenia(ctx, src.SourceResult(spec.key, spec.label, spec.stage, spec.countries))
+            assert sys.argv == argv_before and not src._ORIG
+            assert res.status == "ok", res.message
+            assert sorted(res.stations) == ["ARSO:192", "ARSO:193"]                # 346 bleibt draußen
+            assert sorted(res.engines) == ["ARSO:192", "ARSO:193"] and sorted(res.current) == ["ARSO:192", "ARSO:193"]
+            check_engine_against_series(res.engines["ARSO:192"], s192, step=31)
+            assert res.current["ARSO:192"]["TMAX"]["07-01"][0] == cur[date(year, 7, 1)][0]
+            cur_file = slo.load_pickle_gz(ctx.adapters_dir / f"arso_current_{year}.pkl.gz")
+            assert all("_pk" not in r for r in cur_file["records"].values())        # laufendes Jahr ohne Erfassung
+            months_after_build = calls["months"]
+            res2 = src.run_slovenia(ctx, src.SourceResult(spec.key, spec.label, spec.stage, spec.countries))
+            assert res2.status == "ok" and calls["months"] == months_after_build and sorted(res2.engines) == sorted(res.engines)
+            # Zeitlimit 0: Baseline unvollständig -> "building", kein Teilzustand, kein SystemExit
+            part = src.Ctx(year=year, cache_dir=Path(tmp) / "partial", log=lambda m: None, max_runtime_minutes=0.0)
+            real, real_by_key = src.SPECS, src.SPEC_BY_KEY
+            src.SPECS, src.SPEC_BY_KEY = (spec,), {spec.key: spec}
+            try:
+                out = src.run_sources(part, [spec])
+            finally:
+                src.SPECS, src.SPEC_BY_KEY = real, real_by_key
+            assert out[0].status == "building" and not out[0].stations and sys.argv == argv_before
+            # nächster Lauf setzt fort und wird fertig
+            more = src.Ctx(year=year, cache_dir=Path(tmp) / "partial", log=lambda m: None)
+            assert src.run_slovenia(more, src.SourceResult(spec.key, spec.label, spec.stage, spec.countries)).status == "ok"
+            # main() beendet sich per SystemExit (ungültige Argumente, harter Abbruch): Fehlerstatus statt Programmabbruch
+            real_main = slo.main
+
+            def exiting(code):
+                def _main():
+                    raise SystemExit(code)
+                return _main
+
+            src.SPECS, src.SPEC_BY_KEY = (spec,), {spec.key: spec}
+            try:
+                for i, (code, want) in enumerate((("--workers muss >= 1 sein.", "failed"), (0, "building"))):
+                    slo.main = exiting(code)
+                    ctx_x = src.Ctx(year=year, cache_dir=Path(tmp) / f"exit{i}", log=lambda m: None)
+                    try:
+                        out = src.run_sources(ctx_x, [spec])
+                    except SystemExit:
+                        raise AssertionError("SystemExit aus main() darf den Gesamtlauf nicht beenden")
+                    assert out[0].status == want and not out[0].stations and sys.argv == argv_before, (code, out[0].status)
+                    if want == "failed":
+                        assert "abgebrochen" in out[0].message and "workers" in out[0].message
+            finally:
+                slo.main = real_main
+                src.SPECS, src.SPEC_BY_KEY = real, real_by_key
+    finally:
+        slo.load_inventory, slo.fetch_month, cur_mod.build_current, allsrc._load_slovenia_map_metadata, allsrc.SLOVENIA_EXPECTED_MAP_READY = saved
+        src.uninstall_hooks()
+        sys.argv = argv_before
+    passed("Quellenlauf Slowenien: echtes main() im selben Prozess, ID 346 draußen, Fortsetzung nach Zeitlimit")
+
+
 def test_chmi_packed() -> None:
     allsrc = allsrc_or_none()
     series = synth(1961, 2025, 91)
@@ -1048,7 +1636,8 @@ def test_export_leap_day() -> None:
 def test_runner() -> None:
     keys = lambda specs: [s.key for s in specs]
     assert keys(src.select_specs(None)) == ["dwd_de", "meteofrance_fr", "chmi_cz", "ghcn_rest", "geosphere_at", "imgw_pl",
-                                           "meteoswiss_ch", "knmi_nl", "rmi_be", "aemet_es"]
+                                           "meteoswiss_ch", "knmi_nl", "rmi_be", "aemet_es", "dmi_dk", "smhi_se", "frost_no", "fmi_fi",
+                                           "hungaromet_hu", "meteireann_ie", "ilmateenistus_ee", "arso_si"]
     assert keys(src.select_specs(["A"])) == ["dwd_de", "meteofrance_fr", "chmi_cz", "ghcn_rest"]
     assert keys(src.select_specs(["dwd_de", "A"]))[:2] == ["dwd_de", "meteofrance_fr"] and len(src.select_specs(["dwd_de", "A"])) == 4
     try:
@@ -1059,6 +1648,8 @@ def test_runner() -> None:
     assert src.classify_error(src.BaselineIncomplete("x")) == "building"
     assert src.classify_error(RuntimeError("Météo-France Schnellpass noch unvollständig: 3 von 400")) == "building"
     assert src.classify_error(RuntimeError("HTTP 500")) == "failed"
+    assert src.classify_error(RuntimeError("HungaroMet-Laufzeitgrenze erreicht; Zwischenstand gespeichert. Workflow erneut starten.")) == "building"
+    assert src.classify_error(RuntimeError("Met-Éireann-Laufzeitgrenze erreicht; Zwischenstand gespeichert.")) == "building"
 
     def ok_run(ctx, res):
         res.stations = {"X:1": fake_meta("X:1")}
@@ -1114,14 +1705,9 @@ def test_run_knmi_integration() -> None:
     def fake_build_current(cache_dir, y):
         calls["cur"] += 1
         records = {}
-        for stn, series in cur26.items():
-            cal_x, cal_n = {}, {}
-            for d, (tx, tn) in series.items():
-                if d <= date(year, 11, 20):
-                    iso = d.isoformat()
-                    cal_x[d.strftime("%m-%d")] = [tx / 10.0, iso]
-                    cal_n[d.strftime("%m-%d")] = [tn / 10.0, iso]
-            records[stn] = {"calendar_tmax": cal_x, "calendar_tmin": cal_n}
+        rows = [(stn, d, tn / 10.0, tx / 10.0) for stn, series in cur26.items() for d, (tx, tn) in sorted(series.items())
+                if d <= date(year, 11, 20)]
+        kn.consume_rows(records, rows)               # echter Adapterpfad wie im Lauf des laufenden Jahres (hook-empfindlich)
         inventory = kn.parse_station_metadata(knmi_text(both, date(2025, 1, 1), date(2025, 1, 2)))
         path = Path(cache_dir) / f"knmi_current_{y}.pkl.gz"
         kn.atomic_pickle_gzip(path, {"records": records, "inventory": inventory})
@@ -1142,6 +1728,9 @@ def test_run_knmi_integration() -> None:
             assert res.stations["KNMI:260"].country_code == "NL" and abs(res.stations["KNMI:260"].lat - 52.0) < 0.5
             check_engine_against_series(res.engines["KNMI:260"], s260, step=29)
             assert res.current["KNMI:260"]["TMAX"]["07-01"][0] == cur26["260"][date(year, 7, 1)][0]
+            # Das laufende Jahr entsteht mit unveränderten Adaptern: keine Reihen-Erfassung in der Current-Datei
+            cur_file = kn.load_pickle_gzip(ctx.adapters_dir / f"knmi_current_{year}.pkl.gz")
+            assert cur_file["records"] and all("_pk" not in rec for rec in cur_file["records"].values())
             n_req = calls["req"]
             # zweiter Lauf: Engine-Cache, keine Baseline-Abrufe
             res2 = src.run_knmi(ctx, src.SourceResult(spec.key, spec.label, spec.stage, spec.countries))
@@ -1224,7 +1813,9 @@ def test_engine_selftest() -> None:
 TESTS = [
     test_engine_selftest,
     test_core_dwd, test_core_ghcn, test_core_meteofrance, test_austria, test_poland,
-    test_aemet, test_knmi, test_belgium, test_meteoswiss, test_chmi_packed,
+    test_aemet, test_knmi, test_belgium, test_meteoswiss, test_dmi, test_smhi, test_frost, test_fmi, test_compact_runner,
+    test_hungary, test_ireland, test_estonia, test_slovenia, test_slovenia_runner,
+    test_chmi_packed,
     test_export, test_export_leap_day, test_runner, test_run_knmi_integration, test_cli,
 ]
 

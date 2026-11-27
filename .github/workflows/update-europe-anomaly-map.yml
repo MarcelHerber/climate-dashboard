@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       sources:
-        description: "Quellen oder Stufen: A,B1,B2.1 oder einzelne Quellenschlüssel"
+        description: "Quellen oder Stufen: A,B1,B2.1,B2.2,B2.3 oder einzelne Quellenschlüssel"
         required: true
         default: "A"
         type: string
@@ -44,7 +44,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - name: Alle 16 Offline-Tests ohne Überspringen
+      - name: Alle 26 Offline-Tests ohne Überspringen
         shell: bash
         run: |
           set -euo pipefail
@@ -96,6 +96,7 @@ jobs:
         shell: bash
         env:
           AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+          FROST_CLIENT_ID: ${{ secrets.FROST_CLIENT_ID }}
           SOURCES: ${{ inputs.sources || 'A' }}
           BASELINE_ONLY: ${{ github.event_name == 'push' || inputs.baseline_only }}
           FORCE_BASELINE: ${{ inputs.force_baseline }}
