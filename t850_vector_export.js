@@ -215,8 +215,10 @@ function buildScene(chart,info){
   for(let i=Math.ceil(xmin);i<=Math.floor(xmax);i+=count)
     dates.push({text:String(labels[i]||""),px:xa(i)});
   const metadata=(info?.metadata||[]).map(String);
+  const hyras=info?.hyras===true;
+  if(hyras){for(let i=fills.length-1;i>=0;i--){const f=fills[i];fills.splice(i,1,...["below","above"].map(side=>({label:side==="below"?"Fläche kalt":"Fläche warm",areas:f.areas.filter(a=>a.side===side)})).filter(f=>f.areas.length));}}
   return {title:String(info?.title||"Ensemblevorhersage"),metadata,
-    axis:String(info?.axis||""),rightAxis:rightValid?String(info?.rightAxis||"Niederschlag [mm]"):"",rightTicks,classic,series,fills,ticks,dates,plot:P,model:String(info?.model||""),
+    hyras,transparent:info?.transparent===true,axis:String(info?.axis||""),rightAxis:rightValid?String(info?.rightAxis||"Niederschlag [mm]"):"",rightTicks,classic,series,fills,ticks,dates,plot:P,model:String(info?.model||""),
     subtitle:String(info?.subtitle||"Ensemble-Vektorexport"),
     source:String(info?.source||"Quelle: Open-Meteo Ensemble API / zugrunde liegende Modelle")};
 }
@@ -232,7 +234,7 @@ function legend(scene){
       label.startsWith("Kontrolllauf")?"Kontrolllauf":
       label.startsWith("Hauptlauf")?"Hauptlauf":
       label.startsWith("Ensemble-Mittel")?"Ensemble-Mittel":
-      label.includes("1991–2020")?"ERA5 1991–2020":
+      !scene.hyras&&label.includes("1991–2020")?"ERA5 1991–2020":
       isMember(series)?"Member":
       label;
    const legendKey=series.axis==="right"&&key!=="Member"&&!key.includes(" · RR")?key+" · RR":key;
@@ -243,7 +245,7 @@ function legend(scene){
  return (scene.classic||scene.rightAxis)?out:out.slice(0,8);
 }
 function legendLayout(scene){
- const entries=legend(scene),compact=scene.classic||scene.rightAxis,lx=compact?75:585;
+ const entries=legend(scene),compact=scene.classic||scene.rightAxis||scene.hyras,lx=compact?75:585;
  const widths=entries.map(item=>compact?Math.max(80,item.label.length*7+32):Math.max(115,Math.min(205,item.label.length*9+33)));
  const factor=compact?Math.min(1,(W-75-lx)/Math.max(1,widths.reduce((a,b)=>a+b,0))):1;
  let x=lx;return entries.map((item,i)=>{const width=widths[i]*factor,result={...item,x,width,font:13*factor,line:22*factor};x+=width;return result;}).filter(item=>item.x+item.width<=W-75+.01);
@@ -266,7 +268,7 @@ function svgScene(scene,index){
  const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
  if(created)s+=svgText(P.x,863+dy,created,15,fg);
  s+=svgText(P.x,887+dy,scene.source,15,fg);
- s+=svgText(P.x,911+dy,scene.source==="Quelle: DWD CDC · Originalmessungen"?"DWD-Originalmessungen · Temperaturdifferenz in K · benannte Vektorebenen":"UTC (Z) · Mess- und Prognosewerte unverändert · Kurven als benannte Vektorebenen",15,fg);
+ s+=svgText(P.x,911+dy,scene.hyras?"HYRAS-Tagesflächenmittel · Temperaturwerte unverändert · benannte Vektorebenen":scene.source==="Quelle: DWD CDC · Originalmessungen"?"DWD-Originalmessungen · Temperaturdifferenz in K · benannte Vektorebenen":"UTC (Z) · Mess- und Prognosewerte unverändert · Kurven als benannte Vektorebenen",15,fg);
  s+="</g>";
  s+='<g id="'+prefix+'legend" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Legende')+'">';
  for(const item of legendLayout(scene)){
@@ -277,7 +279,7 @@ function svgScene(scene,index){
  }
  s+="</g>";
  s+='<g id="'+prefix+'axes" inkscape:groupmode="layer" inkscape:label="'+xml(scene.title+' – Achsen und Gitter')+'">';
- s+='<rect x="'+P.x+'" y="'+(P.y+dy)+'" width="'+P.w+'" height="'+P.h+'" fill="'+(dark?"#000000":"#ffffff")+'" stroke="'+(dark?"#aaaaaa":"#cbd5e1")+'" stroke-width="1.5"/>';
+ s+='<rect x="'+P.x+'" y="'+(P.y+dy)+'" width="'+P.w+'" height="'+P.h+'" fill="'+(scene.transparent?"none":dark?"#000000":"#ffffff")+'" stroke="'+(dark?"#aaaaaa":"#cbd5e1")+'" stroke-width="1.5"/>';
  for(const t of scene.ticks){
   const y=t.py+dy;
   s+='<path d="M'+P.x+" "+y+" H"+(P.x+P.w)+'" fill="none" stroke="'+grid+'"'+(dark?' stroke-dasharray="4,4"':"")+'/>';
@@ -325,7 +327,7 @@ function drawPdf(pdf,scene){
    pdf.setFont("helvetica","normal");pdf.setFontSize(size*s*2.83465);
    pdf.setTextColor(...ink(colorValue));pdf.text(String(str),X(x),Y(y),{align});
  };
- pdf.setFillColor(baseColor,baseColor,baseColor);pdf.rect(0,0,pw,ph,"F");
+ if(!scene.transparent){pdf.setFillColor(baseColor,baseColor,baseColor);pdf.rect(0,0,pw,ph,"F");}
  text(scene.title,65,62,31,dark?fg:"#152c43");
  text(axis+" · "+scene.subtitle,66,95,19,dark?sub:"#41566a");
  scene.metadata.slice(0,5).forEach((m,i)=>text(m,66,127+i*23,16,dark?sub:"#475569"));
@@ -341,7 +343,7 @@ function drawPdf(pdf,scene){
  const created=scene.metadata.find(line=>line.startsWith("Erstellt: "))||"";
  if(created)text(created,P.x,863,15);
  text(scene.source,P.x,887,15);
- text(scene.source==="Quelle: DWD CDC · Originalmessungen"?"DWD-Originalmessungen · Temperaturdifferenz in K · einzelne Vektorpfade":"UTC (Z) · einzelne Kurven als Vektorpfade · Daten unverändert",P.x,911,15);
+ text(scene.hyras?"HYRAS-Tagesflächenmittel · einzelne Vektorpfade · Daten unverändert":scene.source==="Quelle: DWD CDC · Originalmessungen"?"DWD-Originalmessungen · Temperaturdifferenz in K · einzelne Vektorpfade":"UTC (Z) · einzelne Kurven als Vektorpfade · Daten unverändert",P.x,911,15);
  pdf.setLineWidth(.5);pdf.setDrawColor(...ink(dark?"#aaaaaa":"#c4d0db"));pdf.rect(X(P.x),Y(P.y),P.w*s,P.h*s,"S");
  for(const t of scene.ticks){
    pdf.setDrawColor(...ink(grid));pdf.setLineWidth(.25);
