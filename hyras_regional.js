@@ -393,12 +393,25 @@ async function download(format){
  }catch(e){$("hyrasRegInspection").textContent="Export fehlgeschlagen: "+e.message}
  finally{button.disabled=!display}
 }
+async function exportNationalPdf(s,transparent=true){
+ if(!s?.canvas||!s.owner?.isConnected)throw Error("Die gewählte Karte ist nicht mehr aktuell.");
+ const geo=await loadGeometry(s);
+ if(!root.jspdf?.jsPDF&&root.dashboardExportLibraries?.pdf)await root.dashboardExportLibraries.pdf();
+ const Pdf=root.jspdf?.jsPDF;if(!Pdf)throw Error("jsPDF nicht verfügbar.");
+ if(!s.owner.isConnected)throw Error("Die Kartenauswahl wurde während des Exports geändert.");
+ const features=geo.items;
+ const d={s,b:{x:0,y:0,w:s.canvas.width,h:s.canvas.height},features,selected:features.flatMap(f=>f.polys),region:"Deutschland",stations:[],legend:legendFrom(s.legendNode),neighbors:false,names:false,values:false,rendering:"native",note:"Referenz: "+s.reference+" · Originalraster "+s.resolution+" km"};
+ let pdf;
+ renderCanvas(d,1100,(cv,measure)=>{pdf=new Pdf({orientation:cv.width>=cv.height?"landscape":"portrait",unit:"pt",format:[cv.width,cv.height],compress:true});return regionalPdfContext(pdf,measure,transparent)});
+ const filename=["hyras",s.parameter,"deutschland",s.metric,s.start,s.end,s.reference,"vektor"].filter(Boolean).join("_")+".pdf";
+ pdf.save(filename);
+}
 function setSource(s){
  install();
  if(!s?.canvas||!s.lookupUrl||!s.owner?.isConnected)return;
  source={...s,legend:legendFrom(s.legendNode)};display=null;revision++;
  if($("hyrasRegionalWorkshop")?.open)refresh();else clear("Raster verfügbar. Regionale Kartenwerkstatt öffnen.");
 }
-const api={project,coordinate,extent,isoDates,accumulate,filterStations,gaussianDisplay,interpolateDisplay,drawRaster,colorRectangles,regionalPdfContext,renderCanvas,install,setSource};
+const api={project,coordinate,extent,isoDates,accumulate,filterStations,gaussianDisplay,interpolateDisplay,drawRaster,colorRectangles,regionalPdfContext,renderCanvas,exportNationalPdf,install,setSource};
 if(typeof module==="object"&&module.exports)module.exports=api;else {root.HyrasRegional=api;install()}
 })(typeof globalThis==="object"?globalThis:this);
