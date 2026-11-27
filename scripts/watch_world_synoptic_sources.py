@@ -25,7 +25,24 @@ SOURCES={
  "marinha":("Brasilien","https://pam.marinha.mil.br/sig.html","pam.marinha.mil.br"),
  "cptec":("Brasilien","https://www.cptec.inpe.br/cartas-e-boletins","www.cptec.inpe.br"),
  "hko":("Hongkong","https://www.hko.gov.hk/en/wxinfo/currwx/wxcht.htm","www.hko.gov.hk"),
+ "dmc":("Chile","https://climatologia.meteochile.gob.cl/application/historico/cartaSuperficie","climatologia.meteochile.gob.cl"),
+ "inmet":("Brasilien","https://portal.inmet.gov.br/cartasinotica","portal.inmet.gov.br"),
+ "pmd":("Pakistan","https://www.weather.gov.pk/aviation/weather-charts","www.weather.gov.pk"),
+ "smn":("Argentinien","https://repositorio.smn.gob.ar/","repositorio.smn.gob.ar"),
+ "ncm":("Saudi-Arabien","https://api-doc.ncm.gov.sa/en/api/request/advanced-requests/isolines","api-doc.ncm.gov.sa"),
+ "kmd":("Kuwait","https://www.met.gov.kw/Analysis/sfc.php?lang=eng","www.met.gov.kw"),
+ "bmd":("Bangladesch","https://server6.bmd.gov.bd/en/p/Weather-Charts","server6.bmd.gov.bd"),
  "imd":("Indien","https://rsmcnewdelhi.imd.gov.in/surface_chart00.php","rsmcnewdelhi.imd.gov.in"),
+}
+# New providers remain link-only until automated access terms are reviewed.
+REVIEW_ONLY={
+ "dmc":"Historical archive; automated access and individual image rights pending",
+ "inmet":"ZIP archive; inspect contents and reuse terms before downloading",
+ "pmd":"Image timestamps and automated access terms pending",
+ "smn":"Internal archive; public feed and permission pending",
+ "ncm":"Authenticated model API; credentials and license pending",
+ "kmd":"Written permission required for republication; automated access terms pending",
+ "bmd":"Image availability and automated access terms pending",
 }
 MAX_HTML=550_000
 CHART_WORDS=re.compile(r"(?:surface|synoptic|weatherchart|isobar|as[al]s|sfc|pressure|metchart|mslp|frontal|cartas.sinoticas|wxchart|analysis)",re.I)
@@ -70,6 +87,10 @@ def collect(previous=None,fetch=read_official,now=None):
                "original_images_republished":False,"sync_ready":False,
                "last_checked_utc":now.isoformat(timespec="seconds"),
                "reference_image_candidates":[],"new_candidate_urls":[]}
+        if id in REVIEW_ONLY:
+            entry.update({"status":"manual_review_required","reason":REVIEW_ONLY[id]})
+            sources.append(entry)
+            continue
         if id == "metservice":
             # MetService website Terms of Use restrict automated scraping/monitoring.
             # Preserve the source entry for external linking; never request its HTML.
