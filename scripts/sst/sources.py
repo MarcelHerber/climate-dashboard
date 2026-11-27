@@ -329,7 +329,7 @@ def _standardize_oisst_dataset(dataset: xr.Dataset) -> xr.Dataset:
     return dataset.assign_coords(lon=normalized_lon).sortby("lon").sortby("lat")
 
 
-def ensure_oisst_daily_normals(cache_dir: Path, session=requests) -> Path:
+def _ensure_oisst_daily_normals_erddap(cache_dir: Path, session=requests) -> Path:
     destination = cache_dir / "oisst" / NOAA_NORMALS_CACHE_FILENAME
     if destination.exists() and destination.stat().st_size > 0:
         return destination
@@ -391,3 +391,82 @@ def ensure_oisst_daily_normals(cache_dir: Path, session=requests) -> Path:
         if temporary.exists():
             temporary.unlink()
     return destination
+
+
+def _ensure_oisst_daily_normals_ncss(cache_dir: Path, session=requests) -> Path:
+    """Same NOAA PSL 1991–2020 daily normals via the working NCSS service."""
+    from .config import NOAA_NORMALS_NCSS
+    from .ocean_sources import _get_with_retry
+
+    destination = cache_dir / "oisst" / NOAA_NORMALS_CACHE_FILENAME
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(destination.suffix + ".part")
+    lat_range, lon_ranges = _oisst_erddap_index_ranges()
+    south = NOAA_GRID_LAT_START + lat_range[0] * NOAA_GRID_STEP
+    north = NOAA_GRID_LAT_START + lat_range[1] * NOAA_GRID_STEP
+    longitude_indices = np.concatenate([
+        np.arange(start, stop + 1) for start, stop in lon_ranges
+    ])
+    lon = NOAA_GRID_LON_START + longitude_indices * NOAA_GRID_STEP
+    expected_lon = np.sort((lon + 180.0) % 360.0 - 180.0)
+    base = date(1, 1, 1)
+    parts = []
+    try:
+        with tempfile.TemporaryDirectory(prefix="oisst-ncss-", dir=destination.parent) as tmp:
+            for start, stop in _time_index_chunks():
+                params = {
+                    "var": "sst",
+                    "time_start": (base + timedelta(days=start)).isoformat() + "T00:00:00Z",
+                    "time_end": (base + timedelta(days=stop)).isoformat() + "T00:00:00Z",
+                    "timeStride": 1,
+                    "accept": "netcdf4",
+                }
+                # Use the same full-longitude NCSS request as the ocean pipeline;
+                # crop locally to avoid wrap-around ambiguity at Greenwich.
+                path = Path(tmp) / f"normal-{start:03d}.nc"
+                response = _get_with_retry(session, NOAA_NORMALS_NCSS, params=params,
+                                           stream=True, timeout=180)
+                try:
+                    _write_response_atomic(response, path)
+                finally:
+                    close = getattr(response, "close", None)
+                    if callable(close):
+                        close()
+                with xr.open_dataset(path, decode_times=False) as raw:
+                    dataset = _standardize_oisst_dataset(raw)
+                    field = dataset["sst"].sel(lat=slice(south, north),
+                                                lon=slice(expected_lon[0], expected_lon[-1]))
+                    if (field.sizes.get("time") != stop - start + 1
+                            or field.sizes.get("lat") != lat_range[1] - lat_range[0] + 1
+                            or field.sizes.get("lon") != len(expected_lon)
+                            or not np.allclose(field.lon.values, expected_lon)):
+                        raise RuntimeError("NOAA NCSS: unvollständiges Klimatologie-Teilfeld.")
+                    parts.append(field.load().to_dataset(name="sst"))
+                path.unlink()
+                print(f"NOAA NCSS Klimatologie: Tage {start + 1}–{stop + 1}", flush=True)
+            merged = xr.concat(parts, dim="time", data_vars="minimal",
+                               coords="minimal", compat="override")
+            if merged.sizes.get("time") != NOAA_GRID_TIME_COUNT:
+                raise RuntimeError("NOAA NCSS: unvollständige Tagesklimatologie.")
+            if not np.all(np.diff(merged.time.values) > 0):
+                raise RuntimeError("NOAA NCSS: Zeitachse nicht streng aufsteigend.")
+            merged.drop_encoding().to_netcdf(
+                temporary, engine="netcdf4",
+                encoding={"sst": {"zlib": True, "complevel": 4}},
+            )
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return destination
+
+
+def ensure_oisst_daily_normals(cache_dir: Path, session=requests) -> Path:
+    try:
+        return _ensure_oisst_daily_normals_erddap(cache_dir, session=session)
+    except requests.HTTPError as exc:
+        status = getattr(exc.response, "status_code", None)
+        if status not in {404, 410}:
+            raise
+        print(f"NOAA ERDDAP HTTP {status}: wechsle zur identischen PSL-NCSS-Klimatologie.",
+              flush=True)
+        return _ensure_oisst_daily_normals_ncss(cache_dir, session=session)
