@@ -1097,9 +1097,10 @@ def test_run_knmi_integration() -> None:
     if not (have("update_knmi_netherlands_station_cache") and allsrc_or_none()):
         return skipped("Quellenlauf KNMI", "Modul fehlt")
     kn = importlib.import_module("update_knmi_netherlands_station_cache")
-    cur_mod = sys.modules.get("update_knmi_netherlands_current")
-    if cur_mod is None or getattr(cur_mod, "__file__", None):
-        return skipped("Quellenlauf KNMI", "echtes update_knmi_netherlands_current vorhanden; Test nutzt einen Platzhalter")
+    # Use the real current module if installed, but replace its network entry point
+    # for the duration of this offline integration test.
+    cur_mod = importlib.import_module("update_knmi_netherlands_current")
+    real_build_current = getattr(cur_mod, "build_current", None)
     s260, s280 = synth(1986, 2025, 61), synth(1986, 2025, 62)
     both = {"260": s260, "280": s280}
     year = 2026
@@ -1162,6 +1163,10 @@ def test_run_knmi_integration() -> None:
     finally:
         src.uninstall_hooks()
         kn.request_knmi, kn.START_YEAR = real_req, real_start
+        if real_build_current is None:
+            del cur_mod.build_current
+        else:
+            cur_mod.build_current = real_build_current
     passed("Quellenlauf Niederlande: Baseline -> Engine-Cache -> Export; Aufbau-Status statt Ersatzquelle")
 
 
