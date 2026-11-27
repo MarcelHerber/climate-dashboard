@@ -10,7 +10,7 @@
     "era5-land":["js/era5-land.js","20261121-1"],
     "europa-stationen":["js/europa-stationen.js","20261121-1"],
     "schnee":["js/schnee.js","20261122-1"],
-    "hyras_regional":["hyras_regional.js","20261124-contour-1"],
+    "hyras_regional":["hyras_regional.js","20261127-vector-pdf-v1"],
     "hyras_temperature_interactive":["hyras_temperature_interactive.js","20261124-contour-1"],
     "hyras":["js/hyras.js","20261124-contour-1"],
     "hyras-tmin":["js/hyras-tmin.js","20261124-downloads-1"],
