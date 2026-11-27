@@ -86,7 +86,7 @@ function install(){
  if($("hyrasRegionalWorkshop"))return;
  const frame=$("hyrasMapFrame"),card=frame?.closest(".hyras-map-card");if(!card)return;
  const el=document.createElement("details");el.id="hyrasRegionalWorkshop";el.className="hyras-map-card";
- el.innerHTML='<summary style="cursor:pointer;font-weight:800;font-size:18px">Regionale HYRAS-Karten · HD / Stationswerte</summary>'+
+ el.innerHTML='<summary style="cursor:pointer;font-weight:800;font-size:18px">Regionale HYRAS-Karten · HD / Stationswerte · Vektor-PDF</summary>'+
  '<p class="note">Eigenständige Kartenausschnitte aus der aktuell ausgewählten HYRAS-Rasterdarstellung. Keine künstliche Erhöhung der meteorologischen Auflösung.</p>'+
  '<div class="hyras-reg-controls">'+
  '<label>Region <select id="hyrasRegRegion">'+states.map(s=>'<option>'+s+'</option>').join("")+'</select></label>'+
@@ -98,7 +98,7 @@ function install(){
  '<label><input id="hyrasRegOnlyValid" type="checkbox"> Nur Stationen mit gültigem Wert</label>'+
  '<label><input id="hyrasRegNeighbors" type="checkbox"> Umgebung anzeigen</label><label><input id="hyrasRegPdfTransparent" type="checkbox" checked> PDF ohne weißen Hintergrund</label></div>'+
  '<p id="hyrasRegStatus" class="note" role="status">Zuerst eine numerische HYRAS-Karte laden.</p>'+
- '<div id="hyrasRegPreview" class="hyras-reg-preview"></div>'+
+ '<div class="hyras-map-actions" style="margin:10px 0;display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="action" id="hyrasRegPdfTop" disabled>Diese regionale Karte als PDF (Vektor) herunterladen</button><span id="hyrasRegPdfRegion" class="note"></span></div><div id="hyrasRegPreview" class="hyras-reg-preview"></div>'+
  '<p id="hyrasRegInspection" class="note" aria-live="polite"></p>'+
  '<div class="hyras-map-actions"><button type="button" class="action" id="hyrasRegPng" disabled>PNG herunterladen</button><button type="button" class="action" id="hyrasRegPdf" disabled>PDF (Vektor) herunterladen</button></div>'+
  '<p class="note">Quellen: DWD HYRAS-DE / DWD CDC Tageswerte KL; Grenzen: deutschlandGeoJSON (GIS-DATA, Archivstand 2022 oder älter). Stationswerte nur bei vollständigen Tagesdaten im gewählten Zeitraum und passender Referenz.</p>';
@@ -107,7 +107,7 @@ function install(){
  document.head.append(style);card.before(el);
  el.addEventListener("toggle",()=>{if(el.open)refresh()});
  for(const id of ["hyrasRegRegion","hyrasRegRendering","hyrasRegStations","hyrasRegNames","hyrasRegValues","hyrasRegOnlyValid","hyrasRegNeighbors"]){$(id).addEventListener("change",refresh)}
- $("hyrasRegPng").onclick=()=>download("png");$("hyrasRegPdf").onclick=()=>download("pdf");
+ $("hyrasRegPng").onclick=()=>download("png");$("hyrasRegPdf").onclick=()=>download("pdf");$("hyrasRegPdfTop").onclick=()=>download("pdf");
  const watch=new MutationObserver(()=>{if(source&&!source.owner?.isConnected){source=null;revision++;display=null;clear("Diese Ansicht besitzt derzeit kein unterstütztes numerisches Raster. Bitte eine andere HYRAS-Karte wählen.")}});
  watch.observe(frame,{childList:true,subtree:true});
 }
@@ -115,7 +115,8 @@ function clear(message){
  if($("hyrasRegStatus"))$("hyrasRegStatus").textContent=message;
  if($("hyrasRegPreview"))$("hyrasRegPreview").replaceChildren();
  if($("hyrasRegInspection"))$("hyrasRegInspection").textContent="";
- for(const id of ["hyrasRegPng","hyrasRegPdf"])if($(id))$(id).disabled=true;
+ for(const id of ["hyrasRegPng","hyrasRegPdf","hyrasRegPdfTop"])if($(id))$(id).disabled=true;
+ if($("hyrasRegPdfRegion"))$("hyrasRegPdfRegion").textContent="";
 }
 function legendFrom(node){
  return Array.from(node?.querySelectorAll("span")||[]).map(e=>({label:e.textContent.trim(),color:e.querySelector("i")?.style.backgroundColor||e.querySelector("i")?.style.background})).filter(x=>x.color&&x.label);
@@ -370,12 +371,13 @@ async function refresh(){
    $("hyrasRegInspection").textContent=best?best.name+" (DWD "+best.id+", "+best.elev+" m) · "+(Number.isFinite(best.value)?best.value.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})+" K":"Kein passender Messwert"):"Stationspunkt antippen, um Details zu sehen.";
   });
   $("hyrasRegStatus").textContent="HYRAS-Raster: "+s.resolution+" km · "+renderingLabel(rendering)+" · "+out.hits.length+" Stationspunkte im Ausschnitt. "+st.note;
-  $("hyrasRegPng").disabled=false;$("hyrasRegPdf").disabled=false;
+  $("hyrasRegPng").disabled=false;$("hyrasRegPdf").disabled=false;$("hyrasRegPdfTop").disabled=false;
+  $("hyrasRegPdfRegion").textContent=region+" · "+s.title+" · "+(s.start||"")+" – "+(s.end||"");
  }catch(e){if(rev===revision){clear("Regionalkarte nicht verfügbar: "+e.message);console.warn("HYRAS regional",e)}}
 }
 async function download(format){
  const d=display;if(!d||!d.s.owner.isConnected)return;
- const button=$(format==="png"?"hyrasRegPng":"hyrasRegPdf");button.disabled=true;
+ const buttons=(format==="png"?["hyrasRegPng"]:["hyrasRegPdf","hyrasRegPdfTop"]).map($).filter(Boolean);buttons.forEach(b=>b.disabled=true);
  try{
   const name="hyras_"+d.s.parameter+"_"+normalized(d.region)+"_"+(d.s.start||"")+'_'+(d.s.end||"");
   if(format==="pdf"){
@@ -391,7 +393,7 @@ async function download(format){
    const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name+".png";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2500);
   }
  }catch(e){$("hyrasRegInspection").textContent="Export fehlgeschlagen: "+e.message}
- finally{button.disabled=!display}
+ finally{buttons.forEach(b=>b.disabled=!display)}
 }
 async function exportNationalPdf(s,transparent=true){
  if(!s?.canvas||!s.owner?.isConnected)throw Error("Die gewählte Karte ist nicht mehr aktuell.");
