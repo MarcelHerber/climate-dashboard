@@ -1050,6 +1050,42 @@ def finite_quantile(field: np.ndarray, q: float) -> float:
     return float(np.quantile(vals, q))
 
 
+def export_broadcast_map(fig, mesh, filename: Path) -> None:
+    """Preserve native map raster plus vector geographic paths and editable text."""
+    import hashlib
+    import json
+    from tempfile import TemporaryDirectory
+
+    filename = Path(filename)
+    if filename.suffix.lower() != ".png":
+        return
+    mesh.set_rasterized(True)
+    mesh.set_gid("Datenraster")
+    if len(fig.axes) > 1:
+        fig.axes[1].set_gid("Legende")
+    for idx, artist in enumerate(fig.texts):
+        artist.set_gid(f"Beschriftung-{idx + 1}")
+    manifest = filename.with_suffix(".broadcast.json")
+    # Publish the manifest last; an interrupted export must not validate against
+    # a different PNG or a previous version of one of the vector files.
+    manifest.unlink(missing_ok=True)
+    with TemporaryDirectory(dir=filename.parent) as tmp:
+        tmpdir = Path(tmp)
+        products = {}
+        with plt.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42, "image.composite_image": False}):
+            for ext in ("svg", "pdf"):
+                target = tmpdir / f"map.{ext}"
+                fig.savefig(target, facecolor="white", dpi=300, format=ext)
+                products[ext] = target
+        metadata = {"schema": 1, "png_sha256": hashlib.sha256(filename.read_bytes()).hexdigest()}
+        for ext, target in products.items():
+            metadata[f"{ext}_sha256"] = hashlib.sha256(target.read_bytes()).hexdigest()
+            target.replace(filename.with_suffix(f".{ext}"))
+        pending = tmpdir / "manifest.json"
+        pending.write_text(json.dumps(metadata), encoding="utf-8")
+        pending.replace(manifest)
+
+
 def render_map(field: np.ndarray, lat: np.ndarray, lon: np.ndarray, *, title: str, subtitle: str,
                unit: str, filename: Path, kind: str) -> None:
     filename.parent.mkdir(parents=True, exist_ok=True)
@@ -1129,9 +1165,9 @@ def render_map(field: np.ndarray, lat: np.ndarray, lon: np.ndarray, *, title: st
         cmap = "viridis"
 
     mesh = ax.pcolormesh(lon, lat, data, transform=ccrs.PlateCarree(), cmap=cmap, shading="auto", **kwargs)
-    ax.add_feature(cfeature.COASTLINE.with_scale("50m"), linewidth=0.55, edgecolor="#39434a")
-    ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.4, edgecolor="#66727a")
-    ax.add_feature(cfeature.LAKES.with_scale("50m"), facecolor="#f4f7f8", edgecolor="#89949a", linewidth=0.25, zorder=3)
+    ax.add_feature(cfeature.COASTLINE.with_scale("50m"), linewidth=0.55, edgecolor="#39434a").set_gid("Kuestenlinien")
+    ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.4, edgecolor="#66727a").set_gid("Laendergrenzen")
+    ax.add_feature(cfeature.LAKES.with_scale("50m"), facecolor="#f4f7f8", edgecolor="#89949a", linewidth=0.25, zorder=3).set_gid("Seen")
     ax.set_facecolor("#eef3f5")
     gl = ax.gridlines(draw_labels=True, linewidth=0.25, color="#7f8c92", alpha=0.45, linestyle="--")
     gl.top_labels = False
@@ -1154,6 +1190,8 @@ def render_map(field: np.ndarray, lat: np.ndarray, lon: np.ndarray, *, title: st
     fig.text(0.075, 0.025, "Quelle: Copernicus Climate Change Service / ECMWF · ERA5-Land · 0,1° · Landflächen",
              ha="left", va="bottom", fontsize=8, color="#68757c")
     plt.savefig(filename, facecolor="white")
+    if kind in ("temp_absolute", "temp_anomaly"):
+        export_broadcast_map(fig, mesh, filename)
     plt.close(fig)
 
 
