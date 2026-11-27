@@ -96,11 +96,11 @@ function install(){
  '<label><input id="hyrasRegNames" type="checkbox"> Stationsnamen</label>'+
  '<label><input id="hyrasRegValues" type="checkbox" checked> Messwerte</label>'+
  '<label><input id="hyrasRegOnlyValid" type="checkbox"> Nur Stationen mit gültigem Wert</label>'+
- '<label><input id="hyrasRegNeighbors" type="checkbox"> Umgebung anzeigen</label></div>'+
+ '<label><input id="hyrasRegNeighbors" type="checkbox"> Umgebung anzeigen</label><label><input id="hyrasRegPdfTransparent" type="checkbox" checked> PDF ohne weißen Hintergrund</label></div>'+
  '<p id="hyrasRegStatus" class="note" role="status">Zuerst eine numerische HYRAS-Karte laden.</p>'+
  '<div id="hyrasRegPreview" class="hyras-reg-preview"></div>'+
  '<p id="hyrasRegInspection" class="note" aria-live="polite"></p>'+
- '<div class="hyras-map-actions"><button type="button" class="action" id="hyrasRegPng" disabled>PNG herunterladen</button><button type="button" class="action" id="hyrasRegPdf" disabled>PDF herunterladen</button></div>'+
+ '<div class="hyras-map-actions"><button type="button" class="action" id="hyrasRegPng" disabled>PNG herunterladen</button><button type="button" class="action" id="hyrasRegPdf" disabled>PDF (Vektor) herunterladen</button></div>'+
  '<p class="note">Quellen: DWD HYRAS-DE / DWD CDC Tageswerte KL; Grenzen: deutschlandGeoJSON (GIS-DATA, Archivstand 2022 oder älter). Stationswerte nur bei vollständigen Tagesdaten im gewählten Zeitraum und passender Referenz.</p>';
  const style=document.createElement("style");
  style.textContent=".hyras-reg-controls{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:12px 0}.hyras-reg-controls label{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:13px}.hyras-reg-controls select{max-width:100%;padding:6px}.hyras-reg-preview{background:#fff;overflow:hidden;border-radius:7px}.hyras-reg-preview canvas{display:block;width:100%;height:auto;touch-action:pan-y}.hyras-reg-controls input{width:auto}@media(max-width:650px){.hyras-reg-controls label{max-width:100%}}";
@@ -223,7 +223,80 @@ function drawRaster(ctx,s,b,rendering){
  tc.putImageData(img,0,0);
  ctx.drawImage(tile,b.x,b.y,b.w,b.h);
 }
-function renderCanvas(d,maxEdge){
+function colorRectangles(data,w,h,emit){
+ // Exact run-length encoding of the selected display raster. A run is
+ // extended vertically only when colour and both horizontal edges agree.
+ let active=new Map();
+ for(let y=0;y<h;y++){
+  const next=new Map();
+  for(let x=0;x<w;){
+   const start=x,i=4*(y*w+x),key=(data[i]<<24|data[i+1]<<16|data[i+2]<<8|data[i+3])>>>0;
+   x++;while(x<w){const j=4*(y*w+x);if(((data[j]<<24|data[j+1]<<16|data[j+2]<<8|data[j+3])>>>0)!==key)break;x++;}
+   if(!(key&255))continue;
+   const id=key+":"+start+":"+x,old=active.get(id);
+   if(old){old.h++;next.set(id,old);active.delete(id);}
+   else next.set(id,{key,x:start,y,w:x-start,h:1});
+  }
+  for(const rect of active.values())emit(rect);
+  active=next;
+ }
+ for(const rect of active.values())emit(rect);
+}
+function regionalPdfContext(pdf,measure,transparent=false){
+ let transform=[1,1,0,0],stack=[],path=[],circle=null;
+ const c={fillStyle:"#000000",strokeStyle:"#000000",lineWidth:1,font:"12px sans-serif",lineJoin:"miter",lineCap:"butt",
+  save(){stack.push({transform:transform.slice(),fillStyle:c.fillStyle,strokeStyle:c.strokeStyle,lineWidth:c.lineWidth,font:c.font,lineJoin:c.lineJoin,lineCap:c.lineCap});pdf.saveGraphicsState()},
+  restore(){const state=stack.pop();if(!state)throw Error("PDF-Grafikzustand fehlt");transform=state.transform;for(const k of ["fillStyle","strokeStyle","lineWidth","font","lineJoin","lineCap"])c[k]=state[k];pdf.restoreGraphicsState()},
+  translate(x,y){transform[2]+=x*transform[0];transform[3]+=y*transform[1]},
+  scale(x,y){transform[0]*=x;transform[1]*=y},
+  beginPath(){path=[];circle=null},
+  moveTo(x,y){path.push({op:"m",c:point(x,y)})},
+  lineTo(x,y){path.push({op:"l",c:point(x,y)})},
+  closePath(){path.push({op:"h",c:[]})},
+  rect(x,y,w,h){c.moveTo(x,y);c.lineTo(x+w,y);c.lineTo(x+w,y+h);c.lineTo(x,y+h);c.closePath()},
+  arc(x,y,r){circle={xy:point(x,y),r:r*Math.abs(transform[0])}},
+  clip(rule){if(path.length){pdf.path(path);if(rule==="evenodd")pdf.clipEvenOdd();else pdf.clip();pdf.discardPath()}},
+  stroke(){strokeStyle();if(circle)pdf.circle(...circle.xy,circle.r,"S");else if(path.length)pdf.path(path).stroke()},
+  fill(){pdf.setFillColor(...rgb(c.fillStyle));if(circle)pdf.circle(...circle.xy,circle.r,"F");else if(path.length)pdf.path(path).fill()},
+  fillRect(x,y,w,h){if(transparent&&x===0&&y===0&&c.fillStyle==="#ffffff"&&transform[0]===1&&transform[1]===1&&w===measure.canvas.width&&h===measure.canvas.height)return;pdf.setFillColor(...rgb(c.fillStyle));pdf.rect(...point(x,y),w*transform[0],h*transform[1],"F")},
+  strokeRect(x,y,w,h){strokeStyle();pdf.rect(...point(x,y),w*transform[0],h*transform[1],"S")},
+  measureText(t){measure.font=c.font;return measure.measureText(String(t))},
+  fillText(t,x,y,max){drawText(t,x,y,max,false)},
+  strokeText(t,x,y,max){drawText(t,x,y,max,true)},
+  drawImage(image,x,y,w=image.width,h=image.height){
+   const iw=image.width,ih=image.height;
+   if(!iw||!ih)return;
+   const pixels=image.getContext("2d").getImageData(0,0,iw,ih).data,groups=new Map();
+   const sx=w/iw,sy=h/ih;
+   function flush(key,ops){
+    if(!ops.length)return;
+    const alpha=(key&255)/255;
+    pdf.saveGraphicsState();if(alpha!==1)pdf.setGState(new pdf.GState({opacity:alpha}));
+    pdf.setFillColor(key>>>24,(key>>>16)&255,(key>>>8)&255);
+    pdf.path(ops).fill();pdf.restoreGraphicsState();ops.length=0;
+   }
+   colorRectangles(pixels,iw,ih,r=>{
+    let ops=groups.get(r.key);if(!ops){ops=[];groups.set(r.key,ops)}
+    const a=point(x+r.x*sx,y+r.y*sy),b=point(x+(r.x+r.w)*sx,y+(r.y+r.h)*sy);
+    ops.push({op:"m",c:a},{op:"l",c:[b[0],a[1]]},{op:"l",c:b},{op:"l",c:[a[0],b[1]]},{op:"h",c:[]});
+    if(ops.length>=5000)flush(r.key,ops);
+   });
+   for(const [key,ops] of groups)flush(key,ops);
+  }
+ };
+ function point(x,y){return [x*transform[0]+transform[2],y*transform[1]+transform[3]]}
+ function rgb(value){const hex=/^#([0-9a-f]{6})$/i.exec(value);if(hex)return [0,2,4].map(i=>parseInt(hex[1].slice(i,i+2),16));const short=/^#([0-9a-f]{3})$/i.exec(value);if(short)return [...short[1]].map(a=>parseInt(a+a,16));const vals=/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(value);if(vals)return vals.slice(1).map(Number);return value==="white"?[255,255,255]:[0,0,0]}
+ function strokeStyle(){pdf.setDrawColor(...rgb(c.strokeStyle));pdf.setLineWidth(c.lineWidth*Math.abs(transform[0]));pdf.setLineJoin(c.lineJoin);pdf.setLineCap(c.lineCap)}
+ function drawText(t,x,y,max,outline){
+  const str=String(t),size=Number(/([\d.]+)px/.exec(c.font)?.[1])||12,actual=c.measureText(str).width;
+  pdf.setFont("helvetica",/bold|700/.test(c.font)?"bold":"normal");
+  pdf.setFontSize(size*Math.abs(transform[1])*(max&&actual>max?max/actual:1));
+  if(outline)strokeStyle();else pdf.setTextColor(...rgb(c.fillStyle));
+  pdf.text(str,...point(x,y),{renderingMode:outline?"stroke":"fill",baseline:"alphabetic"});
+ }
+ return c;
+}
+function renderCanvas(d,maxEdge,pdfFactory=null){
  const {s,b,features,selected,region,stations,legend,neighbors,names,values,rendering}=d;
  const u=Math.max(1,maxEdge/1000),pad=Math.round(18*u),top=Math.round(76*u);
  const estimatedWidth=Math.min(maxEdge-2*pad,(maxEdge-top-130*u)*b.w/b.h);
@@ -231,7 +304,7 @@ function renderCanvas(d,maxEdge){
  const footer=Math.round((66+legendRows*22)*u);
  const scale=Math.min((maxEdge-2*pad)/b.w,(maxEdge-top-footer)/b.h);
  const w=Math.max(1,Math.floor(b.w*scale)),h=Math.max(1,Math.floor(b.h*scale));
- const cv=document.createElement("canvas");cv.width=w+2*pad;cv.height=h+top+footer;const ctx=cv.getContext("2d");
+ const cv=document.createElement("canvas");cv.width=w+2*pad;cv.height=h+top+footer;const measure=cv.getContext("2d"),ctx=pdfFactory?pdfFactory(cv,measure):measure;
  if(!ctx)throw Error("Canvas konnte nicht erzeugt werden");
  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,cv.width,cv.height);ctx.fillStyle="#192630";ctx.font="bold "+Math.round(22*u)+"px sans-serif";
  ctx.fillText("HYRAS · "+region,pad,28*u,cv.width-pad*2);
@@ -304,14 +377,16 @@ async function download(format){
  const d=display;if(!d||!d.s.owner.isConnected)return;
  const button=$(format==="png"?"hyrasRegPng":"hyrasRegPdf");button.disabled=true;
  try{
-  const {cv}=renderCanvas(d,Number($("hyrasRegSize").value)||4000);
   const name="hyras_"+d.s.parameter+"_"+normalized(d.region)+"_"+(d.s.start||"")+'_'+(d.s.end||"");
   if(format==="pdf"){
+   $("hyrasRegInspection").textContent="Vektor-PDF wird aufgebaut …";
+   if(!root.jspdf?.jsPDF&&root.dashboardExportLibraries?.pdf)await root.dashboardExportLibraries.pdf();
    const Pdf=root.jspdf?.jsPDF;if(!Pdf)throw Error("jsPDF nicht verfügbar");
-   const pdf=new Pdf({orientation:cv.width>=cv.height?"landscape":"portrait",unit:"mm",format:"a4",compress:true});
-   const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight(),scale=Math.min((pw-12)/cv.width,(ph-12)/cv.height);
-   pdf.addImage(cv.toDataURL("image/png"),"PNG",(pw-cv.width*scale)/2,(ph-cv.height*scale)/2,cv.width*scale,cv.height*scale);pdf.save(name+".pdf");
+   let pdf;const transparent=$("hyrasRegPdfTransparent").checked;
+   renderCanvas(d,1100,(cv,measure)=>{pdf=new Pdf({orientation:cv.width>=cv.height?"landscape":"portrait",unit:"pt",format:[cv.width,cv.height],compress:true});return regionalPdfContext(pdf,measure,transparent)});
+   pdf.save(name+"_vektor.pdf");$("hyrasRegInspection").textContent="Vektor-PDF erstellt: Farbflächen, Grenzen, Stationen und Texte sind eigenständige Vektorobjekte.";
   }else{
+   const {cv}=renderCanvas(d,Number($("hyrasRegSize").value)||4000);
    const blob=await new Promise((ok,no)=>cv.toBlob(b=>b?ok(b):no(Error("PNG zu groß für den Browser")),"image/png"));
    const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name+".png";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2500);
   }
@@ -324,6 +399,6 @@ function setSource(s){
  source={...s,legend:legendFrom(s.legendNode)};display=null;revision++;
  if($("hyrasRegionalWorkshop")?.open)refresh();else clear("Raster verfügbar. Regionale Kartenwerkstatt öffnen.");
 }
-const api={project,coordinate,extent,isoDates,accumulate,filterStations,gaussianDisplay,interpolateDisplay,drawRaster,install,setSource};
+const api={project,coordinate,extent,isoDates,accumulate,filterStations,gaussianDisplay,interpolateDisplay,drawRaster,colorRectangles,regionalPdfContext,renderCanvas,install,setSource};
 if(typeof module==="object"&&module.exports)module.exports=api;else {root.HyrasRegional=api;install()}
 })(typeof globalThis==="object"?globalThis:this);
