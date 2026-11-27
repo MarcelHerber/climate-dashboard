@@ -8,6 +8,7 @@ REFERENCE_START=1991
 REFERENCE_END=2020
 REFERENCE_LABEL="1991–2020"
 MIN_REFERENCE_YEARS=20
+SMOOTHING_HALF_WINDOW=7  # Klimamittel: +-7 Tage um den Kalendertag (0 = ungeglaettet)
 CACHE_VERSION=4
 PAYLOAD_VERSION=1
 STATES=("Baden-Württemberg","Bayern","Berlin","Brandenburg","Bremen","Hamburg","Hessen","Mecklenburg-Vorpommern","Niedersachsen","Nordrhein-Westfalen","Rheinland-Pfalz","Saarland","Sachsen","Sachsen-Anhalt","Schleswig-Holstein","Thüringen")
@@ -36,6 +37,29 @@ def climate_normal_tenths(block:Mapping[str,Any],mmdd:str):
     if not isinstance(raw,(list,tuple)) or len(raw)<2:return None,0
     total,count=int(raw[0]),int(raw[1])
     return (int(round(total/count)),count) if count>=MIN_REFERENCE_YEARS else (None,count)
+
+# Zyklus mit 366 Tagen (inkl. 29.02.), damit das Fenster ueber Jahreswechsel und Schalttag laeuft.
+_CYCLE=[(dt.date(2000,1,1)+dt.timedelta(days=i)).strftime("%m-%d") for i in range(366)]
+_CYCLE_POS={m:i for i,m in enumerate(_CYCLE)}
+
+def smoothed_normal_tenths(block:Mapping[str,Any],mmdd:str,half_window:int=SMOOTHING_HALF_WINDOW):
+    """Klimamittel eines Kalendertags aus allen Referenzwerten im Fenster +-half_window Tage.
+
+    Gepoolt: Summe aller Werte / Anzahl aller Werte. Der 29.02. ist im Zyklus enthalten und
+    hat dadurch ebenfalls ein Mittel. Rueckgabe: (Mittel in Zehntel Grad | None, effektive Referenzjahre).
+    Effektive Referenzjahre = Median der Tageszaehler im Fenster (der 29.02. mit nur ~8 Werten zieht ihn nicht herunter)."""
+    if half_window<=0:return climate_normal_tenths(block,mmdd)
+    pos=_CYCLE_POS.get(mmdd)
+    if pos is None:return None,0
+    table=block.get("clim_1991_2020") or {}
+    total=count=0; counts=[]
+    for off in range(-half_window,half_window+1):
+        raw=table.get(_CYCLE[(pos+off)%366])
+        if isinstance(raw,(list,tuple)) and len(raw)>=2 and int(raw[1])>0:
+            total+=int(raw[0]); count+=int(raw[1]); counts.append(int(raw[1]))
+    if len(counts)<half_window+1:return None,0
+    counts.sort(); years=counts[len(counts)//2]
+    return (int(round(total/count)),years) if years>=MIN_REFERENCE_YEARS else (None,years)
 
 def record_status(element,current,record):
     if current is None or not record:return 0
@@ -135,9 +159,9 @@ def write_daily_map(output_dir:Path,*,stations,baseline,current,current_year:int
             tx,txd=_current(cur,"TMAX",mmdd); tn,tnd=_current(cur,"TMIN",mmdd); tm,tmd=_current(cur,"TMEAN",mmdd)
             if tx is None and tn is None and tm is None:continue
             if any(v!=dateint for v in (txd,tnd,tmd) if v is not None):continue
-            txn,txc=climate_normal_tenths(hist.get("TMAX") or {},mmdd)
-            tnn,tnc=climate_normal_tenths(hist.get("TMIN") or {},mmdd)
-            tmn,tmc=climate_normal_tenths(hist.get("TMEAN") or {},mmdd)
+            txn,txc=smoothed_normal_tenths(hist.get("TMAX") or {},mmdd)
+            tnn,tnc=smoothed_normal_tenths(hist.get("TMIN") or {},mmdd)
+            tmn,tmc=smoothed_normal_tenths(hist.get("TMEAN") or {},mmdd)
             txa=tx-txn if tx is not None and txn is not None else None
             tna=tn-tnn if tn is not None and tnn is not None else None
             tma=tm-tmn if tm is not None and tmn is not None else None
@@ -155,18 +179,36 @@ def write_daily_map(output_dir:Path,*,stations,baseline,current,current_year:int
     through=dates[-1] if dates else None
     climate_payload=_climate_payload(ids,pos,current,hist_states,current_year,through)
     _write_json(output_dir/"climate_days.json",climate_payload)
-    index={"version":PAYLOAD_VERSION,"ready":bool(dates and station_rows),"generated_at":generated_at or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),"year":current_year,"reference_period":REFERENCE_LABEL,"reference_start_year":REFERENCE_START,"reference_end_year":REFERENCE_END,"minimum_reference_years":MIN_REFERENCE_YEARS,"station_fields":["id","dwd_id","name","lat","lon","height_m","state"],"stations":station_rows,"station_count":len(station_rows),"dates":dates,"date_count":len(dates),"data_through":through,"latest_station_count":day_counts.get(through,0) if through else 0,"latest_anomaly_count":anom_counts.get(through,0) if through else 0,"latest_record_count":rec_counts.get(through,0) if through else 0,"calendar_pattern":"calendar/{mm-dd}.json.gz","climate_days_file":"climate_days.json","climate_day_minimum_historical_valid_days":MIN_ANNUAL_VALID_DAYS,"source":"DWD Climate Data Center (CDC), Tageswerte KL, TXK/TNK/TMK","note":"Stationsabweichungen von Tmax, Tmin und Tmean (TMK) vom jeweiligen Kalendertagsmittel 1991–2020; Ausgabe ab 20 gültigen Referenzjahren. Rekordflags beziehen sich auf Tmax/Tmin und vergleichen mit der historischen Reihe bis zum Vorjahr."}
+    index={"version":PAYLOAD_VERSION,"ready":bool(dates and station_rows),"generated_at":generated_at or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),"year":current_year,"reference_period":REFERENCE_LABEL,"reference_start_year":REFERENCE_START,"reference_end_year":REFERENCE_END,"minimum_reference_years":MIN_REFERENCE_YEARS,"smoothing_half_window_days":SMOOTHING_HALF_WINDOW,"station_fields":["id","dwd_id","name","lat","lon","height_m","state"],"stations":station_rows,"station_count":len(station_rows),"dates":dates,"date_count":len(dates),"data_through":through,"latest_station_count":day_counts.get(through,0) if through else 0,"latest_anomaly_count":anom_counts.get(through,0) if through else 0,"latest_record_count":rec_counts.get(through,0) if through else 0,"calendar_pattern":"calendar/{mm-dd}.json.gz","climate_days_file":"climate_days.json","climate_day_minimum_historical_valid_days":MIN_ANNUAL_VALID_DAYS,"source":"DWD Climate Data Center (CDC), Tageswerte KL, TXK/TNK/TMK","note":"Stationsabweichungen von Tmax, Tmin und Tmean (TMK) vom Klimamittel 1991–2020 (Kalendertag, geglättet über ±7 Tage, inkl. 29. Februar); Ausgabe ab 20 effektiven Referenzjahren. Rekordflags beziehen sich auf Tmax/Tmin und vergleichen mit der historischen Reihe bis zum Vorjahr."}
     _write_json(output_dir/"index.json",index); return index
+
+def _flat_clim(mean_tenths:int,years:int=20,leap_years:int=8)->dict:
+    return {m:[mean_tenths*(leap_years if m=="02-29" else years),leap_years if m=="02-29" else years] for m in _CYCLE}
 
 def self_test():
     block={}
     for v in range(20):add_climatology_value(block,"08-28",200+v)
     assert climate_normal_tenths(block,"08-28")== (210,20)
+    # Glaettung: konstante Reihe bleibt konstant, auch ueber Jahreswechsel und am 29.02.
+    flat={"clim_1991_2020":_flat_clim(100)}
+    for m in ("01-01","12-31","02-29","02-28","03-01","08-28"):
+        n,y=smoothed_normal_tenths(flat,m); assert n==100 and y>=MIN_REFERENCE_YEARS,(m,n,y)
+    # ohne Glaettung scheitert der 29.02. an den 8 Schaltjahren (Altverhalten)
+    assert climate_normal_tenths(flat,"02-29")[0] is None
+    # lineare Reihe: symmetrisches Fenster liefert den Mittelwert des Zentrums (mitten im Jahr)
+    lin={"clim_1991_2020":{m:[10*i*20,20] for i,m in enumerate(_CYCLE)}}
+    assert smoothed_normal_tenths(lin,"06-15")[0]==10*_CYCLE_POS["06-15"]
+    # Fenster mit zu wenig Datentagen -> kein Mittel
+    sparse={"clim_1991_2020":{"08-28":[4000,20]}}
+    assert smoothed_normal_tenths(sparse,"08-28")[0] is None
+    # half_window=0 verhaelt sich wie bisher
+    assert smoothed_normal_tenths(block,"08-28",0)==(210,20)
+    assert smoothed_normal_tenths(flat,"13-40")==(None,0)
     assert record_status("TMAX",301,(300,20200828,1))==1
     assert record_status("TMIN",-20,(-20,19930828,1))==2
     class M:
         name="Test";lat=50.;lon=8.;elev=100.
-    hist={"DWD:00001":{"TMAX":{"cal":{"08-28":(300,20200828,1)},"clim_1991_2020":{"08-28":[4000,20]}},"TMIN":{"cal":{"08-28":(50,19930828,1)},"clim_1991_2020":{"08-28":[2000,20]}},"TMEAN":{"clim_1991_2020":{"08-28":[3000,20]}},"CLIMATE_DAYS":{"summer_days":{"record":1,"years":[2003]},"hot_days":{"record":1,"years":[2003]},"very_hot_days":{"record":0,"years":[2003]},"tropical_nights":{"record":0,"years":[2003]},"frost_days":{"record":20,"years":[1985]},"ice_days":{"record":8,"years":[1985]}}}}
+    hist={"DWD:00001":{"TMAX":{"cal":{"08-28":(300,20200828,1)},"clim_1991_2020":_flat_clim(200)},"TMIN":{"cal":{"08-28":(50,19930828,1)},"clim_1991_2020":_flat_clim(100)},"TMEAN":{"clim_1991_2020":_flat_clim(150)},"CLIMATE_DAYS":{"summer_days":{"record":1,"years":[2003]},"hot_days":{"record":1,"years":[2003]},"very_hot_days":{"record":0,"years":[2003]},"tropical_nights":{"record":0,"years":[2003]},"frost_days":{"record":20,"years":[1985]},"ice_days":{"record":8,"years":[1985]}}}}
     cur={"DWD:00001":{"TMAX":{"08-28":(310,20260828)},"TMIN":{"08-28":(90,20260828)},"TMEAN":{"08-28":(200,20260828)}}}
     with tempfile.TemporaryDirectory() as tmp:
         idx=write_daily_map(Path(tmp),stations={"DWD:00001":M()},baseline={"states":hist},current=cur,current_year=2026,station_listing_text="00001 19900101 20261231 100 50.0 8.0 Test Hessen")
