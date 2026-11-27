@@ -59,7 +59,9 @@
         regionalRaster.width=plane.width;regionalRaster.height=plane.height;
         regionalRaster.getContext('2d').putImageData(pixels,0,0);
       }
-      if(cfg.boundary){try{const bitmap=await createImageBitmap(await (await response(cfg.base+'/'+cfg.boundary)).blob());if(bitmap.width===plane.width&&bitmap.height===plane.height)ctx.drawImage(bitmap,0,0);bitmap.close();}catch(error){console.warn('HYRAS Grenzmaske',error);}}
+      const exportData=document.createElement('canvas');exportData.width=plane.width;exportData.height=plane.height;exportData.getContext('2d').putImageData(pixels,0,0);
+      let exportBorders=null;
+      if(cfg.boundary){try{const bitmap=await createImageBitmap(await (await response(cfg.base+'/'+cfg.boundary)).blob());if(bitmap.width===plane.width&&bitmap.height===plane.height){ctx.drawImage(bitmap,0,0);exportBorders=document.createElement('canvas');exportBorders.width=plane.width;exportBorders.height=plane.height;exportBorders.getContext('2d').drawImage(bitmap,0,0);}bitmap.close();}catch(error){console.warn('HYRAS Grenzmaske',error);}}
       if(!live())return;
       const legend=document.createElement('div');legend.className='hyras-dynamic-legend hyras-temperature-native-legend';
       levels.forEach((v,i)=>{const span=document.createElement('span'),swatch=document.createElement('i');swatch.style.background=colors[i];span.append(swatch,document.createTextNode((v>0?'+':'')+String(v).replace('.',',')+' K'));legend.append(span);});
@@ -69,6 +71,7 @@
       const native=document.createElement('div');native.className='hyras-temperature-native';native.append(canvas,legend,display);
       const image=panel.querySelector('.hyras-tmean-anomaly-preview-link');if(image)image.hidden=true;
       const empty=panel.querySelector('.hyras-tmean-anomaly-preview-empty');if(empty)empty.hidden=true;
+      canvas.broadcastMap={data:exportData,borders:exportBorders,title:'Temperaturabweichung Deutschland',subtitle:cfg.start+' bis '+cfg.end+' · '+cfg.reference.replace('-','–'),source:'DWD HYRAS-DE · '+cfg.parameter.toUpperCase()+' · 1 km',legend:levels.map((v,i)=>({label:(v>0?'+':'')+String(v).replace('.',',')+' K',color:colors[i]}))};
       status.before(native);status.textContent='DWD HYRAS-DE · Originalraster 1 km · '+cfg.reference.replace('-','–');
       if(root.HyrasRegional&&regionalRaster){
         const values=new Float32Array(plane.width*plane.height),valid=new Uint8Array(values.length);
