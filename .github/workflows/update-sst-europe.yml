@@ -27,7 +27,7 @@ jobs:
   update:
     if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[run-sst-daily]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
     env:
       EARTHDATA_TOKEN: ${{ secrets.EARTHDATA_TOKEN }}
 
@@ -51,7 +51,9 @@ jobs:
           python -m pip install -r requirements-sst.txt
 
       - name: SST-Tagesklimatologie testen
-        run: python -m unittest discover -s tests -p test_sst_daily_normals.py -v
+        run: |
+          python -m unittest discover -s tests -p test_sst_daily_normals.py -v
+          python -m unittest discover -s tests -p test_sst_sources.py -v
 
       - name: Earthdata Secret prüfen
         shell: bash

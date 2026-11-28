@@ -149,7 +149,10 @@ def _harmony_data_response(initial_response, headers: dict[str, str], session=re
     if not job_url and payload.get("jobID"):
         job_url = f"https://harmony.earthdata.nasa.gov/jobs/{payload['jobID']}"
 
-    for _ in range(180):
+    deadline = time.monotonic() + 1800
+    for _ in range(360):
+        if time.monotonic() >= deadline:
+            break
         if status == "successful" and int(payload.get("progress", 100)) >= 100:
             data_links = [
                 link.get("href")
@@ -171,13 +174,13 @@ def _harmony_data_response(initial_response, headers: dict[str, str], session=re
             raise RuntimeError(f"Harmony-Job {status}: {payload.get('message', 'ohne Meldung')}")
         if not job_url:
             raise RuntimeError("Harmony-Antwort enthält weder Daten noch eine Job-URL.")
-        time.sleep(5)
+        time.sleep(10)
         poll = _harmony_get(session, job_url, headers=headers, timeout=60)
         poll.raise_for_status()
         payload = poll.json()
         status = str(payload.get("status", "")).lower()
 
-    raise RuntimeError("Harmony-Job wurde innerhalb von 15 Minuten nicht fertig.")
+    raise RuntimeError("Harmony-Job wurde innerhalb von 30 Minuten nicht fertig.")
 
 
 def download_mur_subset(
@@ -201,6 +204,7 @@ def download_mur_subset(
         ("format", "application/x-netcdf4"),
         ("maxResults", "1"),
         ("skipPreview", "true"),
+        ("forceAsync", "true"),
     ]
     response = _harmony_get(
         session,
@@ -212,7 +216,12 @@ def download_mur_subset(
     )
     response.raise_for_status()
     data_response = _harmony_data_response(response, headers, session=session)
-    return _write_response_atomic(data_response, destination)
+    try:
+        return _write_response_atomic(data_response, destination)
+    finally:
+        close = getattr(data_response, "close", None)
+        if callable(close):
+            close()
 
 
 def discover_oisst_daily_normals_url(session=requests) -> str:

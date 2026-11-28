@@ -235,6 +235,7 @@ class SstSourceTests(unittest.TestCase):
             self.assertEqual(dest.read_bytes(), b"CDF\x01payload")
         kwargs = session.get.call_args.kwargs
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer secret")
+        self.assertIn(("forceAsync", "true"), kwargs["params"])
         subsets = [value for key, value in kwargs["params"] if key == "subset"]
         self.assertIn("lat(23.5:73.5)", subsets)
         self.assertIn("lon(-31.5:46.5)", subsets)
