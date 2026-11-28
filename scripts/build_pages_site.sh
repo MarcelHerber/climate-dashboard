@@ -1283,7 +1283,7 @@ for file in "${required_data_files[@]}"; do
 done
 
 # Separate Zusatzarchive: bestehende Jahresliste bleibt auch während des Erstaufbaus verfügbar.
-for extra_file in data/dwd_annual_extra_kl.json data/dwd_annual_extra_rr.json data/dwd_annual_extra_tu.json; do
+for extra_file in data/dwd_annual_extra_kl.json data/dwd_annual_extra_rr.json data/dwd_annual_extra_tu.json data/dwd_annual_quality.json; do
   if [[ -s "$extra_file" ]]; then
     cp "$extra_file" _site/data/
     echo "Jahresextreme-Zusatzarchiv veröffentlicht: $extra_file"
