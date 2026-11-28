@@ -785,6 +785,7 @@ async function renderStationProfileClimate(){
   document.getElementById('stationProfileWinterCards').innerHTML=['frost','ice'].map(stationProfileEventCard).join('');
   stationProfileSummerAnnualChart=renderStationProfileAnnualChart('stationProfileSummerAnnualChart',['summer','hot','desert','tropical_night'],'Sommerereignisse pro Jahr',stationProfileSummerAnnualChart);
   stationProfileWinterAnnualChart=renderStationProfileAnnualChart('stationProfileWinterAnnualChart',['frost','ice'],'Winterereignisse pro Jahr',stationProfileWinterAnnualChart);
+  try{renderStationMonthlyDays("profil","stationProfileWinterAnnualChart",stationProfileProfile,document.getElementById("stationProfileStationSelect").value,"frost");}catch(error){console.error("Stationsprofil monatliche Kenntage:",error);}
   const date=dailyGermanDate(stationClimateDaysIndex.data_through,true);document.getElementById('stationProfileComparisonTitle').textContent=`Klimaereignisse bis ${date}`;
   const tbody=document.querySelector('#stationProfileComparisonTable tbody');tbody.innerHTML=stationProfileComparisonRows().map(row=>`<tr class="${row.year===Number(stationClimateDaysIndex.current_year)?'profile-current-row':''}"><td>${row.year}</td>${row.values.map(value=>`<td>${Number.isFinite(value)?value:'–'}</td>`).join('')}</tr>`).join('');
   initializeChartExportButtons();
