@@ -293,6 +293,7 @@ thead .year-head{
 #annualRanking{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:5px 18px;padding-left:25px}
 #annualExtraStatus,#annualChartInfo{font-size:13px;color:var(--muted);margin:8px 0}
 @media(max-width:520px){.annual-chart{padding:8px}#annualRanking{display:block}.annual-chart-controls select{width:100%}}
+.quality-chip{display:inline-block;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:bold;margin:3px 0}.quality-suspect{background:#fff0d6;color:#805000}.quality-excluded{background:#ffe5e5;color:#8b1d1d}.quality-corrected{background:#dcecff;color:#1c5193}.quality-excluded-value{text-decoration:line-through;color:#777}.quality-panel{padding:14px;margin-bottom:16px}.quality-panel summary{cursor:pointer;font-weight:bold}.quality-panel p{font-size:13px;line-height:1.5}
 </style>
 <script defer src="vendor/jspdf/4.2.1/dist/jspdf.umd.min.js"></script>
 </head>
@@ -381,6 +382,7 @@ thead .year-head{
     </div>
   </section>
 
+  <details class="card quality-panel" id="annualQualityPanel"><summary>Qualitätskontrolle und Korrekturprotokoll</summary><p id="annualQualityStatus">Prüfprotokoll wird geladen …</p><p>Verdächtige Werte bleiben sichtbar, fließen aber nicht in Rekordmarkierung, Rangliste und Trend ein. Ausgeschlossene Altwerte bleiben bis zur Neuberechnung als durchgestrichene Prüfwerte sichtbar. Ohne Kennzeichnung bedeutet nicht einzeln amtlich bestätigt.</p><p><a href="data/dwd_annual_quality.json" download>Vollständiges Prüfprotokoll (JSON)</a></p><div id="annualQualityRules"></div></details>
   <div id="snowCorrectionNote" class="note" hidden></div>
   <div class="note">
     <strong>Methodik:</strong> Die sichtbaren Jahreslisten beginnen je Gebiet frühestens
@@ -444,6 +446,9 @@ thead .year-head{
   };
 
   let data = null;
+  let quality = null;
+  const qualityFlag=(area,year,k,entry)=>{const f=quality?.flags?.[[area,year,k].join('|')];return f&&JSON.stringify(f.entry)===JSON.stringify(entry)?f:null;};
+  const qualityText=f=>({suspect:'Verdächtig',excluded:'Ausgeschlossen',corrected:'Korrigiert',confirmed:'Bestätigt'}[f?.status]||'');
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -505,7 +510,7 @@ thead .year-head{
     return "";
   }
 
-  function cellHtml(metric, entry) {
+  function cellHtml(metric, entry, year) {
     if (!entry) {
       return `<td class="metric-cell ${metricClass(metric)}" data-metric="${escapeHtml(metric)}" data-value=""><div class="metric-empty">–</div></td>`;
     }
@@ -529,6 +534,9 @@ thead .year-head{
       metadataKey = entry[2];
     }
 
+    const q=qualityFlag(els.area.value,year,metric,entry);
+    const qHtml=q?'<span class="quality-chip quality-'+escapeHtml(q.status)+'" title="'+escapeHtml(q.reasons.join("; "))+'">'+escapeHtml(qualityText(q))+'</span>':"";
+    const rankValue=q&&["suspect","excluded"].includes(q.status)?"":String(value);
     const preliminaryIndex = isCount(metric) ? 2 : 3;
     const preliminary = Boolean(entry[preliminaryIndex]);
     const span = kind==="station_year_series"&&entry[3]?formatDate(entry[3])+"–"+formatDate(entry[4]):!isCount(metric)&&entry[4]&&typeof entry[4]==="string"?formatDate(entry[4])+"–"+formatDate(day):null;
@@ -538,8 +546,8 @@ thead .year-head{
       : (preliminary ? `<span class="metric-date">vorläufig</span>` : "");
 
     return `
-      <td class="metric-cell ${metricClass(metric)}" data-metric="${escapeHtml(metric)}" data-value="${escapeHtml(String(value))}">
-        <span class="metric-value">${escapeHtml(valueText(metric, value))}</span>
+      <td class="metric-cell ${metricClass(metric)}" data-metric="${escapeHtml(metric)}" data-value="${escapeHtml(rankValue)}">
+        <span class="metric-value ${q?.status==="excluded"?"quality-excluded-value":""}">${escapeHtml(valueText(metric, value))}</span>${qHtml}
         ${dateLine}
         ${coverage.length===2?`<span class="metric-date">${coverage[0]}/${coverage[1]} gültige Tage</span>`:""}
         <span class="metric-station">${escapeHtml(stationLabel(metadataKey))}</span>
@@ -642,7 +650,7 @@ thead .year-head{
             ${year}
             ${isCurrent ? '<span class="current-badge">laufend</span>' : ""}
           </td>
-          ${selectedMetrics().map(metric => cellHtml(metric, row[metric])).join("")}
+          ${selectedMetrics().map(metric => cellHtml(metric, row[metric],year)).join("")}
         </tr>
       `);
     }
@@ -716,6 +724,7 @@ thead .year-head{
         }
       }
       await loadExtras();
+      await loadQuality();
       setupControls();
       setupExtraControls();
 
@@ -782,25 +791,41 @@ thead .year-head{
     $("annualPdf").addEventListener("click",()=>{const Pdf=window.jspdf?.jsPDF;if(!Pdf){alert("PDF-Bibliothek nicht verfügbar.");return;}const pdf=new Pdf({orientation:"landscape",unit:"mm",format:"a4"});pdf.addImage($("annualCanvas").toDataURL("image/png"),"PNG",10,15,277,277*680/1600);pdf.save(exportName()+".pdf");});
     $("annualCsv").addEventListener("click",exportCsv);
   }
+
+  async function loadQuality(){
+    try{
+      const response=await fetch("data/dwd_annual_quality.json",{cache:"no-cache"});
+      if(!response.ok)throw Error("HTTP "+response.status);
+      const q=await response.json();if(q.version!==1||!q.flags)throw Error("schema");
+      quality=q;
+      const counts={};Object.values(q.flags).forEach(f=>counts[f.status]=(counts[f.status]||0)+1);
+      $("annualQualityStatus").textContent=q.checked.toLocaleString("de-DE")+" Jahreswerte im Prüfprotokoll · "+(counts.suspect||0)+" verdächtige · "+(counts.excluded||0)+" ausgeschlossene · "+(counts.corrected||0)+" korrigierte Einträge (Deutschland und Länder können denselben Messwert enthalten). Stand "+q.generated_at.slice(0,10)+". Nur exakt passende Datenstände werden markiert.";
+      for(const rule of q.rules||[]){const p=document.createElement("p");p.textContent=rule.station_id+" · "+rule.field+" · "+rule.start+" bis "+rule.end+" · "+rule.status+": "+rule.reason;$("annualQualityRules").append(p);}
+      const n=Object.values(q.raw_evidence||{}).filter(x=>!x.error).length;
+      if(n){const p=document.createElement("p");p.textContent=n+" Fälle mit Original-DWD-Nachbartagen, Qualitätsniveau und räumlichem Vergleich im JSON-Protokoll."; $("annualQualityRules").append(p);}
+    }catch(e){$("annualQualityStatus").textContent="Qualitätsprotokoll noch nicht verfügbar; aktuelle Werte sind nicht als einzeln bestätigt anzusehen.";}
+  }
   function chartRows(){
     const k=$("annualMetric").value,range=clampYearInputs(),records=data.records[els.area.value]||{},rows=[];
     for(let y=range.from;y<=range.to;y++){
       const entry=records[y]?.[k];
       if(!entry||!Number.isFinite(entry[0])){rows.push({year:y,value:null});continue;}
+      const q=qualityFlag(els.area.value,y,k,entry);
+      if(q?.status==="excluded"){rows.push({year:y,value:null,rawValue:entry[0],quality:q.status});continue;}
       const count=isCount(k),series=data.metrics[k].kind==="station_year_series";
-      rows.push({year:y,value:entry[0],station:stationLabel(entry[count?1:2]),pre:!!entry[count?2:3]||y===new Date().getFullYear(),date:count?(series&&entry[3]?entry[3]+"–"+entry[4]:""):entry[1],coverage:count?(series?entry.slice(5,7):entry.slice(3,5)).join("/"):""});
+      rows.push({year:y,value:entry[0],quality:q?.status||"",station:stationLabel(entry[count?1:2]),pre:!!entry[count?2:3]||y===new Date().getFullYear(),date:count?(series&&entry[3]?entry[3]+"–"+entry[4]:""):entry[1],coverage:count?(series?entry.slice(5,7):entry.slice(3,5)).join("/"):""});
     }
     return {k,rows,range};
   }
   function exportName(){const {k,range}=chartRows();return "Jahresextreme_"+els.area.value.replace(/[^\p{L}\p{N}]+/gu,"_")+"_"+k+"_"+range.from+"-"+range.to;}
   function exportCsv(){
     const {k,rows}=chartRows(),quote=v=>'"'+String(v??"").replaceAll('"','""')+'"';
-    const csv=[["Gebiet","Parameter","Jahr","Wert","Einheit","Station","Datum/Zeitraum","Vorläufig","Gültige Tage"].map(quote).join(";"),...rows.map(r=>[els.area.value,metricLabel(k),r.year,r.value==null?"":String(r.value).replace(".",","),metricUnit(k),r.station,r.date,r.pre?"ja":"",r.coverage].map(quote).join(";"))].join("\r\n");
+    const csv=[["Gebiet","Parameter","Jahr","Wert","Einheit","Station","Datum/Zeitraum","Vorläufig","Gültige Tage","Qualitätsstatus","Ausgeschlossener Originalwert"].map(quote).join(";"),...rows.map(r=>[els.area.value,metricLabel(k),r.year,r.value==null?"":String(r.value).replace(".",","),metricUnit(k),r.station,r.date,r.pre?"ja":"",r.coverage,r.quality,r.rawValue].map(quote).join(";"))].join("\r\n");
     const url=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"})),a=document.createElement("a");a.href=url;a.download=exportName()+".csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   function drawAnnualChart(){
     if(!data||!$("annualMetric").value)return;
-    const {k,rows,range}=chartRows(),valid=rows.filter(r=>r.value!==null),confirmed=valid.filter(r=>!r.pre);
+    const {k,rows,range}=chartRows(),valid=rows.filter(r=>r.value!==null),confirmed=valid.filter(r=>!r.pre&&r.quality!=="suspect");
     const c=$("annualCanvas"),ctx=c.getContext("2d"),W=c.width,H=c.height,L=110,R=45,T=120,B=100;
     ctx.fillStyle="#fff";ctx.fillRect(0,0,W,H);ctx.fillStyle="#171717";ctx.font="bold 33px Arial";ctx.fillText(metricLabel(k)+" · "+els.area.value,L,48);
     ctx.font="22px Arial";ctx.fillText(range.from+"–"+range.to+" · "+metricUnit(k)+" · DWD Stationswerte",L,82);
@@ -816,9 +841,9 @@ thead .year-head{
     const color=/frost|ice|snow|tnn|txn|tgn/.test(k)?"#2463a7":/rain|rr|wet|dry/.test(k)?"#237d56":/wind|fgx/.test(k)?"#7954a2":"#bf463c";
     if($("annualLine").checked){
       ctx.strokeStyle=color;ctx.lineWidth=3;ctx.beginPath();let prev=null;
-      for(const r of rows){if(r.value===null||r.pre){prev=null;continue;}if(prev!==null)ctx.lineTo(x(r.year),yp(r.value));else ctx.moveTo(x(r.year),yp(r.value));prev=r;}
-      ctx.stroke();for(const r of valid){ctx.fillStyle=r.pre?"#888":color;ctx.beginPath();ctx.arc(x(r.year),yp(r.value),3.5,0,Math.PI*2);ctx.fill();}
-    }else for(const r of valid){ctx.fillStyle=r.pre?"#9aa5af":color;const y=yp(r.value),zero=yp(0);ctx.fillRect(x(r.year)-dx*.38,Math.min(y,zero),Math.max(1,dx*.76),Math.max(1,Math.abs(zero-y)));}
+      for(const r of rows){if(r.value===null||r.pre||r.quality==="suspect"){prev=null;continue;}if(prev!==null)ctx.lineTo(x(r.year),yp(r.value));else ctx.moveTo(x(r.year),yp(r.value));prev=r;}
+      ctx.stroke();for(const r of valid){ctx.fillStyle=r.quality==="suspect"?"#d28519":r.pre?"#888":color;ctx.beginPath();ctx.arc(x(r.year),yp(r.value),3.5,0,Math.PI*2);ctx.fill();}
+    }else for(const r of valid){ctx.fillStyle=r.quality==="suspect"?"#d28519":r.pre?"#9aa5af":color;const y=yp(r.value),zero=yp(0);ctx.fillRect(x(r.year)-dx*.38,Math.min(y,zero),Math.max(1,dx*.76),Math.max(1,Math.abs(zero-y)));}
     ctx.textAlign="center";const step=Math.max(1,Math.ceil(rows.length/10/5)*5);
     for(let y=range.from;y<=range.to;y+=step){ctx.fillStyle="#333";ctx.fillText(y,x(y),H-B+32);}
     let trendText="";if($("annualTrend").checked&&confirmed.length>=2){
@@ -826,8 +851,8 @@ thead .year-head{
       const den=confirmed.reduce((a,r)=>a+(r.year-mx)**2,0),m=confirmed.reduce((a,r)=>a+(r.year-mx)*(r.value-my),0)/den;
       if(Number.isFinite(m)){const y1=confirmed[0].year,y2=confirmed.at(-1).year;ctx.save();ctx.beginPath();ctx.rect(L,T,W-L-R,H-T-B);ctx.clip();ctx.setLineDash([12,8]);ctx.lineWidth=3;ctx.strokeStyle="#d28519";ctx.beginPath();ctx.moveTo(x(y1),yp(my+m*(y1-mx)));ctx.lineTo(x(y2),yp(my+m*(y2-mx)));ctx.stroke();ctx.restore();trendText=" · Trend "+(m>=0?"+":"")+(m*10).toFixed(2).replace(".",",")+" "+metricUnit(k)+"/Dekade";}
     }
-    ctx.textAlign="left";ctx.fillStyle="#333";ctx.font="19px Arial";ctx.fillText("Grau: vorläufig · Lücken: keine Daten · Quelle: "+(data.metrics[k].source||"DWD"),L,H-30);
-    $("annualChartInfo").textContent=valid.length+" gültige Jahreswerte"+trendText+" · Vorläufige Jahre nicht im Trend oder Ranking.";
+    ctx.textAlign="left";ctx.fillStyle="#333";ctx.font="19px Arial";ctx.fillText("Grau: vorläufig · Orange: verdächtig · Lücken: keine/ausgeschlossene Daten · Quelle: "+(data.metrics[k].source||"DWD"),L,H-30);
+    $("annualChartInfo").textContent=valid.length+" gültige Jahreswerte"+trendText+" · Vorläufige und verdächtige Jahre nicht im Trend oder Ranking.";
     const direction=data.metrics[k].direction==="asc"?1:-1;
     for(const r of [...confirmed].sort((a,b)=>direction*(a.value-b.value)||a.year-b.year).slice(0,10)){
       const li=document.createElement("li");li.textContent=r.year+" · "+valueText(k,r.value)+" · "+r.station;$("annualRanking").append(li);
