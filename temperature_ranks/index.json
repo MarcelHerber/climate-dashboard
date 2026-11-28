@@ -1,0 +1,251 @@
+{
+  "schema_version": 2,
+  "ready": true,
+  "history_start": 1951,
+  "history_end": 2025,
+  "historical_years": 75,
+  "total_rank_positions": 76,
+  "rank_direction": "1 = wärmster",
+  "resolution_km": 1,
+  "classes": [
+    {
+      "label": "1",
+      "color": "#D7198C"
+    },
+    {
+      "label": "2",
+      "color": "#E31A1C"
+    },
+    {
+      "label": "3",
+      "color": "#F46D43"
+    },
+    {
+      "label": "4–9",
+      "color": "#FDB863"
+    },
+    {
+      "label": "10–20",
+      "color": "#FFF7D6"
+    },
+    {
+      "label": "21–40",
+      "color": "#D7E9F7"
+    },
+    {
+      "label": "41–60",
+      "color": "#82B5D8"
+    },
+    {
+      "label": "61–75",
+      "color": "#2C6AA0"
+    },
+    {
+      "label": "76",
+      "color": "#4B176D"
+    }
+  ],
+  "archive_pattern": "temperature_ranks/archive/{date}/{parameter}/{product}_rank.png",
+  "data_through": "2026-08-31",
+  "parameters": {
+    "tmean": {
+      "label": "Tmean · 2-m-Temperaturmittel",
+      "products": {
+        "day": {
+          "file": "temperature_ranks/tmean/day_rank.png",
+          "archive_file": "temperature_ranks/archive/2026-08-31/tmean/day_rank.png",
+          "label": "31.08.2026",
+          "stats": {
+            "valid_gridpoints": 361620,
+            "rank1_percent": 0.0,
+            "top3_percent": 0.0
+          }
+        },
+        "month_to_date": {
+          "file": "temperature_ranks/tmean/month_to_date_rank.png",
+          "archive_file": "temperature_ranks/archive/2026-08-31/tmean/month_to_date_rank.png",
+          "label": "01.–31.08.2026",
+          "stats": {
+            "valid_gridpoints": 361620,
+            "rank1_percent": 4.936,
+            "top3_percent": 33.551
+          }
+        },
+        "summer_to_date": {
+          "file": "temperature_ranks/tmean/summer_to_date_rank.png",
+          "archive_file": "temperature_ranks/archive/2026-08-31/tmean/summer_to_date_rank.png",
+          "label": "01.06.–31.08.2026",
+          "stats": {
+            "valid_gridpoints": 361620,
+            "rank1_percent": 32.185,
+            "top3_percent": 56.998
+          }
+        }
+      }
+    },
+    "tmax": {
+      "label": "Tmax · 2-m-Tagesmaximum",
+      "products": {
+        "day": {
+          "file": "temperature_ranks/tmax/day_rank.png",
+          "archive_file": "temperature_ranks/archive/2026-08-31/tmax/day_rank.png",
+          "label": "31.08.2026",
+          "stats": {
+            "valid_gridpoints": 361620,
+            "rank1_percent": 0.0,
+            "top3_percent": 0.141
+          }
+        },
+        "month_to_date": {
+          "file": "temperature_ranks/tmax/month_to_date_rank.png",
+          "archive_file": "temperature_ranks/archive/2026-08-31/tmax/month_to_date_rank.png",
+          "label": "01.–31.08.2026",
+          "stats": {
+            "valid_gridpoints": 361620,
+            "rank1_percent": 1.283,
+            "top3_percent": 33.311
+          }
+        },
+        "summer_to_date": {
+          "file": "temperature_ranks/tmax/summer_to_date_rank.png",
+          "archive_file": "temperature_ranks/archive/2026-08-31/tmax/summer_to_date_rank.png",
+          "label": "01.06.–31.08.2026",
+          "stats": {
+            "valid_gridpoints": 361620,
+            "rank1_percent": 29.757,
+            "top3_percent": 52.593
+          }
+        }
+      }
+    },
+    "tmin": {
+      "label": "Tmin · 2-m-Tagesminimum",
+      "products": {
+        "day": {
+          "file": "temperature_ranks/tmin/day_rank.png",
+          "archive_file": "temperature_ranks/archive/2026-08-31/tmin/day_rank.png",
+          "label": "31.08.2026",
+          "stats": {
+            "valid_gridpoints": 361620,
+            "rank1_percent": 0.107,
+            "top3_percent": 2.884
+          }
+        },
+        "month_to_date": {
+          "file": "temperature_ranks/tmin/month_to_date_rank.png",
+          "archive_file": "temperature_ranks/archive/2026-08-31/tmin/month_to_date_rank.png",
+          "label": "01.–31.08.2026",
+          "stats": {
+            "valid_gridpoints": 361620,
+            "rank1_percent": 4.157,
+            "top3_percent": 18.427
+          }
+        },
+        "summer_to_date": {
+          "file": "temperature_ranks/tmin/summer_to_date_rank.png",
+          "archive_file": "temperature_ranks/archive/2026-08-31/tmin/summer_to_date_rank.png",
+          "label": "01.06.–31.08.2026",
+          "stats": {
+            "valid_gridpoints": 361620,
+            "rank1_percent": 9.794,
+            "top3_percent": 37.656
+          }
+        }
+      }
+    }
+  },
+  "available_dates": [
+    "2026-06-01",
+    "2026-06-02",
+    "2026-06-03",
+    "2026-06-04",
+    "2026-06-05",
+    "2026-06-06",
+    "2026-06-07",
+    "2026-06-08",
+    "2026-06-09",
+    "2026-06-10",
+    "2026-06-11",
+    "2026-06-12",
+    "2026-06-13",
+    "2026-06-14",
+    "2026-06-15",
+    "2026-06-16",
+    "2026-06-17",
+    "2026-06-18",
+    "2026-06-19",
+    "2026-06-20",
+    "2026-06-21",
+    "2026-06-22",
+    "2026-06-23",
+    "2026-06-24",
+    "2026-06-25",
+    "2026-06-26",
+    "2026-06-27",
+    "2026-06-28",
+    "2026-06-29",
+    "2026-06-30",
+    "2026-07-01",
+    "2026-07-02",
+    "2026-07-03",
+    "2026-07-04",
+    "2026-07-05",
+    "2026-07-06",
+    "2026-07-07",
+    "2026-07-08",
+    "2026-07-09",
+    "2026-07-10",
+    "2026-07-11",
+    "2026-07-12",
+    "2026-07-13",
+    "2026-07-14",
+    "2026-07-15",
+    "2026-07-16",
+    "2026-07-17",
+    "2026-07-18",
+    "2026-07-19",
+    "2026-07-20",
+    "2026-07-21",
+    "2026-07-22",
+    "2026-07-23",
+    "2026-07-24",
+    "2026-07-25",
+    "2026-07-26",
+    "2026-07-27",
+    "2026-07-28",
+    "2026-07-29",
+    "2026-07-30",
+    "2026-07-31",
+    "2026-08-01",
+    "2026-08-02",
+    "2026-08-03",
+    "2026-08-04",
+    "2026-08-05",
+    "2026-08-06",
+    "2026-08-07",
+    "2026-08-08",
+    "2026-08-09",
+    "2026-08-10",
+    "2026-08-11",
+    "2026-08-12",
+    "2026-08-13",
+    "2026-08-14",
+    "2026-08-15",
+    "2026-08-16",
+    "2026-08-17",
+    "2026-08-18",
+    "2026-08-19",
+    "2026-08-20",
+    "2026-08-21",
+    "2026-08-22",
+    "2026-08-23",
+    "2026-08-24",
+    "2026-08-25",
+    "2026-08-26",
+    "2026-08-27",
+    "2026-08-28",
+    "2026-08-29",
+    "2026-08-30",
+    "2026-08-31"
+  ]
+}
