@@ -15,6 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from annual_snow_corrections import corrected_snow, CORRECTION
+from annual_quality_rules import accepted_value, clean_temperature_fields, quality_level, RULES_VERSION
 import update_station_records as dwd
 import build_dwd_annual_tropical_nights as tu
 
@@ -127,12 +128,17 @@ def read_station(files, sid, family, today):
             for key,(rawval,lo,hi) in fields.items():
                 val=number(rawval,lo,hi)
                 if key=="SHK":val=corrected_snow(sid,day,val)
+                val=accepted_value(sid,key,day,val)
                 if val is not None:
                     daily[day].setdefault(key,(val*3.6 if key=="FX" else val,pre))
     if family=="TU":
         for day,h in hours.items():
             if len(h)==13:
                 daily[day]["night"]=(min(v for v,_ in h.values()),any(p for _,p in h.values()))
+    if family=="KL":
+        for day,row in daily.items():
+            cleaned=clean_temperature_fields({k:v[0] for k,v in row.items()})
+            for k in set(row)-set(cleaned):del row[k]
     return daily
 
 def longest(items,op,limit):
@@ -279,6 +285,7 @@ def main():
     out=dict(version=1,family=family,areas=AREAS,metrics=metrics,records=records,stations=stations,
              data_start=minday.isoformat(),data_through=maxday.isoformat(),station_days=days,
              generated_at=datetime.now(timezone.utc).isoformat())
+    out["quality_rules_version"]=RULES_VERSION
     if family=="KL":out["snow_corrections"]=[CORRECTION]
     path=Path(args.output);path.parent.mkdir(parents=True,exist_ok=True)
     path.write_text(json.dumps(out,ensure_ascii=False,separators=(",",":"),allow_nan=False)+"\n",encoding="utf-8")
