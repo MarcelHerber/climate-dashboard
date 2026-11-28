@@ -12,6 +12,8 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from annual_quality_rules import valid_count
+
 from update_station_records import (
     STATE_ORDER,
     INTERNAL_UNKNOWN,
@@ -282,6 +284,8 @@ class AnnualAccumulator:
             state,
             metadata_key,
         ), info in self.station_years.items():
+            if not valid_count(info["complete"],year,datetime.now(timezone.utc).date()-timedelta(days=1)):
+                continue
             entry = [
                 int(info["tropical"]),
                 metadata_key,
