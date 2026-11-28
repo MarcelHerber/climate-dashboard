@@ -50,6 +50,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-sst.txt
 
+      - name: SST-Tagesklimatologie testen
+        run: python -m unittest discover -s tests -p test_sst_daily_normals.py -v
+
       - name: Earthdata Secret prüfen
         shell: bash
         run: |
@@ -133,18 +136,18 @@ jobs:
           skipped = []
           max_new_dates = 2  # Checkpoint within runner lifetime; never lose 3+ days.
 
-          current = start
-          while current <= latest:
+          current = latest
+          while current >= start:
               iso = current.isoformat()
               if iso in existing:
                   skipped.append(iso)
-                  current += timedelta(days=1)
+                  current -= timedelta(days=1)
                   continue
 
               try:
                   if not mur_date_available(current):
                       print(f"{iso}: kein MUR-Granule verfügbar; bleibt vorerst offen.", flush=True)
-                      current += timedelta(days=1)
+                      current -= timedelta(days=1)
                       continue
 
                   print(f"{iso}: Archivlücke gefunden, wird nachgebaut.", flush=True)
@@ -162,8 +165,10 @@ jobs:
               except Exception as exc:
                   failures.append((iso, repr(exc)))
                   print(f"{iso}: Nachholen fehlgeschlagen: {exc!r}", flush=True)
+                  # Do not hammer NOAA/NASA after a service-wide failure.
+                  break
 
-              current += timedelta(days=1)
+              current -= timedelta(days=1)
               if len(built) >= max_new_dates:
                   print(
                       f"SST: {max_new_dates} neue Tage fertig; "
@@ -172,11 +177,11 @@ jobs:
                   )
                   break
 
-          if built and current <= latest and not failures:
+          if built and current >= start and not failures:
               # Dispatch another bounded batch only AFTER this batch was
               # successfully committed and pushed to the archive branch.
               Path('/tmp/sst-europe-continue.flag').write_text(
-                  f"{current.isoformat()} bis {latest.isoformat()} noch prüfen\n",
+                  f"{start.isoformat()} bis {current.isoformat()} noch prüfen\n",
                   encoding='utf-8',
               )
           print(

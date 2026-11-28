@@ -16,7 +16,8 @@ from .processing import (
     validate_scientific_fields,
 )
 from .render import render_map, validate_rendered_map
-from .sources import download_mur_subset, ensure_oisst_daily_normals
+from .sources import download_mur_subset
+from .daily_normals import ensure_daily_normal
 
 
 @dataclass(frozen=True)
@@ -28,9 +29,11 @@ class BuildResult:
 
 
 class NetworkSourceAdapter:
-    def __init__(self, cache_root: Path, token: str):
+    def __init__(self, cache_root: Path, token: str, day: date, archive_root: Path):
         self.cache_root = cache_root
         self.token = token
+        self.day = day
+        self.normal_root = archive_root / 'normals' / 'oisst-1991-2020-v1'
         self._normal_path: Path | None = None
 
     def fetch_mur(self, day: date, region: Region, path: Path) -> Path:
@@ -38,7 +41,7 @@ class NetworkSourceAdapter:
 
     def normal_dataset(self) -> xr.Dataset:
         if self._normal_path is None:
-            self._normal_path = ensure_oisst_daily_normals(self.cache_root)
+            self._normal_path = ensure_daily_normal(self.day, self.normal_root)
         return xr.open_dataset(self._normal_path, decode_times=False)
 
 
@@ -101,7 +104,7 @@ def build_date(
             reference_method=manifest["dates"][day.isoformat()].get("reference_method"),
         )
 
-    adapter = source_adapter or NetworkSourceAdapter(cache_root, earthdata_token)
+    adapter = source_adapter or NetworkSourceAdapter(cache_root, earthdata_token, day, archive_root)
     staging_parent = archive_root.parent if archive_root.parent.exists() else None
     with tempfile.TemporaryDirectory(prefix=f"sst-{day.isoformat()}-", dir=staging_parent) as tmp:
         staging = Path(tmp)

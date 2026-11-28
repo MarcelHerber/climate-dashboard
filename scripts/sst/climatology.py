@@ -47,6 +47,15 @@ def _sst_variable(normals: xr.Dataset) -> xr.DataArray:
 
 def select_daily_normal(normals: xr.Dataset, day: date) -> tuple[xr.DataArray, str]:
     field = _sst_variable(normals)
+    # Individually archived daily references retain explicit calendar identity.
+    if set(field.dims) == {"lat", "lon"}:
+        expected = day.strftime("%m-%d")
+        method = "feb29_interpolated" if expected == "02-29" else "daily_normal"
+        if (normals.attrs.get("normal_month_day") != expected
+                or normals.attrs.get("reference_period") != "1991-2020"
+                or normals.attrs.get("reference_method") != method):
+            raise RuntimeError("Tagesklimatologie passt nicht zum angeforderten Kalendertag.")
+        return field, method
     non_spatial_dims = [dim for dim in field.dims if dim not in {"lat", "lon"}]
     if len(non_spatial_dims) != 1:
         raise RuntimeError(f"Tagesnormalfeld benötigt genau eine Zeitdimension: {field.dims}")
