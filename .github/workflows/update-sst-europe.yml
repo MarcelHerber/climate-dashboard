@@ -54,6 +54,7 @@ jobs:
         run: |
           python -m unittest discover -s tests -p test_sst_daily_normals.py -v
           python -m unittest discover -s tests -p test_sst_sources.py -v
+          python -m unittest discover -s tests -p test_sst_mur_mirror.py -v
 
       - name: Earthdata Secret prüfen
         shell: bash

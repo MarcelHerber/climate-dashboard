@@ -17,6 +17,7 @@ from .processing import (
 )
 from .render import render_map, validate_rendered_map
 from .sources import download_mur_subset
+from .mur_mirror import download_mur_mirror
 from .daily_normals import ensure_daily_normal
 
 
@@ -37,7 +38,11 @@ class NetworkSourceAdapter:
         self._normal_path: Path | None = None
 
     def fetch_mur(self, day: date, region: Region, path: Path) -> Path:
-        return download_mur_subset(day, region, path, self.token)
+        try:
+            return download_mur_mirror(day, region, path)
+        except Exception as exc:
+            print(f"{day} {region.id}: CoastWatch failed ({exc!r}); trying NASA Harmony.", flush=True)
+            return download_mur_subset(day, region, path, self.token)
 
     def normal_dataset(self) -> xr.Dataset:
         if self._normal_path is None:
