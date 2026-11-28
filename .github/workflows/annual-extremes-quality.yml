@@ -1,0 +1,161 @@
+name: DWD Jahresextreme Qualitätskontrolle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/annual-extremes-quality.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '45 6 * * *'
+  workflow_run:
+    workflows: ['DWD Jahresextreme Erweiterungen', 'DWD jährliche Extremwerte Wind zusammenführen']
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  audit:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: annual-extremes-quality-report
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python -m pip install requests
+      - name: Syntax und QC-Methoden testen
+        run: |
+          python -m py_compile scripts/annual_quality_rules.py scripts/audit_annual_extremes_quality.py scripts/build_dwd_annual_extremes.py scripts/build_annual_extremes_extra.py scripts/build_dwd_annual_tropical_nights.py
+          python -m unittest discover -s tests -p test_annual_quality.py -v
+          python -m unittest discover -s tests -p test_annual_extremes_extra.py -v
+      - name: Alle vorhandenen Jahreswerte und Dekadenarchive prüfen
+        run: python scripts/audit_annual_extremes_quality.py
+      - name: Prüfprotokoll veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name climate-dashboard-bot
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/dwd_annual_quality.json
+          if ! git diff --cached --quiet; then
+            git commit -m "DWD Jahresextreme Qualitätsprotokoll"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+          gh workflow run deploy-pages-only.yml --ref main
+
+  evidence:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: annual-extremes-quality-report
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python -m pip install requests
+      - name: DWD Originalmessungen, Qualitätsstufen, Nachbartage und Nachbarstationen prüfen
+        run: python scripts/audit_annual_extremes_quality.py --neighbours 40
+      - name: Vergleichsprotokoll veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name climate-dashboard-bot
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/dwd_annual_quality.json
+          if ! git diff --cached --quiet; then
+            git commit -m "DWD Originaldaten-Nachbarschaftsprüfung der Jahresextreme"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+          gh workflow run deploy-pages-only.yml --ref main
+
+  legacy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    concurrency:
+      group: dwd-annual-extremes-stage1
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python -m pip install requests
+      - name: Tropennächte mit Vollständigkeitsprüfung
+        run: python scripts/build_dwd_annual_tropical_nights.py
+      - name: Temperatur, Schnee und Tagesniederschlag aus Originalarchiven neu berechnen
+        run: python scripts/build_dwd_annual_extremes.py --output data/dwd_annual_extremes_stage1.json --max-workers 10
+      - name: Vorhandene Windrekorde übernehmen und Hauptarchiv prüfen
+        run: python scripts/merge_dwd_annual_wind_extremes.py
+      - name: Bereinigte Archive veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name climate-dashboard-bot
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/dwd_annual_tropical_nights.json data/dwd_annual_extremes_stage1.json data/dwd_annual_extremes.json
+          if ! git diff --cached --quiet; then
+            git commit -m "DWD Jahresrekorde mit Qualitätsfiltern neu berechnet"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+          gh workflow run deploy-pages-only.yml --ref main
+
+  refresh:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: [legacy, evidence]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: annual-extremes-quality-report
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python -m pip install requests
+      - run: python scripts/audit_annual_extremes_quality.py
+      - name: Aktualisiertes Qualitätsprotokoll veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name climate-dashboard-bot
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/dwd_annual_quality.json
+          if ! git diff --cached --quiet; then
+            git commit -m "DWD Qualitätsprotokoll nach Jahresrekord-Neuberechnung"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+          gh workflow run deploy-pages-only.yml --ref main
