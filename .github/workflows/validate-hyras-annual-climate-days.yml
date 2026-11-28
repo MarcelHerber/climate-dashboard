@@ -1,0 +1,79 @@
+name: HYRAS Kenntage Jahresvergleich DWD
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [scripts/validate_hyras_annual_climate_days.py, .github/workflows/validate-hyras-annual-climate-days.yml]
+permissions:
+  contents: read
+concurrency:
+  group: hyras-annual-climate-days-validation
+  cancel-in-progress: false
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [tasmin, tasmax, pr]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/
+            data/dwd_regional_annual_climate_days.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install numpy xarray netCDF4 requests matplotlib pillow pyproj
+      - run: python scripts/validate_hyras_annual_climate_days.py --selftest
+      - run: python -u scripts/validate_hyras_annual_climate_days.py --group "${{ matrix.group }}" --output "parts/${{ matrix.group }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: climate-days-${{ matrix.group }}
+          path: parts/*.json
+          if-no-files-found: error
+  report:
+    needs: compare
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/
+            data/dwd_regional_annual_climate_days.json
+            data/validation/
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install numpy xarray netCDF4 requests matplotlib pillow pyproj
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: climate-days-*
+          merge-multiple: true
+          path: parts/
+      - run: python scripts/validate_hyras_annual_climate_days.py --merge parts/*.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HYRAS-DWD-Jahresvergleich
+          path: data/validation/hyras_annual_climate_days_comparison.*
+      - name: Save validation only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/validation/hyras_annual_climate_days_comparison.json data/validation/hyras_annual_climate_days_comparison.csv
+          git diff --cached --quiet && exit 0
+          git commit -m "data: HYRAS vs DWD seven annual climate-day metrics"
+          for i in 1 2 3 4 5; do
+            git push origin HEAD:main && exit 0
+            git pull --rebase origin main
+          done
+          exit 1
