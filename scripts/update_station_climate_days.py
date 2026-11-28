@@ -33,7 +33,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 13
+STATE_VERSION = 14
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -943,6 +943,7 @@ def build_profile_payload(
         item["id"]: defaultdict(list) for item in CLIMATE_DAYS
     }
     historical_longest_runs = longest_runs_from_observations(observations, limit=5)
+    monthly_counts = {item['id']: defaultdict(lambda: [0, 0]) for item in CLIMATE_DAYS}
     observed_years: set[int] = set()
     daily_tx_record_max: list[float | None] = [None] * 365
     daily_tn_record_min: list[float | None] = [None] * 365
@@ -961,6 +962,13 @@ def build_profile_payload(
         if tn is not None:
             coldest_candidates.append([observation.day.isoformat(), round(float(tn), 1)])
             warmest_night_candidates.append([observation.day.isoformat(), round(float(tn), 1)])
+        # Calendar-month counts include February 29 and require complete measurements.
+        for specification in CLIMATE_DAYS:
+            occurs_month = metric_occurs(specification, tx, tn)
+            if occurs_month is not None:
+                month_bucket = monthly_counts[specification['id']][(observation.day.year, observation.day.month)]
+                month_bucket[1] += 1
+                month_bucket[0] += int(occurs_month)
         index = non_leap_index(observation.day)
         if index is not None:
             if tx is not None and (daily_tx_record_max[index] is None or tx > daily_tx_record_max[index]):
@@ -1113,6 +1121,11 @@ def build_profile_payload(
         "reference_years_by_metric": reference_years_by_metric,
         "minimum_period_coverage": MIN_PERIOD_COVERAGE,
         "counts": counts,
+        "monthly_counts": {
+            metric: [[year, month, count, valid] for (year, month), (count, valid) in sorted(buckets.items())
+                     if valid == (date(year + (month == 12), month % 12 + 1, 1) - date(year, month, 1)).days]
+            for metric, buckets in monthly_counts.items()
+        },
         "climate_mean_cumulative": climate_mean_cumulative,
         "historical_event_days": historical_event_days_payload,
         "historical_curve_encoding": "non_leap_day_indices_v1",
