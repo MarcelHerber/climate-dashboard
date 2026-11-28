@@ -79,6 +79,15 @@ def audit(docs):
             for hi,lo in [("txx","tgx"),("txx","tnx"),("tgn","tnn"),("rr720x","rr168x"),("rr168x","rr72x")]:
                 if row.get(hi) and row.get(lo) and row[hi][0]<row[lo][0]:
                     for k in (hi,lo):mark(a,y,k,row[k],"suspect","Inkonsistenz "+hi+" / "+lo+"; auch unterschiedliche Datenverfügbarkeit möglich")
+    for a,ys in rows.items():
+        for y,row in ys.items():
+            for k,e in row.items():
+                if not e or metrics[k].get("kind","extreme")!="extreme":continue
+                sid,day,_=identity(k,e,metrics)
+                if k=="rr24x" and sid=="05779" and day=="2002-08-12" and e[0]==312:
+                    flags["|".join((a,y,k))]=dict(status="confirmed",entry=e,reasons=["DWD Klimastatusbericht 2002: 312 mm"],source="https://www.dwd.de/DE/leistungen/klimastatusbericht/publikationen/ksb2002_pdf/15_2002.pdf?__blob=publicationFile&v=1")
+                if k=="fgx_ge_400" and sid=="05792" and day=="1985-06-12" and abs(e[0]-335)<.5:
+                    flags["|".join((a,y,k))]=dict(status="confirmed",entry=e,reasons=["Dokumentierter Windrekord 335 km/h (gerundet), 12.06.1985"],source="https://www.wettergefahren-fruehwarnung.de/Produkte/Sicher/extrem.html")
     return dict(version=1,rules_version=RULES_VERSION,checked=checked,flags=flags,rules=RULES,
                 generated_at=datetime.now(timezone.utc).isoformat())
 
@@ -148,11 +157,51 @@ def raw_neighbours(report,docs,limit):
         except Exception as exc:evidence["|".join((sid,stamp,field))]={"error":str(exc)}
     report["raw_evidence"]=evidence
 
+
+def compare_decades(report,docs):
+    """Same station and same month-third, not an independent measurement.
+    An older record can corroborate an extremum but cannot prove it valid."""
+    mapping={
+        "dwd_decade_records.json":{"tnn":"tnk_low","txx":"txk_high","tnx":"tnk_high","txn":"txk_low"},
+        "dwd_decade_snow_records.json":{"snox_ge_400":None,"snox_lt_400":None},
+        "dwd_decade_extra_kl.json":{"tgx":"tmk_high","tgn":"tmk_low"},
+        "dwd_decade_precip_records.json":{"rr24x":None}
+    }
+    out={};checked=0;matches=0
+    for filename,keys in mapping.items():
+        path=DATA/filename
+        if not path.exists():continue
+        dec=json.loads(path.read_text(encoding="utf-8"))
+        for doc in docs:
+            for a,ys in doc["records"].items():
+                for y,row in ys.items():
+                    for k,dk in keys.items():
+                        e=row.get(k)
+                        if not e:continue
+                        sid,day,_=identity(k,e,doc["metrics"])
+                        if not day or day>dec["data_through"]:continue
+                        period=f"month-{day[5:7]}-d{min(3,(int(day[8:10])-1)//10+1)}"
+                        root=dec["station_records"] if dk is None else dec["station_records"].get(dk,{})
+                        candidate=root.get(a,{}).get(period,{}).get(sid)
+                        if not candidate:continue
+                        checked+=1
+                        if candidate[1]==day and abs(candidate[0]-e[0])<.11:
+                            matches+=1;continue
+                        direction=doc["metrics"][k].get("direction","desc")
+                        if (direction=="asc" and e[0]<candidate[0]-.11) or (direction!="asc" and e[0]>candidate[0]+.11):
+                            key="|".join((a,y,k))
+                            out[key]=dict(annual=e,decade=candidate,archive=filename)
+                            flag=report["flags"].setdefault(key,dict(status="suspect",entry=e,reasons=[]))
+                            flag["reasons"].append("Abweichung zum älteren Dekadenarchiv; Datenrevision/Abdeckung möglich")
+        del dec
+    report["decade_comparison"]=dict(checked=checked,exact_matches=matches,discrepancies=out)
+
 def main():
     p=argparse.ArgumentParser();p.add_argument("--neighbours",type=int,default=0);args=p.parse_args()
     docs=[json.loads((DATA/f).read_text(encoding="utf-8")) for f in FILES if (DATA/f).exists()]
     assert len(docs)==4,"All four archives required"
     report=audit(docs)
+    compare_decades(report,docs)
     if args.neighbours:raw_neighbours(report,docs,args.neighbours)
     elif OUTPUT.exists():
         previous=json.loads(OUTPUT.read_text(encoding="utf-8"))
