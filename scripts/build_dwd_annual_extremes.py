@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from annual_snow_corrections import corrected_snow, CORRECTION
+from annual_quality_rules import accepted_value, clean_temperature_fields, valid_count, RULES_VERSION
 
 from update_station_records import (
     HISTORICAL_PATTERN,
@@ -231,11 +232,14 @@ def parse_annual_kl_zip(
                 values["tnk"] = round(tnk, 1)
 
             if snow_field:
-                snow = corrected_snow(station_id, day, parse_float(row.get(snow_field)))
+                snow = accepted_value(station_id, 'SHK', day, corrected_snow(station_id, day, parse_float(row.get(snow_field))))
                 # Negative DWD-Fehlwerte niemals als 0 cm interpretieren.
                 if snow is not None and 0.0 <= snow <= 2000.0:
                     values["snow"] = round(snow, 1)
 
+            cleaned = clean_temperature_fields({k.upper(): v for k,v in values.items()})
+            if "TNK" not in cleaned: values.pop("tnk", None)
+            if "TXK" not in cleaned: values.pop("txk", None)
             if values:
                 observations.append(
                     Observation(
@@ -319,6 +323,7 @@ class AnnualAccumulator:
 
         # Bitset verhindert Doppelzählung in historical/recent-Überlappungen.
         self.seen_temp_days: dict[tuple[str, int], int] = {}
+        self.count_cutoff = datetime.now(timezone.utc).date() - __import__('datetime').timedelta(days=1)
 
         self.first_day: date | None = None
         self.last_day: date | None = None
@@ -386,7 +391,7 @@ class AnnualAccumulator:
         bit = 1 << (observation.day.timetuple().tm_yday - 1)
         already_seen = bool(self.seen_temp_days.get(key_day, 0) & bit)
 
-        if not already_seen:
+        if not already_seen and "txk" in values:
             self.seen_temp_days[key_day] = self.seen_temp_days.get(key_day, 0) | bit
 
             count_key = (
@@ -397,6 +402,7 @@ class AnnualAccumulator:
             info = self.counts.get(count_key)
             if info is None:
                 info = {
+                    "valid_txk": 0,
                     "summer_days_max": 0,
                     "hot_days_max": 0,
                     "desert_days_max": 0,
@@ -415,6 +421,7 @@ class AnnualAccumulator:
 
             txk = values.get("txk")
             if txk is not None:
+                info["valid_txk"] += 1
                 # Korrekte klimatologische Definitionen: >=25 / >=30 / >=35 °C.
                 if float(txk) >= 25.0:
                     info["summer_days_max"] += 1
@@ -461,7 +468,7 @@ class AnnualAccumulator:
             self._update_extreme(area, year, metric, entry)
 
     def add_rr(self, observation: Observation) -> None:
-        value = observation.values.get("rsk_high")
+        value = accepted_value(observation.station_id, "RS", observation.day, observation.values.get("rsk_high"))
         if value is None:
             return
         year = observation.day.year
@@ -491,6 +498,7 @@ class AnnualAccumulator:
 
     def finalize_counts(self) -> None:
         for (station_id, year, state), info in self.counts.items():
+            if not valid_count(info["valid_txk"], year, self.count_cutoff): continue
             areas = self._areas(state)
             for metric in (
                 "summer_days_max",
@@ -892,6 +900,7 @@ def main() -> int:
         ),
         "project": "Jährliche Extremwerte",
         "snow_corrections": [CORRECTION],
+        "quality_rules_version": RULES_VERSION,
         "source_template": (
             "Vom Nutzer bereitgestellte Excel-Tabelle "
             "'Extremwerte_Baden-Württemberg.xlsx', Blatt 'Extremwerte'"
