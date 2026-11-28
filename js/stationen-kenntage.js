@@ -1002,6 +1002,79 @@ async function renderStationClimateDaysFrequency(stationOverride=null){
   initializeChartExportButtons();
 }
 
+
+/* Monthly climate days: independent of the legacy 365-day annual comparison. */
+const stationMonthlyDayViews = new Map();
+const stationMonthlyDayMonths = Array.from({length:12},(_,i)=>new Date(2000,i,1).toLocaleDateString("de-DE",{month:"long"}));
+function stationMonthlyDayCurrent(stationId,metric,month){
+  const year=Number(stationClimateDaysIndex.current_year),through=stationClimateDaysIndex.data_through;
+  const expected=new Date(Date.UTC(year,month,0)).getUTCDate(),bit=1<<Number(metric.bit);
+  let count=0,valid=0,elapsed=0;
+  for(let day=1;day<=expected;day++){
+    const iso=year+"-"+String(month).padStart(2,"0")+"-"+String(day).padStart(2,"0");
+    if(iso>through)break;
+    elapsed++;
+    const pair=stationClimateDaysPair(stationId,iso);
+    if(pair && (Number(pair[1])&bit)){valid++;if(Number(pair[0])&bit)count++;}
+  }
+  return {count,valid,elapsed,expected};
+}
+function renderStationMonthlyDays(key,anchorId,profile,stationId,defaultMetric){
+  const anchor=document.getElementById(anchorId)?.closest(".chart-container")||document.getElementById(anchorId)?.parentElement;
+  if(!anchor||!profile||!stationClimateDaysIndex)return;
+  let view=stationMonthlyDayViews.get(key);
+  if(!view){
+    const panel=document.createElement("section");panel.className="chart-container auto";
+    panel.innerHTML='<h2>Monatliche Kenntage seit Messbeginn</h2><div class="controls"><div class="control-group"><label>Kenntag <select data-md="metric"></select></label></div><div class="control-group"><label>Monat <select data-md="month"></select></label></div><div class="control-group"><label>Klimareferenz <select data-md="ref"><option value="1991">1991–2020</option><option value="1961">1961–1990</option><option value="1971">1971–2000</option><option value="1981">1981–2010</option></select></label></div></div><p data-md="status" role="status"></p><div style="height:340px;position:relative"><canvas aria-label="Historische monatliche Kenntage"></canvas></div><p data-md="records"></p><details><summary>Alle Monate und Jahre als Tabelle</summary><div style="overflow:auto;max-height:520px"><table class="anomaly-table"><thead></thead><tbody></tbody></table></div></details><p class="small">Historische Monatssummen nur bei vollständiger Tagesabdeckung, einschließlich 29. Februar. Fehlende Monate bleiben leer. Laufendes Jahr vorläufig; unvollständige Monate werden nicht für historische Rekorde oder Klimamittel verwendet. Klimamittel ab 20 vollständigen Referenzmonaten.</p>';
+    anchor.after(panel);
+    view={panel,chart:null};stationMonthlyDayViews.set(key,view);
+    const metric=panel.querySelector('[data-md="metric"]'),month=panel.querySelector('[data-md="month"]');
+    for(const m of stationClimateDaysIndex.climate_days||[])metric.add(new Option(m.label,m.id));
+    metric.value=defaultMetric||"frost";
+    stationMonthlyDayMonths.forEach((name,i)=>month.add(new Option(name,String(i+1))));
+    month.value=String(Number(stationClimateDaysIndex.data_through.slice(5,7)));
+    for(const select of panel.querySelectorAll("select"))select.addEventListener("change",()=>drawStationMonthlyDays(view));
+  }
+  view.profile=profile;view.stationId=stationId;
+  if(defaultMetric && key==="kenntage")view.panel.querySelector('[data-md="metric"]').value=defaultMetric;
+  drawStationMonthlyDays(view);
+}
+function drawStationMonthlyDays(view){
+  const {panel,profile,stationId}=view;
+  const selected=k=>panel.querySelector('[data-md="'+k+'"]').value;
+  const metric=(stationClimateDaysIndex.climate_days||[]).find(m=>m.id===selected("metric"));
+  if(!metric)return;
+  const month=Number(selected("month")),ref=Number(selected("ref")),year=Number(stationClimateDaysIndex.current_year);
+  const archive=profile.monthly_counts?.[metric.id];
+  const entries=Array.isArray(archive)?archive:[];
+  const history=entries.filter(row=>Number(row[1])===month&&Number(row[0])<year);
+  const lookup=new Map(entries.map(row=>[Number(row[0])*100+Number(row[1]),Number(row[2])]));
+  const refRows=history.filter(row=>row[0]>=ref&&row[0]<=ref+29);
+  const mean=refRows.length>=20?refRows.reduce((a,row)=>a+Number(row[2]),0)/refRows.length:null;
+  const current=stationMonthlyDayCurrent(stationId,metric,month);
+  const start=Math.min(year,...entries.map(row=>Number(row[0])));
+  const years=Array.from({length:year-start+1},(_,i)=>start+i);
+  const data=years.map(y=>y===year?(current.valid?current.count:null):(lookup.get(y*100+month)??null));
+  const status=panel.querySelector('[data-md="status"]');
+  status.textContent=(!Array.isArray(archive)?"Historisches Monatsarchiv steht nach dem vollständigen Datenlauf bereit. ":"")+
+    stationMonthlyDayMonths[month-1]+" "+year+": "+(current.valid?current.count+" Tage ("+current.valid+"/"+current.expected+" gültige Tage, vorläufig)":"noch keine Messwerte")+
+    " · Mittel "+ref+"–"+(ref+29)+": "+(mean===null?"nicht verfügbar":stationClimateDaysFormat(mean,1)+" Tage")+" ("+refRows.length+" vollständige Jahre)";
+  const highest=[...history].sort((a,b)=>b[2]-a[2]||a[0]-b[0]).slice(0,5);
+  const lowest=[...history].sort((a,b)=>a[2]-b[2]||a[0]-b[0]).slice(0,5);
+  const format=rows=>rows.map(r=>r[0]+": "+r[2]).join(" · ");
+  panel.querySelector('[data-md="records"]').textContent=history.length?"Höchste Werte: "+format(highest)+" | Niedrigste Werte: "+format(lowest):"Keine vollständigen historischen Monatswerte.";
+  if(view.chart)view.chart.destroy();
+  view.chart=new Chart(panel.querySelector("canvas"),{type:"bar",data:{labels:years.map(String),datasets:[
+    {label:metric.label,data,backgroundColor:years.map(y=>y===year?"#d97706":stationClimateDaysHexToRgba(metric.color,.65))},
+    ...(mean===null?[]:[{type:"line",label:"Mittel "+ref+"–"+(ref+29),data:years.map(()=>mean),borderColor:"#64748b",borderWidth:2,borderDash:[5,4],pointRadius:0,order:-1}])
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:metric.label+" im "+stationMonthlyDayMonths[month-1]},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:18}},y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:"Tage"}}}}});
+  panel.querySelector("thead").innerHTML="<tr><th>Jahr</th>"+stationMonthlyDayMonths.map(m=>"<th>"+m.slice(0,3)+"</th>").join("")+"</tr>";
+  panel.querySelector("tbody").innerHTML=[...years].reverse().map(y=>"<tr><th>"+y+(y===year?"*":"")+"</th>"+stationMonthlyDayMonths.map((_,i)=>{
+    if(y===year){const v=stationMonthlyDayCurrent(stationId,metric,i+1);return "<td>"+(v.valid?v.count+(v.valid<v.expected?"*":""):"–")+"</td>";}
+    return "<td>"+(lookup.get(y*100+i+1)??"–")+"</td>";
+  }).join("")+"</tr>").join("");
+}
+
 async function updateStationClimateDays(){
   if(!stationClimateDaysIndex) return;
   const stationId=document.getElementById("stationClimateDaysStationSelect").value;
@@ -1024,6 +1097,7 @@ async function updateStationClimateDays(){
     stationClimateDaysProfile=await profileResponse.json();
     renderStationClimateValuesTable(station);
     renderStationClimateDaysFrequency(station);
+    try{renderStationMonthlyDays("kenntage","stationClimateDaysCumulativeChart",stationClimateDaysProfile,stationId,metric.id);}catch(error){console.error("Monatliche Kenntage:",error);}
 
     const currentPeriod=stationClimateDaysCurrentPeriod(stationId,metric,period.id);
     const currentCumulative=stationClimateDaysCurrentCumulative(stationId,metric);
