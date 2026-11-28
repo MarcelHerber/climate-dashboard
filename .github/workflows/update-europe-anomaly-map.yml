@@ -59,8 +59,8 @@ jobs:
           PY
 
   build:
-    # A targeted push can launch Stage A without changing the manual-dispatch defaults.
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[anomaly-baseline-a]')))
+    # Targeted pushes launch only the explicitly selected historical stage.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[anomaly-baseline-a]') || contains(github.event.head_commit.message, '[anomaly-baseline-b1]'))))
     needs: self-test
     permissions:
       contents: write
@@ -90,6 +90,24 @@ jobs:
           key: europe-anomaly-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             europe-anomaly-v1-${{ steps.dates.outputs.base_year }}-
+      - name: Bestehende Stufe A vor B1 prüfen
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[anomaly-baseline-b1]')
+        shell: bash
+        env:
+          YEAR: ${{ steps.dates.outputs.year }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os, sys
+          from pathlib import Path
+          sys.path.insert(0, "scripts")
+          import europe_anomaly_sources as src
+          ctx = src.Ctx(year=int(os.environ["YEAR"]), cache_dir=Path(".cache/europe-anomaly"))
+          missing = [spec.key for spec in src.SPECS if spec.stage == "A" and not src.engine_cache_path(ctx, spec.key).is_file()]
+          if missing:
+              raise SystemExit("Stufe-A-Cache fehlt: " + ", ".join(missing) + "; B1 nicht gestartet.")
+          print("Alle vier Stufe-A-Engine-Caches vorhanden.")
+          PY
       - name: Gewählte historische und aktuelle Daten abrufen
         id: generate
         timeout-minutes: 300
@@ -97,7 +115,7 @@ jobs:
         env:
           AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
           FROST_CLIENT_ID: ${{ secrets.FROST_CLIENT_ID }}
-          SOURCES: ${{ inputs.sources || 'A' }}
+          SOURCES: ${{ inputs.sources || (contains(github.event.head_commit.message, '[anomaly-baseline-b1]') && 'B1' || 'A') }}
           BASELINE_ONLY: ${{ github.event_name == 'push' || inputs.baseline_only }}
           FORCE_BASELINE: ${{ inputs.force_baseline }}
           YEAR: ${{ steps.dates.outputs.year }}
@@ -108,11 +126,36 @@ jobs:
           if [[ "$BASELINE_ONLY" == "true" ]]; then args+=(--baseline-only --strict); fi
           python scripts/update_europe_anomaly_map.py "${args[@]}"
       - name: Auch unvollständige Baseline-Zwischenstände sichern
-        if: always() && steps.generate.outcome != 'skipped'
+        id: save_cache
+        if: always() && !cancelled() && steps.generate.outcome != 'skipped'
         uses: actions/cache/save@v5
         with:
           path: .cache/europe-anomaly
           key: europe-anomaly-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Nur eigene ältere Anomalie-Caches aufräumen
+        if: always() && !cancelled() && steps.save_cache.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREFIX: europe-anomaly-v1-${{ steps.dates.outputs.base_year }}-
+          NEW_KEY: europe-anomaly-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          caches=$(gh cache list --key "$PREFIX" --ref refs/heads/main --sort created_at --order desc --limit 100 --json id,key,ref,sizeInBytes)
+          own=$(jq -c --arg prefix "$PREFIX" '[.[] | select(.ref == "refs/heads/main" and (.key | startswith($prefix)))]' <<< "$caches")
+          # Cache action may return success without an actual upload. Verify the exact new key first.
+          if ! jq -e --arg key "$NEW_KEY" 'any(.[]; .key == $key and .sizeInBytes > 0)' <<< "$own" >/dev/null; then
+            echo "::warning::Neuer Cache nicht eindeutig nachweisbar; es wird kein Cache gelöscht."
+            exit 0
+          fi
+          jq -r '.[] | "\(.key): \(.sizeInBytes) Bytes"' <<< "$own"
+          # Keep the new snapshot and the newest previous snapshot. Never touch other workflow prefixes.
+          obsolete=$(jq -r --arg key "$NEW_KEY" '[.[] | select(.key != $key)] | .[1:] | .[].id' <<< "$own")
+          while IFS= read -r cache_id; do
+            [[ -z "$cache_id" ]] && continue
+            [[ "$cache_id" =~ ^[0-9]+$ ]] || exit 1
+            gh cache delete "$cache_id"
+          done <<< "$obsolete"
       - name: Kartenexport prüfen und bisherige Quellen schützen
         if: github.event_name == 'workflow_dispatch' && inputs.baseline_only == false
         shell: bash
